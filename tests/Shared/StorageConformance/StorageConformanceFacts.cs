@@ -245,6 +245,34 @@ public abstract class StorageConformanceFacts : IDisposable
     }
 
     [Fact]
+    public void SetJobParameter_InATransaction_OfAJobThatDoesNotExist_IsIgnored_AndTheOtherWritesAreCommitted()
+    {
+        Assert.SkipUnless(Storage.HasFeature(JobStorageFeatures.Transaction.SetJobParameter), "The storage doesn't set parameters in transactions.");
+        string id = CreateJob("x");
+
+        Write(x =>
+        {
+            // A job that is gone (expired, purged) by the time the transaction is committed: its parameter has
+            // nowhere to go, and what else the transaction writes is still wanted
+            JobStorageTransaction transaction = (JobStorageTransaction)x;
+            transaction.SetJobParameter("987654321", "Owner", "nobody");
+            transaction.SetJobParameter(id, "Owner", "tests");
+            transaction.SetJobParameter("987654321", "Culture", "fr-FR");
+            x.SetJobState(id, new ScheduledState(TimeSpan.FromHours(1)));
+            x.AddToSet("with-a-missing-job", "value");
+            x.IncrementCounter("with-a-missing-job");
+        });
+
+        Assert.Null(Connection(x => x.GetJobParameter("987654321", "Owner")));
+        Assert.Null(Connection(x => x.GetJobData("987654321")));
+        Assert.Null(Storage.GetMonitoringApi().JobDetails("987654321"));
+        Assert.Equal("tests", Connection(x => x.GetJobParameter(id, "Owner")));
+        Assert.Equal(ScheduledState.StateName, Connection(x => x.GetStateData(id))?.Name);
+        Assert.Equal(["value"], Connection(x => x.GetAllItemsFromSet("with-a-missing-job")));
+        Assert.Equal(1, ExtendedConnection(x => x.GetCounter("with-a-missing-job")));
+    }
+
+    [Fact]
     public void SetJobParameter_InATransaction_WhoseCommitFails_IsNotWritten()
     {
         Assert.SkipUnless(Storage.HasFeature(JobStorageFeatures.Transaction.SetJobParameter), "The storage doesn't set parameters in transactions.");
