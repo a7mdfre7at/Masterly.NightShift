@@ -1,3 +1,4 @@
+using Masterly.NightShift.Server;
 using LogLevel = Masterly.NightShift.Logging.LogLevel;
 
 namespace Masterly.NightShift.Core.Tests;
@@ -761,6 +762,136 @@ public sealed class DeploymentFencingFacts : IDisposable
         Assert.Equal("v2", DeploymentFencing.GetCurrentDeployment(_storage.Object));
     }
 
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache and the log provider")]
+    public void Check_WarnsAFencedServer_OnceThreeChecksInARowCameAfterAGap_NotBefore()
+    {
+        RecordingLogProvider recording = new();
+        DeploymentFencingProcess older = new("v1", 1);
+        Check(older, "old-server", 0);
+        Check(new DeploymentFencingProcess("v2", 2), "new-server", 5);
+
+        int warningsAfterTwoGaps;
+        using (recording.Use())
+        {
+            // 23 seconds apart, more than one and a half check intervals: each check comes after a gap
+            Check(older, "old-server", 23);
+            Check(older, "old-server", 46);
+            warningsAfterTwoGaps = GapWarnings(recording).Length;
+
+            Check(older, "old-server", 69);
+        }
+
+        Assert.Equal(0, warningsAfterTwoGaps);
+        RecordingLogProvider.LogEntry warning = Assert.Single(GapWarnings(recording));
+        Assert.Equal(LogLevel.Warn, warning.Level);
+        Assert.Equal(
+            "The last 3 checks of this server of deployment 'v1' each came too long after the one before: the last one " +
+            "after 00:00:23, with a check interval of 00:00:15 and at most 00:00:22.5000000 between two checks to watch " +
+            "without a gap. It therefore can't judge whether the current deployment 'v2' is silent, and will not take " +
+            "over from it while this lasts. Raise DeploymentFencing.CheckInterval, and TakeOverAfter with it, or fix " +
+            "the latency of the storage, so that a check takes less than half a check interval.",
+            warning.Message);
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache and the log provider")]
+    public void Check_RepeatsTheWarningAboutItsGaps_AtMostOnceAnHour()
+    {
+        RecordingLogProvider recording = new();
+        DeploymentFencingProcess older = new("v1", 1);
+        Check(older, "old-server", 0);
+        Check(new DeploymentFencingProcess("v2", 2), "new-server", 5);
+
+        int warningsWithinTheHour;
+        using (recording.Use())
+        {
+            // The first warning comes with the check at 69; the check at 3657 is the last one within the hour after it
+            foreach (int i in Enumerable.Range(1, 159))
+            {
+                Check(older, "old-server", 23 * i);
+            }
+
+            warningsWithinTheHour = GapWarnings(recording).Length;
+            Check(older, "old-server", 23 * 160);
+        }
+
+        Assert.Equal(1, warningsWithinTheHour);
+        RecordingLogProvider.LogEntry[] warnings = GapWarnings(recording);
+        Assert.Equal(2, warnings.Length);
+        Assert.StartsWith("The last 160 checks of this server of deployment 'v1'", warnings[1].Message, StringComparison.Ordinal);
+        Assert.Equal("v2", DeploymentFencing.GetCurrentDeployment(_storage.Object));
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache and the log provider")]
+    public void Check_CountsItsGapsFromTheStart_AfterACheckThatCameInTime()
+    {
+        RecordingLogProvider recording = new();
+        DeploymentFencingProcess older = new("v1", 1);
+        Check(older, "old-server", 0);
+        Check(new DeploymentFencingProcess("v2", 2), "new-server", 5);
+
+        int warningsBeforeTheThirdGapInARow;
+        using (recording.Use())
+        {
+            // Two gaps, a check 15 seconds after the one before, then two gaps again: never three in a row
+            Check(older, "old-server", 23);
+            Check(older, "old-server", 46);
+            Check(older, "old-server", 61);
+            Check(older, "old-server", 84);
+            Check(older, "old-server", 107);
+            warningsBeforeTheThirdGapInARow = GapWarnings(recording).Length;
+
+            Check(older, "old-server", 130);
+        }
+
+        Assert.Equal(0, warningsBeforeTheThirdGapInARow);
+        RecordingLogProvider.LogEntry warning = Assert.Single(GapWarnings(recording));
+        Assert.StartsWith("The last 3 checks of this server of deployment 'v1'", warning.Message, StringComparison.Ordinal);
+        Assert.Contains("the last one after 00:00:23,", warning.Message, StringComparison.Ordinal);
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache and the log provider")]
+    public void Check_DoesNotRepeatTheWarningAboutItsGaps_WhenTheyComeBackWithinTheHour()
+    {
+        RecordingLogProvider recording = new();
+        DeploymentFencingProcess older = new("v1", 1);
+        Check(older, "old-server", 0);
+        Check(new DeploymentFencingProcess("v2", 2), "new-server", 5);
+
+        using (recording.Use())
+        {
+            // Three gaps, a check in time, then three gaps again: a server whose checks are sometimes in time
+            // would otherwise repeat the warning every few checks
+            Check(older, "old-server", 23);
+            Check(older, "old-server", 46);
+            Check(older, "old-server", 69);
+            Check(older, "old-server", 84);
+            Check(older, "old-server", 107);
+            Check(older, "old-server", 130);
+            Check(older, "old-server", 153);
+        }
+
+        Assert.Single(GapWarnings(recording));
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache and the log provider")]
+    public void Check_DoesNotWarnAboutTheGaps_OfAServerThatIsNotFenced()
+    {
+        RecordingLogProvider recording = new();
+        DeploymentFencingProcess current = new("v2", 2);
+        Check(new DeploymentFencingProcess("v1", 1), "old-server", 0);
+        Check(current, "new-server", 5);
+
+        bool[] fenced;
+        using (recording.Use())
+        {
+            // The server of the current deployment has nothing to take over, however far apart its checks are
+            fenced = [.. Enumerable.Range(1, 10).Select(i => Check(current, "new-server", 5 + (23 * i)))];
+        }
+
+        Assert.All(fenced, static x => Assert.False(x));
+        Assert.DoesNotContain(recording.Entries, static x => x.Level == LogLevel.Warn);
+    }
+
     [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
     public void Check_ThatFails_DoesNotCountAsACheck_SoTheGapStaysOpen()
     {
@@ -814,6 +945,104 @@ public sealed class DeploymentFencingFacts : IDisposable
         ];
 
         Assert.Equal([true, true, true, false], fenced);
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
+    public void Gate_KeepsAWorkerFromRunning_UntilTheFirstCheckHasPausedTheFencedServer()
+    {
+        Check(new DeploymentFencingProcess("v2", 2), "new-server", 0);
+        DeploymentFencingProcess older = new("v1", 1);
+        bool? pausedWhenTheWorkerRan = null;
+        Mock<IBackgroundProcess> worker = new();
+        worker
+            .Setup(x => x.Execute(It.IsAny<BackgroundProcessContext>()))
+            .Callback(() => pausedWhenTheWorkerRan = DrainMode.Read(_storage.Connection.Object).IsServerPaused("old-server"));
+        GatedWorker gated = new(worker.Object, older.Gate);
+
+        // The server is stopping, so the wait ends at once: a worker that didn't wait would have run
+        Assert.ThrowsAny<OperationCanceledException>(() => gated.Execute(Context("old-server", new CancellationToken(canceled: true))));
+        bool openBeforeTheCheck = older.Gate.IsOpen;
+        worker.Verify(x => x.Execute(It.IsAny<BackgroundProcessContext>()), Times.Never);
+
+        bool fenced = Check(older, "old-server", 5);
+        gated.Execute(Context("old-server", CancellationToken.None));
+
+        Assert.False(openBeforeTheCheck);
+        Assert.True(fenced);
+        Assert.True(older.Gate.IsOpen);
+        Assert.True(pausedWhenTheWorkerRan);
+        worker.Verify(x => x.Execute(It.IsAny<BackgroundProcessContext>()), Times.Once);
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
+    public void Gate_StaysClosed_WhileTheFirstCheckFails_AndOpensWithTheFirstCheckThatSucceeds()
+    {
+        bool storageDown = true;
+        _storage.Connection.When(() => storageDown).Setup(x => x.CreateWriteTransaction()).Throws(new InvalidOperationException("storage down"));
+        _storage.Hashes[DeploymentFencing.HashKey] = new Dictionary<string, string>
+        {
+            ["Current"] = "v2",
+            ["Seen:v2"] = DeploymentFencing.FormatSeen(Now, 7, TimeSpan.FromSeconds(15)),
+            ["Seen:v1"] = DeploymentFencing.FormatSeen(Now, 3, TimeSpan.FromSeconds(15)),
+        };
+        DeploymentFencingProcess started = new("v1");
+        Mock<IBackgroundProcess> worker = new();
+        GatedWorker gated = new(worker.Object, started.Gate);
+
+        // The check reads the hash, then fails: it has decided nothing, and the server isn't paused
+        Assert.Throws<InvalidOperationException>(() => Check(started, "old-server", 0));
+        bool openAfterTheFailure = started.Gate.IsOpen;
+        Assert.ThrowsAny<OperationCanceledException>(() => gated.Execute(Context("old-server", new CancellationToken(canceled: true))));
+        worker.Verify(x => x.Execute(It.IsAny<BackgroundProcessContext>()), Times.Never);
+
+        storageDown = false;
+        bool fenced = Check(started, "old-server", 1);
+
+        Assert.False(openAfterTheFailure);
+        Assert.True(fenced);
+        Assert.True(started.Gate.IsOpen);
+        Assert.True(DrainMode.Read(_storage.Connection.Object).IsServerPaused("old-server"));
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
+    public void Gate_Opens_ForAServerOfTheCurrentDeployment_AndStaysOpen()
+    {
+        DeploymentFencingProcess current = new("v1");
+        Mock<IBackgroundProcess> worker = new();
+        GatedWorker gated = new(worker.Object, current.Gate);
+
+        Assert.False(Check(current, "server-1", 0));
+        gated.Execute(Context("server-1", CancellationToken.None));
+
+        // Fenced later by a newer deployment: the pause holds its jobs from then on, the gate isn't closed again
+        Check(new DeploymentFencingProcess("v2"), "new-server", 5);
+        Assert.True(Check(current, "server-1", 15));
+        gated.Execute(Context("server-1", CancellationToken.None));
+
+        Assert.True(current.Gate.IsOpen);
+        Assert.False(DrainMode.Read(_storage.Connection.Object).IsServerPaused("new-server"));
+        worker.Verify(x => x.Execute(It.IsAny<BackgroundProcessContext>()), Times.Exactly(2));
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the log provider")]
+    public void Gate_SaysOnce_ThatTheServerWaitsForItsFirstCheck()
+    {
+        RecordingLogProvider recording = new();
+        DeploymentFencingGate gate = new("v1");
+
+        using (recording.Use())
+        {
+            Assert.ThrowsAny<OperationCanceledException>(() => gate.Wait(Context("server-1", new CancellationToken(canceled: true))));
+            Assert.ThrowsAny<OperationCanceledException>(() => gate.Wait(Context("server-1", new CancellationToken(canceled: true))));
+            gate.Open();
+            gate.Wait(Context("server-1", CancellationToken.None));
+        }
+
+        RecordingLogProvider.LogEntry entry = Assert.Single(recording.Entries);
+        Assert.Equal(LogLevel.Debug, entry.Level);
+        Assert.Equal(
+            "Server 'server-1' takes no jobs until its first deployment check has decided whether deployment 'v1' is fenced.",
+            entry.Message);
     }
 
     [Fact, StaticLock]
@@ -882,6 +1111,18 @@ public sealed class DeploymentFencingFacts : IDisposable
 
     private Dictionary<string, string> Hash => _storage.Hashes[DeploymentFencing.HashKey];
 
+    private BackgroundProcessContext Context(string serverId, CancellationToken stoppingToken)
+    {
+        return new BackgroundProcessContext(
+            serverId,
+            _storage.Object,
+            new Dictionary<string, object>(),
+            Guid.NewGuid(),
+            stoppingToken,
+            CancellationToken.None,
+            CancellationToken.None);
+    }
+
     // One check of a server, so many seconds after the start. The server's wall clock may be ahead of or behind the
     // others, and its monotonic clock counts the same seconds from an origin of its own
     private bool Check(DeploymentFencingProcess process, string serverId, double seconds, TimeSpan clockDifference = default, TimeSpan uptimeOrigin = default)
@@ -901,6 +1142,12 @@ public sealed class DeploymentFencingFacts : IDisposable
         Check(process, serverId, seconds);
         DeploymentFencing.CheckInterval = TimeSpan.FromSeconds(15);
         DeploymentFencing.TakeOverAfter = TimeSpan.FromSeconds(30);
+    }
+
+    // The warnings of a fenced server whose own checks are too far apart for it to take over
+    private static RecordingLogProvider.LogEntry[] GapWarnings(RecordingLogProvider recording)
+    {
+        return [.. recording.Entries.Where(static x => x.Message.Contains("will not take over", StringComparison.Ordinal))];
     }
 
     private static List<T> Simulate<T>(int rounds, Func<int, T> round)

@@ -28,7 +28,15 @@ namespace Masterly.NightShift;
 /// higher order, still takes over at once. Silence only counts while the server itself was checking: when more
 /// than one and a half times <see cref="CheckInterval"/> passed since its last check that succeeded (the storage
 /// was down, the process was suspended), it couldn't see what the others did meanwhile, so it starts watching
-/// again, as a server that has just started does.</para>
+/// again, as a server that has just started does. A fenced server whose checks are always that far apart (each
+/// takes more than half a <see cref="CheckInterval"/>, because the storage is slow or the process gets too little
+/// processor time) therefore never takes over: after three such checks in a row it logs a warning that says so,
+/// and repeats it at most once an hour. Raising <see cref="CheckInterval"/>, and <see cref="TakeOverAfter"/> with
+/// it, or making the storage answer faster resolves it.</para>
+/// <para>A server takes no job before its first check: its workers wait until the check has decided whether the
+/// server's deployment is fenced and, when it is, has paused the server. Without that, a server of a fenced
+/// deployment that starts would run the jobs it fetched before its first check. While the first check fails (the
+/// storage is down), the server keeps taking no jobs, logs a warning, and tries the check again.</para>
 /// <para>A deployment order (<see cref="DeploymentOrder"/>, the second argument of <c>UseDeploymentFencing</c>)
 /// tells versions apart: a number that grows with each deploy, kept in the <c>Order:{id}</c> field. When this
 /// deployment and the current one both have an order, the higher one wins: a deployment with a higher order takes
@@ -243,6 +251,12 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
 
     // Checks further apart than this many check intervals leave a gap in which this server saw nothing
     private const double LongestGapInCheckIntervals = 1.5;
+
+    // A fenced server says that it can't take over once this many of its checks in a row came after such a gap,
+    // and again after this long while it lasts
+    private const int GapsInARowBeforeWarning = 3;
+    private static readonly TimeSpan RepeatGapWarningAfter = TimeSpan.FromHours(1);
+
     private static readonly long Started = Stopwatch.GetTimestamp();
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(DeploymentFencingProcess));
 
@@ -254,8 +268,17 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
     // checks follow one another: after a longer gap it can't tell what the other servers did meanwhile
     private TimeSpan? _lastCheck;
 
+    // How many checks in a row, while fenced, came after a gap, and when, by the monotonic clock, the warning about
+    // them was last logged. A server whose every check comes after a gap watches afresh each time, so it never sees
+    // the current deployment silent for long enough to take over
+    private int _gapsInARow;
+    private TimeSpan? _warnedOfGaps;
+
     // The newer deployment this one was last reported fenced by, so the warning is logged once, not at every check
     private string? _fencedByNewer;
+
+    // Whether the warning that the server takes no jobs because its first check failed was logged
+    private bool _warnedOfFirstCheck;
 
     // What the warnings about the configuration were last logged for, so each is logged once
     private (long? Given, long? Stored)? _warnedOrders;
@@ -275,16 +298,41 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
     /// <summary>The order this server was started with. The one that applies is the highest given to the id.</summary>
     public long? DeploymentOrder { get; } = deploymentOrder;
 
+    /// <summary>
+    /// Opened by the first check that went all the way. The workers of the server wait for it before they take
+    /// their first job, see <see cref="GatedWorker"/>.
+    /// </summary>
+    public DeploymentFencingGate Gate { get; } = new(deploymentId);
+
     public void Execute(BackgroundProcessContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        using (IStorageConnection connection = context.Storage.GetConnection())
+        try
         {
+            using IStorageConnection connection = context.Storage.GetConnection();
             Check(connection, context.ServerId, JobClock.UtcNow, Stopwatch.GetElapsedTime(Started));
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            WarnOnceThatTheServerTakesNoJobs(context);
+            throw;
         }
 
         context.Wait(DeploymentFencing.CheckInterval);
+    }
+
+    // The error itself is logged by the loop that runs this process and tries it again. This says what it means
+    // while no check has succeeded yet: the workers wait, so nothing runs on a server that may be fenced
+    private void WarnOnceThatTheServerTakesNoJobs(BackgroundProcessContext context)
+    {
+        if (Gate.IsOpen || _warnedOfFirstCheck || context.IsStopping)
+        {
+            return;
+        }
+
+        _warnedOfFirstCheck = true;
+        Logger.Warn($"The first deployment check of server '{context.ServerId}' failed, so it isn't known whether deployment '{DeploymentId}' is fenced: the server takes no jobs until a check succeeds. The check is tried again.");
     }
 
     /// <summary>Records this deployment, claims the cluster when it may, and pauses or resumes the server. Returns whether it is fenced.</summary>
@@ -301,12 +349,13 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
         long? order;
         bool fenced;
         bool older = false;
+        TimeSpan? gap;
 
         using (connection.AcquireDistributedLock($"lock:{DeploymentFencing.HashKey}", LockTimeout))
         {
             Dictionary<string, string> hash = connection.GetAllEntriesFromHash(DeploymentFencing.HashKey) ?? [];
             current = hash.GetValueOrDefault(DeploymentFencing.CurrentField) is { Length: > 0 } stored ? stored : null;
-            WatchAfreshAfterAGap(uptime);
+            gap = WatchAfreshAfterAGap(uptime);
             Observe(hash, current, uptime);
 
             // One id has one order: the highest any of its servers was started with
@@ -376,9 +425,13 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
         bool fencedByNewer = fenced && older;
         WarnOnceWhenFencedByNewer(fencedByNewer, order, current, currentOrder);
         UpdatePause(connection, serverId, fenced, order, current, fencedByNewer ? currentOrder : null);
+        WarnWhenGapsKeepItFenced(fenced, gap, current, uptime);
 
         // Only a check that went all the way counts: one that failed leaves the gap open
         _lastCheck = uptime;
+
+        // A fenced server is paused by now, so the jobs its workers fetch from here on are handed back
+        Gate.Open();
         return fenced;
     }
 
@@ -387,24 +440,57 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
     // still the one read before the gap doesn't say they are gone. Counting the gap as silence would let a fenced
     // deployment take over from a live one right after an outage, so what was watched before is dropped and the
     // server watches as one that just started. The same goes for what a check that failed has read, when no check
-    // was ever completed
-    private void WatchAfreshAfterAGap(TimeSpan uptime)
+    // was ever completed. Returns the gap since the last completed check when it was too long, or null
+    private TimeSpan? WatchAfreshAfterAGap(TimeSpan uptime)
     {
-        if (_observations.Count == 0)
+        TimeSpan longestGap = LongestGap;
+        TimeSpan? gap = _lastCheck is { } lastCheck ? uptime - lastCheck : null;
+        if (gap <= longestGap)
         {
-            return;
+            return null;
         }
 
-        TimeSpan longestGap = DeploymentFencing.CheckInterval * LongestGapInCheckIntervals;
-        if (_lastCheck is { } lastCheck && uptime - lastCheck <= longestGap)
+        if (_observations.Count == 0)
         {
-            return;
+            return gap;
         }
 
         _observations.Clear();
 
-        string gap = _lastCheck is { } last ? $"for {uptime - last}" : "yet";
-        Logger.Info($"This server of deployment '{DeploymentId}' completed no check {gap}, with at most {longestGap} between two checks to watch without a gap, so it can't tell which deployments ran meanwhile: it watches them afresh, and takes over from a silent one only after {DeploymentFencing.EffectiveTakeOverAfter} more.");
+        string completedNoCheck = gap is { } measured ? $"for {measured}" : "yet";
+        Logger.Info($"This server of deployment '{DeploymentId}' completed no check {completedNoCheck}, with at most {longestGap} between two checks to watch without a gap, so it can't tell which deployments ran meanwhile: it watches them afresh, and takes over from a silent one only after {DeploymentFencing.EffectiveTakeOverAfter} more.");
+        return gap;
+    }
+
+    // The longest time between two checks that still counts as watching without a gap
+    private static TimeSpan LongestGap => DeploymentFencing.CheckInterval * LongestGapInCheckIntervals;
+
+    // One gap is an outage or a pause, and the server takes over later. A gap before every check (each check takes
+    // more than half a check interval because the storage is slow, or the process gets too little processor time)
+    // means that it never will, however long the current deployment is gone, and nothing else would say so. Only
+    // told while fenced: a server of the current deployment has nothing to take over. A check in time, or one
+    // that finds the server no longer fenced, starts the count again; the warning itself comes at most once in
+    // RepeatGapWarningAfter, also when the gaps stop and come back, so checks that are only sometimes in time
+    // don't repeat it every few checks
+    private void WarnWhenGapsKeepItFenced(bool fenced, TimeSpan? gap, string? current, TimeSpan uptime)
+    {
+        if (!fenced || gap is not { } measured)
+        {
+            _gapsInARow = 0;
+            return;
+        }
+
+        _gapsInARow++;
+        if (_gapsInARow < GapsInARowBeforeWarning ||
+            (_warnedOfGaps is { } warned && uptime - warned < RepeatGapWarningAfter))
+        {
+            return;
+        }
+
+        _warnedOfGaps = uptime;
+        Logger.Warn(string.Create(
+            CultureInfo.InvariantCulture,
+            $"The last {_gapsInARow} checks of this server of deployment '{DeploymentId}' each came too long after the one before: the last one after {measured}, with a check interval of {DeploymentFencing.CheckInterval} and at most {LongestGap} between two checks to watch without a gap. It therefore can't judge whether the current deployment '{current}' is silent, and will not take over from it while this lasts. Raise DeploymentFencing.CheckInterval, and TakeOverAfter with it, or fix the latency of the storage, so that a check takes less than half a check interval."));
     }
 
     private static long? Highest(long? first, long? second)
@@ -673,4 +759,54 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
 
     // Since: this server's monotonic time when it first read the value
     private readonly record struct Observation(string Value, TimeSpan Since, bool SawChange);
+}
+
+/// <summary>
+/// What the workers of a server with deployment fencing wait for before they take their first job: the first check
+/// of the server, which decides whether its deployment is fenced and pauses the server when it is. Until then
+/// nothing has paused the server, so a worker that fetched a job would run it, also on a server of a deployment
+/// that a newer one has replaced. Once open it stays open: later checks pause and resume the server.
+/// </summary>
+internal sealed class DeploymentFencingGate(string deploymentId)
+{
+    private static readonly ILog Logger = LogProvider.GetLogger(typeof(DeploymentFencingGate));
+
+    private readonly TaskCompletionSource _decided = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _waitLogged;
+
+    public bool IsOpen => _decided.Task.IsCompleted;
+
+    public void Open() => _decided.TrySetResult();
+
+    /// <summary>Returns once the gate is open.</summary>
+    /// <exception cref="OperationCanceledException">The server is stopping.</exception>
+    public void Wait(BackgroundProcessContext context)
+    {
+        if (IsOpen)
+        {
+            return;
+        }
+
+        if (Interlocked.Exchange(ref _waitLogged, 1) == 0)
+        {
+            Logger.Debug($"Server '{context.ServerId}' takes no jobs until its first deployment check has decided whether deployment '{deploymentId}' is fenced.");
+        }
+
+        _decided.Task.Wait(context.StoppingToken);
+    }
+}
+
+/// <summary>
+/// A worker of a server with deployment fencing: it fetches nothing before the server's first check has decided,
+/// see <see cref="DeploymentFencingGate"/>. After that it costs one read of a flag for each job.
+/// </summary>
+internal sealed class GatedWorker(IBackgroundProcess worker, DeploymentFencingGate gate) : IBackgroundProcess
+{
+    public void Execute(BackgroundProcessContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        gate.Wait(context);
+        worker.Execute(context);
+    }
 }

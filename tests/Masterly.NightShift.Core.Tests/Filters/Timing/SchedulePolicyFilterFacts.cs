@@ -632,7 +632,7 @@ public sealed class SchedulePolicyFilterFacts : IDisposable
     }
 
     [Fact, GlobalLock(Reason = "Changes the clock and the date providers")]
-    public void OnStateElection_LetsTheJobRun_AndClearsTheCount_OnceThePolicyCanBeEvaluated()
+    public void OnStateElection_LetsTheJobRun_AndSetsTheCountToZero_OnceThePolicyCanBeEvaluated()
     {
         FlakyProvider provider = new() { Down = true };
         ScheduleDateProviders.Set("flaky", provider);
@@ -650,7 +650,51 @@ public sealed class SchedulePolicyFilterFacts : IDisposable
         Assert.Equal(Now.AddMinutes(1), Assert.IsType<ScheduledState>(first.Object.CandidateState).EnqueueAt);
         Assert.Equal(Now.AddMinutes(5), Assert.IsType<ScheduledState>(second.Object.CandidateState).EnqueueAt);
         Assert.IsType<EnqueuedState>(third.Object.CandidateState);
+
+        // Not removed: the zero tells the late-start check that the job waited for its policy
+        _storage.Connection.Verify(x => x.SetJobParameter("JobId", SchedulePolicyFilter.CheckAttemptsParameter, "0"), Times.Once);
+        _storage.Connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateElection_WritesNothing_ForAJobThatRunsAgain_WhoseCountIsZeroAlready()
+    {
+        // Held back after its policy let it run, for example by a paused queue, and due once more
+        ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "weekdays", WhenBlocked.Skip, failedChecks: 0);
+
+        _filter.OnStateElection(context.Object);
+
+        Assert.IsType<EnqueuedState>(context.Object.CandidateState);
+        _storage.Connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateElection_RemovesTheZero_WhenAJobThatWaitedBeforeIsMoved()
+    {
+        // The job is late from its new time on, and no longer because it waited for its policy
+        JobClock.TimeProvider = new FixedClock(new DateTimeOffset(Saturday));
+        ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "weekdays", WhenBlocked.MoveForward, failedChecks: 0);
+
+        _filter.OnStateElection(context.Object);
+
+        Assert.Equal(NextMonday, Assert.IsType<ScheduledState>(context.Object.CandidateState).EnqueueAt);
         _storage.Connection.Verify(x => x.SetJobParameter("JobId", SchedulePolicyFilter.CheckAttemptsParameter, null), Times.Once);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateElection_StartsTheCountAgain_ForAJobThatWaitedBefore()
+    {
+        AddPolicyWithAMissingProvider();
+        ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "holidays", WhenBlocked.Skip, failedChecks: 0);
+
+        _filter.OnStateElection(context.Object);
+
+        ScheduledState state = Assert.IsType<ScheduledState>(context.Object.CandidateState);
+        Assert.Equal(Now.AddMinutes(1), state.EnqueueAt);
+
+        _filter.OnStateApplied(Applying(state, afterCommit: null), new Mock<IWriteOnlyTransaction>().Object);
+
+        _storage.Connection.Verify(x => x.SetJobParameter("JobId", SchedulePolicyFilter.CheckAttemptsParameter, "1"), Times.Once);
     }
 
     [Fact, GlobalLock(Reason = "Changes the clock")]
@@ -695,9 +739,9 @@ public sealed class SchedulePolicyFilterFacts : IDisposable
     }
 
     [Fact, GlobalLock(Reason = "Changes the clock")]
-    public void OnStateElection_LetsTheJobRun_WhenTheCountCanNotBeCleared()
+    public void OnStateElection_LetsTheJobRun_WhenTheCountCanNotBeSetToZero()
     {
-        _storage.Connection.Setup(x => x.SetJobParameter("JobId", SchedulePolicyFilter.CheckAttemptsParameter, null))
+        _storage.Connection.Setup(x => x.SetJobParameter("JobId", SchedulePolicyFilter.CheckAttemptsParameter, It.IsAny<string>()))
             .Throws(new InvalidOperationException("storage down"));
         ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "weekdays", WhenBlocked.Skip, failedChecks: 2);
 

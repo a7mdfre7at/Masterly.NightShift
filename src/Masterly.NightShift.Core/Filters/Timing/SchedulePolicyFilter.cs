@@ -31,14 +31,22 @@ namespace Masterly.NightShift;
 /// its time and is checked when it is due. Waiting isn't a retry: the attempts of
 /// <see cref="AutomaticRetryAttribute"/> aren't used up, and the moment the job was meant to run
 /// (<see cref="PerformContext.ScheduledFor"/>) stays, so <see cref="ScheduleOptions.SkipAfter"/> still counts from
-/// it.</para>
+/// it. A job that is skipped as late after such a wait says so in its reason, see
+/// <see cref="SkipIfLateAttribute"/>.</para>
 /// </remarks>
 public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IApplyStateFilter
 {
     /// <summary>
     /// The <c>PolicyCheckAttempts</c> job parameter: how many times in a row the job's policy couldn't be evaluated
-    /// when the job was to run. Cleared once the policy can be evaluated again.
+    /// when the job was to run. Once the policy can be evaluated again it is set to zero when the policy lets the
+    /// job run, and cleared when the policy moves or skips the job.
     /// </summary>
+    /// <remarks>
+    /// The zero records that the job waited for its policy: the policy filter runs when the job is enqueued and the
+    /// late-start check (<see cref="SkipIfLateAttribute"/>, <see cref="ScheduleOptions.SkipAfter"/>) when a worker
+    /// starts it, so this parameter is what tells that check why the job is late. A job moved to a new time is
+    /// late from that time on, so nothing is kept for it.
+    /// </remarks>
     public const string CheckAttemptsParameter = "PolicyCheckAttempts";
 
     private const string SkippedPrefix = "Skipped";
@@ -156,18 +164,18 @@ public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IAp
 
         DateTime now = JobClock.UtcNow;
         SchedulePolicyDecision decision = calendar.Evaluate(now, out SchedulePolicyFailure? failure);
-        int failedChecks = ReadFailedChecks(context);
+        int? failedChecks = ReadFailedChecks(context);
 
         if (failure != null)
         {
             // Neither allowed nor blocked: the job isn't run, and it isn't skipped either, whatever WhenBlocked says
-            Wait(context, name, failure, now, failedChecks);
+            Wait(context, name, failure, now, failedChecks ?? 0);
             return;
         }
 
-        if (failedChecks > 0)
+        if (failedChecks.HasValue)
         {
-            ClearFailedChecks(context);
+            EndFailedChecks(context, failedChecks.Value, runs: decision.Allowed);
         }
 
         if (decision.Allowed)
@@ -341,31 +349,46 @@ public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IAp
         }
     }
 
-    // A count that can't be read starts again: it only chooses the delay
-    private static int ReadFailedChecks(ElectStateContext context)
+    // The checks that failed in a row, or null for a job that never waited for its policy. A count that can't be
+    // read starts again: it only chooses the delay
+    private static int? ReadFailedChecks(ElectStateContext context)
     {
         try
         {
-            return Math.Max(context.GetJobParameter<int>(CheckAttemptsParameter, allowStale: true), 0);
+            return context.GetJobParameter<int?>(CheckAttemptsParameter, allowStale: true) is { } failedChecks
+                ? Math.Max(failedChecks, 0)
+                : null;
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
             Logger.DebugException($"Job parameter '{CheckAttemptsParameter}' of background job '{context.BackgroundJob.Id}' can't be read, so its policy checks are counted from the start.", ex);
-            return 0;
+            return null;
         }
     }
 
-    // The policy was evaluated, whatever state the job ends in, so the count is cleared at once. A count that stays
-    // only makes a later wait longer, so failing to clear it doesn't fail the state change
-    private static void ClearFailedChecks(ElectStateContext context)
+    // The policy was evaluated, whatever state the job ends in, so the checks that failed in a row end at once. A
+    // job that runs now keeps the parameter, at zero: this filter runs when the job is enqueued and the late-start
+    // check when a worker starts it, so the zero is what tells that check that the job waited for its policy, when
+    // it skips the job as late. A job that is moved is late from its new time on, and one that is skipped is gone,
+    // so nothing is kept for them. A count that stays only makes a later wait longer, so failing to write doesn't
+    // fail the state change
+    private static void EndFailedChecks(ElectStateContext context, int failedChecks, bool runs)
     {
+        if (runs && failedChecks == 0)
+        {
+            return;
+        }
+
         try
         {
-            context.Connection.SetJobParameter(context.BackgroundJob.Id, CheckAttemptsParameter, null);
+            context.Connection.SetJobParameter(
+                context.BackgroundJob.Id,
+                CheckAttemptsParameter,
+                runs ? SerializationHelper.Serialize(0, SerializationOption.User) : null);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
-            Logger.WarnException($"Job parameter '{CheckAttemptsParameter}' of background job '{context.BackgroundJob.Id}' couldn't be cleared.", ex);
+            Logger.WarnException($"Job parameter '{CheckAttemptsParameter}' of background job '{context.BackgroundJob.Id}' couldn't be {(runs ? "set to zero" : "cleared")}.", ex);
         }
     }
 

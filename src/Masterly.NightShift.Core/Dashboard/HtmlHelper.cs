@@ -300,8 +300,8 @@ public class HtmlHelper
 
     public NonEscapedString QueueLabel(string queue)
     {
-        string label = queue != null 
-            ? $"<a href=\"{HtmlEncode(Page.Url.Queue(queue))}\">{HtmlEncode(queue)}</a>" 
+        string label = queue != null
+            ? $"<a href=\"{HtmlEncode(Page.Url.Queue(queue))}\">{HtmlEncode(queue)}</a>"
             : $"<span class=\"label label-danger\"><i>{HtmlEncode(Strings.Common_Unknown)}</i></span>";
 
         return new NonEscapedString(label);
@@ -320,14 +320,22 @@ public class HtmlHelper
 
     private static readonly StackTraceHtmlFragments StackTraceHtmlFragments = new()
     {
-        BeforeFrame         = "<span class='st-frame'>"                            , AfterFrame         = "</span>",
-        BeforeType          = "<span class='st-type'>"                             , AfterType          = "</span>",
-        BeforeMethod        = "<span class='st-method'>"                           , AfterMethod        = "</span>",
-        BeforeParameters    = "<span class='st-params'>"                           , AfterParameters    = "</span>",
-        BeforeParameterType = "<span class='st-param'><span class='st-param-type'>", AfterParameterType = "</span>",
-        BeforeParameterName = "<span class='st-param-name'>"                       , AfterParameterName = "</span></span>",
-        BeforeFile          = "<span class='st-file'>"                             , AfterFile          = "</span>",
-        BeforeLine          = "<span class='st-line'>"                             , AfterLine          = "</span>",
+        BeforeFrame = "<span class='st-frame'>",
+        AfterFrame = "</span>",
+        BeforeType = "<span class='st-type'>",
+        AfterType = "</span>",
+        BeforeMethod = "<span class='st-method'>",
+        AfterMethod = "</span>",
+        BeforeParameters = "<span class='st-params'>",
+        AfterParameters = "</span>",
+        BeforeParameterType = "<span class='st-param'><span class='st-param-type'>",
+        AfterParameterType = "</span>",
+        BeforeParameterName = "<span class='st-param-name'>",
+        AfterParameterName = "</span></span>",
+        BeforeFile = "<span class='st-file'>",
+        AfterFile = "</span>",
+        BeforeLine = "<span class='st-line'>",
+        AfterLine = "</span>",
     };
 
     public NonEscapedString StackTrace(string? stackTrace)

@@ -125,6 +125,13 @@ internal static class RecurringJobExtensions
                 context.Parameters[SkipIfLateAttribute.WindowParameter] = (long)recurringJob.SkipAfter.Value.TotalSeconds;
             }
 
+            // The occurrence was due while the recurring job waited for a policy that couldn't be evaluated: when
+            // the run is skipped as late, its reason names the policy. Created with the job, so it costs no round trip
+            if (recurringJob.GetPolicyWaitedFor(now) is { } waitedFor)
+            {
+                context.Parameters[SkipIfLateAttribute.WaitedForPolicyParameter] = waitedFor;
+            }
+
             BackgroundJob? backgroundJob = factory.Create(context);
 
             recurringJob.LastExecution = now;

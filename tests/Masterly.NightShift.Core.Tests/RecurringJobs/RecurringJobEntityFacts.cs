@@ -493,6 +493,16 @@ public class RecurringJobEntityFacts
         return new RecurringJobEntity(RecurringJobId, _recurringJob);
     }
 
+    // Writes what the entity changed to the stored job, as the scheduler does at the end of a pass
+    private void Store(RecurringJobEntity entity)
+    {
+        entity.IsChanged(_nowInstant, out IReadOnlyDictionary<string, string> changedFields);
+        foreach (KeyValuePair<string, string> field in changedFields)
+        {
+            _recurringJob[field.Key] = field.Value;
+        }
+    }
+
     private sealed class ThrowingDates : IScheduleDateProvider
     {
         public bool Fails { get; set; } = true;
@@ -517,6 +527,71 @@ public class RecurringJobEntityFacts
 
         Assert.True(entity.WaitsForPolicy);
         Assert.True(stored.WaitsForPolicy);
+    }
+
+    [Fact, StaticLock]
+    public void GetPolicyWaitedFor_NamesThePolicy_ForTheOccurrencesDueWhileTheJobWaitedForIt()
+    {
+        ThrowingDates provider = new();
+        ScheduleDateProviders.Set("flaky", provider);
+        try
+        {
+            // Strict: every missed occurrence runs, with its own time
+            _recurringJob["Misfire"] = "1";
+            RecurringJobEntity first = CreatePolicyEntity(new SchedulePolicy("flaky").ExcludeDatesFrom("flaky"));
+            first.ScheduleNext(UtcResolver(), _nowInstant, _nowInstant.AddHours(1), TimeSpan.Zero);
+            Store(first);
+            string duringTheWait = first.GetPolicyWaitedFor(_nowInstant.Date.AddHours(16));
+
+            // The next pass reads the job, which waits for its policy, and the policy can be evaluated again
+            provider.Fails = false;
+            RecurringJobEntity entity = CreatePolicyEntity(new SchedulePolicy("flaky").ExcludeDatesFrom("flaky"));
+            DateTime now = _nowInstant.Date.AddHours(18);
+            List<DateTime> executions = [.. entity.ScheduleNext(UtcResolver(), _nowInstant, now, TimeSpan.Zero)];
+
+            Assert.Null(duringTheWait);
+            Assert.Equal([_nowInstant.Date.AddHours(16), _nowInstant.Date.AddHours(17), now], executions);
+            Assert.Equal("flaky", entity.GetPolicyWaitedFor(_nowInstant.Date.AddHours(16)));
+            Assert.Equal("flaky", entity.GetPolicyWaitedFor(_nowInstant.Date.AddHours(17)));
+
+            // Due in this very pass: it didn't wait
+            Assert.Null(entity.GetPolicyWaitedFor(now));
+        }
+        finally
+        {
+            ScheduleDateProviders.Clear();
+        }
+    }
+
+    [Fact]
+    public void GetPolicyWaitedFor_IsNull_ForOccurrencesMissedWhileThePolicyCouldBeEvaluated()
+    {
+        // The servers were down for two hours: the occurrences are late, but not because of the policy
+        _recurringJob["Misfire"] = "1";
+        RecurringJobEntity entity = CreatePolicyEntity(new SchedulePolicy("office"));
+        bool beforeScheduling = entity.GetPolicyWaitedFor(_nowInstant.Date.AddHours(16)) != null;
+
+        List<DateTime> executions = [.. entity.ScheduleNext(UtcResolver(), _nowInstant, _nowInstant.Date.AddHours(18), TimeSpan.Zero)];
+
+        Assert.False(beforeScheduling);
+        Assert.Equal(3, executions.Count);
+        Assert.All(executions, execution => Assert.Null(entity.GetPolicyWaitedFor(execution)));
+    }
+
+    [Fact]
+    public void GetPolicyWaitedFor_IsNull_OnceTheJobWasScheduledAgainWithoutAWait()
+    {
+        _recurringJob["Misfire"] = "1";
+        _recurringJob["Error"] = "Schedule policy 'office' can't be evaluated, so the job waits and tries again: policy 'office' can't be read: bad.";
+        _recurringJob["NextExecution"] = JobHelper.SerializeDateTime(_nowInstant);
+        RecurringJobEntity entity = CreatePolicyEntity(new SchedulePolicy("office"));
+
+        entity.ScheduleNext(UtcResolver(), _nowInstant, _nowInstant.Date.AddHours(17), TimeSpan.Zero);
+        string afterTheWait = entity.GetPolicyWaitedFor(_nowInstant.Date.AddHours(16));
+        entity.ScheduleNext(UtcResolver(), _nowInstant.Date.AddHours(17), _nowInstant.Date.AddHours(19), TimeSpan.Zero);
+
+        Assert.Equal("office", afterTheWait);
+        Assert.Null(entity.GetPolicyWaitedFor(_nowInstant.Date.AddHours(18)));
     }
 
     [Fact]

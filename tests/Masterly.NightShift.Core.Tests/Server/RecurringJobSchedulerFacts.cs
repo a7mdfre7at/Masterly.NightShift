@@ -1148,6 +1148,70 @@ public class RecurringJobSchedulerFacts
 
     [Theory]
     [InlineData(false), InlineData(true)]
+    public void Execute_TellsTheOccurrencesThatWaitedForThePolicy_WhichPolicyTheyWaitedFor(bool batching)
+    {
+        // The job waited because its policy couldn't be evaluated; now it can, and it allows every time
+        SetupConnection(batching);
+        _connection.Setup(x => x.GetAllEntriesFromHash(SchedulePolicies.GetKey("holidays")))
+            .Returns(new SchedulePolicy("holidays").ToFields());
+
+        _recurringJob["TimeZoneId"] = "UTC";
+        _recurringJob["Policy"] = "holidays";
+        _recurringJob["Misfire"] = "1";
+        _recurringJob["SkipAfter"] = "60";
+        _recurringJob["LastExecution"] = JobHelper.SerializeDateTime(_nowInstant.AddMinutes(-3));
+        _recurringJob["NextExecution"] = JobHelper.SerializeDateTime(_nowInstant);
+        _recurringJob["Error"] = "Schedule policy 'holidays' can't be evaluated, so the job waits and tries again: policy 'holidays': date provider 'holiday-dates' failed.";
+        List<(long Time, string WaitedFor)> created = [];
+        _factory
+            .Setup(x => x.Create(It.IsAny<CreateContext>()))
+            .Callback<CreateContext>(ctx => created.Add((
+                (long)ctx.Parameters["Time"],
+                ctx.Parameters.TryGetValue(SkipIfLateAttribute.WaitedForPolicyParameter, out object waitedFor) ? waitedFor as string : null)))
+            .Returns(_backgroundJobMock.Object);
+
+        RecurringJobScheduler scheduler = CreateScheduler();
+
+        scheduler.Execute(_context.Object);
+
+        // The two occurrences that were due during the wait, and the one that is due now
+        List<(long Time, string WaitedFor)> expected =
+        [
+            (JobHelper.ToTimestamp(_nowInstant.AddMinutes(-2)), "holidays"),
+            (JobHelper.ToTimestamp(_nowInstant.AddMinutes(-1)), "holidays"),
+            (JobHelper.ToTimestamp(_nowInstant), null),
+        ];
+        Assert.Equal(expected, created);
+        _connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(false), InlineData(true)]
+    public void Execute_TellsMissedOccurrencesNothing_WhenTheJobDidNotWaitForItsPolicy(bool batching)
+    {
+        // The servers were down: the occurrences are late for another reason than the policy
+        SetupConnection(batching);
+        _connection.Setup(x => x.GetAllEntriesFromHash(SchedulePolicies.GetKey("holidays")))
+            .Returns(new SchedulePolicy("holidays").ToFields());
+
+        _recurringJob["TimeZoneId"] = "UTC";
+        _recurringJob["Policy"] = "holidays";
+        _recurringJob["Misfire"] = "1";
+        _recurringJob["LastExecution"] = JobHelper.SerializeDateTime(_nowInstant.AddMinutes(-3));
+        _recurringJob["NextExecution"] = JobHelper.SerializeDateTime(_nowInstant.AddMinutes(-2));
+
+        RecurringJobScheduler scheduler = CreateScheduler();
+
+        scheduler.Execute(_context.Object);
+
+        _factory.Verify(x => x.Create(It.IsAny<CreateContext>()), Times.Exactly(3));
+        _factory.Verify(
+            x => x.Create(It.Is<CreateContext>(ctx => ctx.Parameters.ContainsKey(SkipIfLateAttribute.WaitedForPolicyParameter))),
+            Times.Never);
+    }
+
+    [Theory]
+    [InlineData(false), InlineData(true)]
     public void Execute_RunsTheOccurrenceAtTheEnd_ThenTakesTheJobOffTheSchedule(bool batching)
     {
         SetupConnection(batching);
