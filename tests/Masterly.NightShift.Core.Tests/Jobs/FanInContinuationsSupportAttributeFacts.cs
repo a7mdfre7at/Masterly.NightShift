@@ -5,11 +5,13 @@ namespace Masterly.NightShift.Core.Tests;
 public class FanInContinuationsSupportAttributeFacts
 {
     private const string Parameter = FanInContinuationsSupportAttribute.ParameterName;
+    private const string Outcomes = FanInContinuationsSupportAttribute.OutcomesParameterName;
 
     private readonly ElectStateContextMock _context = new();
     private readonly Mock<IBackgroundJobStateChanger> _stateChanger = new();
     private readonly Dictionary<string, string> _states = [];
     private readonly Dictionary<string, string> _parameters = [];
+    private readonly Dictionary<string, string> _outcomes = [];
 
     public FanInContinuationsSupportAttributeFacts()
     {
@@ -23,6 +25,10 @@ public class FanInContinuationsSupportAttributeFacts
             _parameters.TryGetValue(id, out string? value) ? value : null);
         connection.Setup(x => x.SetJobParameter(It.IsAny<string>(), Parameter, It.IsAny<string>()))
             .Callback<string, string, string>((id, _, value) => _parameters[id] = value);
+        connection.Setup(x => x.GetJobParameter(It.IsAny<string>(), Outcomes)).Returns<string, string>((id, _) =>
+            _outcomes.TryGetValue(id, out string? value) ? value : null);
+        connection.Setup(x => x.SetJobParameter(It.IsAny<string>(), Outcomes, It.IsAny<string>()))
+            .Callback<string, string, string>((id, _, value) => _outcomes[id] = value);
     }
 
     private readonly Dictionary<string, Dictionary<string, string>> _stateData = [];
@@ -774,6 +780,227 @@ public class FanInContinuationsSupportAttributeFacts
 
         _context.ApplyContext.Connection.Verify(x => x.GetJobParameter(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
         _context.ApplyContext.Connection.Verify(x => x.GetStateData(It.IsAny<string>()), Times.Never);
+    }
+
+    // What a parent finished as, kept on the child that still waits
+
+    [Fact]
+    public void OnStateElection_ParentBranch_WritesWhatItFinishedAs_OnAChildThatKeepsWaiting_AfterTheCommit()
+    {
+        AwaitingJobsState awaiting = new(["parent", "other"]);
+        _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "child" });
+        _states["child"] = AwaitingState.StateName;
+        _stateData["child"] = awaiting.SerializeData();
+        _states["parent"] = ProcessingState.StateName;
+        _states["other"] = ProcessingState.StateName;
+        PostCommitActions afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
+
+        Create().OnStateElection(_context.Object);
+        Assert.Empty(_outcomes);
+
+        _states["parent"] = SucceededState.StateName; // the commit
+        afterCommit.Run();
+
+        Assert.Equal(new Dictionary<string, string> { ["parent"] = SucceededState.StateName }, FanInContinuationsSupportAttribute.ParseOutcomes(_outcomes["child"]));
+        _context.ApplyContext.Connection.Verify(x => x.AcquireDistributedLock("job:child:state-lock", It.IsAny<TimeSpan>()), Times.Once);
+        _stateChanger.Verify(x => x.ChangeState(It.IsAny<StateChangeContext>()), Times.Never);
+    }
+
+    [Fact]
+    public void OnStateElection_ParentBranch_WritesNothing_OnAChildItDecides()
+    {
+        AwaitingJobsState awaiting = new(["parent", "other"]);
+        _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "child" });
+        _states["child"] = AwaitingState.StateName;
+        _stateData["child"] = awaiting.SerializeData();
+        _states["other"] = SucceededState.StateName;
+        PostCommitActions afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
+
+        Create().OnStateElection(_context.Object);
+        _states["parent"] = SucceededState.StateName;
+        afterCommit.Run();
+
+        Assert.Empty(_outcomes);
+        _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(c => c.BackgroundJobId == "child" && c.NewState is EnqueuedState)), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("Succeeded", FanInMode.All, "Enqueued")]
+    [InlineData("Deleted", FanInMode.All, "Deleted")]
+    [InlineData("Failed", FanInMode.All, null)]
+    [InlineData("Succeeded", FanInMode.AnyFailedOrCanceled, "Deleted")]
+    [InlineData("Deleted", FanInMode.AnyFailedOrCanceled, "Enqueued")]
+    [InlineData("Failed", FanInMode.AnyFailed, "Enqueued")]
+    [InlineData("Failed", FanInMode.AllCompleted, "Enqueued")]
+    [InlineData(null, FanInMode.All, "Deleted")]
+    [InlineData(null, FanInMode.AnyFailedOrCanceled, "Enqueued")]
+    public void OnStateElection_ParentBranch_CountsAParentWhoseJobIsGone_AsWhatItWroteOnTheChild_AndAsDeletedWhenItWroteNothing(
+        string written, FanInMode mode, string expected)
+    {
+        // "missing-other" finished long ago and its job expired; "parent" is the last to finish, and succeeds
+        AwaitingJobsState awaiting = new(["missing-other", "parent"], new EnqueuedState(), JobContinuationOptions.OnlyOnSucceededState, mode);
+        _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "child" });
+        _states["child"] = AwaitingState.StateName;
+        _stateData["child"] = awaiting.SerializeData();
+        if (written != null)
+        {
+            _outcomes["child"] = SerializationHelper.SerializeInternal(new Dictionary<string, string> { ["missing-other"] = written });
+        }
+
+        PostCommitActions afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
+
+        Create().OnStateElection(_context.Object);
+        _states["parent"] = SucceededState.StateName;
+        afterCommit.Run();
+
+        if (expected == null)
+        {
+            _stateChanger.Verify(x => x.ChangeState(It.IsAny<StateChangeContext>()), Times.Never);
+        }
+        else
+        {
+            _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(c => c.BackgroundJobId == "child" && c.NewState.Name == expected)), Times.Once);
+        }
+    }
+
+    [Fact]
+    public void OnStateElection_ParentBranch_GoesByTheStateOfAParentWhoseJobExists_WhateverItWroteBefore()
+    {
+        // "other" failed for good, which it wrote on the child, and was requeued: it runs again
+        AwaitingJobsState awaiting = new(["other", "parent"], new EnqueuedState(), JobContinuationOptions.OnlyOnSucceededState, FanInMode.AllCompleted);
+        _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "child" });
+        _states["child"] = AwaitingState.StateName;
+        _stateData["child"] = awaiting.SerializeData();
+        _states["other"] = ProcessingState.StateName;
+        _outcomes["child"] = SerializationHelper.SerializeInternal(new Dictionary<string, string> { ["other"] = FailedState.StateName });
+        PostCommitActions afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
+
+        Create().OnStateElection(_context.Object);
+        _states["parent"] = SucceededState.StateName;
+        afterCommit.Run();
+
+        _stateChanger.Verify(x => x.ChangeState(It.IsAny<StateChangeContext>()), Times.Never);
+        Assert.Equal(
+            new Dictionary<string, string> { ["other"] = FailedState.StateName, ["parent"] = SucceededState.StateName },
+            FanInContinuationsSupportAttribute.ParseOutcomes(_outcomes["child"]));
+    }
+
+    [Fact]
+    public void OnStateElection_ParentBranch_ReplacesWhatItWrote_WhenItFinishesAgain()
+    {
+        AwaitingJobsState awaiting = new(["parent", "other"]);
+        _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "child" });
+        _states["child"] = AwaitingState.StateName;
+        _stateData["child"] = awaiting.SerializeData();
+        _states["other"] = ProcessingState.StateName;
+        FanInContinuationsSupportAttribute filter = Create();
+
+        PostCommitActions failed = UsePostCommitActions(_context, "parent", new FailedState(new InvalidOperationException()));
+        filter.OnStateElection(_context.Object);
+        _states["parent"] = FailedState.StateName;
+        failed.Run();
+
+        Assert.Equal(FailedState.StateName, FanInContinuationsSupportAttribute.ParseOutcomes(_outcomes["child"])["parent"]);
+
+        // Requeued, it succeeds this time
+        ElectStateContextMock again = new();
+        again.ApplyContext.Connection = _context.ApplyContext.Connection;
+        PostCommitActions succeeded = UsePostCommitActions(again, "parent", new SucceededState(null, 0, 0));
+        filter.OnStateElection(again.Object);
+        _states["parent"] = SucceededState.StateName;
+        succeeded.Run();
+
+        Assert.Equal(SucceededState.StateName, FanInContinuationsSupportAttribute.ParseOutcomes(_outcomes["child"])["parent"]);
+    }
+
+    [Fact]
+    public void OnStateElection_ParentBranch_WritesTheStateItIsAboutToHave_WhenNothingRunsAfterTheCommit()
+    {
+        AwaitingJobsState awaiting = new(["parent", "other"]);
+        _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "child" });
+        _states["child"] = AwaitingState.StateName;
+        _stateData["child"] = awaiting.SerializeData();
+        _states["parent"] = ProcessingState.StateName;
+        _states["other"] = ProcessingState.StateName;
+        _context.ApplyContext.BackgroundJob.Id = "parent";
+        _context.ApplyContext.NewStateObject = new SucceededState(null, 0, 0);
+
+        Create().OnStateElection(_context.Object);
+
+        Assert.Equal(new Dictionary<string, string> { ["parent"] = SucceededState.StateName }, FanInContinuationsSupportAttribute.ParseOutcomes(_outcomes["child"]));
+    }
+
+    [Fact]
+    public void OnStateElection_ParentBranch_NeverThrows_WhenWhatItFinishedAsCanNotBeWritten()
+    {
+        AwaitingJobsState awaiting = new(["parent", "other"]);
+        _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "child" });
+        _states["child"] = AwaitingState.StateName;
+        _stateData["child"] = awaiting.SerializeData();
+        _states["parent"] = ProcessingState.StateName;
+        _states["other"] = ProcessingState.StateName;
+        _context.ApplyContext.Connection.Setup(x => x.AcquireDistributedLock("job:child:state-lock", It.IsAny<TimeSpan>()))
+            .Throws(new DistributedLockTimeoutException("job:child:state-lock"));
+        _context.ApplyContext.BackgroundJob.Id = "parent";
+        _context.ApplyContext.NewStateObject = new SucceededState(null, 0, 0);
+
+        // Before the commit, where an exception would fail the parent's state change
+        Create().OnStateElection(_context.Object);
+
+        Assert.Empty(_outcomes);
+    }
+
+    [Fact]
+    public void OnStateElection_ChildBranch_WritesWhatTheParentsThatFinishedBeforeItFinishedAs_OnceItIsStored()
+    {
+        AwaitingJobsState awaiting = new(["p1", "p2"]);
+        _states["p1"] = SucceededState.StateName;
+        _states["p2"] = ProcessingState.StateName;
+        PostCommitActions afterCommit = UsePostCommitActions(_context, "child", awaiting);
+
+        Create().OnStateElection(_context.Object);
+        Assert.Empty(_outcomes);
+
+        _states["child"] = AwaitingState.StateName;
+        _stateData["child"] = awaiting.SerializeData();
+        afterCommit.Run();
+
+        Assert.Equal(new Dictionary<string, string> { ["p1"] = SucceededState.StateName }, FanInContinuationsSupportAttribute.ParseOutcomes(_outcomes["child"]));
+        _stateChanger.Verify(x => x.ChangeState(It.IsAny<StateChangeContext>()), Times.Never);
+    }
+
+    [Fact]
+    public void RecordOutcomes_WritesOnlyOnAChildThatStillWaitsForTheParent_AndOnlyWhatChanged()
+    {
+        IStorageConnection connection = _context.ApplyContext.Connection.Object;
+        HashSet<string> finalStates = [SucceededState.StateName, DeletedState.StateName];
+        _states["p1"] = SucceededState.StateName;
+        _states["p2"] = ProcessingState.StateName;
+        _states["stranger"] = SucceededState.StateName;
+
+        // Decided meanwhile
+        _states["child"] = EnqueuedState.StateName;
+        Assert.True(FanInContinuationsSupportAttribute.RecordOutcomes(connection, "child", ["p1"], finalStates, TimeSpan.Zero));
+        Assert.Empty(_outcomes);
+
+        // Still waiting: the parent that finished is written, the one that runs and the job it doesn't wait for aren't
+        _states["child"] = AwaitingState.StateName;
+        _stateData["child"] = new AwaitingJobsState(["p1", "p2"]).SerializeData();
+        Assert.True(FanInContinuationsSupportAttribute.RecordOutcomes(connection, "child", ["p1", "p2", "stranger", "missing-parent"], finalStates, TimeSpan.Zero));
+        Assert.Equal(new Dictionary<string, string> { ["p1"] = SucceededState.StateName }, FanInContinuationsSupportAttribute.ParseOutcomes(_outcomes["child"]));
+
+        // Written already: not again
+        Assert.True(FanInContinuationsSupportAttribute.RecordOutcomes(connection, "child", ["p1"], finalStates, TimeSpan.Zero));
+        _context.ApplyContext.Connection.Verify(x => x.SetJobParameter("child", Outcomes, It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
+    public void ParseOutcomes_HandlesNullAndMalformedInput()
+    {
+        Assert.Empty(FanInContinuationsSupportAttribute.ParseOutcomes(null));
+        Assert.Empty(FanInContinuationsSupportAttribute.ParseOutcomes(""));
+        Assert.Empty(FanInContinuationsSupportAttribute.ParseOutcomes("{ not json"));
+        Assert.Equal("Succeeded", FanInContinuationsSupportAttribute.ParseOutcomes("{\"7\":\"Succeeded\"}")["7"]);
     }
 
     private static PostCommitActions UsePostCommitActions(ElectStateContextMock context, string jobId, IState candidate)

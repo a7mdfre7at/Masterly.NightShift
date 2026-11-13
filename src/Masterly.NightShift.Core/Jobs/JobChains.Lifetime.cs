@@ -8,6 +8,13 @@ public static partial class JobChains
     // How many chains' expiry times a process remembers at most; past it, they are all forgotten and read again
     private const int MaxKnownExpiries = 10_000;
 
+    // The mark an earlier build put on the steps of the chains it recorded (ChainRecordedParameter)
+    private const string EarlierBuildMark = "true";
+
+    // The chains of steps marked by an earlier build that this process made sure have a place among the chains to
+    // look at; past the limit, they are all forgotten and looked up again
+    private static readonly ConcurrentDictionary<string, byte> SeenFromEarlierBuild = new(StringComparer.Ordinal);
+
     // When each chain's record expires, as far as this process knows: what it wrote or read last. It spares the
     // storage a read at each state change of a step, and is never ahead of the storage by more than nothing: a
     // record only ever gets a later expiry.
@@ -182,6 +189,81 @@ public static partial class JobChains
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
             Logger.DebugException($"The chain of background job '{jobId}' couldn't be given an early look after the job left the state it had finished in; a server looks at it when it was to.", ex);
+        }
+    }
+
+    /// <summary>
+    /// For a step of a chain that a process of an earlier build recorded (its mark says <c>true</c>): once the state
+    /// change is committed, makes sure the chain has a place among the chains to look at, which that build didn't
+    /// give it. Such a process may still run beside this build, after the list of chains was gone through. Once a
+    /// chain per process; nothing for a step this build recorded, which costs a dictionary lookup.
+    /// </summary>
+    internal static void PlaceChainOfEarlierBuildAfterCommit(ApplyStateContext context, IReadOnlyDictionary<string, string> parameters, string serializedChainId)
+    {
+        if (!parameters.TryGetValue(ChainRecordedParameter, out string? mark) ||
+            !string.Equals(mark, EarlierBuildMark, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        JobStorage storage = context.Storage;
+        IStorageConnection connection = context.Connection;
+        context.RunAfterCommit(() => PlaceChainOfEarlierBuild(storage, connection, serializedChainId));
+    }
+
+    /// <summary>
+    /// Asks for a look at a chain an earlier build recorded, which gives it its place, unless it has one; and has
+    /// the list of chains gone through again when it had none. Bookkeeping: never throws.
+    /// </summary>
+    private static void PlaceChainOfEarlierBuild(JobStorage storage, IStorageConnection connection, string serializedChainId)
+    {
+        string? chainId = null;
+
+        try
+        {
+            chainId = SerializationHelper.Deserialize<string>(serializedChainId, SerializationOption.User);
+            if (string.IsNullOrWhiteSpace(chainId))
+            {
+                return;
+            }
+
+            if (SeenFromEarlierBuild.Count >= MaxKnownExpiries)
+            {
+                SeenFromEarlierBuild.Clear();
+            }
+
+            if (!SeenFromEarlierBuild.TryAdd(chainId, 0))
+            {
+                return;
+            }
+
+            // Where the storage can't tell cheaply, the look is asked for anyway: it costs one look
+            bool canTell = connection is JobStorageConnection && storage.HasFeature(JobStorageFeatures.Connection.GetSetContains);
+            if (canTell && HasPlace((JobStorageConnection)connection, chainId))
+            {
+                return;
+            }
+
+            using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+            {
+                transaction.AddToSet(SoonSetKey, SoonEntry(chainId), JobHelper.ToTimestamp(JobClock.UtcNow));
+                transaction.Commit();
+            }
+
+            // Recorded after the list was gone through, maybe with others that no server of this build touched
+            if (canTell)
+            {
+                GoThroughTheListAgain(storage, connection);
+            }
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            if (chainId != null)
+            {
+                SeenFromEarlierBuild.TryRemove(chainId, out _);
+            }
+
+            Logger.DebugException($"Chain '{chainId}', recorded by an earlier build, couldn't be given a place among the chains to look at; the next state change of one of its steps tries again.", ex);
         }
     }
 

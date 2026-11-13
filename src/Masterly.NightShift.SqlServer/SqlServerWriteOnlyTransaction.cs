@@ -177,7 +177,8 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
                 }
 
                 using DbCommand merged = connection.Create(string.Empty);
-                StringBuilder text = new("set xact_abort on;set nocount on;begin tran;\n");
+                // At read committed whatever the pooled session was left at: see TryCommitInOneRoundTrip
+                StringBuilder text = new("set xact_abort on;set nocount on;set transaction isolation level read committed;begin tran;\n");
 
                 for (int i = 0; i < commands.Count; i++)
                 {
@@ -339,7 +340,11 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
                 using DbCommand merged = connection.Create(string.Empty);
                 StringBuilder text = new();
 
-                text.Append("set xact_abort on;set nocount on;begin tran;\n");
+                // At read committed, as SqlClient's transaction (CommitWithApiTransaction) begins it. A pooled session
+                // keeps the isolation level its last user set, and the application may share the pool: under
+                // repeatable read, the check that a parameter's job exists would keep a shared lock on the job's row
+                // until the commit, and two transactions that write a job's parameter and its state would deadlock
+                text.Append("set xact_abort on;set nocount on;set transaction isolation level read committed;begin tran;\n");
 
                 for (int i = 0; i < commands.Count; i++)
                 {

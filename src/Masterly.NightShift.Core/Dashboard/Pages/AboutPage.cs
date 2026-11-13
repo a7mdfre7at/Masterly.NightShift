@@ -42,7 +42,7 @@ internal partial class AboutPage
     internal static string DescribeDeployment(string deployment, long? order, string? current, long? currentOrder)
     {
         string own = DeploymentFencing.Describe(deployment, order);
-        if (current == null || current == deployment)
+        if (current == null || DeploymentFencing.IsSame(current, deployment))
         {
             return own;
         }

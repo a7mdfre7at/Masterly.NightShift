@@ -939,10 +939,12 @@ public static partial class JobChains
             return FanInContinuationsSupportAttribute.Decision.Undecided;
         }
 
+        // A step whose job is gone counts as what it wrote on the waiting step when it finished, as for the
+        // filter; and as not finished when it wrote nothing, which nobody can tell any more
         Dictionary<string, string?> states = new(StringComparer.Ordinal);
         foreach (JobChainStepInfo parent in parents)
         {
-            states[parent.JobId] = parent.State;
+            states[parent.JobId] = parent.State ?? step.Outcomes?.GetValueOrDefault(parent.JobId);
         }
 
         (FanInMode mode, JobContinuationOptions fanInOptions) = ConditionAfterGroup(step.Link, step.Options, nameof(step));

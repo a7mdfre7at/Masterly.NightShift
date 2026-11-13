@@ -408,6 +408,9 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             return;
         }
 
+        // A step of a chain an earlier build recorded: the chain may have no place among the chains to look at
+        JobChains.PlaceChainOfEarlierBuildAfterCommit(context, parameters, serialized);
+
         try
         {
             // A record is written after the jobs it lists are created, and kept for RecordRetention from then at

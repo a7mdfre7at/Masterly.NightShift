@@ -72,13 +72,29 @@ public static partial class JobChains
     /// <summary>How many chains listed by an earlier build one maintenance run gives a place in the index, at most.</summary>
     internal const int MaxIndexedPerRun = 500;
 
+    /// <summary>
+    /// How many chains past the place where the run before stopped the list is read again. A chain listed
+    /// meanwhile below that place (listed again where its record says it was created, or by a client whose clock is
+    /// behind) moves the chains above it up by one: without this, the chain that was to come next would be
+    /// skipped for good.
+    /// </summary>
+    internal const int IndexOverlap = 100;
+
     private const int IndexWriteSize = 100;
     private const string IndexedField = "Listed";
     private const string IndexedDone = "done";
+
+    // What the hash says once a chain listed by a process of an earlier build turned up without a place after the
+    // list was gone through: the list is gone through again, from the end
+    private const string IndexedAgain = "again";
     private const string ConditionNotMetReason = "Continuation condition was not met";
 
     // The set in which an earlier build listed the chains with a step that waits for several steps
     private const string LegacyWatchSetKey = "chains:joins";
+
+    // How long a look waits for the lock of a waiting step to write on it what the steps before it finished as;
+    // the next look tries again
+    private static readonly TimeSpan OutcomeLockTimeout = TimeSpan.FromSeconds(1);
 
     // The longest a chain is left alone between two looks while something of it runs: a step that was never told
     // to start is started within this time, and the chain doesn't look settled for longer
@@ -142,12 +158,23 @@ public static partial class JobChains
             int placed = 0;
             bool moreToIndex = false;
 
+            try
+            {
+                // A process of an earlier build still running lists the chains it watches in a set of its own
+                placed = PlaceWatchedByEarlierBuild(storage, connection, ref indexed, out moreToIndex);
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                Logger.WarnException("The chains a process of an earlier build watches couldn't be given a place among the chains to look at; the next maintenance run tries again.", ex);
+            }
+
             if (!indexed)
             {
                 try
                 {
-                    indexed = IndexListed(storage, connection, out placed);
-                    moreToIndex = !indexed;
+                    indexed = IndexListed(storage, connection, out int indexedNow);
+                    placed += indexedNow;
+                    moreToIndex |= !indexed;
                 }
                 catch (Exception ex) when (ex.IsCatchableExceptionType())
                 {
@@ -193,6 +220,77 @@ public static partial class JobChains
     }
 
     /// <summary>
+    /// Gives a place among the chains to look at to the chains a process of an earlier build watches
+    /// (<c>chains:joins</c>), and empties that set, up to <see cref="MaxIndexedPerRun"/> a run: such a process
+    /// may still be running beside this build, and list chains after the list was gone through. One small read a
+    /// run while the set is empty. A chain that had no place shows that such a process listed chains the list
+    /// wasn't gone through for: the list is gone through again (<see cref="GoThroughTheListAgain"/>).
+    /// </summary>
+    /// <returns>How many chains were given a place.</returns>
+    private static int PlaceWatchedByEarlierBuild(JobStorage storage, IStorageConnection connection, ref bool indexed, out bool more)
+    {
+        double until = JobHelper.ToTimestamp(JobClock.UtcNow.AddYears(10));
+        bool canTell = connection is JobStorageConnection && storage.HasFeature(JobStorageFeatures.Connection.GetSetContains);
+        bool unplaced = false;
+        int placed = 0;
+        int taken = 0;
+
+        foreach (string chainId in TakeDue(storage, connection, LegacyWatchSetKey, until, MaxIndexedPerRun))
+        {
+            taken++;
+            bool hasPlace = canTell && HasPlace((JobStorageConnection)connection, chainId);
+
+            using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+            if (!hasPlace)
+            {
+                transaction.AddToSet(DueSetKey, chainId, JobHelper.ToTimestamp(JobClock.UtcNow));
+                placed++;
+            }
+
+            transaction.RemoveFromSet(LegacyWatchSetKey, chainId);
+            transaction.Commit();
+
+            unplaced |= canTell && !hasPlace;
+        }
+
+        if (unplaced)
+        {
+            GoThroughTheListAgain(storage, connection);
+            indexed = false;
+        }
+
+        more = taken >= MaxIndexedPerRun;
+        return placed;
+    }
+
+    private static bool HasPlace(JobStorageConnection connection, string chainId)
+    {
+        return connection.GetSetContains(DueSetKey, chainId) || connection.GetSetContains(ExpirySetKey, chainId);
+    }
+
+    /// <summary>
+    /// Has the list of chains gone through again, from the end, by whichever server maintains the chains next:
+    /// a chain listed by a process of an earlier build turned up without a place. Nothing changes while the list
+    /// is still being gone through. A server that knew it was done reads it again within
+    /// <see cref="JobChainMaintenanceProcess.IndexCheckInterval"/>.
+    /// </summary>
+    internal static void GoThroughTheListAgain(JobStorage storage, IStorageConnection connection)
+    {
+        string? left = connection is JobStorageConnection ranged && storage.HasFeature(JobStorageFeatures.ExtendedApi)
+            ? ranged.GetValueFromHash(IndexKey, IndexedField)
+            : connection.GetAllEntriesFromHash(IndexKey)?.GetValueOrDefault(IndexedField);
+
+        if (left != IndexedDone)
+        {
+            return;
+        }
+
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+        transaction.SetRangeInHash(IndexKey, new Dictionary<string, string> { [IndexedField] = IndexedAgain });
+        transaction.Commit();
+    }
+
+    /// <summary>
     /// Gives the chains listed by a build that kept no index of them a look by a server, now: up to
     /// <see cref="MaxIndexedPerRun"/> a run, from the newest to the oldest, writing in the storage how many are left
     /// to go through (<see cref="IndexKey"/>). So it is done once for a storage, by whichever servers maintain the
@@ -219,12 +317,13 @@ public static partial class JobChains
 
         if (ranged != null)
         {
-            // By position, from the end of the list: the chains recorded meanwhile come after, with their place
+            // By position, from the end of the list: the chains recorded meanwhile come after, with their place.
+            // A little past where the run before stopped, for the chains listed below it meanwhile.
             long position = long.TryParse(left, NumberStyles.None, CultureInfo.InvariantCulture, out long parsed) ? parsed : ranged.GetSetCount(SetKey);
             int take = (int)Math.Min(position, MaxIndexedPerRun);
             remaining = position - take;
 
-            chains = take > 0 ? ranged.GetRangeFromSet(SetKey, (int)remaining, (int)(position - 1)) : [];
+            chains = take > 0 ? ranged.GetRangeFromSet(SetKey, (int)remaining, (int)Math.Min(position - 1 + IndexOverlap, int.MaxValue)) : [];
 
             // A storage that can't look a chain up gives each a look, the ones that have their place too
             if (storage.HasFeature(JobStorageFeatures.Connection.GetSetContains))
@@ -252,18 +351,15 @@ public static partial class JobChains
                 transaction.AddToSet(DueSetKey, chains[written], now);
             }
 
-            // How far it came is written with the last chains, so chains that couldn't be written are gone through again
+            // How far it came is written with the last chains, so chains that couldn't be written are gone through
+            // again. The set an earlier build watched chains in is emptied entry by entry, each given its place
+            // (PlaceWatchedByEarlierBuild), never at once: a process of that build may still add to it.
             if (written == chains.Count)
             {
                 transaction.SetRangeInHash(IndexKey, new Dictionary<string, string>
                 {
                     [IndexedField] = remaining > 0 ? remaining.ToString(CultureInfo.InvariantCulture) : IndexedDone,
                 });
-
-                if (remaining == 0 && ranged != null && transaction is JobStorageTransaction storageTransaction)
-                {
-                    storageTransaction.RemoveSet(LegacyWatchSetKey);
-                }
             }
 
             transaction.Commit();
@@ -326,6 +422,14 @@ public static partial class JobChains
         {
             Logger.DebugException($"The entry '{value}' of the set '{key}' couldn't be updated; it is looked at again as it is.", ex);
         }
+    }
+
+    // Whether the chain is among the chains left to expire. Read only for a chain without record.
+    private static bool IsLeftToExpire(JobStorage storage, IStorageConnection connection, string chainId)
+    {
+        return connection is JobStorageConnection storageConnection && storage.HasFeature(JobStorageFeatures.Connection.GetSetContains)
+            ? storageConnection.GetSetContains(ExpirySetKey, chainId)
+            : connection.GetAllItemsFromSet(ExpirySetKey).Contains(chainId);
     }
 
     private static string? ReadField(JobStorage storage, IStorageConnection connection, string chainId, string field)
@@ -567,7 +671,9 @@ public static partial class JobChains
 
         if (info == null)
         {
-            if (expiring == null || leftToExpire || !IsListed(storage, connection, chainId))
+            // Left to expire, its record expired: a look asked for (a step that left the state it had finished in)
+            // finds it gone as the chain's own look would, a moment later
+            if (expiring == null || leftToExpire || !IsListed(storage, connection, chainId) || IsLeftToExpire(storage, connection, chainId))
             {
                 return ChainPlacement.Unlist;
             }
@@ -577,8 +683,9 @@ public static partial class JobChains
             return new ChainPlacement(ExpirySetKey, now + JobChain.RecordRetention);
         }
 
-        int redriven = RedriveLostDecisions(client, connection, info);
+        int redriven = RedriveLostDecisions(client, connection, info, out int failed);
         looks.Started += redriven;
+        KeepOutcomes(connection, info);
 
         if (!info.HasLiveSteps())
         {
@@ -605,7 +712,9 @@ public static partial class JobChains
                 : ChainPlacement.Unlist;
         }
 
-        DateTime? next = info.HasWaitingSteps() ? now + WatchInterval(info, now, redriven > 0) : null;
+        // A step that couldn't be started (the storage failed) is tried again within minutes, not after as long
+        // as the chain stood still
+        DateTime? next = info.HasWaitingSteps() ? now + WatchInterval(info, now, redriven > 0 || failed > 0) : null;
         bool lapsed = false;
 
         if (expiring != null)
@@ -633,6 +742,64 @@ public static partial class JobChains
         {
             ListedAt = lapsed && info.CreatedAt > DateTime.MinValue ? info.CreatedAt : null,
         };
+    }
+
+    /// <summary>
+    /// Writes on the steps that wait for several steps what the ones that finished finished as, where that isn't
+    /// written: the process that finished such a step writes it once the step is committed, and may have stopped
+    /// before, or failed to. A waiting step is decided from it once the jobs of the steps it waits for are gone
+    /// (<see cref="FanInContinuationsSupportAttribute.OutcomesParameterName"/>), so it has to be written while
+    /// they exist. One read for a waiting step with a finished step before it, and a write when something is
+    /// missing. Best effort: the next look tries again.
+    /// </summary>
+    private static void KeepOutcomes(IStorageConnection connection, JobChainInfo info)
+    {
+        HashSet<string> finalStates = ContinuationsSupportAttribute.KnownFinalStates;
+        ILookup<int, JobChainStepInfo>? levels = null;
+
+        foreach (JobChainStepInfo step in info.Steps)
+        {
+            if (!IsAwaiting(step.State))
+            {
+                continue;
+            }
+
+            levels ??= info.Steps.ToLookup(static x => x.Level);
+            List<JobChainStepInfo> parents = [.. levels[step.ParentLevel]];
+            if (parents.Count < 2)
+            {
+                continue;
+            }
+
+            try
+            {
+                Dictionary<string, string>? written = null;
+                List<string>? missing = null;
+
+                foreach (JobChainStepInfo parent in parents)
+                {
+                    if (parent.State == null || !FanInContinuationsSupportAttribute.IsOutcome(parent.State, finalStates))
+                    {
+                        continue;
+                    }
+
+                    written ??= FanInContinuationsSupportAttribute.ReadOutcomes(connection, step.JobId);
+                    if (!written.TryGetValue(parent.JobId, out string? outcome) || !string.Equals(outcome, parent.State, StringComparison.Ordinal))
+                    {
+                        (missing ??= []).Add(parent.JobId);
+                    }
+                }
+
+                if (missing != null)
+                {
+                    FanInContinuationsSupportAttribute.RecordOutcomes(connection, step.JobId, missing, finalStates, OutcomeLockTimeout);
+                }
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                Logger.DebugException($"What the steps before step '{step.Key}' of chain '{info.ChainId}' finished as couldn't be written on its background job '{step.JobId}'; the next look tries again.", ex);
+            }
+        }
     }
 
     /// <summary>
@@ -718,7 +885,14 @@ public static partial class JobChains
     /// <returns>The number of steps started or skipped.</returns>
     internal static int RedriveLostDecisions(IBackgroundJobClient client, IStorageConnection connection, JobChainInfo info)
     {
+        return RedriveLostDecisions(client, connection, info, out _);
+    }
+
+    /// <summary>The same; <paramref name="failed"/> receives the number of steps that couldn't be decided because something threw.</summary>
+    private static int RedriveLostDecisions(IBackgroundJobClient client, IStorageConnection connection, JobChainInfo info, out int failed)
+    {
         int redriven = 0;
+        failed = 0;
 
         foreach (JobChainStepInfo step in info.NeverToldSteps())
         {
@@ -732,7 +906,8 @@ public static partial class JobChains
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
-                Logger.WarnException($"Step '{step.Key}' of chain '{info.ChainId}', background job '{step.JobId}', was never told to start and couldn't be started now; it is tried again later.", ex);
+                failed++;
+                Logger.WarnException($"Step '{step.Key}' of chain '{info.ChainId}', background job '{step.JobId}', was never told to start and couldn't be started now; it is tried again within {MaxWatchInterval.TotalMinutes:0} minutes.", ex);
             }
         }
 
@@ -777,11 +952,17 @@ public static partial class JobChains
 
         if (AwaitingJobsState.FromStateData(state.Data) is { } group)
         {
+            // A step whose job is gone counts as what it wrote on this one when it finished, and as not finished
+            // when it wrote nothing: this decides only from what is known
+            Dictionary<string, string>? written = null;
             decision = FanInContinuationsSupportAttribute.Evaluate(
                 group.Mode,
                 group.Options,
                 group.ParentIds,
-                parentId => FanInContinuationsSupportAttribute.GetParentState(connection, parentId),
+                parentId => FanInContinuationsSupportAttribute.GetKnownParentState(
+                    connection,
+                    parentId,
+                    () => written ??= FanInContinuationsSupportAttribute.ReadOutcomes(connection, jobId)),
                 finalStates);
             nextState = group.NextState;
         }

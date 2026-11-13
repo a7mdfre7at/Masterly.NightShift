@@ -10,8 +10,8 @@ namespace Masterly.NightShift;
 /// Keeps servers of an older deployment from taking jobs once a newer one runs, turned on with
 /// <c>UseDeploymentFencing</c>. The first server of a deployment the cluster hasn't seen claims the current deployment
 /// (the <c>Current</c> field of the hash <see cref="HashKey"/>), and servers of the others pause themselves, as
-/// <see cref="DrainMode.PauseServer"/> does, with the reason <c>Fenced: ...</c>: jobs they pick up are held and taken
-/// by the current servers, and their running jobs finish.
+/// <see cref="DrainMode.PauseServer"/> does, with the reason <c>Fenced: ...</c>: they fetch no jobs, which stay in
+/// their queues for the current servers, and their running jobs finish.
 /// </summary>
 /// <remarks>
 /// <para>Every server writes a new value to its deployment's <c>Seen:{id}</c> field at each check. A deployment id
@@ -33,10 +33,18 @@ namespace Masterly.NightShift;
 /// processor time) therefore never takes over: after three such checks in a row it logs a warning that says so,
 /// and repeats it at most once an hour. Raising <see cref="CheckInterval"/>, and <see cref="TakeOverAfter"/> with
 /// it, or making the storage answer faster resolves it.</para>
-/// <para>A server takes no job before its first check: its workers wait until the check has decided whether the
-/// server's deployment is fenced and, when it is, has paused the server. Without that, a server of a fenced
-/// deployment that starts would run the jobs it fetched before its first check. While the first check fails (the
-/// storage is down), the server keeps taking no jobs, logs a warning, and tries the check again.</para>
+/// <para>A fenced server doesn't fetch: its workers wait until a check finds its deployment to be the current one
+/// (<see cref="WorkerGate"/>). A fenced server that kept fetching would hand each job back for
+/// <see cref="DrainMode.HoldInterval"/>, which is so much faster than running one that it would get most of the
+/// jobs of the queues it shares with the current servers. A worker that was waiting for a job when its server
+/// was fenced takes one more, which is held that way; the time it is held doesn't count as lateness. Nor does a
+/// server fetch before a check has decided for the id it has now: not when it starts, and not when it got a new
+/// id because its heartbeat found it removed or failed for the server timeout. While that check fails (the
+/// storage is down), the server keeps taking no jobs, logs a warning, and tries the check again. The pause of
+/// an id that is given up, on a restart or when the server stops, is taken back.</para>
+/// <para>Deployment ids are compared without regard to case, and their fields are named after the id in lower
+/// case: <c>Release-7</c> and <c>release-7</c> are one deployment on every storage, also where the storage
+/// itself tells field names apart by case or, as SQL Server with a case-insensitive collation, doesn't.</para>
 /// <para>A deployment order (<see cref="DeploymentOrder"/>, the second argument of <c>UseDeploymentFencing</c>)
 /// tells versions apart: a number that grows with each deploy, kept in the <c>Order:{id}</c> field. When this
 /// deployment and the current one both have an order, the higher one wins: a deployment with a higher order takes
@@ -176,9 +184,13 @@ public static class DeploymentFencing
             : trimmed;
     }
 
-    internal static string SeenField(string deploymentId) => ConcurrencyControl.ShortenResource(SeenPrefix + deploymentId, MaxFieldLength);
+    // In lower case, so ids that differ only by case share their fields whatever the storage does with case
+    internal static string SeenField(string deploymentId) => ConcurrencyControl.ShortenResource(SeenPrefix + deploymentId.ToLowerInvariant(), MaxFieldLength);
 
-    internal static string OrderField(string deploymentId) => ConcurrencyControl.ShortenResource(OrderPrefix + deploymentId, MaxFieldLength);
+    internal static string OrderField(string deploymentId) => ConcurrencyControl.ShortenResource(OrderPrefix + deploymentId.ToLowerInvariant(), MaxFieldLength);
+
+    /// <summary>Whether two deployment ids name the same deployment: they are compared without regard to case.</summary>
+    internal static bool IsSame(string? deploymentId, string? other) => string.Equals(deploymentId, other, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The order a deployment was last seen with, or <c>null</c> when it has none.</summary>
     internal static long? ReadOrder(Dictionary<string, string> hash, string deploymentId)
@@ -277,8 +289,8 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
     // The newer deployment this one was last reported fenced by, so the warning is logged once, not at every check
     private string? _fencedByNewer;
 
-    // Whether the warning that the server takes no jobs because its first check failed was logged
-    private bool _warnedOfFirstCheck;
+    // The server id the warning that the server takes no jobs because its first check failed was logged for
+    private string? _warnedOfFirstCheck;
 
     // What the warnings about the configuration were last logged for, so each is logged once
     private (long? Given, long? Stored)? _warnedOrders;
@@ -299,10 +311,10 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
     public long? DeploymentOrder { get; } = deploymentOrder;
 
     /// <summary>
-    /// Opened by the first check that went all the way. The workers of the server wait for it before they take
-    /// their first job, see <see cref="GatedWorker"/>.
+    /// Told what each check that went all the way decided, and for which server id. The workers of the server ask
+    /// it before they fetch, see <see cref="GatedWorker"/>.
     /// </summary>
-    public DeploymentFencingGate Gate { get; } = new(deploymentId);
+    public WorkerGate Gate { get; } = new(deploymentId);
 
     public void Execute(BackgroundProcessContext context)
     {
@@ -323,15 +335,16 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
     }
 
     // The error itself is logged by the loop that runs this process and tries it again. This says what it means
-    // while no check has succeeded yet: the workers wait, so nothing runs on a server that may be fenced
+    // while no check has succeeded yet for the id the server has now: the workers wait, so nothing runs on a
+    // server that may be fenced
     private void WarnOnceThatTheServerTakesNoJobs(BackgroundProcessContext context)
     {
-        if (Gate.IsOpen || _warnedOfFirstCheck || context.IsStopping)
+        if (Gate.IsDecided(context.ServerId) || _warnedOfFirstCheck == context.ServerId || context.IsStopping)
         {
             return;
         }
 
-        _warnedOfFirstCheck = true;
+        _warnedOfFirstCheck = context.ServerId;
         Logger.Warn($"The first deployment check of server '{context.ServerId}' failed, so it isn't known whether deployment '{DeploymentId}' is fenced: the server takes no jobs until a check succeeds. The check is tried again.");
     }
 
@@ -366,7 +379,7 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
             currentOrder = current != null ? DeploymentFencing.ReadOrder(hash, current) : null;
             string seenField = DeploymentFencing.SeenField(DeploymentId);
             bool seen = hash.ContainsKey(seenField);
-            string? another = current != null && current != DeploymentId ? current : null;
+            string? another = current != null && !DeploymentFencing.IsSame(current, DeploymentId) ? current : null;
             bool currentAlive = another != null && IsAlive(DeploymentFencing.SeenField(another), uptime);
 
             // The orders decide when both deployments have one and they differ: the ids can't be compared
@@ -396,7 +409,7 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
                 changes[DeploymentFencing.OrderField(DeploymentId)] = order.Value.ToString(CultureInfo.InvariantCulture);
             }
 
-            if (!fenced && current != DeploymentId)
+            if (!fenced && !DeploymentFencing.IsSame(current, DeploymentId))
             {
                 // What the log says only: whether the servers of the current deployment were seen to be running
                 bool running = another != null && currentAlive && IsLikelyRunning(DeploymentFencing.SeenField(another), now);
@@ -430,8 +443,9 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
         // Only a check that went all the way counts: one that failed leaves the gap open
         _lastCheck = uptime;
 
-        // A fenced server is paused by now, so the jobs its workers fetch from here on are handed back
-        Gate.Open();
+        // A fenced server is paused by now: its workers stop fetching, and a job one of them was already waiting
+        // for is handed back
+        Gate.Decide(serverId, fenced);
         return fenced;
     }
 
@@ -596,7 +610,8 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
         foreach (KeyValuePair<string, Observation> entry in _observations)
         {
             string deployment = entry.Key[DeploymentFencing.SeenPrefix.Length..];
-            if (deployment == current || deployment == DeploymentId || !hash.ContainsKey(entry.Key) || IsAlive(entry.Key, uptime))
+            if (DeploymentFencing.IsSame(deployment, current) || DeploymentFencing.IsSame(deployment, DeploymentId) ||
+                !hash.ContainsKey(entry.Key) || IsAlive(entry.Key, uptime))
             {
                 continue;
             }
@@ -759,54 +774,4 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
 
     // Since: this server's monotonic time when it first read the value
     private readonly record struct Observation(string Value, TimeSpan Since, bool SawChange);
-}
-
-/// <summary>
-/// What the workers of a server with deployment fencing wait for before they take their first job: the first check
-/// of the server, which decides whether its deployment is fenced and pauses the server when it is. Until then
-/// nothing has paused the server, so a worker that fetched a job would run it, also on a server of a deployment
-/// that a newer one has replaced. Once open it stays open: later checks pause and resume the server.
-/// </summary>
-internal sealed class DeploymentFencingGate(string deploymentId)
-{
-    private static readonly ILog Logger = LogProvider.GetLogger(typeof(DeploymentFencingGate));
-
-    private readonly TaskCompletionSource _decided = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private int _waitLogged;
-
-    public bool IsOpen => _decided.Task.IsCompleted;
-
-    public void Open() => _decided.TrySetResult();
-
-    /// <summary>Returns once the gate is open.</summary>
-    /// <exception cref="OperationCanceledException">The server is stopping.</exception>
-    public void Wait(BackgroundProcessContext context)
-    {
-        if (IsOpen)
-        {
-            return;
-        }
-
-        if (Interlocked.Exchange(ref _waitLogged, 1) == 0)
-        {
-            Logger.Debug($"Server '{context.ServerId}' takes no jobs until its first deployment check has decided whether deployment '{deploymentId}' is fenced.");
-        }
-
-        _decided.Task.Wait(context.StoppingToken);
-    }
-}
-
-/// <summary>
-/// A worker of a server with deployment fencing: it fetches nothing before the server's first check has decided,
-/// see <see cref="DeploymentFencingGate"/>. After that it costs one read of a flag for each job.
-/// </summary>
-internal sealed class GatedWorker(IBackgroundProcess worker, DeploymentFencingGate gate) : IBackgroundProcess
-{
-    public void Execute(BackgroundProcessContext context)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-
-        gate.Wait(context);
-        worker.Execute(context);
-    }
 }

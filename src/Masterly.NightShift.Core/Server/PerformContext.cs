@@ -149,7 +149,9 @@ public class PerformContext
     /// continuation without <see cref="ScheduledFor"/> is measured from the moment it became due, when its parents let
     /// it leave the Awaiting state, so the time its parents waited and ran doesn't count; any other job without
     /// <see cref="ScheduledFor"/> from its creation. Never negative. A retry is measured from the same moment, so its
-    /// lateness includes the earlier attempts.
+    /// lateness includes the earlier attempts. The time the job was held because the server that fetched it was
+    /// paused on its own or fenced is left out (<see cref="DrainModeFilter.ServerHoldParameter"/>): the servers that
+    /// may work could have run it meanwhile. The time it was held by the cluster-wide switch or a paused queue counts.
     /// </summary>
     public TimeSpan Lateness => GetLateness(ScheduledFor);
 
@@ -160,7 +162,7 @@ public class PerformContext
     internal TimeSpan GetLateness(DateTime? scheduledFor)
     {
         DateTime anchor = scheduledFor ?? DueAt ?? BackgroundJob.CreatedAt;
-        TimeSpan lateness = StartedAt - anchor;
+        TimeSpan lateness = StartedAt - anchor - ServerHold.GetHeldTime(BackgroundJob, StartedAt);
         return lateness > TimeSpan.Zero ? lateness : TimeSpan.Zero;
     }
 

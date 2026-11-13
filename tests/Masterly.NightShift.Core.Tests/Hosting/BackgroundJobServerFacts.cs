@@ -195,10 +195,10 @@ public class BackgroundJobServerFacts
     }
 
     [Fact, GlobalLock(Reason = "Sets the deployment of the process, uses the drain mode cache and the log provider")]
-    public void Ctor_WithDeploymentFencing_FetchesNoJob_BeforeItsFirstCheckHasPausedTheFencedServer()
+    public void Ctor_WithDeploymentFencing_FetchesNoJob_BeforeItsFirstCheckHasDecided()
     {
-        // The cluster runs the newer deployment v2, and a server of v1 starts: its first check will find it fenced
-        FencedCluster cluster = new();
+        // The server is of the current deployment: its first check will find that it may work
+        FencedCluster cluster = new(currentDeployment: "v1");
         RecordingLogProvider recording = new();
         List<string> workerThreads = [];
         BackgroundJobServerOptions options = FencedServerOptions();
@@ -215,23 +215,21 @@ public class BackgroundJobServerFacts
                 // The first check is held at its lock. A worker that doesn't wait for it fetches meanwhile; one that
                 // does says so, and then the test knows that the worker had its turn
                 Assert.True(cluster.CheckStarted.Wait(WaitTimeout, TestContext.Current.CancellationToken));
-                Assert.True(SpinWait.SpinUntil(() => cluster.Fetched.IsSet || WaitsForItsFirstCheck(recording), WaitTimeout));
-                fetchedBeforeTheCheck = cluster.Fetched.IsSet;
+                Assert.True(SpinWait.SpinUntil(() => cluster.Fetches > 0 || Logged(recording, "takes no jobs until its first deployment check"), WaitTimeout));
+                fetchedBeforeTheCheck = cluster.Fetches > 0;
 
                 cluster.ReleaseCheck.Set();
-                Assert.True(cluster.Fetched.Wait(WaitTimeout, TestContext.Current.CancellationToken));
+                Assert.True(SpinWait.SpinUntil(() => cluster.Fetches > 0, WaitTimeout));
 
                 server.SendStop();
                 Assert.True(server.WaitForShutdown(WaitTimeout));
             }
 
             Assert.False(fetchedBeforeTheCheck, "A worker fetched a job before the first deployment check had decided.");
-            Assert.Equal(["pause", "fetch"], cluster.Events);
-            KeyValuePair<string, string> paused = Assert.Single(DrainMode.Read(cluster.Connection.Object).PausedServers);
-            Assert.StartsWith("fenced-server:", paused.Key, StringComparison.Ordinal);
-            Assert.Equal("Fenced: deployment 'v1' (order 1) is older than 'v2' (order 2)", paused.Value);
+            Assert.Equal(["announce", "check", "fetch"], cluster.Events);
+            Assert.Empty(DrainMode.Read(cluster.Connection.Object).PausedServers);
 
-            // Named as on a server without fencing
+            // Named as before there was anything in front of the workers
             Assert.Equal(["Worker #1"], workerThreads);
         }
         finally
@@ -244,7 +242,7 @@ public class BackgroundJobServerFacts
     [Fact, GlobalLock(Reason = "Sets the deployment of the process, uses the drain mode cache and the log provider")]
     public void Ctor_WithDeploymentFencing_FetchesNoJob_WhileItsFirstCheckFails_AndStartsOnceACheckSucceeds()
     {
-        FencedCluster cluster = new() { ChecksFail = true };
+        FencedCluster cluster = new(currentDeployment: "v1") { ChecksFail = true };
         cluster.ReleaseCheck.Set();
         RecordingLogProvider recording = new();
         DeploymentFencing.DeploymentId = "v1";
@@ -258,18 +256,18 @@ public class BackgroundJobServerFacts
             {
                 // The storage is down for the first check, which is tried again about a second later
                 Assert.True(cluster.CheckFailed.Wait(WaitTimeout, TestContext.Current.CancellationToken));
-                Assert.True(SpinWait.SpinUntil(() => cluster.Fetched.IsSet || WaitsForItsFirstCheck(recording), WaitTimeout));
-                fetchedBeforeTheCheck = cluster.Fetched.IsSet;
+                Assert.True(SpinWait.SpinUntil(() => cluster.Fetches > 0 || Logged(recording, "takes no jobs until its first deployment check"), WaitTimeout));
+                fetchedBeforeTheCheck = cluster.Fetches > 0;
 
                 cluster.ChecksFail = false;
-                Assert.True(cluster.Fetched.Wait(WaitTimeout, TestContext.Current.CancellationToken));
+                Assert.True(SpinWait.SpinUntil(() => cluster.Fetches > 0, WaitTimeout));
 
                 server.SendStop();
                 Assert.True(server.WaitForShutdown(WaitTimeout));
             }
 
             Assert.False(fetchedBeforeTheCheck, "A worker fetched a job although the first deployment check had failed.");
-            Assert.Equal(["pause", "fetch"], cluster.Events);
+            Assert.Equal(["announce", "check", "fetch"], cluster.Events);
             Assert.Contains(recording.Entries, static x =>
                 x.Level == LogLevel.Warn &&
                 x.Message.Contains("takes no jobs until a check succeeds", StringComparison.Ordinal));
@@ -280,16 +278,141 @@ public class BackgroundJobServerFacts
         }
     }
 
-    [Fact, GlobalLock(Reason = "Reads the deployment of the process")]
-    public void Ctor_WithoutDeploymentFencing_StartsItsWorkersAsBefore_AndNeverReadsTheDeployment()
+    [Fact, GlobalLock(Reason = "Sets the deployment of the process, uses the drain mode cache and the log provider")]
+    public void Ctor_WithDeploymentFencing_AFencedServerFetchesNoJob()
     {
-        FencedCluster cluster = new();
+        // The cluster runs the newer deployment v2, and a server of v1 starts: it is fenced
+        FencedCluster cluster = new(currentDeployment: "v2");
+        cluster.ReleaseCheck.Set();
+        RecordingLogProvider recording = new();
+        DeploymentFencing.DeploymentId = "v1";
+        DeploymentFencing.DeploymentOrder = 1;
+
+        try
+        {
+            using (recording.Use())
+            using (BackgroundJobServer server = new(FencedServerOptions(), cluster.Storage.Object, []))
+            {
+                // A worker that fetches although its server is paused does it right after the check; one that
+                // doesn't says so, and then the test knows that the worker had its turn
+                Assert.True(SpinWait.SpinUntil(() => cluster.Fetches > 0 || Logged(recording, "is fenced: it takes no jobs"), WaitTimeout));
+
+                server.SendStop();
+                Assert.True(server.WaitForShutdown(WaitTimeout));
+            }
+
+            Assert.Equal(["announce", "check", "pause", "resume"], cluster.Events);
+            Assert.Equal(0, cluster.Fetches);
+        }
+        finally
+        {
+            ResetDeploymentFencing();
+        }
+    }
+
+    [Fact, GlobalLock(Reason = "Sets the deployment of the process, uses the drain mode cache and the log provider")]
+    public void Ctor_WithDeploymentFencing_AServerThatRestartsWithANewId_FetchesNoJob_BeforeACheckHasDecidedForThatId()
+    {
+        FencedCluster cluster = new(currentDeployment: "v1");
+        RecordingLogProvider recording = new();
+        BackgroundJobServerOptions options = FencedServerOptions();
+        options.HeartbeatInterval = TimeSpan.FromMilliseconds(200);
+        DeploymentFencing.DeploymentId = "v1";
+        DeploymentFencing.DeploymentOrder = 1;
+
+        try
+        {
+            int fetchesWhileTheCheckWasHeld;
+            using (recording.Use())
+            using (BackgroundJobServer server = new(options, cluster.Storage.Object, []))
+            {
+                cluster.ReleaseCheck.Set();
+                Assert.True(SpinWait.SpinUntil(() => cluster.Fetches == 1, WaitTimeout));
+                Assert.Equal(["announce", "check", "fetch"], cluster.Events);
+
+                // The checks are slow from now on (another server holds the lock, the storage is slow), and another
+                // server's watchdog removes this one: its heartbeat restarts it with a new id
+                cluster.ReleaseCheck.Reset();
+                cluster.CheckStarted.Reset();
+                cluster.RemoveServerOnce = true;
+                Assert.True(SpinWait.SpinUntil(() => cluster.Announced.Length == 2, WaitTimeout));
+                Assert.True(cluster.CheckStarted.Wait(WaitTimeout, TestContext.Current.CancellationToken));
+                string newId = cluster.Announced[1];
+
+                // The worker of the new id has its turn while the check is held at its lock
+                Assert.True(SpinWait.SpinUntil(
+                    () => cluster.Fetches == 2 || Logged(recording, $"Server '{newId}' takes no jobs until its first deployment check"),
+                    WaitTimeout));
+                fetchesWhileTheCheckWasHeld = cluster.Fetches;
+
+                cluster.ReleaseCheck.Set();
+                Assert.True(SpinWait.SpinUntil(() => cluster.Fetches == 2, WaitTimeout));
+
+                server.SendStop();
+                Assert.True(server.WaitForShutdown(WaitTimeout));
+            }
+
+            Assert.True(
+                fetchesWhileTheCheckWasHeld == 1,
+                $"The restarted server fetched a job before a deployment check had decided for its new id. Events: {string.Join(", ", cluster.Events)}");
+            Assert.Equal(["announce", "check", "fetch", "announce", "check", "fetch"], cluster.Events);
+            Assert.NotEqual(cluster.Announced[0], cluster.Announced[1]);
+        }
+        finally
+        {
+            cluster.ReleaseCheck.Set();
+            ResetDeploymentFencing();
+        }
+    }
+
+    [Fact, GlobalLock(Reason = "Sets the deployment of the process, uses the drain mode cache and the log provider")]
+    public void Ctor_WithDeploymentFencing_AFencedServerThatRestarts_FetchesNoJob_AndLeavesNoPauseOfItsOldId()
+    {
+        FencedCluster cluster = new(currentDeployment: "v2");
+        cluster.ReleaseCheck.Set();
+        BackgroundJobServerOptions options = FencedServerOptions();
+        options.HeartbeatInterval = TimeSpan.FromMilliseconds(200);
+        DeploymentFencing.DeploymentId = "v1";
+        DeploymentFencing.DeploymentOrder = 1;
+
+        try
+        {
+            using (BackgroundJobServer server = new(options, cluster.Storage.Object, []))
+            {
+                Assert.True(SpinWait.SpinUntil(() => cluster.PausedServers.Length == 1, WaitTimeout));
+                string oldId = cluster.PausedServers[0];
+
+                cluster.RemoveServerOnce = true;
+                Assert.True(SpinWait.SpinUntil(() => cluster.PausedServers is [string paused] && paused != oldId, WaitTimeout));
+                string newId = cluster.PausedServers[0];
+
+                server.SendStop();
+                Assert.True(server.WaitForShutdown(WaitTimeout));
+
+                Assert.Equal([oldId, newId], cluster.Announced);
+            }
+
+            // Paused, resumed when the id was given up, and the same for the new id when the server stopped
+            Assert.Equal(["announce", "check", "pause", "resume", "announce", "check", "pause", "resume"], cluster.Events);
+            Assert.Equal(0, cluster.Fetches);
+            Assert.Empty(cluster.PausedServers);
+        }
+        finally
+        {
+            ResetDeploymentFencing();
+        }
+    }
+
+    [Fact, GlobalLock(Reason = "Reads the deployment of the process, uses the drain mode cache")]
+    public void Ctor_WithoutDeploymentFencing_StartsItsWorkers_AndNeverReadsTheDeployment()
+    {
+        FencedCluster cluster = new(currentDeployment: "v2");
         cluster.ReleaseCheck.Set();
         ResetDeploymentFencing();
 
         using (BackgroundJobServer server = new(FencedServerOptions(), cluster.Storage.Object, []))
         {
-            Assert.True(cluster.Fetched.Wait(WaitTimeout, TestContext.Current.CancellationToken));
+            Assert.True(SpinWait.SpinUntil(() => cluster.Fetches > 0, WaitTimeout));
 
             Assert.Contains(server.Processes, static x => x.ToString() == nameof(Worker));
             Assert.DoesNotContain(server.Processes, static x => x.ToString() == nameof(DeploymentFencingProcess));
@@ -297,7 +420,7 @@ public class BackgroundJobServerFacts
             Assert.True(server.WaitForShutdown(WaitTimeout));
         }
 
-        Assert.Equal(["fetch"], cluster.Events);
+        Assert.Equal(["announce", "fetch"], cluster.Events);
         cluster.Connection.Verify(x => x.GetAllEntriesFromHash(DeploymentFencing.HashKey), Times.Never);
         cluster.Connection.Verify(x => x.AcquireDistributedLock($"lock:{DeploymentFencing.HashKey}", It.IsAny<TimeSpan>()), Times.Never);
     }
@@ -313,10 +436,9 @@ public class BackgroundJobServerFacts
         };
     }
 
-    // What a worker logs when it waits for the first deployment check of its server
-    private static bool WaitsForItsFirstCheck(RecordingLogProvider recording)
+    private static bool Logged(RecordingLogProvider recording, string text)
     {
-        return recording.Entries.Any(static x => x.Message.Contains("takes no jobs until its first deployment check", StringComparison.Ordinal));
+        return recording.Entries.Any(x => x.Message.Contains(text, StringComparison.Ordinal));
     }
 
     private static void ResetDeploymentFencing()
@@ -327,33 +449,64 @@ public class BackgroundJobServerFacts
     }
 
     /// <summary>
-    /// A storage that runs deployment v2 (order 2), keeps its hashes, and lets a test hold or fail the deployment
-    /// check of a server and see when a worker fetches. Servers call it from several threads.
+    /// A storage that keeps its hashes, with a current deployment, and lets a test hold or fail the deployment check
+    /// of a server, remove the server as another server's watchdog would, and see in which order the server was
+    /// announced, its deployment check written, the server paused and resumed, and a job fetched. Servers call it
+    /// from several threads.
     /// </summary>
     private sealed class FencedCluster
     {
         private readonly object _sync = new();
         private readonly Dictionary<string, Dictionary<string, string>> _hashes = [];
         private readonly List<string> _events = [];
+        private readonly List<string> _announced = [];
+        private int _fetches;
 
-        public FencedCluster()
+        public FencedCluster(string currentDeployment)
         {
             _hashes[DeploymentFencing.HashKey] = new Dictionary<string, string>
             {
-                [DeploymentFencing.CurrentField] = "v2",
-                [DeploymentFencing.SeenField("v2")] = DeploymentFencing.FormatSeen(DateTime.UtcNow, 7, TimeSpan.FromSeconds(15)),
+                [DeploymentFencing.CurrentField] = currentDeployment,
+                [DeploymentFencing.SeenField(currentDeployment)] = DeploymentFencing.FormatSeen(DateTime.UtcNow, 7, TimeSpan.FromSeconds(15)),
+                [DeploymentFencing.OrderField("v1")] = "1",
                 [DeploymentFencing.OrderField("v2")] = "2",
             };
 
             Storage.Setup(x => x.GetConnection()).Returns(Connection.Object);
+
+            Connection
+                .Setup(x => x.AnnounceServer(It.IsAny<string>(), It.IsAny<ServerContext>()))
+                .Callback((string serverId, ServerContext _) =>
+                {
+                    lock (_sync)
+                    {
+                        _announced.Add(serverId);
+                        _events.Add("announce");
+                    }
+                });
+
+            Connection
+                .Setup(x => x.Heartbeat(It.IsAny<string>()))
+                .Callback((string _) =>
+                {
+                    if (RemoveServerOnce)
+                    {
+                        RemoveServerOnce = false;
+                        throw new BackgroundServerGoneException();
+                    }
+                });
 
             // Behaves like a real storage: waits for a job until the server stops
             Connection
                 .Setup(x => x.FetchNextJob(It.IsAny<string[]>(), It.IsAny<CancellationToken>()))
                 .Returns<string[], CancellationToken>((_, token) =>
                 {
-                    Record("fetch");
-                    Fetched.Set();
+                    lock (_sync)
+                    {
+                        _events.Add("fetch");
+                        _fetches++;
+                    }
+
                     token.WaitHandle.WaitOne();
                     token.ThrowIfCancellationRequested();
                     return null;
@@ -403,9 +556,6 @@ public class BackgroundJobServerFacts
         /// <summary>Set when a deployment check has failed.</summary>
         public ManualResetEventSlim CheckFailed { get; } = new();
 
-        /// <summary>Set when a worker has asked for a job.</summary>
-        public ManualResetEventSlim Fetched { get; } = new();
-
         /// <summary>Whether a deployment check fails at its lock, as when the storage is down.</summary>
         public bool ChecksFail
         {
@@ -413,7 +563,29 @@ public class BackgroundJobServerFacts
             set => Volatile.Write(ref field, value);
         }
 
-        /// <summary>"pause" for each pause of a server that was committed, "fetch" for each job a worker asked for, in order.</summary>
+        /// <summary>Makes the next heartbeat find the server removed, as after another server's watchdog took it for dead.</summary>
+        public bool RemoveServerOnce
+        {
+            get => Volatile.Read(ref field);
+            set => Volatile.Write(ref field, value);
+        }
+
+        /// <summary>How many times a worker has asked for a job.</summary>
+        public int Fetches
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    return _fetches;
+                }
+            }
+        }
+
+        /// <summary>
+        /// In order: "announce" for each server id announced, "check" for each deployment check written, "pause"
+        /// and "resume" for each pause of a server committed or taken back, "fetch" for each job a worker asked for.
+        /// </summary>
         public string[] Events
         {
             get
@@ -425,13 +597,20 @@ public class BackgroundJobServerFacts
             }
         }
 
-        private void Record(string name)
+        /// <summary>The server ids announced, in order.</summary>
+        public string[] Announced
         {
-            lock (_sync)
+            get
             {
-                _events.Add(name);
+                lock (_sync)
+                {
+                    return [.. _announced];
+                }
             }
         }
+
+        /// <summary>The servers paused now.</summary>
+        public string[] PausedServers => [.. DrainMode.Read(Connection.Object).PausedServers.Keys];
 
         private IWriteOnlyTransaction CreateTransaction()
         {
@@ -458,9 +637,14 @@ public class BackgroundJobServerFacts
                             hash[field.Key] = field.Value;
                         }
 
-                        if (key == DrainMode.HashKey && fields.Exists(static x => x.Key.StartsWith(DrainMode.ServerFieldPrefix, StringComparison.Ordinal)))
+                        if (key == DeploymentFencing.HashKey)
                         {
-                            _events.Add("pause");
+                            _events.Add("check");
+                        }
+
+                        foreach (KeyValuePair<string, string> field in fields.Where(x => key == DrainMode.HashKey && x.Key.StartsWith(DrainMode.ServerFieldPrefix, StringComparison.Ordinal)))
+                        {
+                            _events.Add(field.Value == "[resumed]" ? "resume" : "pause");
                         }
                     }
                 }

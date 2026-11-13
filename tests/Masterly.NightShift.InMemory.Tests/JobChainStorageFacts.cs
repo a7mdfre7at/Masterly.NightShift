@@ -1909,6 +1909,54 @@ public sealed class JobChainStorageFacts : IDisposable
     }
 
     [Fact]
+    public void Server_UnlistsAChain_WhoseStepsWaitBehindAFailedStepWhoseJobExpired_OnceItsRecordExpired()
+    {
+        List<object> before = [.. GlobalJobFilters.Filters.Select(static x => x.Instance)];
+        GlobalConfiguration.Configuration.UseFailedJobRetention(TimeSpan.FromDays(7));
+
+        try
+        {
+            JobChainResult chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Then(() => Step("c")).Enqueue(_client)!;
+            Fail(chain.RootId);
+
+            // The failed job expires after a week, as asked: its chain can't be retried any more, nor requeued
+            MoveClock(TimeSpan.FromDays(8));
+            _storage.Database.RemoveExpired();
+            Assert.Null(StateOf(chain.RootId));
+            Assert.Throws<InvalidOperationException>(() => _storage.RetryChainFrom(chain.RootId));
+
+            // A server looks at the chain before its record expires, and leaves it to expire
+            MoveClock(TimeSpan.FromDays(16));
+            using (CreateServer())
+            {
+                WaitUntil(() => SetItems(ExpirySet).Contains(chain.ChainId), "the chain to be left to expire");
+            }
+
+            // The chain is read as it is meanwhile: finished, its waiting steps behind a step whose job is gone
+            JobChainInfo info = _storage.GetChain(chain.ChainId)!;
+            Assert.True(info.IsSettled);
+            Assert.Equal([null, AwaitingState.StateName, AwaitingState.StateName], info.Steps.Select(static x => x.State));
+
+            MoveClock(TimeSpan.FromDays(7));
+            using (CreateServer())
+            {
+                WaitUntil(() => !SetItems(JobChains.SetKey).Contains(chain.ChainId), "the chain whose record expired to leave the list");
+            }
+
+            Assert.Null(_storage.GetChain(chain.ChainId));
+            Assert.Empty(SetItems(ExpirySet));
+            Assert.DoesNotContain(chain.ChainId, SetItems(DueSet));
+        }
+        finally
+        {
+            foreach (object filter in GlobalJobFilters.Filters.Select(static x => x.Instance).Except(before).ToList())
+            {
+                GlobalJobFilters.Filters.Remove(filter);
+            }
+        }
+    }
+
+    [Fact]
     public void Server_LooksSoonAtAChain_WhoseFailedStepIsRequeued_HoweverLongItStoodStill()
     {
         JobChainResult chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client)!;
@@ -2040,6 +2088,282 @@ public sealed class JobChainStorageFacts : IDisposable
         Assert.Equal(new[] { line.ChainId, joined.ChainId }.Order(StringComparer.Ordinal), SetItems(DueSet).Order(StringComparer.Ordinal));
         Assert.Empty(SetItems("chains:joins"));
         Assert.Equal(2, SetItems(JobChains.SetKey).Count);
+    }
+
+    // A step after a group, decided after the job of a step of the group expired
+
+    [Fact]
+    public void Join_Starts_WhenABranchIsRequeuedAndSucceeds_AfterTheJobOfTheOtherBranchExpired()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a"))
+            .ThenMany(branches => branches.Branch(() => Step("b")).Branch(() => Step("c")))
+            .ThenAfterAll(() => Step("done"))
+            .Enqueue(_client)!;
+        string b = chain.Steps["1.0"];
+        string c = chain.Steps["1.1"];
+        string done = chain.Steps["2.0"];
+
+        // One branch succeeds and the other fails for good: the chain is kept, with its failed step, and the
+        // step after the group has it written what the first branch finished as
+        Succeed(chain.RootId);
+        Succeed(b);
+        Fail(c);
+        Assert.Equal(AwaitingState.StateName, StateOf(done));
+        Assert.Equal($"{{\"{b}\":\"Succeeded\",\"{c}\":\"Failed\"}}", Parameter(done, "FanInOutcomes"));
+
+        // Days later the job that succeeded has expired; the failed one is kept
+        MoveClock(TimeSpan.FromDays(3));
+        _storage.Database.RemoveExpired();
+        Assert.Null(StateOf(b));
+        Assert.Equal(FailedState.StateName, StateOf(c));
+
+        // The failed branch is requeued and succeeds: every branch succeeded
+        Assert.True(_client.ChangeState(c, new EnqueuedState(), FailedState.StateName));
+        Succeed(c);
+
+        Assert.Equal(EnqueuedState.StateName, StateOf(done));
+    }
+
+    [Fact]
+    public void Joins_AreDecidedByWhatEveryBranchFinishedAs_WhenTheLastOneFinishes_AfterTheJobOfAnotherExpired()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a"))
+            .ThenMany(branches => branches.Branch(() => Step("b")).Branch(() => Step("c")))
+            .ThenAfterAll(() => Step("done"))
+            .ThenAfterAnyFailedOrCanceled(() => Step("alert"))
+            .Enqueue(_client)!;
+        string b = chain.Steps["1.0"];
+        string c = chain.Steps["1.1"];
+
+        // One branch succeeds at once; the other is to run two days later
+        Succeed(chain.RootId);
+        Succeed(b);
+        Assert.True(_client.ChangeState(c, new ScheduledState(TimeSpan.FromDays(2)), EnqueuedState.StateName));
+
+        MoveClock(TimeSpan.FromDays(2));
+        _storage.Database.RemoveExpired();
+        Assert.Null(StateOf(b));
+
+        Succeed(c);
+
+        // Nothing failed and nothing was canceled
+        Assert.Equal(EnqueuedState.StateName, StateOf(chain.Steps["2.0"]));
+        Assert.Equal(DeletedState.StateName, StateOf(chain.Steps["2.1"]));
+    }
+
+    [Fact]
+    public void FanIn_IsDecidedByWhatAParentFinishedAs_OnceItsJobExpired()
+    {
+        // Outside any chain: ContinueJobWithAll and the join modes
+        string first = _client.Create(() => Step("first"), new EnqueuedState())!;
+        string second = _client.Create(() => Step("second"), new ScheduledState(TimeSpan.FromDays(2)))!;
+        string all = _client.ContinueJobWithAll([first, second], () => Step("all"))!;
+        string alert = _client.ContinueJobWithJoin([first, second], FanInMode.AnyFailedOrCanceled, () => Step("alert"))!;
+
+        Succeed(first);
+        MoveClock(TimeSpan.FromDays(2));
+        _storage.Database.RemoveExpired();
+        Assert.Null(StateOf(first));
+
+        Succeed(second);
+
+        Assert.Equal(EnqueuedState.StateName, StateOf(all));
+        Assert.Equal(DeletedState.StateName, StateOf(alert));
+    }
+
+    [Fact]
+    public void Join_CountsABranchThatFailedForGood_AsFailed_OnceItsJobIsGone()
+    {
+        List<object> before = [.. GlobalJobFilters.Filters.Select(static x => x.Instance)];
+        GlobalConfiguration.Configuration.UseFailedJobRetention(TimeSpan.FromDays(1));
+
+        try
+        {
+            JobChainResult chain = JobChain.StartWith(() => Step("a"))
+                .ThenMany(branches => branches.Branch(() => Step("b")).Branch(() => Step("c")))
+                .ThenAfterAll(() => Step("done"))
+                .ThenAfterAllCompleted(() => Step("always"))
+                .Enqueue(_client)!;
+            string b = chain.Steps["1.0"];
+            string c = chain.Steps["1.1"];
+
+            Succeed(chain.RootId);
+            Fail(b);
+            Assert.True(_client.ChangeState(c, new ScheduledState(TimeSpan.FromDays(2)), EnqueuedState.StateName));
+
+            MoveClock(TimeSpan.FromDays(2));
+            _storage.Database.RemoveExpired();
+            Assert.Null(StateOf(b));
+
+            Succeed(c);
+
+            // A branch failed: the step for every outcome starts, and the one for success doesn't, nor is it
+            // skipped as if the branch had been deleted
+            Assert.Equal(EnqueuedState.StateName, StateOf(chain.Steps["2.1"]));
+            Assert.Equal(AwaitingState.StateName, StateOf(chain.Steps["2.0"]));
+        }
+        finally
+        {
+            foreach (object filter in GlobalJobFilters.Filters.Select(static x => x.Instance).Except(before).ToList())
+            {
+                GlobalJobFilters.Filters.Remove(filter);
+            }
+        }
+    }
+
+    [Fact]
+    public void Join_GoesByABranchThatRunsAgain_AndByWhatItFinishedAsTheLastTime()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a"))
+            .ThenMany(branches => branches.Branch(() => Step("b")).Branch(() => Step("c")).Branch(() => Step("d")))
+            .ThenAfterAllCompleted(() => Step("always"))
+            .Enqueue(_client)!;
+        string b = chain.Steps["1.0"];
+        string c = chain.Steps["1.1"];
+        string d = chain.Steps["1.2"];
+        string always = chain.Steps["2.0"];
+
+        Succeed(chain.RootId);
+        Fail(b);
+        Assert.Equal($"{{\"{b}\":\"Failed\"}}", Parameter(always, "FanInOutcomes"));
+
+        // The failed branch is requeued: it counts as not finished while it runs again, whatever it wrote
+        Assert.True(_client.ChangeState(b, new EnqueuedState(), FailedState.StateName));
+        Succeed(c);
+        Succeed(d);
+        Assert.Equal(AwaitingState.StateName, StateOf(always));
+
+        // It is deleted this time, and requeued once more before the others' jobs expire
+        Assert.True(_client.ChangeState(b, new DeletedState(), EnqueuedState.StateName));
+        Assert.Equal(EnqueuedState.StateName, StateOf(always));
+    }
+
+    [Fact]
+    public void Join_IsDecidedByWhatABranchFinishedAsTheLastTime_OnceItsJobIsGone()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a"))
+            .ThenMany(branches => branches.Branch(() => Step("b")).Branch(() => Step("c")))
+            .ThenAfterAll(() => Step("done"))
+            .Enqueue(_client)!;
+        string b = chain.Steps["1.0"];
+        string c = chain.Steps["1.1"];
+        string done = chain.Steps["2.0"];
+
+        // The first branch fails for good, is requeued and succeeds, while the other is to run days later
+        Succeed(chain.RootId);
+        Assert.True(_client.ChangeState(c, new ScheduledState(TimeSpan.FromDays(2)), EnqueuedState.StateName));
+        Fail(b);
+        Assert.Equal($"{{\"{b}\":\"Failed\"}}", Parameter(done, "FanInOutcomes"));
+        Assert.True(_client.ChangeState(b, new EnqueuedState(), FailedState.StateName));
+        Succeed(b);
+        Assert.Equal($"{{\"{b}\":\"Succeeded\"}}", Parameter(done, "FanInOutcomes"));
+
+        MoveClock(TimeSpan.FromDays(2));
+        _storage.Database.RemoveExpired();
+        Assert.Null(StateOf(b));
+
+        Succeed(c);
+
+        Assert.Equal(EnqueuedState.StateName, StateOf(done));
+    }
+
+    [Fact]
+    public void Server_WritesOnAWaitingStep_WhatABranchFinishedAs_WhenTheProcessThatFinishedItStoppedBeforeItDid()
+    {
+        // The second branch waits in a queue no server of this test takes jobs from
+        JobChainResult chain = JobChain.StartWith(() => Step("a"))
+            .ThenMany(branches => branches.Branch(() => Step("b")).Branch(() => Step("c"), queue: "later"))
+            .ThenAfterAll(() => Step("done"))
+            .Enqueue(_client)!;
+        string b = chain.Steps["1.0"];
+        string c = chain.Steps["1.1"];
+        string done = chain.Steps["2.0"];
+
+        // The first branch succeeds, by a process that stops once that is stored
+        Succeed(chain.RootId);
+        using (IStorageConnection connection = _storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            transaction.SetJobState(b, new SucceededState(null, 0, 0));
+            transaction.ExpireJob(b, TimeSpan.FromDays(1));
+            transaction.Commit();
+        }
+
+        Assert.Null(Parameter(done, "FanInOutcomes"));
+
+        // A server looks at the chain a few minutes later, while the job of that branch still exists
+        MoveClock(TimeSpan.FromMinutes(6));
+        using (CreateServer())
+        {
+            WaitUntil(() => Parameter(done, "FanInOutcomes") != null, "what the first branch finished as to be written on the step after the group");
+        }
+
+        Assert.Equal($"{{\"{b}\":\"Succeeded\"}}", Parameter(done, "FanInOutcomes"));
+        Assert.Equal(AwaitingState.StateName, StateOf(done));
+
+        MoveClock(TimeSpan.FromDays(2));
+        _storage.Database.RemoveExpired();
+        Assert.Null(StateOf(b));
+
+        Succeed(c);
+
+        Assert.Equal(EnqueuedState.StateName, StateOf(done));
+    }
+
+    [Fact]
+    public void Server_LooksAfterTheChainsAProcessOfAnEarlierBuildListed_AfterTheListWasGoneThrough()
+    {
+        // A server of this build starts first, in a rolling upgrade: the list of chains is gone through
+        using (CreateServer())
+        {
+            WaitUntil(() => HashField("chains:index", "Listed") == "done", "the chains listed to be gone through");
+        }
+
+        // A process of the earlier build, still running, records two chains as it did: listed, their steps marked
+        // "true", no place among the chains to look at, and the one with a step after a group in a set of its
+        // own. Its own servers run their steps: one chain fails, the other finishes.
+        JobChainResult failed = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client)!;
+        JobChainResult joined = JobChain.StartWith(() => Step("x"))
+            .ThenMany(branches => branches.Branch(() => Step("y")).Branch(() => Step("z")))
+            .ThenAfterAll(() => Step("done"))
+            .Enqueue(_client)!;
+        using (IStorageConnection connection = _storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            transaction.RemoveFromSet(DueSet, failed.ChainId);
+            transaction.RemoveFromSet(DueSet, joined.ChainId);
+            transaction.AddToSet("chains:joins", joined.ChainId, JobHelper.ToTimestamp(JobClock.UtcNow.AddMinutes(5)));
+            transaction.Commit();
+        }
+
+        foreach (string jobId in failed.Steps.Values.Concat(joined.Steps.Values))
+        {
+            SetParameter(jobId, JobChains.ChainRecordedParameter, "true");
+        }
+
+        FailWithoutTellingTheNextSteps(failed.RootId);
+        foreach (string jobId in joined.Steps.Values)
+        {
+            SucceedWithoutTellingTheNextStep(jobId, null);
+        }
+
+        // Servers of this build run every few days for two months
+        for (int i = 0; i < 12; i++)
+        {
+            MoveClock(TimeSpan.FromDays(5));
+            using (CreateServer())
+            {
+                Thread.Sleep(300);
+            }
+        }
+
+        _storage.Database.RemoveExpired();
+
+        // The chain that finished left the list once its record expired; the one with a failed step is kept
+        Assert.DoesNotContain(joined.ChainId, SetItems(JobChains.SetKey));
+        Assert.Equal(1, _storage.GetChain(failed.ChainId)?.FailedCount);
+        Assert.Empty(SetItems("chains:joins"));
+        Assert.Equal("done", HashField("chains:index", "Listed"));
     }
 
     [Fact]
