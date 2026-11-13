@@ -62,6 +62,14 @@ public class StateMachine : IStateMachine
                 new KeyValuePair<IElectStateFilter, ElectStateContext>(filter, electContext),
                 InvokeOnStateElection,
                 static ctx => $"OnStateElection for job {ctx.Value.BackgroundJob.Id}");
+
+            // A filter had the job given back to its queue: no filter after it runs, and nothing is written.
+            // The state returned wasn't applied; the caller that offered it (BackgroundJobStateChanger) drops
+            // the transaction.
+            if (electContext.IsGivenBack)
+            {
+                return electContext.CandidateState;
+            }
         }
 
         foreach (IState state in electContext.TraversedStates)

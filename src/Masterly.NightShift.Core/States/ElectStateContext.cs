@@ -46,6 +46,7 @@ public class ElectStateContext
         CustomData = applyContext.CustomData?.ToDictionary(static x => x.Key, static x => x.Value);
         StateMachine = stateMachine;
         AfterCommit = applyContext.AfterCommit;
+        GiveBack = applyContext.GiveBack;
     }
 
     public BackgroundJob BackgroundJob { get; }
@@ -96,6 +97,36 @@ public class ElectStateContext
     /// <summary>The <see cref="ApplyStateContext.AfterCommit"/> of the state change being elected.</summary>
     [CanBeNull]
     internal PostCommitActions? AfterCommit { get; }
+
+    /// <summary>The <see cref="ApplyStateContext.GiveBack"/> of the state change being elected.</summary>
+    [CanBeNull]
+    internal JobGiveBack? GiveBack { get; }
+
+    /// <summary>
+    /// Whether the job can be put back in its queue instead of changing state: a worker fetched it and is about to
+    /// process it, and no filter asked for it yet.
+    /// </summary>
+    internal bool CanGiveBack => GiveBack is { Requested: false };
+
+    /// <summary>Whether a filter had the job given back: no filter runs after it, and nothing is stored.</summary>
+    internal bool IsGivenBack => GiveBack is { Requested: true };
+
+    /// <summary>
+    /// Has the worker put the job back in its queue after <paramref name="pause"/>, with nothing stored about this
+    /// state change: no state, no history entry, no parameter, and no filter after this one runs. See
+    /// <see cref="JobGiveBack"/>.
+    /// </summary>
+    /// <returns>False when the state change doesn't come from a worker that can do it: the filter decides otherwise.</returns>
+    internal bool TryGiveBack(TimeSpan pause)
+    {
+        if (GiveBack == null)
+        {
+            return false;
+        }
+
+        GiveBack.Request(pause);
+        return true;
+    }
 
     /// <summary>Runs the action once the state change is committed, or right away when that isn't known.</summary>
     internal void RunAfterCommit([NotNull] Action action) => PostCommitActions.RunAfterCommit(AfterCommit, action);

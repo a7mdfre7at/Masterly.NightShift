@@ -124,6 +124,7 @@ public class Worker : IBackgroundProcess
                 timeoutCts.Token))
             {
                 ProcessingState processingState = new(context.ServerId, workerId);
+                JobGiveBack giveBack = new();
 
                 IState? appliedState = TryChangeState(
                     context,
@@ -135,7 +136,21 @@ public class Worker : IBackgroundProcess
                     null,
                     out backgroundJob,
                     linkedCts.Token,
-                    context.StoppingToken);
+                    context.StoppingToken,
+                    giveBack: giveBack);
+
+                // A filter said "not now" (see JobGiveBack): nothing was stored about the job, and its lock is
+                // released. This thread waits a moment with the job still invisible, so no other worker takes it
+                // meanwhile only to give it back too, and then returns it to its queue, where it is fetched again.
+                // The wait ends at once when the server stops.
+                if (giveBack.Requested)
+                {
+                    context.StoppingToken.Wait(giveBack.Pause);
+
+                    requeueOnException = false;
+                    Requeue(fetchedJob);
+                    return;
+                }
 
                 // Cancel job processing if the job could not be loaded, was not in the initial state expected
                 // or if a job filter changed the state to something other than processing state
@@ -240,7 +255,8 @@ public class Worker : IBackgroundProcess
         out BackgroundJob? backgroundJob,
         CancellationToken initializeToken,
         CancellationToken abortToken,
-        string? leaseHolder = null)
+        string? leaseHolder = null,
+        JobGiveBack? giveBack = null)
     {
         Exception? exception = null;
 
@@ -268,6 +284,7 @@ public class Worker : IBackgroundProcess
                     customData)
                 {
                     LeaseHolder = leaseHolder,
+                    GiveBack = giveBack,
                 };
 
                 IState? resultingState = _stateChanger.ChangeState(stateChangeContext);

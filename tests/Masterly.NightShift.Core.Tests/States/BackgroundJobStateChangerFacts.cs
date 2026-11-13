@@ -784,6 +784,100 @@ public class BackgroundJobStateChangerFacts
         Assert.NotNull(result);
     }
 
+    [Fact]
+    public void ChangeState_GivesTheJobBack_WithoutCommittingOrAcknowledgingAnything_WhenAFilterAsksForIt()
+    {
+        JobGiveBack giveBack = new();
+        Mock<IFetchedJob> fetchedJob = new();
+        Mock<JobStorageTransaction> transaction = new();
+        _connection.Setup(x => x.CreateWriteTransaction()).Returns(transaction.Object);
+        _context.GiveBack = giveBack;
+        _context.CompleteJob = fetchedJob;
+
+        bool afterCommit = false;
+        bool afterAttempt = false;
+        bool lockHeld = true;
+        _distributedLock.Setup(x => x.Dispose()).Callback(() => lockHeld = false);
+
+        _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
+            .Returns<ApplyStateContext>(context =>
+            {
+                Assert.Same(giveBack, context.GiveBack);
+                context.RunAfterCommit(() => afterCommit = true);
+                PostCommitActions.RunAfterCommitAttempt(context.AfterCommit, () => afterAttempt = !lockHeld);
+                context.GiveBack.Request(TimeSpan.FromMilliseconds(30));
+                return context.NewState;
+            });
+
+        IState result = CreateStateChanger().ChangeState(_context.Object);
+
+        // No state for the caller, nothing stored, the fetched job not acknowledged, and the job's lock released
+        Assert.Null(result);
+        Assert.True(giveBack.Requested);
+        Assert.Equal(TimeSpan.FromMilliseconds(30), giveBack.Pause);
+        Assert.Null(_context.Object.ProcessedJob);
+        transaction.Verify(x => x.Commit(), Times.Never);
+        transaction.Verify(x => x.RemoveFromQueue(It.IsAny<IFetchedJob>()), Times.Never);
+        _distributedLock.Verify(x => x.Dispose(), Times.Once);
+
+        // What was to follow the commit doesn't happen; what is about something stored already does, after the lock
+        Assert.False(afterCommit);
+        Assert.True(afterAttempt);
+    }
+
+    [Fact]
+    public void ChangeState_ForgetsWhatAnEarlierAttemptAsked_WhenTheStateChangeIsTriedAgain()
+    {
+        JobGiveBack giveBack = new();
+        giveBack.Request(TimeSpan.FromMilliseconds(30));
+        _context.GiveBack = giveBack;
+
+        IState result = CreateStateChanger().ChangeState(_context.Object);
+
+        Assert.NotNull(result);
+        Assert.False(giveBack.Requested);
+        _transaction.Verify(x => x.Commit(), Times.Once);
+    }
+
+    [Fact]
+    public void ChangeState_DoesNotOfferToGiveTheJobBack_WhenTheTransactionIsTheCallers()
+    {
+        // Nothing could be dropped: what the filters wrote would be committed by the caller
+        _context.GiveBack = new JobGiveBack();
+        _context.Transaction = new Mock<JobStorageTransaction>();
+        JobGiveBack offered = new();
+        _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
+            .Returns<ApplyStateContext>(context =>
+            {
+                offered = context.GiveBack;
+                return context.NewState;
+            });
+
+        IState result = CreateStateChanger().ChangeState(_context.Object);
+
+        Assert.Null(offered);
+        Assert.NotNull(result);
+    }
+
+    [Fact]
+    public void ChangeState_DoesNotOfferToGiveTheJobBack_WhenTheFiltersAreDisabled()
+    {
+        _context.GiveBack = new JobGiveBack();
+        _context.DisableFilters = true;
+        JobGiveBack offered = new();
+        _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
+            .Returns<ApplyStateContext>(context =>
+            {
+                offered = context.GiveBack;
+                return context.NewState;
+            });
+
+        IState result = CreateStateChanger().ChangeState(_context.Object);
+
+        Assert.Null(offered);
+        Assert.NotNull(result);
+    }
+
     private BackgroundJobStateChanger CreateStateChanger()
     {
         return new BackgroundJobStateChanger(_filterProvider.Object, _stateMachine.Object);
