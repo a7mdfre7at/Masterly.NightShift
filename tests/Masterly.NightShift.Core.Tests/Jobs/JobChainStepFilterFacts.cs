@@ -281,6 +281,176 @@ public sealed class JobChainStepFilterFacts : IDisposable
     }
 
     [Fact]
+    public void OnStateElection_LetsTheStepRun_OnceTheTimeItsMarkSaysTheRecordWasKeptIsOver_WhateverThisProcessIsSetTo()
+    {
+        // Recorded by a process that keeps records for a day: two days later the record expired, although this
+        // process keeps records for thirty
+        Step("0.0");
+        Mark("86400");
+        Created(TimeSpan.FromDays(2));
+
+        _filter.OnStateElection(_context.Object);
+
+        Assert.IsType<ProcessingState>(_context.Object.CandidateState);
+    }
+
+    [Fact]
+    public void OnStateElection_DeletesAStepWithoutRecord_ThatIsYoungerThanItsMarkSaysTheRecordIsKept_WhateverThisProcessIsSetTo()
+    {
+        // Recorded by a process that keeps records for ninety days: after forty the record can't have expired,
+        // although this process keeps records for a day, so the chain was deleted
+        TimeSpan retention = JobChain.RecordRetention;
+        JobChain.RecordRetention = TimeSpan.FromDays(1);
+
+        try
+        {
+            Step("0.0");
+            Mark("7776000");
+            Created(TimeSpan.FromDays(40));
+
+            _filter.OnStateElection(_context.Object);
+        }
+        finally
+        {
+            JobChain.RecordRetention = retention;
+        }
+
+        Assert.IsType<DeletedState>(_context.Object.CandidateState);
+    }
+
+    [Fact]
+    public void OnStateElection_GoesByItsOwnSetting_ForAMarkOfAnEarlierBuild_ThatDoesNotSayHowLongTheRecordIsKept()
+    {
+        TimeSpan retention = JobChain.RecordRetention;
+        JobChain.RecordRetention = TimeSpan.FromDays(2);
+
+        try
+        {
+            Step("0.0", recorded: true);
+            Created(TimeSpan.FromDays(3));
+
+            _filter.OnStateElection(_context.Object);
+        }
+        finally
+        {
+            JobChain.RecordRetention = retention;
+        }
+
+        Assert.IsType<ProcessingState>(_context.Object.CandidateState);
+    }
+
+    [Theory]
+    [InlineData("Failed", "Enqueued")]
+    [InlineData("Failed", "Deleted")]
+    [InlineData("Failed", "Scheduled")]
+    [InlineData("Succeeded", "Enqueued")]
+    [InlineData("Deleted", "Enqueued")]
+    public void OnStateApplied_HasTheChainLookedAtSoon_WhenAStepLeavesTheStateItFinishedIn_OnceThatIsCommitted(string from, string to)
+    {
+        ApplyStateContext context = Left(from, to);
+
+        _filter.OnStateApplied(context, context.Transaction);
+
+        // Nothing in the state change's own transaction, and nothing before it is committed
+        Assert.Empty(_expiring.Invocations);
+        Assert.Empty(Mock.Get(context.Transaction).Invocations);
+
+        context.AfterCommit.Run();
+
+        _expiring.Verify(x => x.AddToSet("chains:due", ChainId, It.IsInRange(
+            (double)JobHelper.ToTimestamp(DateTime.UtcNow.AddMinutes(4)), (double)JobHelper.ToTimestamp(DateTime.UtcNow.AddMinutes(6)), Moq.Range.Inclusive)));
+        _expiring.Verify(x => x.RemoveFromSet("chains:expiring", ChainId));
+        _expiring.Verify(x => x.Commit());
+    }
+
+    [Theory]
+    [InlineData("Enqueued", "Processing")]
+    [InlineData("Processing", "Succeeded")]
+    [InlineData("Processing", "Failed")]
+    [InlineData("Processing", "Scheduled")]
+    [InlineData("Scheduled", "Enqueued")]
+    [InlineData("Awaiting", "Enqueued")]
+    [InlineData("Failed", "Failed")]
+    public void OnStateApplied_WritesNothing_ForTheStateChangesOfAStepThatRuns(string from, string to)
+    {
+        ApplyStateContext context = Left(from, to);
+
+        _filter.OnStateApplied(context, context.Transaction);
+        context.AfterCommit.Run();
+
+        Assert.Empty(_connection.Invocations);
+        Assert.Empty(_expiring.Invocations);
+    }
+
+    [Fact]
+    public void OnStateApplied_ReadsTheChain_OfAJobThatLeavesTheFailedState_WhenTheStorageLoadsNoParameters_AfterTheCommit()
+    {
+        ApplyStateContextMock mock = LeftMock(FailedState.StateName, EnqueuedState.StateName);
+        mock.BackgroundJob.ParametersSnapshot = null;
+        _connection.Setup(x => x.GetJobParameter(JobId, JobChains.ChainIdParameter)).Returns($"\"{ChainId}\"");
+        ApplyStateContext context = WithCommit(mock);
+
+        _connection.Setup(x => x.GetHashTtl(JobChains.GetKey(ChainId))).Returns(TimeSpan.FromDays(3));
+        JobChains.ForgetExpiry(ChainId);
+
+        _filter.OnStateApplied(context, context.Transaction);
+        Assert.Empty(_connection.Invocations);
+
+        context.AfterCommit.Run();
+
+        _expiring.Verify(x => x.AddToSet("chains:due", ChainId, It.IsAny<double>()));
+
+        // And its record is kept longer, which is done at each state change only where the parameters are loaded
+        _expiring.Verify(x => x.ExpireHash(JobChains.GetKey(ChainId), It.IsInRange(TimeSpan.FromDays(29.9), TimeSpan.FromDays(30), Moq.Range.Inclusive)));
+    }
+
+    [Fact]
+    public void OnStateApplied_WritesNothing_ForAJobOutsideAChain_ThatLeavesTheFailedState()
+    {
+        ApplyStateContextMock loaded = LeftMock(FailedState.StateName, EnqueuedState.StateName);
+        loaded.BackgroundJob.ParametersSnapshot = new Dictionary<string, string> { ["RetryCount"] = "3" };
+        ApplyStateContext context = WithCommit(loaded);
+        _filter.OnStateApplied(context, context.Transaction);
+        context.AfterCommit.Run();
+
+        Assert.Empty(_connection.Invocations);
+
+        // Its parameters aren't loaded with it: one read tells, after the commit
+        ApplyStateContextMock unloaded = LeftMock(FailedState.StateName, EnqueuedState.StateName);
+        unloaded.BackgroundJob.ParametersSnapshot = null;
+        context = WithCommit(unloaded);
+        _filter.OnStateApplied(context, context.Transaction);
+        context.AfterCommit.Run();
+
+        _connection.Verify(x => x.GetJobParameter(JobId, JobChains.ChainIdParameter), Times.Once);
+        _connection.Verify(x => x.CreateWriteTransaction(), Times.Never);
+    }
+
+    [Fact]
+    public void OnStateApplied_NeverThrows_WhenTheChainCanNotBeGivenALook()
+    {
+        ApplyStateContext context = Left(FailedState.StateName, EnqueuedState.StateName);
+        _expiring.Setup(x => x.Commit()).Throws(new InvalidOperationException("Storage is down"));
+
+        _filter.OnStateApplied(context, context.Transaction);
+        context.AfterCommit.Run();
+    }
+
+    [Fact]
+    public void OnStateApplied_LeavesTheChainsLeftToExpireAlone_OnAStorageWhoseRecordsNeverExpire()
+    {
+        ApplyStateContextMock mock = LeftMock(FailedState.StateName, EnqueuedState.StateName);
+        mock.Storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(false);
+        ApplyStateContext context = WithCommit(mock);
+
+        _filter.OnStateApplied(context, context.Transaction);
+        context.AfterCommit.Run();
+
+        _expiring.Verify(x => x.AddToSet("chains:due", ChainId, It.IsAny<double>()));
+        _expiring.Verify(x => x.RemoveFromSet(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
     public void OnStateElection_DeletesAnOldStep_OfAChainThatWasNeverCompletelyCreated()
     {
         // Scheduled far ahead by a client that stopped before it recorded the chain, and due after what it started
@@ -679,6 +849,12 @@ public sealed class JobChainStepFilterFacts : IDisposable
         _context.ApplyContext.BackgroundJob.ParametersSnapshot = parameters;
     }
 
+    private void Mark(string value)
+    {
+        Dictionary<string, string> parameters = new(_context.ApplyContext.BackgroundJob.ParametersSnapshot) { [JobChains.ChainRecordedParameter] = value };
+        _context.ApplyContext.BackgroundJob.ParametersSnapshot = parameters;
+    }
+
     private void Created(TimeSpan ago) => _context.ApplyContext.BackgroundJob.CreatedAt = DateTime.UtcNow - ago;
 
     // A lease that began a while ago and lasts a while more (or lapsed, with a negative time)
@@ -694,6 +870,28 @@ public sealed class JobChainStepFilterFacts : IDisposable
         _connection.Setup(x => x.GetValueFromHash(JobChains.GetKey(ChainId), "Jobs")).Returns(serialized);
         _context.ApplyContext.Connection.Setup(x => x.GetAllEntriesFromHash(JobChains.GetKey(ChainId)))
             .Returns(new Dictionary<string, string> { ["Jobs"] = serialized });
+    }
+
+    // A step of the chain, created a moment ago, that goes from a state to another
+    private ApplyStateContextMock LeftMock(string from, string to)
+    {
+        Mock<IState> state = new();
+        state.Setup(x => x.Name).Returns(to);
+
+        ApplyStateContextMock mock = ApplyMock(state.Object);
+        mock.OldStateName = from;
+        mock.BackgroundJob.Id = JobId;
+        mock.BackgroundJob.ParametersSnapshot = new Dictionary<string, string> { [JobChains.ChainIdParameter] = $"\"{ChainId}\"" };
+        mock.BackgroundJob.CreatedAt = DateTime.UtcNow.AddMinutes(-5);
+        return mock;
+    }
+
+    private ApplyStateContext Left(string from, string to) => WithCommit(LeftMock(from, to));
+
+    private static ApplyStateContext WithCommit(ApplyStateContextMock mock)
+    {
+        mock.Object.AfterCommit = new PostCommitActions();
+        return mock.Object;
     }
 
     private ApplyStateContextMock ApplyMock(IState newState)

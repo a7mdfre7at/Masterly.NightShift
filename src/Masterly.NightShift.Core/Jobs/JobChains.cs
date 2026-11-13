@@ -184,7 +184,7 @@ public static partial class JobChains
         using (connection.AcquireDistributedLock(GetLockResource(chainId), LockTimeout))
         {
             ChainRecord record = ChainRecord.Read(connection, chainId)
-                ?? throw new InvalidOperationException($"Chain '{chainId}' isn't recorded any more: its record is kept for {JobChain.RecordRetention.TotalDays} days after its last step.");
+                ?? throw new InvalidOperationException($"Chain '{chainId}' isn't recorded any more: its record is kept while a step of it is left to run or failed for good, and for {JobChain.RecordRetention.TotalDays:0.#} days after.");
 
             // What a change before this one left to do comes first: a step it still holds isn't settled
             record = FinishPendingCleanup(client, connection, record);
@@ -529,7 +529,8 @@ public static partial class JobChains
             {
                 transaction.RemoveHash(GetKey(chainId));
                 transaction.RemoveFromSet(SetKey, chainId);
-                transaction.RemoveFromSet(WatchSetKey, chainId);
+                transaction.RemoveFromSet(DueSetKey, chainId);
+                transaction.RemoveFromSet(ExpirySetKey, chainId);
                 if (record.Cleanup != null)
                 {
                     transaction.RemoveFromSet(CleanupSetKey, chainId);

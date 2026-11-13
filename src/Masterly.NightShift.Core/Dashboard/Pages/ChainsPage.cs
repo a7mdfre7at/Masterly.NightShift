@@ -7,7 +7,7 @@ internal partial class ChainsPage
 
     /// <summary>
     /// Reads one page of chains, newest first, leaving out the ones whose record expired (a server's chain
-    /// maintenance removes them from the list every few minutes). Each chain is read as a summary: its steps'
+    /// maintenance removes them from the list a moment after). Each chain is read as a summary: its steps'
     /// states and its first step's method only.
     /// </summary>
     private List<JobChainInfo> ReadChains(int from, int perPage, out Pager? pager)

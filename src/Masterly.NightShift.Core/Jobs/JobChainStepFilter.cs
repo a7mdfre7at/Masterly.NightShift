@@ -32,11 +32,12 @@ namespace Masterly.NightShift;
 /// <item><description>
 /// The record lists no step at all (the creation of the chain stopped halfway), or there is no record and the chain
 /// isn't in the list of chains (it was deleted): the job is deleted (<see cref="NotRecordedReasonFormat"/>). On a
-/// storage that expires records, a job without record runs instead when its chain's record expired: the job is
-/// older than <see cref="JobChain.RecordRetention"/> and carries the mark of a step that was recorded
-/// (<see cref="JobChains.ChainRecordedParameter"/>), which a job of a chain that was never completely created
-/// doesn't. So does a job whose chain is still listed, because the storage dropped the record before its time
-/// (a cap on expiration times, an eviction).
+/// storage that expires records, a job without record runs instead when its chain's record expired: the job
+/// carries the mark of a step that was recorded (<see cref="JobChains.ChainRecordedParameter"/>), which a job of a
+/// chain that was never completely created doesn't, and is older than the time the mark says its record was kept
+/// (the <see cref="JobChain.RecordRetention"/> of the process that wrote the record, not of this one). So does a
+/// job whose chain is still listed, because the storage dropped the record before its time (a cap on expiration
+/// times, an eviction).
 /// </description></item>
 /// </list>
 /// <para>
@@ -60,7 +61,8 @@ namespace Masterly.NightShift;
 /// Each state change of a step also keeps the chain's record for <see cref="JobChain.RecordRetention"/> longer (from
 /// the time a Scheduled step is due), after the state change is committed. A process does it about once an hour
 /// for a chain, not at all for a step created within the last hour (its record is new), and only on storages that
-/// load the job's parameters with the job.
+/// load the job's parameters with the job. A step that leaves the state it had finished in (a failed step that is
+/// requeued, say) has a server look at its chain a few minutes later, also after the commit.
 /// </para>
 /// </remarks>
 public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
@@ -187,8 +189,15 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             return;
         }
 
-        // Only with the parameters at hand: this runs at every state change of every job
         IReadOnlyDictionary<string, string>? parameters = context.BackgroundJob.ParametersSnapshot;
+
+        // A step that leaves the state it had finished in moves its chain on: a server looks at the chain soon
+        if (JobChains.LeavesFinishedState(context.OldStateName, context.NewState))
+        {
+            JobChains.LookSoonAfterCommit(context, parameters);
+        }
+
+        // Only with the parameters at hand: this runs at every state change of every job
         if (parameters == null || !parameters.TryGetValue(JobChains.ChainIdParameter, out string? serialized))
         {
             return;
@@ -272,11 +281,12 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             return Verdict.NotRecorded;
         }
 
-        // A record outlives the steps it lists by RecordRetention at least: without one, a job that old is a step
-        // of a chain whose record expired, and runs as it always did. Only a job that was listed once: it is
-        // marked when the record that lists it is written, so a job of a chain that was never completely created
-        // (scheduled far ahead, say, by a client that stopped) doesn't run for being old.
-        if (JobClock.UtcNow - job.CreatedAt > JobChain.RecordRetention && IsMarkedRecorded(job, connection))
+        // A record outlives the steps it lists by the retention it was written with at least: without one, a job
+        // that old is a step of a chain whose record expired, and runs as it always did. Only a job that was
+        // listed once: it is marked when the record that lists it is written, so a job of a chain that was never
+        // completely created (scheduled far ahead, say, by a client that stopped) doesn't run for being old. The
+        // mark says that retention, so this process's own setting doesn't decide for a record another one wrote.
+        if (JobChains.MarkedRetention(ReadMark(job, connection)) is { } retention && JobClock.UtcNow - job.CreatedAt > retention)
         {
             return Verdict.Run;
         }
@@ -309,11 +319,11 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
         return delay;
     }
 
-    private static bool IsMarkedRecorded(BackgroundJob job, IStorageConnection connection)
+    private static string? ReadMark(BackgroundJob job, IStorageConnection connection)
     {
         return job.ParametersSnapshot != null
-            ? job.ParametersSnapshot.ContainsKey(JobChains.ChainRecordedParameter)
-            : !string.IsNullOrEmpty(connection.GetJobParameter(job.Id, JobChains.ChainRecordedParameter));
+            ? job.ParametersSnapshot.GetValueOrDefault(JobChains.ChainRecordedParameter)
+            : connection.GetJobParameter(job.Id, JobChains.ChainRecordedParameter);
     }
 
     // Twice as long at each attempt in a row, as far as this process remembers them

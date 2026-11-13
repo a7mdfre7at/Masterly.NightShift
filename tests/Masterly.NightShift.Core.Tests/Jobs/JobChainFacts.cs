@@ -303,18 +303,22 @@ public class JobChainFacts : IDisposable
     }
 
     [Fact]
-    public void Enqueue_ListsAChainWithAStepThatWaitsForSeveral_ToBeLookedAtAgain()
+    public void Enqueue_GivesEveryChainWithStepsThatWait_ALookByAServer_WhateverItsShape()
     {
+        // A step after a single step is started by the process that finishes that step, which may stop first, as
+        // a step after a group is
         JobChainResult line = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client.Object);
-        Assert.False(_storage.Sets.ContainsKey("chains:joins"));
-
         JobChainResult joined = JobChain.StartWith(() => Step("a"))
             .ThenMany(branches => branches.Branch(() => Step("b")).Branch(() => Step("c")))
             .ThenAfterAll(() => Step("d"))
             .Enqueue(_client.Object);
 
-        Assert.Equal([joined!.ChainId], _storage.Sets["chains:joins"]);
-        Assert.NotNull(line);
+        // A single step has nothing waiting, and its record never expires on this storage: nothing to look at
+        JobChain.StartWith(() => Step("a")).Enqueue(_client.Object);
+
+        Assert.Equal(new[] { line!.ChainId, joined!.ChainId }.Order(StringComparer.Ordinal), _storage.Sets["chains:due"]);
+        Assert.Equal(3, _storage.Sets[JobChains.SetKey].Count);
+        Assert.False(_storage.Sets.ContainsKey("chains:joins"));
     }
 
     // The record is started by a write that works; the writes after it go to the transaction given
@@ -785,8 +789,40 @@ public class JobChainFacts : IDisposable
     {
         JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client.Object);
 
-        _storage.Connection.Verify(x => x.SetJobParameter("job-1", JobChains.ChainRecordedParameter, "true"), Times.Once);
-        _storage.Connection.Verify(x => x.SetJobParameter("job-2", JobChains.ChainRecordedParameter, "true"), Times.Once);
+        // The mark says how long the record is kept, in seconds: 30 days
+        _storage.Connection.Verify(x => x.SetJobParameter("job-1", JobChains.ChainRecordedParameter, "2592000"), Times.Once);
+        _storage.Connection.Verify(x => x.SetJobParameter("job-2", JobChains.ChainRecordedParameter, "2592000"), Times.Once);
+    }
+
+    [Fact]
+    public void Enqueue_MarksTheSteps_WithTheTimeThisProcessKeepsRecordsFor()
+    {
+        TimeSpan retention = JobChain.RecordRetention;
+        JobChain.RecordRetention = TimeSpan.FromDays(2);
+
+        try
+        {
+            JobChain.StartWith(() => Step("a")).Enqueue(_client.Object);
+        }
+        finally
+        {
+            JobChain.RecordRetention = retention;
+        }
+
+        _storage.Connection.Verify(x => x.SetJobParameter("job-1", JobChains.ChainRecordedParameter, "172800"), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("172800", 2)]
+    [InlineData("true", 30)]
+    [InlineData("0", 30)]
+    [InlineData("-5", 30)]
+    [InlineData("99999999999999", 30)]
+    public void MarkedRetention_IsWhatTheMarkSays_OrWhatThisProcessIsSetTo_ForAMarkThatDoesNotSay(string mark, int days)
+    {
+        Assert.Equal(TimeSpan.FromDays(days), JobChains.MarkedRetention(mark));
+        Assert.Null(JobChains.MarkedRetention(null));
+        Assert.Null(JobChains.MarkedRetention(string.Empty));
     }
 
     [Fact]

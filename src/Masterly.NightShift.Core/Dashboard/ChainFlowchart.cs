@@ -139,7 +139,8 @@ internal sealed class ChainFlowchart
             {
                 ChainFlowStep step = Describe(monitor, connection, info, now);
 
-                // A settled chain runs nothing more: a step still waiting waits after a failure, for a requeue
+                // A settled chain runs nothing more by itself: a step still waiting waits after a failure, for a
+                // requeue, or was never told to start, and a server starts it within minutes (the chain runs again)
                 if (settled && step.Condition == ChainFlowCondition.Waiting)
                 {
                     step.Condition = ChainFlowCondition.NotRun;
