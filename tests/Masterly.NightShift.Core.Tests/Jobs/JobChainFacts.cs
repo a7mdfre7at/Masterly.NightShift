@@ -1352,8 +1352,10 @@ public class JobChainFacts : IDisposable
     public void DeleteChain_OfARestrictChain_KeepsAStepThatStartedMeanwhile_AndTheRecord()
     {
         RecordChain("c", JobChain.StartWith(() => Step("a")).Then(() => Step("b")).OnDelete(ChainDeleteBehavior.Restrict), ["root", "next"]);
+        // Read once more since a step that an abandoned retry holds is put back before the steps are deleted
         _storage.Connection.SetupSequence(x => x.GetStateData("root"))
             .Returns(new StateData { Name = EnqueuedState.StateName })
+            .Returns(new StateData { Name = ProcessingState.StateName })
             .Returns(new StateData { Name = ProcessingState.StateName })
             .Returns(new StateData { Name = ProcessingState.StateName })
             .Returns(new StateData { Name = ProcessingState.StateName })
