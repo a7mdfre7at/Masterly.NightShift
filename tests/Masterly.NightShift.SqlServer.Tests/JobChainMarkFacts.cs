@@ -13,7 +13,8 @@ namespace Masterly.NightShift.SqlServer.Tests;
 
 /// <summary>
 /// The mark of a recorded step (the <c>ChainRecorded</c> job parameter) is committed with the record that lists
-/// the step: no step is ever listed without its mark, and a record that fails to commit leaves no mark.
+/// the step: no step is ever listed without its mark, a record that fails to commit leaves no mark, and a step
+/// whose job is gone doesn't keep the chain from being recorded.
 /// </summary>
 [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test", Justification = "Job methods must be public")]
 public class JobChainMarkFacts
@@ -60,20 +61,7 @@ public class JobChainMarkFacts
                 blocked.Set();
             };
 
-            creation = Task.Run(() =>
-            {
-                // A first step and the others after it, side by side: a chain has fewer levels than this test has steps
-                JobChain chain = JobChain.StartWith(() => Step(0)).ThenMany(branches =>
-                {
-                    for (int i = 1; i < steps; i++)
-                    {
-                        int number = i;
-                        branches.Branch(() => Step(number));
-                    }
-                });
-
-                return chain.Enqueue(new BackgroundJobClient(storage));
-            }, TestContext.Current.CancellationToken);
+            creation = Task.Run(() => Chain(steps).Enqueue(new BackgroundJobClient(storage)), TestContext.Current.CancellationToken);
 
             await Task.WhenAny(creation, Task.Run(() => blocked.Wait(Timeout), TestContext.Current.CancellationToken));
             Assert.True(blocked.IsSet, creation.IsFaulted ? creation.Exception.ToString() : "The steps weren't created in time.");
@@ -119,6 +107,57 @@ public class JobChainMarkFacts
     }
 
     [Theory, CleanDatabase]
+    [InlineData(3)]
+    // Too many commands for one round trip
+    [InlineData(80)]
+    public void Chain_IsRecorded_WithTheMarksOfTheStepsThatExist_WhenTheJobOfAStepIsGone(int steps)
+    {
+        SqlServerStorage storage = CreateStorage();
+        CreatedSteps created = new();
+        GlobalJobFilters.Filters.Add(created);
+
+        try
+        {
+            // Once the last step is created, and before the chain is recorded, the job of that step is gone:
+            // purged, or deleted from the table by hand
+            created.OnCreated = () =>
+            {
+                if (created.Ids.Count < steps)
+                {
+                    return;
+                }
+
+                using DbConnection sql = ConnectionUtils.CreateConnection();
+                sql.Execute($"delete from [{Constants.DefaultSchema}].Job where Id = @id", new { id = long.Parse(created.Ids[steps - 1]) });
+            };
+
+            JobChainResult chain = Chain(steps).Enqueue(new BackgroundJobClient(storage));
+
+            // The chain is recorded and listed, with every step it was created with
+            long gone = long.Parse(created.Ids[steps - 1]);
+            List<long> listed = ListedSteps(storage, chain.ChainId);
+            Assert.Equal(steps, listed.Count);
+            Assert.Contains(gone, listed);
+
+            using IStorageConnection connection = storage.GetConnection();
+            Assert.Contains(chain.ChainId, connection.GetAllItemsFromSet(JobChains.SetKey));
+
+            // Every step that exists is marked, and nothing is written for the one that is gone
+            using DbConnection reader = ConnectionUtils.CreateConnection();
+            List<long> marked = [.. reader.Query<long>(
+                $"select JobId from [{Constants.DefaultSchema}].JobParameter where Name = @name and Value = N'true' order by JobId",
+                new { name = JobChains.ChainRecordedParameter })];
+
+            Assert.Equal(listed.Where(id => id != gone).Order(), marked);
+            Assert.Equal(0, reader.ExecuteScalar<int>($"select count(*) from [{Constants.DefaultSchema}].Job where Id = @id", new { id = gone }));
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(created);
+        }
+    }
+
+    [Theory, CleanDatabase]
     // One round trip
     [InlineData(3, true)]
     // SqlClient's transaction and a command batch
@@ -147,8 +186,8 @@ public class JobChainMarkFacts
                 transaction.SetJobParameter(jobId, JobChains.ChainRecordedParameter, "true");
             }
 
-            // The mark of a job that doesn't exist breaks the foreign key, after the marks of the others
-            transaction.SetJobParameter("987654321", JobChains.ChainRecordedParameter, "true");
+            // A state for a job that doesn't exist breaks the foreign key, after the marks are written
+            transaction.SetJobState("987654321", new EnqueuedState());
             transaction.ExpireHash(JobChains.GetKey(chainId), TimeSpan.FromDays(30));
 
             Assert.Throws<SqlException>(transaction.Commit);
@@ -162,6 +201,22 @@ public class JobChainMarkFacts
 
     public static void Step(int number)
     {
+    }
+
+    /// <summary>
+    /// A chain of that many steps: a first step and the others after it, side by side, as a chain has fewer
+    /// levels than these tests have steps.
+    /// </summary>
+    private static JobChain Chain(int steps)
+    {
+        return JobChain.StartWith(() => Step(0)).ThenMany(branches =>
+        {
+            for (int i = 1; i < steps; i++)
+            {
+                int number = i;
+                branches.Branch(() => Step(number));
+            }
+        });
     }
 
     /// <summary>The jobs a chain's record lists as its steps, read from the table.</summary>

@@ -116,32 +116,91 @@ public class TransactionalJobParameterFacts
     [InlineData(CommitPath.OneRoundTrip)]
     [InlineData(CommitPath.CommandBatch)]
     [InlineData(CommitPath.CommandAfterCommand)]
-    public void SetJobParameter_OfAJobThatDoesNotExist_FailsTheTransaction_AsItFailsOutsideOne(CommitPath path)
+    [InlineData(CommitPath.CustomQueue)]
+    public void SetJobParameter_OfAJobThatDoesNotExist_IsIgnored_AndTheRestOfTheTransactionIsCommitted(CommitPath path)
     {
         SqlServerStorage storage = CreateStorage(path, out _);
         string id = CreateJob(storage, []);
 
-        using (IStorageConnection connection = storage.GetConnection())
+        // A job that never existed, and one that is gone with its parameters
+        string gone = CreateJob(storage, new Dictionary<string, string> { ["Existing"] = "old" });
+        using (DbConnection sql = ConnectionUtils.CreateConnection())
         {
-            Assert.Throws<SqlException>(() => connection.SetJobParameter("987654321", "Name", "value"));
-
-            using JobStorageTransaction transaction = (JobStorageTransaction)connection.CreateWriteTransaction();
-            Fill(transaction, path, id);
-            transaction.SetJobParameter(id, "Name", "value");
-            transaction.SetJobParameter("987654321", "Name", "value");
-            transaction.IncrementCounter("after-the-parameters");
-
-            // The foreign key, with the number SQL Server gave the error
-            Assert.Equal(547, Assert.Throws<SqlException>(transaction.Commit).Number);
+            sql.Execute($"delete from [{Constants.DefaultSchema}].Job where Id = @id", new { id = long.Parse(gone) });
         }
 
-        Assert.Empty(Parameters(id));
-        using DbConnection sql = ConnectionUtils.CreateConnection();
-        Assert.Equal(0, sql.ExecuteScalar<int>($"select count(*) from [{Constants.DefaultSchema}].Counter"));
+        Commit(storage, path, transaction =>
+        {
+            transaction.SetJobParameter(gone, "Existing", "new");
+            transaction.SetJobParameter(gone, "New", "value");
+            transaction.SetJobParameter("987654321", "New", "value");
+            transaction.SetJobParameter(id, "New", "value");
+            transaction.SetJobState(id, new EnqueuedState());
+            transaction.IncrementCounter("after-the-parameters");
+        });
 
-        // The connection the failed command ran on is used again, with no transaction left open on it
-        Commit(storage, path, transaction => transaction.SetJobParameter(id, "Name", "again"));
-        Assert.Equal(new Dictionary<string, string> { ["Name"] = "again" }, Parameters(id));
+        Assert.Equal(new Dictionary<string, string> { ["New"] = "value" }, Parameters(id));
+
+        using DbConnection reader = ConnectionUtils.CreateConnection();
+        Assert.Equal(1, reader.ExecuteScalar<int>($"select count(distinct JobId) from [{Constants.DefaultSchema}].JobParameter"));
+        Assert.Equal(1, reader.ExecuteScalar<int>($"select count(*) from [{Constants.DefaultSchema}].Counter"));
+        Assert.Equal(1, reader.ExecuteScalar<int>($"select count(*) from [{Constants.DefaultSchema}].Job where StateName = N'Enqueued'"));
+    }
+
+    [Theory, CleanDatabase]
+    [InlineData(CommitPath.OneRoundTrip)]
+    [InlineData(CommitPath.CommandBatch)]
+    [InlineData(CommitPath.CommandAfterCommand)]
+    public void SetJobParameter_ThatFailsForAnotherReason_FailsTheCommit_WithTheErrorOfSqlServer(CommitPath path)
+    {
+        // Connections that give up after half a second on a row another session holds. They stay out of the
+        // pool, so no other test is handed one
+        SqlServerStorage storage = new(
+            () =>
+            {
+                SqlConnection connection = new(new SqlConnectionStringBuilder(ConnectionUtils.GetConnectionString()) { Pooling = false }.ConnectionString);
+                connection.Open();
+                connection.Execute("set lock_timeout 500");
+                return connection;
+            },
+            new SqlServerStorageOptions
+            {
+                PrepareSchemaIfNecessary = false,
+                CommandBatchMaxTimeout = path == CommitPath.CommandAfterCommand ? null : TimeSpan.FromMinutes(5),
+            });
+
+        string first = CreateJob(storage, []);
+        string second = CreateJob(storage, new Dictionary<string, string> { ["Held"] = "old" });
+
+        using DbConnection holder = ConnectionUtils.CreateConnection();
+        using DbTransaction held = holder.BeginTransaction();
+        holder.Execute(
+            $"update [{Constants.DefaultSchema}].JobParameter set Value = N'held' where JobId = @id and Name = N'Held'",
+            new { id = long.Parse(second) },
+            held);
+
+        using (IStorageConnection connection = storage.GetConnection())
+        using (JobStorageTransaction transaction = (JobStorageTransaction)connection.CreateWriteTransaction())
+        {
+            Fill(transaction, path, first);
+            transaction.SetJobParameter(first, "New", "value");
+            transaction.SetJobParameter(second, "Held", "new");
+            transaction.IncrementCounter("after-the-parameters");
+
+            // The lock request timed out: thrown again with its number, and the commit never runs
+            Assert.Equal(1222, Assert.Throws<SqlException>(transaction.Commit).Number);
+        }
+
+        held.Rollback();
+
+        Assert.Empty(Parameters(first));
+        Assert.Equal(new Dictionary<string, string> { ["Held"] = "old" }, Parameters(second));
+        using DbConnection reader = ConnectionUtils.CreateConnection();
+        Assert.Equal(0, reader.ExecuteScalar<int>($"select count(*) from [{Constants.DefaultSchema}].Counter"));
+
+        // The storage goes on, with no transaction left open on a connection
+        Commit(storage, path, transaction => transaction.SetJobParameter(first, "New", "again"));
+        Assert.Equal(new Dictionary<string, string> { ["New"] = "again" }, Parameters(first));
     }
 
     [Fact, CleanDatabase]
@@ -206,7 +265,7 @@ public class TransactionalJobParameterFacts
     }
 
     [Fact, CleanDatabase]
-    public void CommitTogether_WritesNothing_WhenAParameterOfOneTransactionFails()
+    public void CommitTogether_WritesNothing_WhenACommandOfOneTransactionFails()
     {
         SqlServerStorage storage = CreateStorage();
         string id = CreateJob(storage, []);
@@ -217,7 +276,8 @@ public class TransactionalJobParameterFacts
 
         one.SetJobParameter(id, "New", "value");
         one.SetJobState(id, new EnqueuedState());
-        other.SetJobParameter("987654321", "New", "value");
+        // A state for a job that doesn't exist breaks the foreign key, after the parameters are written
+        other.SetJobState("987654321", new EnqueuedState());
 
         Assert.Throws<SqlException>(() => SqlServerWriteOnlyTransaction.CommitTogether(storage, [one, other]));
 
