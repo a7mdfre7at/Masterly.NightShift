@@ -527,13 +527,13 @@ public class WorkerFacts
     }
 
     [Fact]
-    public void Execute_OffersToGiveTheJobBack_OnlyWhenItMovesItToProcessing()
+    public void Execute_OffersToLookAtTheJobAgain_OnlyWhenItMovesItToProcessing()
     {
         List<(string State, bool Offered)> offers = [];
         _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
             .Returns<StateChangeContext>(ctx =>
             {
-                offers.Add((ctx.NewState.Name, ctx.GiveBack != null));
+                offers.Add((ctx.NewState.Name, ctx.LookAgain != null));
                 return ctx.NewState;
             });
 
@@ -543,52 +543,157 @@ public class WorkerFacts
     }
 
     [Fact]
-    public void Execute_PutsTheJobBackInItsQueue_AndDoesNothingElse_WhenAFilterGivesItBack()
+    public void Execute_KeepsTheJob_AndChangesItsStateAgain_WhenAFilterAsksItToLookAgain()
     {
+        // Three times "not now", with nothing stored; then the job may run
+        int looks = 0;
         _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
-            .Returns<StateChangeContext>(static ctx =>
+            .Returns<StateChangeContext>(ctx =>
             {
-                ctx.GiveBack.Request(TimeSpan.FromMilliseconds(1));
-                return null;
+                if (ctx.NewState is ProcessingState && ++looks <= 3)
+                {
+                    ctx.LookAgain.Request(TimeSpan.FromMilliseconds(1));
+                    return null;
+                }
+
+                return ctx.NewState;
             });
 
         CreateWorker().Execute(_context.Object);
 
-        // One state change, which stored nothing: the job isn't run, failed, retried or acknowledged
-        _stateChanger.Verify(x => x.ChangeState(It.IsAny<StateChangeContext>()), Times.Once);
-        _performer.Verify(x => x.Perform(It.IsAny<PerformContext>()), Times.Never);
-        _fetchedJob.Verify(x => x.Requeue(), Times.Once);
-        _fetchedJob.Verify(x => x.RemoveFromQueue(), Times.Never);
+        // Fetched once and never put back in its queue: it stays with this worker, which runs it in the end
+        _connection.Verify(x => x.FetchNextJob(_queues, It.IsAny<CancellationToken>()), Times.Once);
+        _fetchedJob.Verify(x => x.Requeue(), Times.Never);
+        _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx => ctx.NewState is ProcessingState)), Times.Exactly(4));
+        _performer.Verify(x => x.Perform(It.IsAny<PerformContext>()), Times.Once);
+        _fetchedJob.Verify(x => x.RemoveFromQueue(), Times.Once);
+        _fetchedJob.Verify(x => x.Dispose(), Times.Once);
         _connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
-    public void Execute_KeepsTheJobForThePause_BeforeItPutsItBack()
+    public void Execute_WaitsAsLongAsItWasAsked_BeforeItLooksAgain()
     {
         Stopwatch asked = new();
         TimeSpan waited = TimeSpan.Zero;
         _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
             .Returns<StateChangeContext>(ctx =>
             {
-                ctx.GiveBack.Request(TimeSpan.FromMilliseconds(200));
-                asked.Start();
-                return null;
+                if (ctx.NewState is ProcessingState && !asked.IsRunning)
+                {
+                    ctx.LookAgain.Request(TimeSpan.FromMilliseconds(200));
+                    asked.Start();
+                    return null;
+                }
+
+                if (ctx.NewState is ProcessingState)
+                {
+                    waited = asked.Elapsed;
+                }
+
+                return ctx.NewState;
             });
-        _fetchedJob.Setup(x => x.Requeue()).Callback(() => waited = asked.Elapsed);
 
         CreateWorker().Execute(_context.Object);
 
-        // No other worker can fetch the job meanwhile, so none spins on it
         Assert.InRange(waited, TimeSpan.FromMilliseconds(150), TimeSpan.FromSeconds(5));
     }
 
     [Fact]
-    public void Execute_PutsTheJobBackAtOnce_WhenTheServerStops()
+    public void Execute_LooksLessAndLessOften_AtAJobItIsAlwaysAskedToLookAtAgainAtOnce()
+    {
+        // A filter that goes by a clock that stands still asks for the shortest wait each time
+        int looks = 0;
+        WorkerWaits waits = new(TimeSpan.FromMinutes(1), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(1), Stopwatch.GetTimestamp);
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Returns<StateChangeContext>(ctx =>
+            {
+                if (ctx.LookAgain == null)
+                {
+                    return new ScheduledState(TimeSpan.FromSeconds(2));
+                }
+
+                looks++;
+                ctx.LookAgain.Request(TimeSpan.Zero);
+                return null;
+            });
+
+        CreateWorker(waits: waits).Execute(_context.Object);
+
+        // One second of looks ten milliseconds apart would be a hundred: each wait is as long as all before it
+        Assert.InRange(looks, 3, 20);
+    }
+
+    [Fact]
+    public void Execute_StopsOffering_OnceItWaitedForTheJobLongEnough_ByTheClockOfTheMachine()
+    {
+        // Whatever the filter goes by (the application's clock may stand still), the worker counts real time
+        WorkerWaits waits = new(TimeSpan.FromMinutes(1), TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(300), Stopwatch.GetTimestamp);
+        List<bool> offers = [];
+        Stopwatch started = Stopwatch.StartNew();
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Returns<StateChangeContext>(ctx =>
+            {
+                offers.Add(ctx.LookAgain != null);
+                if (ctx.LookAgain == null)
+                {
+                    // What the filter does when it can't ask the worker to wait: it holds the job
+                    return new ScheduledState(TimeSpan.FromSeconds(2));
+                }
+
+                ctx.LookAgain.Request(TimeSpan.FromMilliseconds(10));
+                return null;
+            });
+
+        CreateWorker(waits: waits).Execute(_context.Object);
+
+        Assert.False(offers[^1]);
+        Assert.All(offers.SkipLast(1), Assert.True);
+        Assert.InRange(started.Elapsed, TimeSpan.FromMilliseconds(250), TimeSpan.FromSeconds(10));
+        _fetchedJob.Verify(x => x.RemoveFromQueue(), Times.Once);
+        _fetchedJob.Verify(x => x.Requeue(), Times.Never);
+        _performer.Verify(x => x.Perform(It.IsAny<PerformContext>()), Times.Never);
+    }
+
+    [Fact]
+    public void Execute_StopsOffering_OnceItsPoolHasWaitedEnough_AndTheNextJobIsNotWaitedForAtAll()
+    {
+        // No other worker of the pool looks for a job while this one waits: the pool's budget is all it has
+        WorkerWaits waits = new(TimeSpan.FromMilliseconds(200), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(5), Stopwatch.GetTimestamp);
+        List<bool> offers = [];
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Returns<StateChangeContext>(ctx =>
+            {
+                offers.Add(ctx.LookAgain != null);
+                if (ctx.LookAgain == null)
+                {
+                    return new ScheduledState(TimeSpan.FromSeconds(2));
+                }
+
+                ctx.LookAgain.Request(TimeSpan.FromMilliseconds(20));
+                return null;
+            });
+        Worker worker = CreateWorker(waits: waits);
+        Stopwatch started = Stopwatch.StartNew();
+
+        worker.Execute(_context.Object);
+        TimeSpan first = started.Elapsed;
+        int firstLooks = offers.Count;
+        worker.Execute(_context.Object);
+
+        Assert.InRange(first, TimeSpan.FromMilliseconds(150), TimeSpan.FromSeconds(5));
+        Assert.False(offers[firstLooks - 1]);
+        Assert.Equal([false], offers.Skip(firstLooks));
+        _fetchedJob.Verify(x => x.Requeue(), Times.Never);
+    }
+
+    [Fact]
+    public void Execute_PutsTheJobBackInItsQueue_Once_WhenTheServerStopsWhileItWaits()
     {
         _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
             .Returns<StateChangeContext>(ctx =>
             {
-                ctx.GiveBack.Request(TimeSpan.FromMinutes(5));
+                ctx.LookAgain.Request(TimeSpan.FromMinutes(5));
                 _context.StoppingTokenSource.Cancel();
                 return null;
             });
@@ -596,32 +701,122 @@ public class WorkerFacts
 
         CreateWorker().Execute(_context.Object);
 
+        // At once, as it was: one state change that stored nothing, and the job isn't acknowledged
         Assert.InRange(started.Elapsed, TimeSpan.Zero, TimeSpan.FromSeconds(30));
+        _stateChanger.Verify(x => x.ChangeState(It.IsAny<StateChangeContext>()), Times.Once);
         _fetchedJob.Verify(x => x.Requeue(), Times.Once);
         _fetchedJob.Verify(x => x.RemoveFromQueue(), Times.Never);
+        _fetchedJob.Verify(x => x.Dispose(), Times.Once);
+        _performer.Verify(x => x.Perform(It.IsAny<PerformContext>()), Times.Never);
     }
 
     [Fact]
-    public void Execute_DoesNotThrow_WhenTheJobItGivesBackCanNotBePutBack()
+    public void Execute_TriesAgain_WhenTheJobCanNotBePutBackInItsQueue_WhileTheServerStops()
     {
-        // The storage puts it back by itself: when the fetched job is disposed, or once it is invisible for too long
+        // A storage that fails for a moment: left fetched, the job would be invisible for the invisibility timeout
+        int attempts = 0;
         _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
-            .Returns<StateChangeContext>(static ctx =>
+            .Returns<StateChangeContext>(ctx =>
             {
-                ctx.GiveBack.Request(TimeSpan.Zero);
+                ctx.LookAgain.Request(TimeSpan.FromMinutes(5));
+                _context.StoppingTokenSource.Cancel();
                 return null;
             });
-        _fetchedJob.Setup(x => x.Requeue()).Throws<InvalidOperationException>();
+        _fetchedJob.Setup(x => x.Requeue()).Callback(() =>
+        {
+            if (++attempts < 3)
+            {
+                throw new InvalidOperationException("The storage is down.");
+            }
+        });
 
         CreateWorker().Execute(_context.Object);
 
+        Assert.Equal(3, attempts);
+        _fetchedJob.Verify(x => x.Dispose(), Times.Once);
+    }
+
+    [Fact]
+    public void Execute_DoesNotThrow_WhenTheJobCanNotBePutBackInItsQueueAtAll_AndDisposesItOnce()
+    {
+        // The storage puts it back by itself in the end. What disposing the job throws must not leave Execute:
+        // the thread would wait as after a process that failed, and nothing failed but the storage.
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Returns<StateChangeContext>(ctx =>
+            {
+                ctx.LookAgain.Request(TimeSpan.FromMinutes(5));
+                _context.StoppingTokenSource.Cancel();
+                return null;
+            });
+        _fetchedJob.Setup(x => x.Requeue()).Throws<InvalidOperationException>();
+        _fetchedJob.Setup(x => x.Dispose()).Throws<InvalidOperationException>();
+
+        CreateWorker().Execute(_context.Object);
+
+        _fetchedJob.Verify(x => x.Requeue(), Times.Exactly(3));
         _fetchedJob.Verify(x => x.Dispose(), Times.Once);
         _fetchedJob.Verify(x => x.RemoveFromQueue(), Times.Never);
     }
 
-    private Worker CreateWorker(int maxStateChangeAttempts = 10)
+    [Fact]
+    public void Execute_DoesNotWait_ForWhatAFailedAttemptAsked_OnceTheStateChangeOfLastResortFoundNothingToChange()
     {
-        return new Worker(_queues, _performer.Object, _stateChanger.Object, TimeSpan.FromSeconds(5), maxStateChangeAttempts);
+        // The only attempt asks the worker to look again, and then throws; the state change of last resort, which
+        // offers nothing, finds the job gone. What was asked before must not make the worker wait, or put the
+        // job back.
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Returns<StateChangeContext>(static ctx =>
+            {
+                if (ctx.DisableFilters)
+                {
+                    return null;
+                }
+
+                ctx.LookAgain.Request(TimeSpan.FromMinutes(5));
+                throw new InvalidOperationException("The storage is down.");
+            });
+        Stopwatch started = Stopwatch.StartNew();
+
+        CreateWorker(1).Execute(_context.Object);
+
+        Assert.InRange(started.Elapsed, TimeSpan.Zero, TimeSpan.FromSeconds(30));
+        _stateChanger.Verify(x => x.ChangeState(It.IsAny<StateChangeContext>()), Times.Exactly(2));
+        _fetchedJob.Verify(x => x.RemoveFromQueue(), Times.Once);
+        _fetchedJob.Verify(x => x.Requeue(), Times.Never);
+    }
+
+    [Fact]
+    public void Execute_CountsItselfAsLookingForAJob_OnlyWhileItFetchesOne()
+    {
+        // While it looks for a job, the waits of the other workers of its pool cost the pool nothing
+        WorkerWaits waits = new(TimeSpan.FromMilliseconds(100), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(5), Stopwatch.GetTimestamp);
+        TimeSpan duringFetch = TimeSpan.Zero;
+        _connection.Setup(x => x.FetchNextJob(_queues, It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                // Another worker of the pool waits meanwhile, for longer than the pool's budget
+                duringFetch = waits.Begin(TimeSpan.FromMilliseconds(200));
+                Thread.Sleep(200);
+                waits.End();
+                return _fetchedJob.Object;
+            });
+
+        CreateWorker(waits: waits).Execute(_context.Object);
+
+        // Told the whole pause, and nothing of it counted
+        Assert.Equal(TimeSpan.FromMilliseconds(200), duringFetch);
+        Assert.True(waits.CanWait);
+
+        // The same wait once this worker has its job costs the pool its budget
+        Assert.InRange(waits.Begin(TimeSpan.FromMilliseconds(200)), TimeSpan.FromMilliseconds(1), TimeSpan.FromMilliseconds(100));
+        Thread.Sleep(150);
+        waits.End();
+        Assert.False(waits.CanWait);
+    }
+
+    private Worker CreateWorker(int maxStateChangeAttempts = 10, WorkerWaits waits = null)
+    {
+        return new Worker(_queues, _performer.Object, _stateChanger.Object, TimeSpan.FromSeconds(5), maxStateChangeAttempts, waits ?? new WorkerWaits());
     }
 
     [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]

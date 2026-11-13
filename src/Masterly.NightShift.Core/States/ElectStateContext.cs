@@ -46,7 +46,7 @@ public class ElectStateContext
         CustomData = applyContext.CustomData?.ToDictionary(static x => x.Key, static x => x.Value);
         StateMachine = stateMachine;
         AfterCommit = applyContext.AfterCommit;
-        GiveBack = applyContext.GiveBack;
+        LookAgain = applyContext.LookAgain;
     }
 
     public BackgroundJob BackgroundJob { get; }
@@ -111,48 +111,51 @@ public class ElectStateContext
     internal PostCommitActions? AfterCommit { get; }
 
     /// <summary>
-    /// The <see cref="ApplyStateContext.GiveBack"/> of the state change being elected, while it is on offer: to
-    /// the first election filter only (see <see cref="WithdrawGiveBack"/>).
+    /// The <see cref="ApplyStateContext.LookAgain"/> of the state change being elected, while it is on offer: to
+    /// the first election filter only (see <see cref="WithdrawLookAgain"/>).
     /// </summary>
     [CanBeNull]
-    internal JobGiveBack? GiveBack { get; private set; }
+    internal JobLookAgain? LookAgain { get; private set; }
 
     /// <summary>
-    /// Ends the offer to give the job back, once the first election filter has run without taking it: a job is
-    /// given back only before any other filter saw it about to change state, so no filter is ever left with
+    /// Ends the offer to look at the job again, once the first election filter has run without taking it: a worker
+    /// waits with a job only before any other filter saw it about to change state, so no filter is ever left with
     /// something it did for a state change that then didn't happen.
     /// </summary>
-    internal void WithdrawGiveBack()
+    internal void WithdrawLookAgain()
     {
-        if (GiveBack is { Requested: false })
+        if (LookAgain is { Requested: false })
         {
-            GiveBack = null;
+            LookAgain = null;
         }
     }
 
     /// <summary>
-    /// Whether the job can be put back in its queue instead of changing state: a worker fetched it and is about to
-    /// process it, and no filter asked for it yet.
+    /// Whether the worker that fetched the job and is about to process it can be asked to look at it again in a
+    /// moment instead: it offers that, and no filter asked yet.
     /// </summary>
-    internal bool CanGiveBack => GiveBack is { Requested: false };
+    internal bool CanLookAgain => LookAgain is { Requested: false };
 
-    /// <summary>Whether a filter had the job given back: no filter runs after it, and nothing is stored.</summary>
-    internal bool IsGivenBack => GiveBack is { Requested: true };
+    /// <summary>Whether a filter asked the worker to look again: no filter runs after it, and nothing is stored.</summary>
+    internal bool IsLookingAgain => LookAgain is { Requested: true };
 
     /// <summary>
-    /// Has the worker put the job back in its queue after <paramref name="pause"/>, with nothing stored about this
-    /// state change: no state, no history entry, no parameter, and no filter after this one runs. See
-    /// <see cref="JobGiveBack"/>.
+    /// Has the worker keep the job, wait for <paramref name="pause"/> and change its state again, with nothing
+    /// stored about this state change: no state, no history entry, no parameter, and no filter after this one
+    /// runs. See <see cref="JobLookAgain"/>.
     /// </summary>
-    /// <returns>False when the state change doesn't come from a worker that can do it: the filter decides otherwise.</returns>
-    internal bool TryGiveBack(TimeSpan pause)
+    /// <returns>
+    /// False when the state change doesn't come from a worker, or the worker doesn't offer it (its pool has
+    /// waited enough, or this job has been waited for long enough): the filter decides otherwise.
+    /// </returns>
+    internal bool TryLookAgain(TimeSpan pause)
     {
-        if (GiveBack == null)
+        if (LookAgain == null)
         {
             return false;
         }
 
-        GiveBack.Request(pause);
+        LookAgain.Request(pause);
         return true;
     }
 

@@ -785,13 +785,13 @@ public class BackgroundJobStateChangerFacts
     }
 
     [Fact]
-    public void ChangeState_GivesTheJobBack_WithoutCommittingOrAcknowledgingAnything_WhenAFilterAsksForIt()
+    public void ChangeState_StoresNothing_AndDoesNotAcknowledgeTheJob_WhenAFilterAsksTheWorkerToLookAgain()
     {
-        JobGiveBack giveBack = new();
+        JobLookAgain lookAgain = new();
         Mock<IFetchedJob> fetchedJob = new();
         Mock<JobStorageTransaction> transaction = new();
         _connection.Setup(x => x.CreateWriteTransaction()).Returns(transaction.Object);
-        _context.GiveBack = giveBack;
+        _context.LookAgain = lookAgain;
         _context.CompleteJob = fetchedJob;
 
         bool afterCommit = false;
@@ -802,10 +802,10 @@ public class BackgroundJobStateChangerFacts
         _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
             .Returns<ApplyStateContext>(context =>
             {
-                Assert.Same(giveBack, context.GiveBack);
+                Assert.Same(lookAgain, context.LookAgain);
                 context.RunAfterCommit(() => afterCommit = true);
                 PostCommitActions.RunAfterCommitAttempt(context.AfterCommit, () => afterAttempt = !lockHeld);
-                context.GiveBack.Request(TimeSpan.FromMilliseconds(30));
+                context.LookAgain.Request(TimeSpan.FromMilliseconds(30));
                 return context.NewState;
             });
 
@@ -813,8 +813,8 @@ public class BackgroundJobStateChangerFacts
 
         // No state for the caller, nothing stored, the fetched job not acknowledged, and the job's lock released
         Assert.Null(result);
-        Assert.True(giveBack.Requested);
-        Assert.Equal(TimeSpan.FromMilliseconds(30), giveBack.Pause);
+        Assert.True(lookAgain.Requested);
+        Assert.Equal(TimeSpan.FromMilliseconds(30), lookAgain.Pause);
         Assert.Null(_context.Object.ProcessedJob);
         transaction.Verify(x => x.Commit(), Times.Never);
         transaction.Verify(x => x.RemoveFromQueue(It.IsAny<IFetchedJob>()), Times.Never);
@@ -828,28 +828,28 @@ public class BackgroundJobStateChangerFacts
     [Fact]
     public void ChangeState_ForgetsWhatAnEarlierAttemptAsked_WhenTheStateChangeIsTriedAgain()
     {
-        JobGiveBack giveBack = new();
-        giveBack.Request(TimeSpan.FromMilliseconds(30));
-        _context.GiveBack = giveBack;
+        JobLookAgain lookAgain = new();
+        lookAgain.Request(TimeSpan.FromMilliseconds(30));
+        _context.LookAgain = lookAgain;
 
         IState result = CreateStateChanger().ChangeState(_context.Object);
 
         Assert.NotNull(result);
-        Assert.False(giveBack.Requested);
+        Assert.False(lookAgain.Requested);
         _transaction.Verify(x => x.Commit(), Times.Once);
     }
 
     [Fact]
-    public void ChangeState_DoesNotOfferToGiveTheJobBack_WhenTheTransactionIsTheCallers()
+    public void ChangeState_DoesNotOfferToLookAgain_WhenTheTransactionIsTheCallers()
     {
         // Nothing could be dropped: what the filters wrote would be committed by the caller
-        _context.GiveBack = new JobGiveBack();
+        _context.LookAgain = new JobLookAgain();
         _context.Transaction = new Mock<JobStorageTransaction>();
-        JobGiveBack offered = new();
+        JobLookAgain offered = new();
         _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
             .Returns<ApplyStateContext>(context =>
             {
-                offered = context.GiveBack;
+                offered = context.LookAgain;
                 return context.NewState;
             });
 
@@ -860,15 +860,15 @@ public class BackgroundJobStateChangerFacts
     }
 
     [Fact]
-    public void ChangeState_DoesNotOfferToGiveTheJobBack_WhenTheFiltersAreDisabled()
+    public void ChangeState_DoesNotOfferToLookAgain_WhenTheFiltersAreDisabled()
     {
-        _context.GiveBack = new JobGiveBack();
+        _context.LookAgain = new JobLookAgain();
         _context.DisableFilters = true;
-        JobGiveBack offered = new();
+        JobLookAgain offered = new();
         _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
             .Returns<ApplyStateContext>(context =>
             {
-                offered = context.GiveBack;
+                offered = context.LookAgain;
                 return context.NewState;
             });
 

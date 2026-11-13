@@ -30,7 +30,7 @@ public class ApplyStateContext
     {
         // TODO: Add explicit JobExpirationTimeout parameter in 2.0, because it's unclear it isn't preserved
         AfterCommit = context.AfterCommit;
-        GiveBack = context.GiveBack;
+        LookAgain = context.LookAgain;
     }
 
     public ApplyStateContext(
@@ -119,11 +119,11 @@ public class ApplyStateContext
     internal PostCommitActions? AfterCommit { get; set; }
 
     /// <summary>
-    /// Set by the code that commits this state change when a worker offered to take the job back to its queue,
-    /// see <see cref="JobGiveBack"/>. <c>null</c> otherwise.
+    /// Set by the code that commits this state change when a worker offered to look at the job again in a moment,
+    /// see <see cref="JobLookAgain"/>. <c>null</c> otherwise.
     /// </summary>
     [CanBeNull]
-    internal JobGiveBack? GiveBack { get; set; }
+    internal JobLookAgain? LookAgain { get; set; }
 
     /// <summary>Runs the action once the state change is committed, or right away when that isn't known.</summary>
     internal void RunAfterCommit([NotNull] Action action) => PostCommitActions.RunAfterCommit(AfterCommit, action);
