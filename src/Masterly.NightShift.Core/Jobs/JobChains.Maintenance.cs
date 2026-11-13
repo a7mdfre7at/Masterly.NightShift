@@ -8,6 +8,10 @@ public static partial class JobChains
     /// <summary>The set that lists the chains a retry or a replacement left jobs to delete in, scored by the time of the last attempt.</summary>
     internal const string CleanupSetKey = "chains:cleanup";
 
+    // The set of the delayed job scheduler: the Scheduled jobs, by the time they are due, each as its id or, for a
+    // job with a queue of its own, "{queue}:{id}" (ScheduledState.Handler)
+    private const string ScheduleSetKey = "schedule";
+
     /// <summary>
     /// The set of the chains a server is to look at again, scored by the time of that look. It is the index the
     /// chain maintenance reads, so a run costs what is due and not what is kept. A chain enters it when it is
@@ -975,7 +979,40 @@ public static partial class JobChains
             from = state.Name;
         }
 
+        // A step with a queue of its own whose hold ended is in that queue already, though it is still Scheduled:
+        // the delayed job scheduler moves such a job without changing its state. Enqueued again, it would be in its
+        // queue twice, and two workers would run it at once. The worker that takes it runs it: the retry is recorded
+        if (ScheduledState.StateName.Equals(from, StringComparison.OrdinalIgnoreCase) && IsInItsQueueAlready(client, connection, jobId))
+        {
+            return;
+        }
+
         client.ChangeState(jobId, new EnqueuedState { Reason = ChainRetriedReason }, from);
+    }
+
+    // Whether a Scheduled job with a queue of its own was moved into that queue by the delayed job scheduler: its
+    // entry left the schedule. Where the storage can't tell, by whether it was due. Only the scheduler moving it at
+    // this very moment escapes the check, as it changes no state and takes no lock
+    private static bool IsInItsQueueAlready(IBackgroundJobClient client, IStorageConnection connection, string jobId)
+    {
+        string? queue = connection.GetJobData(jobId)?.Job?.Queue;
+        if (queue == null)
+        {
+            return false;
+        }
+
+        if (connection is JobStorageConnection storageConnection &&
+            client is IBackgroundJobClientV2 { Storage: { } storage } &&
+            storage.HasFeature(JobStorageFeatures.Connection.GetSetContains))
+        {
+            return !storageConnection.GetSetContains(ScheduleSetKey, $"{queue}:{jobId}");
+        }
+
+        StateData? state = connection.GetStateData(jobId);
+        return state?.Data != null &&
+               state.Data.TryGetValue("EnqueueAt", out string? enqueueAt) &&
+               JobHelper.DeserializeNullableDateTime(enqueueAt) is { } due &&
+               due <= JobClock.UtcNow;
     }
 
     // Whether a step is still held for the retry that asked for its release, or was put back for it. A step

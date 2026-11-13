@@ -1174,6 +1174,57 @@ public sealed class JobChainStorageFacts : IDisposable
         Assert.InRange(ExpiresAt(step)!.Value, expiresAt.AddSeconds(-5), expiresAt.AddSeconds(5));
     }
 
+    /// <summary>A step that takes a moment, says it ran once it has, and fails for good when told to.</summary>
+    [AutomaticRetry(Attempts = 0)]
+    public static void SlowOnce(string name)
+    {
+        Thread.Sleep(1000);
+        Ran.Enqueue(name);
+    }
+
+    [Fact]
+    public void RetryChainFrom_ThatOutlastsTheHoldOfAStepWithAQueueOfItsOwn_DoesNotPutTheStepInItsQueueTwice()
+    {
+        // The first step has a queue of its own: when its hold ends, the scheduler moves it into that queue and
+        // leaves it in the Scheduled state. No worker serves that queue meanwhile.
+        JobChainResult chain = JobChain.StartWith(() => SlowOnce("a")).Then(() => Once("b"))
+            .Enqueue(_client, new ScheduleOptions { Queue = "critical" })!;
+        string step = chain.Steps["0.0"];
+        Fail(step);
+
+        // The step failed by hand left its place in the queue behind: a worker finds nothing to run there, and clears it
+        using (new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 1, Queues = ["critical"] }, _storage))
+        {
+            WaitUntil(() => _storage.GetMonitoringApi().EnqueuedCount("critical") == 0, "the queue to be cleared");
+        }
+
+        using (BackgroundJobServer scheduler = new(new BackgroundJobServerOptions { WorkerCount = 1, Queues = ["elsewhere"], SchedulePollingInterval = TimeSpan.FromMilliseconds(100) }, _storage))
+        {
+            _filter.PauseOn = "b";
+            _filter.WhilePaused = () =>
+            {
+                RenewLease(chain.ChainId, TimeSpan.FromMinutes(5));
+                MoveClock(TimeSpan.FromMinutes(3));
+                WaitUntil(() => _storage.GetMonitoringApi().EnqueuedCount("critical") == 1, "the hold to end in the queue");
+            };
+
+            // The retry is recorded, and releases its step
+            _storage.RetryChainFrom(step);
+            _filter.PauseOn = null;
+        }
+
+        Assert.Equal(1, _storage.GetMonitoringApi().EnqueuedCount("critical"));
+
+        // Workers serve the queue: the step runs once, and the step after it once
+        using (new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 2, Queues = ["critical", "default"], SchedulePollingInterval = TimeSpan.FromMilliseconds(100) }, _storage))
+        {
+            WaitUntil(() => Ran.Contains("b"), "the retried chain to run");
+            Thread.Sleep(1500);
+        }
+
+        Assert.Equal(["a", "b"], Ran);
+    }
+
     [Fact]
     public void Step_PutBackAfterAnAbandonedRetry_IsNotToldAboutAsIfItHadFailedAgain()
     {

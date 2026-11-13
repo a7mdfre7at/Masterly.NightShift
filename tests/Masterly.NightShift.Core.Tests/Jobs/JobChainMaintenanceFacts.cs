@@ -187,6 +187,26 @@ public sealed class JobChainMaintenanceFacts : IDisposable
         _client.Verify(x => x.ChangeState("other", It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
     }
 
+    [Theory]
+    [InlineData(-1, false)]
+    [InlineData(5, true)]
+    public void Maintain_EnqueuesAHeldStepWithAQueueOfItsOwn_OnlyWhileItIsNotInThatQueueAlready(int dueInMinutes, bool enqueued)
+    {
+        // Once its hold is due, the scheduler moves a job with a queue of its own into that queue and leaves it
+        // Scheduled: enqueued again, it would be there twice. Here the storage can't say what the schedule holds,
+        // so the time the hold ends tells.
+        PendingCleanup("c", "{\"reason\":\"r\",\"delete\":[],\"release\":\"held\",\"releaseRetry\":\"r2\"}");
+        _states["held"] = State(ScheduledState.StateName, "Chain retried from this step");
+        _states["held"].Data["EnqueueAt"] = JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(dueInMinutes));
+        _connection.Setup(x => x.GetJobParameter("held", "ChainRetry")).Returns("{\"id\":\"r2\",\"generation\":1,\"state\":\"Failed\",\"data\":{}}");
+        _connection.Setup(x => x.GetJobData("held")).Returns(new JobData { Job = Job.FromExpression(() => Console.WriteLine(), "critical"), State = ScheduledState.StateName });
+
+        Maintain();
+
+        _client.Verify(x => x.ChangeState("held", It.IsAny<EnqueuedState>(), ScheduledState.StateName), enqueued ? Times.Once() : Times.Never());
+        Assert.Empty(Set(CleanupSet));
+    }
+
     [Fact]
     public void Maintain_LeavesAStepThatLeftItsHoldByItself()
     {
