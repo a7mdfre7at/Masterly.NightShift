@@ -8,23 +8,30 @@ using Microsoft.EntityFrameworkCore.Storage;
 namespace Masterly.NightShift.EntityFrameworkCore;
 
 /// <summary>
-/// Reads the clock of the database behind a storage, so the processes that share the storage tell the time with
-/// one clock instead of each with its own. Providers have no common way to ask for it, so the statement comes
-/// from <see cref="EntityFrameworkCoreStorageOptions.DatabaseClockSql"/> or, for the providers listed in
-/// <see cref="BuiltIn"/>, from here.
+/// Tells the time of the database behind a storage, so the processes that share the storage go by one clock
+/// instead of each by its own. Providers have no common way to ask for it, so the statement comes from
+/// <see cref="EntityFrameworkCoreStorageOptions.DatabaseClockSql"/> or, for the providers listed in
+/// <see cref="BuiltIn"/>, from here. SQLite runs inside the process and reads the machine's clock, so there the
+/// process's clock (<see cref="JobClock"/>) is the database's, and no statement is run.
 /// </summary>
 /// <remarks>
-/// A statement is never trusted unseen: the first time the clock is asked for, the statement is run once, and the
-/// clock is only used from then on when it answered a time. A statement this project's tests don't run against a
-/// real database (every one but SQL Server's and SQLite's, and any statement from the options) must also answer
-/// a time within <see cref="Tolerance"/> of this process's clock: one that answers local time instead of UTC is
-/// off by an hour or more nearly everywhere. What the check finds holds for as long as the storage lives, so a
-/// process never changes clocks while it runs: once the database's clock is in use, a read that fails throws,
-/// as any other read of the storage does. Only a check the database didn't answer leaves the question open (the
-/// database can't be reached, or the statement never got to it): the failure surfaces, and the next call checks
-/// again.
+/// <para>
+/// Whether the database's clock is read is known from the configuration alone (<see cref="ReadsTheDatabase"/>),
+/// without asking the database. A statement is never trusted unseen, though: the first read checks what it
+/// answers. A statement this project's tests don't run against a real database (every one but SQL Server's, and
+/// any statement from the options) must answer a time within <see cref="Tolerance"/> of this process's clock:
+/// one that answers local time instead of UTC is off by an hour or more nearly everywhere.
+/// </para>
+/// <para>
+/// What the check finds holds for as long as the storage lives, and is found before any time is handed out, so
+/// a process never changes clocks while it runs. A statement the database refuses, or whose answer isn't the UTC
+/// time, is logged once as a warning, and every read answers this process's clock from then on, as it did
+/// before the storage read the database's. Once the statement passed, a read that fails throws, as any other
+/// read of the storage does. A check the database didn't answer (it is out of reach, or the statement never got
+/// to it) decides nothing: the failure surfaces, and the next read checks again.
+/// </para>
 /// </remarks>
-internal sealed class EfDatabaseClock(EntityFrameworkCoreStorage storage, Func<DbContext, string?>? providerNameOf = null)
+internal sealed class EfDatabaseClock
 {
     /// <summary>
     /// How far from this process's clock a statement this project's tests don't run may answer and still be
@@ -35,58 +42,87 @@ internal sealed class EfDatabaseClock(EntityFrameworkCoreStorage storage, Func<D
 
     private const string OptionName = $"{nameof(EntityFrameworkCoreStorageOptions)}.{nameof(EntityFrameworkCoreStorageOptions.DatabaseClockSql)}";
     private const string WhatToSet = $"set {OptionName} to a statement that answers the database's current UTC time as a single value";
+    private const string SqliteProvider = "Microsoft.EntityFrameworkCore.Sqlite";
 
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(EntityFrameworkCoreStorage));
 
-    // By default, the name the provider gives itself. Replaceable for tests: only two providers are referenced there.
-    private readonly Func<DbContext, string?> _providerNameOf = providerNameOf ?? (static context => context.Database.ProviderName);
+    private readonly EntityFrameworkCoreStorage _storage;
+    private readonly string _provider;
+    private readonly Statement? _statement;
+    private readonly bool _processClockIsTheDatabases;
     private Finding? _finding;
 
     /// <summary>
-    /// Whether the database's clock is read. The first call asks the database; later calls answer from memory.
+    /// The clock of a storage on the database of a provider, by the name the provider gives itself
+    /// (<c>DbContext.Database.ProviderName</c>). A provider without a statement, whose database's clock isn't
+    /// this process's either, is logged here, once, as information that says what to configure.
     /// </summary>
-    /// <exception cref="Exception">The database couldn't be asked: it is out of reach, or the statement never got to it.</exception>
-    public bool IsRead() => Find().Sql != null;
-
-    /// <summary>The database's time where it is read, this process's otherwise.</summary>
-    /// <exception cref="Exception">The database's clock is read, and reading it failed.</exception>
-    public DateTime UtcNow() => TryRead(out DateTime now) ? now : JobClock.UtcNow;
-
-    /// <summary>Reads the database's clock, with one statement on a context of the storage.</summary>
-    /// <returns>False when the database's clock isn't read: the provider is unknown, or its statement didn't pass the check.</returns>
-    /// <exception cref="Exception">The database's clock is read, and reading it failed.</exception>
-    public bool TryRead(out DateTime utcNow)
+    public EfDatabaseClock(EntityFrameworkCoreStorage storage, string? providerName)
     {
-        string? sql = Find().Sql;
-        if (sql == null)
-        {
-            utcNow = default;
-            return false;
-        }
+        _storage = storage;
+        _provider = providerName ?? "(unknown)";
 
-        using DbContext context = storage.CreateContext();
-        object? value = ExecuteScalar(context, sql);
-        if (!TryConvert(value, out utcNow))
-        {
-            throw new InvalidOperationException($"The statement that reads the database's clock, \"{sql}\", answered {Describe(value)}, which isn't a date and time.");
-        }
+        string? configured = storage.Options.DatabaseClockSql;
+        _statement = configured != null ? new Statement(configured, Verified: false) : BuiltIn(providerName);
+        _processClockIsTheDatabases = _statement == null && providerName == SqliteProvider;
 
-        return true;
+        if (_statement == null && !_processClockIsTheDatabases)
+        {
+            Logger.Info(
+                $"The Entity Framework Core job storage doesn't know how to read the clock of the database of provider '{_provider}', so this process tells the time with its own clock; keep the clocks of the processes that share the storage synchronized. To use the database's clock instead, {WhatToSet}.");
+        }
     }
 
     /// <summary>
-    /// The statement that answers the UTC time on the database of a provider, by the name the provider gives
-    /// itself (<c>DbContext.Database.ProviderName</c>), with fractions of a second where the database has them;
-    /// <c>null</c> for a provider that isn't listed.
+    /// Whether the storage is set up to read the database's clock with a statement: the provider has one, or
+    /// the options give one. Known from the configuration; the database isn't asked.
+    /// </summary>
+    public bool ReadsTheDatabase => _statement != null;
+
+    /// <summary>
+    /// Whether <see cref="UtcNow"/> is meant to be the database's time: it is read with a statement, or (SQLite)
+    /// it is this process's clock.
+    /// </summary>
+    public bool TellsTheDatabasesTime => _statement != null || _processClockIsTheDatabases;
+
+    /// <summary>
+    /// The database's time where it is read with a statement, one statement on a context of the storage; this
+    /// process's clock otherwise (SQLite, a provider without a statement, a statement that didn't pass the check).
+    /// </summary>
+    /// <exception cref="Exception">The database's clock is read, and reading it failed.</exception>
+    public DateTime UtcNow()
+    {
+        if (_statement == null)
+        {
+            return JobClock.UtcNow;
+        }
+
+        Finding? finding = Volatile.Read(ref _finding);
+        if (finding == null)
+        {
+            return CheckAndRead(_statement);
+        }
+
+        return finding.UseTheDatabase ? Read(_statement.Sql) : JobClock.UtcNow;
+    }
+
+    /// <summary>What the clock is, for the log of the storage's options.</summary>
+    public string Source()
+    {
+        return _statement != null
+            ? $"the database's, read with \"{_statement.Sql}\""
+            : _processClockIsTheDatabases ? "this process's, which is SQLite's" : "this process's";
+    }
+
+    /// <summary>
+    /// The statement that answers the UTC time on the database of a provider, with fractions of a second;
+    /// <c>null</c> for a provider that isn't listed, and for SQLite, whose clock is this process's.
     /// </summary>
     internal static Statement? BuiltIn(string? providerName)
     {
         return providerName switch
         {
             "Microsoft.EntityFrameworkCore.SqlServer" => new Statement("select sysutcdatetime()", Verified: true),
-
-            // SQLite runs in this process and reads this machine's clock; 'now' is UTC, %f seconds with milliseconds
-            "Microsoft.EntityFrameworkCore.Sqlite" => new Statement("select strftime('%Y-%m-%d %H:%M:%f', 'now')", Verified: true),
 
             // clock_timestamp() is the time of the call, where now() is the time the transaction began. Converted
             // to a timestamp without a zone, so its value doesn't depend on how the driver reads time zones.
@@ -102,7 +138,7 @@ internal sealed class EfDatabaseClock(EntityFrameworkCoreStorage storage, Func<D
 
     /// <summary>
     /// Reads what a provider answers for a time as UTC: a date and time (local ones are converted, the others
-    /// are UTC as the statement promises), one with an offset, or text, as SQLite answers.
+    /// are UTC as the statement promises), one with an offset, or text.
     /// </summary>
     internal static bool TryConvert(object? value, out DateTime utc)
     {
@@ -125,71 +161,77 @@ internal sealed class EfDatabaseClock(EntityFrameworkCoreStorage storage, Func<D
         }
     }
 
-    private Finding Find()
+    /// <summary>
+    /// The first read: checks the statement, and answers the time by what the check found. Not under a lock:
+    /// against a database out of reach, callers would wait for each other's timeouts. Of those that check at
+    /// once, the first to finish decides for all, and only its finding is logged.
+    /// </summary>
+    private DateTime CheckAndRead(Statement statement)
     {
-        Finding? known = Volatile.Read(ref _finding);
-        if (known != null)
+        Finding found = Check(statement, out DateTime databaseNow);
+        Finding decided = Interlocked.CompareExchange(ref _finding, found, null) ?? found;
+
+        if (ReferenceEquals(decided, found))
         {
-            return known;
+            found.Log();
         }
 
-        // Not under a lock: against a database out of reach, callers would wait for each other's timeouts. Of
-        // those that check at once, the first to finish decides, and only its finding is logged.
-        Finding found = Check();
-        Finding? first = Interlocked.CompareExchange(ref _finding, found, null);
-        if (first != null)
+        if (!decided.UseTheDatabase)
         {
-            return first;
+            return JobClock.UtcNow;
         }
 
-        found.Log();
-        return found;
+        // The time this check read, unless it found against a statement that another check passed
+        return found.UseTheDatabase ? databaseNow : Read(statement.Sql);
     }
 
-    private Finding Check()
+    private Finding Check(Statement statement, out DateTime databaseNow)
     {
-        using DbContext context = storage.CreateContext();
-        string provider = _providerNameOf(context) ?? "(unknown)";
-        string? configured = storage.Options.DatabaseClockSql;
-        Statement? statement = configured != null ? new Statement(configured, Verified: false) : BuiltIn(provider);
-
-        if (statement == null)
-        {
-            return new Finding(null, () => Logger.Info(
-                $"The Entity Framework Core job storage doesn't know how to read the clock of the database of provider '{provider}', so this process tells the time with its own clock; keep the clocks of the processes that share the storage synchronized. To use the database's clock instead, {WhatToSet}."));
-        }
-
         string sql = statement.Sql;
-        string consequence = $"This process tells the time with its own clock, so keep the clocks of the processes that share the storage synchronized, or {WhatToSet}.";
+        string provider = _provider;
+        string consequence = $"This process tells the time with its own clock for as long as the storage lives, so keep the clocks of the processes that share the storage synchronized, or {WhatToSet}.";
         object? value;
+        databaseNow = default;
 
         try
         {
+            using DbContext context = _storage.CreateContext();
             value = ExecuteScalar(context, sql);
         }
         catch (Exception ex) when (IsFromTheDatabase(ex) && CanConnect())
         {
             // The database refused the statement, and can be reached: the statement is at fault. Any other
             // failure says nothing about the statement, and surfaces.
-            return new Finding(null, () => Logger.WarnException(
+            return new Finding(false, () => Logger.WarnException(
                 $"The Entity Framework Core job storage couldn't read the database's clock with \"{sql}\" (provider '{provider}'). {consequence}", ex));
         }
 
-        if (!TryConvert(value, out DateTime databaseNow))
+        if (!TryConvert(value, out DateTime answered))
         {
-            string answered = Describe(value);
-            return new Finding(null, () => Logger.Warn(
-                $"The Entity Framework Core job storage asked the database's clock with \"{sql}\" (provider '{provider}') and got {answered}, which isn't a date and time. {consequence}"));
+            string description = Describe(value);
+            return new Finding(false, () => Logger.Warn(
+                $"The Entity Framework Core job storage asked the database's clock with \"{sql}\" (provider '{provider}') and got {description}, which isn't a date and time. {consequence}"));
         }
 
         DateTime processNow = JobClock.UtcNow;
-        if (!statement.Verified && (databaseNow - processNow).Duration() > Tolerance)
+        if (!statement.Verified && (answered - processNow).Duration() > Tolerance)
         {
-            return new Finding(null, () => Logger.Warn(
-                $"The Entity Framework Core job storage asked the database's clock with \"{sql}\" (provider '{provider}') and got {databaseNow:u}, while this process's clock reads {processNow:u}: either the statement doesn't answer UTC, or one of the two clocks is wrong by more than {Tolerance.TotalMinutes:0} minutes. {consequence}"));
+            return new Finding(false, () => Logger.Warn(
+                $"The Entity Framework Core job storage asked the database's clock with \"{sql}\" (provider '{provider}') and got {answered:u}, while this process's clock reads {processNow:u}: either the statement doesn't answer UTC, or one of the two clocks is wrong by more than {Tolerance.TotalMinutes:0} minutes. {consequence}"));
         }
 
-        return new Finding(sql, () => Logger.Debug($"The Entity Framework Core job storage reads the database's clock with \"{sql}\" (provider '{provider}')."));
+        databaseNow = answered;
+        return new Finding(true, () => Logger.Debug($"The Entity Framework Core job storage reads the database's clock with \"{sql}\" (provider '{provider}')."));
+    }
+
+    private DateTime Read(string sql)
+    {
+        using DbContext context = _storage.CreateContext();
+        object? value = ExecuteScalar(context, sql);
+
+        return TryConvert(value, out DateTime utcNow)
+            ? utcNow
+            : throw new InvalidOperationException($"The statement that reads the database's clock, \"{sql}\", answered {Describe(value)}, which isn't a date and time.");
     }
 
     /// <summary>Whether a failure is an error of the database or its driver, alone or behind the execution strategy's.</summary>
@@ -214,7 +256,7 @@ internal sealed class EfDatabaseClock(EntityFrameworkCoreStorage storage, Func<D
     {
         try
         {
-            using DbContext context = storage.CreateContext();
+            using DbContext context = _storage.CreateContext();
             return context.Database.CanConnect();
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -255,6 +297,6 @@ internal sealed class EfDatabaseClock(EntityFrameworkCoreStorage storage, Func<D
     /// <summary>A statement that answers the UTC time, and whether this project's tests run it against a real database.</summary>
     internal sealed record Statement(string Sql, bool Verified);
 
-    /// <summary>What the check found: the statement to read the clock with, or none, and what to log about it.</summary>
-    private sealed record Finding(string? Sql, Action Log);
+    /// <summary>What the check found: whether the statement tells the database's time, and what to log about it.</summary>
+    private sealed record Finding(bool UseTheDatabase, Action Log);
 }

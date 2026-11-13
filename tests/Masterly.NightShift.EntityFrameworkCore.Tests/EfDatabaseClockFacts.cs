@@ -12,24 +12,72 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Masterly.NightShift.EntityFrameworkCore.Tests;
 
-/// <summary>The storage reads the database's clock where it knows how, and says so with the feature.</summary>
+/// <summary>
+/// The storage reads the database's clock where it knows how, and says so with the feature. SQLite's clock is
+/// the process's own; a statement given in the options makes SQLite a database with a clock of its own here.
+/// </summary>
 public sealed class EfDatabaseClockFacts : IDisposable
 {
     private const string Feature = "Connection.GetUtcDateTime";
     private const string SqliteNow = "select strftime('%Y-%m-%d %H:%M:%f', 'now')";
+    private const string UnknownProvider = "Contoso.EntityFrameworkCore.Db";
 
     private readonly SqliteDatabase _database = new();
 
-    public void Dispose() => _database.Dispose();
+    public void Dispose()
+    {
+        JobClock.TimeProvider = TimeProvider.System;
+        _database.Dispose();
+    }
 
     [Fact]
-    public void Sqlite_HasTheFeature_AndReadsTheDatabasesClock_AsUtc()
+    public void HasFeature_AnswersFromTheConfiguration_AndNeverAsksTheDatabase()
     {
-        EntityFrameworkCoreStorage storage = _database.CreateStorage();
+        CountingFactory factory = new(OutOfReach());
+        EntityFrameworkCoreStorage storage = new(factory.Create, new EntityFrameworkCoreStorageOptions { DatabaseClockSql = SqliteNow });
+        int created = factory.Created;
 
         Assert.True(storage.HasFeature(Feature));
         Assert.True(storage.HasFeature(JobStorageFeatures.Connection.GetUtcDateTime));
-        AssertReadsTheMachinesTime(storage);
+        Assert.Equal(created, factory.Created);
+    }
+
+    [Fact]
+    public void HasFeature_IsTrue_ForAProviderWithAStatement_WithoutADatabase()
+    {
+        // No server answers here, and none is asked
+        EntityFrameworkCoreStorage storage = new(
+            static o => o.UseSqlServer("Server=nightshift-no-such-server.invalid;Database=None;Connect Timeout=1;TrustServerCertificate=True;"),
+            new EntityFrameworkCoreStorageOptions { PrepareSchemaIfNecessary = false });
+
+        Assert.True(storage.HasFeature(Feature));
+    }
+
+    [Fact]
+    public void Sqlite_KeepsTheProcessClock_WithoutAStatement_SoATimeProviderStillDrivesIt()
+    {
+        CountingFactory factory = new(_database.ConnectionString);
+        EntityFrameworkCoreStorage storage = new(factory.Create);
+        int created = factory.Created;
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromDays(3));
+
+        DateTime now = ReadClock(storage);
+
+        Assert.Equal(DateTimeKind.Utc, now.Kind);
+        Assert.InRange(now, DateTime.UtcNow.AddDays(3).AddSeconds(-5), DateTime.UtcNow.AddDays(3).AddSeconds(5));
+        Assert.Equal(created, factory.Created);
+        Assert.False(storage.HasFeature(Feature));
+    }
+
+    [Fact]
+    public void Sqlite_SaysNothingAboutItsClock_InTheLog()
+    {
+        using RecordingLogs logs = RecordingLogs.Use();
+        EntityFrameworkCoreStorage storage = _database.CreateStorage();
+
+        ReadClock(storage);
+
+        Assert.Empty(logs.AboutTheClock());
     }
 
     [Fact]
@@ -42,17 +90,21 @@ public sealed class EfDatabaseClockFacts : IDisposable
     }
 
     [Fact]
-    public void DatabaseClockSql_ReplacesTheProvidersStatement_OnSqlite()
+    public void SqlServer_ReadsTheDatabasesClock_WhateverTheTimeProviderSays()
     {
-        EntityFrameworkCoreStorage storage = _database.CreateStorage(new EntityFrameworkCoreStorageOptions
-        {
-            DatabaseClockSql = "select strftime('%Y-%m-%d %H:%M:%f', 'now', '+90 seconds')",
-        });
+        EntityFrameworkCoreStorage storage = SqlServerDatabase.CreateStorage();
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromDays(3));
+
+        AssertReadsTheMachinesTime(storage);
+    }
+
+    [Fact]
+    public void DatabaseClockSql_MakesTheStorageAskSqlite()
+    {
+        EntityFrameworkCoreStorage storage = _database.CreateStorage(new EntityFrameworkCoreStorageOptions { DatabaseClockSql = SqliteNow });
 
         Assert.True(storage.HasFeature(Feature));
-        DateTime now = ReadClock(storage);
-        Assert.Equal(DateTimeKind.Utc, now.Kind);
-        Assert.InRange(now, DateTime.UtcNow.AddSeconds(60), DateTime.UtcNow.AddSeconds(120));
+        AssertReadsTheMachinesTime(storage);
     }
 
     [Fact]
@@ -82,7 +134,6 @@ public sealed class EfDatabaseClockFacts : IDisposable
 
     [Theory]
     [InlineData("Microsoft.EntityFrameworkCore.SqlServer", "select sysutcdatetime()", true)]
-    [InlineData("Microsoft.EntityFrameworkCore.Sqlite", SqliteNow, true)]
     [InlineData("Npgsql.EntityFrameworkCore.PostgreSQL", "select clock_timestamp() at time zone 'utc'", false)]
     [InlineData("Pomelo.EntityFrameworkCore.MySql", "select date_format(utc_timestamp(6), '%Y-%m-%d %H:%i:%s.%f')", false)]
     [InlineData("MySql.EntityFrameworkCore", "select date_format(utc_timestamp(6), '%Y-%m-%d %H:%i:%s.%f')", false)]
@@ -98,11 +149,26 @@ public sealed class EfDatabaseClockFacts : IDisposable
 
     [Theory]
     [InlineData(null)]
-    [InlineData("Contoso.EntityFrameworkCore.Db")]
-    [InlineData("microsoft.entityframeworkcore.sqlite")]
-    public void BuiltIn_KnowsNoStatement_ForOtherProviders(string? provider)
+    [InlineData(UnknownProvider)]
+    [InlineData("Microsoft.EntityFrameworkCore.Sqlite")]
+    [InlineData("microsoft.entityframeworkcore.sqlserver")]
+    public void BuiltIn_KnowsNoStatement_ForOtherProviders_NorForSqlite(string? provider)
     {
         Assert.Null(EfDatabaseClock.BuiltIn(provider));
+    }
+
+    [Theory]
+    [InlineData("Npgsql.EntityFrameworkCore.PostgreSQL")]
+    [InlineData("Pomelo.EntityFrameworkCore.MySql")]
+    [InlineData("MySql.EntityFrameworkCore")]
+    [InlineData("Oracle.EntityFrameworkCore")]
+    public void ProviderWithAStatement_HasTheFeature(string provider)
+    {
+        EntityFrameworkCoreStorage storage = _database.CreateStorage();
+
+        storage.Clock = new EfDatabaseClock(storage, provider);
+
+        Assert.True(storage.HasFeature(Feature));
     }
 
     [Fact]
@@ -110,7 +176,7 @@ public sealed class EfDatabaseClockFacts : IDisposable
     {
         using RecordingLogs logs = RecordingLogs.Use();
         EntityFrameworkCoreStorage storage = _database.CreateStorage();
-        storage.Clock = new EfDatabaseClock(storage, static _ => "Contoso.EntityFrameworkCore.Db");
+        storage.Clock = new EfDatabaseClock(storage, UnknownProvider);
 
         Assert.False(storage.HasFeature(Feature));
         Assert.False(storage.HasFeature(Feature));
@@ -119,30 +185,35 @@ public sealed class EfDatabaseClockFacts : IDisposable
 
         (LogLevel level, string message) = Assert.Single(logs.AboutTheClock());
         Assert.Equal(LogLevel.Info, level);
-        Assert.Contains("Contoso.EntityFrameworkCore.Db", message, StringComparison.Ordinal);
+        Assert.Contains(UnknownProvider, message, StringComparison.Ordinal);
         Assert.Contains("DatabaseClockSql", message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void UnknownProvider_WithTheOption_ReadsTheDatabasesClock()
     {
+        using RecordingLogs logs = RecordingLogs.Use();
         EntityFrameworkCoreStorage storage = _database.CreateStorage(new EntityFrameworkCoreStorageOptions { DatabaseClockSql = SqliteNow });
-        storage.Clock = new EfDatabaseClock(storage, static _ => "Contoso.EntityFrameworkCore.Db");
+        storage.Clock = new EfDatabaseClock(storage, UnknownProvider);
 
         Assert.True(storage.HasFeature(Feature));
         AssertReadsTheMachinesTime(storage);
+        Assert.Empty(logs.AboutTheClock());
     }
 
     [Fact]
-    public void StatementThatFails_KeepsTheProcessClock_AndWarnsOnce()
+    public void StatementThatFails_AnswersWithTheProcessClock_FromTheFirstRead_AndWarnsOnce()
     {
         using RecordingLogs logs = RecordingLogs.Use();
         EntityFrameworkCoreStorage storage = _database.CreateStorage(new EntityFrameworkCoreStorageOptions { DatabaseClockSql = "select no_such_function()" });
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromMinutes(7));
 
-        Assert.False(storage.HasFeature(Feature));
-        Assert.False(storage.HasFeature(Feature));
-        using IStorageConnection connection = storage.GetConnection();
-        Assert.Throws<NotSupportedException>(() => ((JobStorageConnection)connection).GetUtcDateTime());
+        Assert.True(storage.HasFeature(Feature));
+        Assert.Empty(logs.AboutTheClock());
+
+        AssertReadsTheProcessClock(storage, TimeSpan.FromMinutes(7));
+        AssertReadsTheProcessClock(storage, TimeSpan.FromMinutes(7));
+        Assert.True(storage.HasFeature(Feature));
 
         (LogLevel level, string message) = Assert.Single(logs.AboutTheClock());
         Assert.Equal(LogLevel.Warn, level);
@@ -151,13 +222,14 @@ public sealed class EfDatabaseClockFacts : IDisposable
     }
 
     [Fact]
-    public void StatementThatFails_OnSqlServer_KeepsTheProcessClock_AndWarnsOnce()
+    public void StatementThatFails_OnSqlServer_AnswersWithTheProcessClock_AndWarnsOnce()
     {
         using RecordingLogs logs = RecordingLogs.Use();
         EntityFrameworkCoreStorage storage = SqlServerDatabase.CreateStorage(new EntityFrameworkCoreStorageOptions { DatabaseClockSql = "select dbo.no_such_function()" });
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromMinutes(7));
 
-        Assert.False(storage.HasFeature(Feature));
-        Assert.False(storage.HasFeature(Feature));
+        AssertReadsTheProcessClock(storage, TimeSpan.FromMinutes(7));
+        AssertReadsTheProcessClock(storage, TimeSpan.FromMinutes(7));
 
         (LogLevel level, string _) = Assert.Single(logs.AboutTheClock());
         Assert.Equal(LogLevel.Warn, level);
@@ -169,13 +241,13 @@ public sealed class EfDatabaseClockFacts : IDisposable
     [InlineData("select 'soon'")]
     [InlineData("select 42")]
     [InlineData("select null")]
-    public void StatementThatDoesNotAnswerTheUtcTime_KeepsTheProcessClock_AndWarnsOnce(string sql)
+    public void StatementThatDoesNotAnswerTheUtcTime_AnswersWithTheProcessClock_AndWarnsOnce(string sql)
     {
         using RecordingLogs logs = RecordingLogs.Use();
         EntityFrameworkCoreStorage storage = _database.CreateStorage(new EntityFrameworkCoreStorageOptions { DatabaseClockSql = sql });
 
-        Assert.False(storage.HasFeature(Feature));
-        Assert.False(storage.HasFeature(Feature));
+        AssertReadsTheProcessClock(storage, TimeSpan.Zero);
+        AssertReadsTheProcessClock(storage, TimeSpan.Zero);
 
         (LogLevel level, string message) = Assert.Single(logs.AboutTheClock());
         Assert.Equal(LogLevel.Warn, level);
@@ -183,64 +255,73 @@ public sealed class EfDatabaseClockFacts : IDisposable
     }
 
     [Fact]
-    public void Clock_IsCheckedOnce_ThenReadOncePerCall()
+    public void Statement_IsCheckedByTheFirstRead_WhichAnswersWhatItRead_ThenRunOncePerRead()
     {
         CountingFactory factory = new(_database.ConnectionString);
-        EntityFrameworkCoreStorage storage = new(factory.Create);
+        EntityFrameworkCoreStorage storage = new(factory.Create, new EntityFrameworkCoreStorageOptions { DatabaseClockSql = SqliteNow });
         int created = factory.Created;
 
-        Assert.True(storage.HasFeature(Feature));
-        int afterTheCheck = factory.Created;
-        Assert.True(storage.HasFeature(Feature));
-        Assert.True(storage.HasFeature(Feature));
-
-        Assert.Equal(created + 1, afterTheCheck);
-        Assert.Equal(afterTheCheck, factory.Created);
+        ReadClock(storage);
+        Assert.Equal(created + 1, factory.Created);
 
         ReadClock(storage);
-        Assert.Equal(afterTheCheck + 1, factory.Created);
+        ReadClock(storage);
+        Assert.Equal(created + 3, factory.Created);
     }
 
     [Fact]
-    public void DatabaseOutOfReach_AtTheFirstUse_Surfaces_AndTheClockIsCheckedAgain()
+    public void FailedStatement_IsNotRunAgain()
+    {
+        CountingFactory factory = new(_database.ConnectionString);
+        _database.CreateStorage();
+        EntityFrameworkCoreStorage storage = new(factory.Create, new EntityFrameworkCoreStorageOptions { DatabaseClockSql = "select no_such_function()" });
+
+        ReadClock(storage);
+        int afterTheCheck = factory.Created;
+        ReadClock(storage);
+        ReadClock(storage);
+
+        Assert.Equal(afterTheCheck, factory.Created);
+    }
+
+    [Fact]
+    public void DatabaseOutOfReach_AtTheFirstRead_Surfaces_AndTheNextReadChecksAgain()
     {
         using RecordingLogs logs = RecordingLogs.Use();
-        CountingFactory factory = new(_database.ConnectionString);
-        EntityFrameworkCoreStorage storage = new(factory.Create);
+        CountingFactory factory = new(OutOfReach());
+        EntityFrameworkCoreStorage storage = new(factory.Create, new EntityFrameworkCoreStorageOptions { DatabaseClockSql = SqliteNow });
+        using IStorageConnection connection = storage.GetConnection();
 
-        factory.ConnectionString = OutOfReach();
-        Assert.Throws<SqliteException>(() => storage.HasFeature(Feature));
-        using (IStorageConnection connection = storage.GetConnection())
-        {
-            Assert.Throws<SqliteException>(() => ((JobStorageConnection)connection).GetUtcDateTime());
-        }
+        Assert.Throws<SqliteException>(() => ((JobStorageConnection)connection).GetUtcDateTime());
+        Assert.Throws<SqliteException>(() => ((JobStorageConnection)connection).GetUtcDateTime());
 
         factory.ConnectionString = _database.ConnectionString;
-        Assert.True(storage.HasFeature(Feature));
         AssertReadsTheMachinesTime(storage);
         Assert.Empty(logs.AboutTheClock());
     }
 
     [Fact]
-    public void FailureThatIsNotTheDatabases_AtTheFirstUse_Surfaces_AndTheClockIsCheckedAgain()
+    public void FailureThatIsNotTheDatabases_AtTheFirstRead_Surfaces_AndTheNextReadChecksAgain()
     {
         using RecordingLogs logs = RecordingLogs.Use();
         _database.CreateStorage();
 
         // Contexts that refuse to open a connection inside a transaction scope, which SQLite can't enlist in
-        EntityFrameworkCoreStorage storage = new(() => new ClockContext(
-            new DbContextOptionsBuilder<ClockContext>()
-                .UseSqlite(_database.ConnectionString)
-                .ConfigureWarnings(static w => w.Throw(RelationalEventId.AmbientTransactionWarning))
-                .Options,
-            null));
+        EntityFrameworkCoreStorage storage = new(
+            () => new ClockContext(
+                new DbContextOptionsBuilder<ClockContext>()
+                    .UseSqlite(_database.ConnectionString)
+                    .ConfigureWarnings(static w => w.Throw(RelationalEventId.AmbientTransactionWarning))
+                    .Options,
+                null),
+            new EntityFrameworkCoreStorageOptions { DatabaseClockSql = SqliteNow });
 
         using (TransactionScope scope = new())
         {
-            Assert.Throws<InvalidOperationException>(() => storage.HasFeature(Feature));
+            Assert.Throws<InvalidOperationException>(() => ReadClock(storage));
         }
 
-        Assert.True(storage.HasFeature(Feature));
+        AssertReadsTheMachinesTime(storage);
         Assert.Empty(logs.AboutTheClock());
     }
 
@@ -248,14 +329,14 @@ public sealed class EfDatabaseClockFacts : IDisposable
     public void FailureAfterTheCheck_Surfaces_AndNeverFallsBackToTheProcessClock()
     {
         CountingFactory factory = new(_database.ConnectionString);
-        EntityFrameworkCoreStorage storage = new(factory.Create);
-        Assert.True(storage.HasFeature(Feature));
+        EntityFrameworkCoreStorage storage = new(factory.Create, new EntityFrameworkCoreStorageOptions { DatabaseClockSql = SqliteNow });
+        ReadClock(storage);
 
         factory.ConnectionString = OutOfReach();
         using IStorageConnection connection = storage.GetConnection();
 
         Assert.Throws<SqliteException>(() => ((JobStorageConnection)connection).GetUtcDateTime());
-        Assert.True(storage.HasFeature(Feature));
+        Assert.Throws<SqliteException>(() => ((JobStorageConnection)connection).GetUtcDateTime());
         Assert.Throws<SqliteException>(() => connection.Heartbeat("server"));
     }
 
@@ -263,7 +344,7 @@ public sealed class EfDatabaseClockFacts : IDisposable
     public void ApplicationsContext_OnSqlite_ReadsTheClock_AlsoThroughAStagedClient_WhileItsTransactionIsOpen()
     {
         _database.CreateStorage();
-        EntityFrameworkCoreStorage storage = new(CreateSqliteContext);
+        EntityFrameworkCoreStorage storage = new(CreateSqliteContext, new EntityFrameworkCoreStorageOptions { DatabaseClockSql = SqliteNow });
         Assert.True(storage.HasFeature(Feature));
         AssertReadsTheMachinesTime(storage);
 
@@ -272,7 +353,17 @@ public sealed class EfDatabaseClockFacts : IDisposable
         context.Set<SetRow>().Add(new SetRow { Key = "set", Value = "a" });
         context.SaveChanges();
 
-        AssertStagedClientReadsTheClock(storage, context);
+        AssertStagedClientReadsTheClock(storage, context, hasTheFeature: true);
+    }
+
+    [Fact]
+    public void ApplicationsContext_OnSqlite_WithoutAStatement_AnswersTheProcessClock_AlsoThroughAStagedClient()
+    {
+        _database.CreateStorage();
+        EntityFrameworkCoreStorage storage = new(CreateSqliteContext);
+        using ClockContext context = CreateSqliteContext();
+
+        AssertStagedClientReadsTheClock(storage, context, hasTheFeature: false);
     }
 
     [Fact]
@@ -289,7 +380,7 @@ public sealed class EfDatabaseClockFacts : IDisposable
         context.Set<SetRow>().Add(new SetRow { Key = "set", Value = "a" });
         context.SaveChanges();
 
-        AssertStagedClientReadsTheClock(storage, context);
+        AssertStagedClientReadsTheClock(storage, context, hasTheFeature: true);
     }
 
     [Fact]
@@ -300,9 +391,10 @@ public sealed class EfDatabaseClockFacts : IDisposable
         connection.Open();
         using DbTransaction transaction = connection.BeginTransaction();
 
-        EntityFrameworkCoreStorage storage = new(() => InTransaction(new ClockContext(new DbContextOptionsBuilder<ClockContext>().UseSqlite(connection).Options, null), transaction));
+        EntityFrameworkCoreStorage storage = new(
+            () => InTransaction(new ClockContext(new DbContextOptionsBuilder<ClockContext>().UseSqlite(connection).Options, null), transaction),
+            new EntityFrameworkCoreStorageOptions { DatabaseClockSql = SqliteNow });
 
-        Assert.True(storage.HasFeature(Feature));
         AssertReadsTheMachinesTime(storage);
     }
 
@@ -317,16 +409,17 @@ public sealed class EfDatabaseClockFacts : IDisposable
 
         EntityFrameworkCoreStorage storage = new(() => InTransaction(CreateSqlServerContext(o => o.UseSqlServer(connection)), transaction));
 
-        Assert.True(storage.HasFeature(Feature));
         AssertReadsTheMachinesTime(storage);
     }
 
-    [Fact]
-    public void Heartbeat_IsTheDatabasesTime_WhenItsClockIsAheadOfThisProcesss()
+    [Theory]
+    [InlineData(90)]
+    [InlineData(-90)]
+    public void Heartbeats_AreWrittenAndTimedOut_WithTheDatabasesClock(int secondsAhead)
     {
         EntityFrameworkCoreStorage storage = _database.CreateStorage(new EntityFrameworkCoreStorageOptions
         {
-            DatabaseClockSql = "select strftime('%Y-%m-%d %H:%M:%f', 'now', '+90 seconds')",
+            DatabaseClockSql = $"select strftime('%Y-%m-%d %H:%M:%f', 'now', '{secondsAhead:+0;-0} seconds')",
         });
         using IStorageConnection connection = storage.GetConnection();
 
@@ -335,31 +428,10 @@ public sealed class EfDatabaseClockFacts : IDisposable
         connection.Heartbeat("server");
         DateTime beaten = Heartbeat(storage);
 
-        Assert.InRange(announced, DateTime.UtcNow.AddSeconds(60), DateTime.UtcNow.AddSeconds(120));
-        Assert.InRange(beaten, announced, DateTime.UtcNow.AddSeconds(120));
+        Assert.InRange(announced, DateTime.UtcNow.AddSeconds(secondsAhead - 30), DateTime.UtcNow.AddSeconds(secondsAhead + 30));
+        Assert.InRange(beaten, announced, DateTime.UtcNow.AddSeconds(secondsAhead + 30));
 
-        // Those who compare with the database's clock, as the dashboard's pages and the watchdog do, find it new
-        Assert.Equal(0, connection.RemoveTimedOutServers(TimeSpan.FromSeconds(30)));
-        Assert.Single(storage.GetMonitoringApi().Servers());
-    }
-
-    [Fact]
-    public void Heartbeat_IsThisProcesssTime_WhenItsClockIsAheadOfTheDatabases()
-    {
-        EntityFrameworkCoreStorage storage = _database.CreateStorage(new EntityFrameworkCoreStorageOptions
-        {
-            DatabaseClockSql = "select strftime('%Y-%m-%d %H:%M:%f', 'now', '-90 seconds')",
-        });
-        using IStorageConnection connection = storage.GetConnection();
-
-        connection.AnnounceServer("server", new ServerContext { Queues = ["default"], WorkerCount = 1 });
-        DateTime announced = Heartbeat(storage);
-        connection.Heartbeat("server");
-        DateTime beaten = Heartbeat(storage);
-
-        // Those in this process who compare with its clock, as the health endpoints do, find it new too
-        Assert.InRange(announced, DateTime.UtcNow.AddSeconds(-30), DateTime.UtcNow.AddSeconds(30));
-        Assert.InRange(beaten, announced, DateTime.UtcNow.AddSeconds(30));
+        // By this process's clock the heartbeat is 90 seconds off; by the clock it was written with, it is new
         Assert.Equal(0, connection.RemoveTimedOutServers(TimeSpan.FromSeconds(30)));
         Assert.Single(storage.GetMonitoringApi().Servers());
     }
@@ -387,10 +459,25 @@ public sealed class EfDatabaseClockFacts : IDisposable
     }
 
     [Fact]
-    public void Heartbeats_AreWrittenAndTimedOut_WithTheProcessClock_WhenTheDatabasesIsNotRead()
+    public void Heartbeats_AreWrittenAndTimedOut_WithTheProcessClock_OnSqlite()
     {
         EntityFrameworkCoreStorage storage = _database.CreateStorage();
-        storage.Clock = new EfDatabaseClock(storage, static _ => "Contoso.EntityFrameworkCore.Db");
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromDays(3));
+        using IStorageConnection connection = storage.GetConnection();
+
+        connection.AnnounceServer("server", new ServerContext { Queues = ["default"], WorkerCount = 1 });
+        connection.Heartbeat("server");
+
+        Assert.InRange(Heartbeat(storage), DateTime.UtcNow.AddDays(3).AddSeconds(-30), DateTime.UtcNow.AddDays(3).AddSeconds(30));
+        Assert.Equal(0, connection.RemoveTimedOutServers(TimeSpan.FromSeconds(30)));
+        Assert.Equal(1, connection.RemoveTimedOutServers(TimeSpan.Zero));
+    }
+
+    [Fact]
+    public void Heartbeats_AreWrittenAndTimedOut_WithTheProcessClock_OnAProviderWithoutAStatement()
+    {
+        EntityFrameworkCoreStorage storage = _database.CreateStorage();
+        storage.Clock = new EfDatabaseClock(storage, UnknownProvider);
         using IStorageConnection connection = storage.GetConnection();
 
         connection.AnnounceServer("server", new ServerContext { Queues = ["default"], WorkerCount = 1 });
@@ -446,10 +533,19 @@ public sealed class EfDatabaseClockFacts : IDisposable
         Assert.Contains(readings, static x => x.Ticks % TimeSpan.TicksPerSecond != 0);
     }
 
-    private static void AssertStagedClientReadsTheClock(EntityFrameworkCoreStorage storage, DbContext context)
+    // The process's clock is moved by a known time in these tests, so it can be told from the machine's
+    private static void AssertReadsTheProcessClock(EntityFrameworkCoreStorage storage, TimeSpan shift)
+    {
+        DateTime now = ReadClock(storage);
+
+        Assert.Equal(DateTimeKind.Utc, now.Kind);
+        Assert.InRange(now, DateTime.UtcNow.Add(shift).AddSeconds(-5), DateTime.UtcNow.Add(shift).AddSeconds(5));
+    }
+
+    private static void AssertStagedClientReadsTheClock(EntityFrameworkCoreStorage storage, DbContext context, bool hasTheFeature)
     {
         StagingStorage staging = new(storage, context);
-        Assert.True(staging.HasFeature(Feature));
+        Assert.Equal(hasTheFeature, staging.HasFeature(Feature));
 
         using IStorageConnection connection = staging.GetConnection();
         DateTime now = ((JobStorageConnection)connection).GetUtcDateTime();
@@ -498,6 +594,12 @@ public sealed class EfDatabaseClockFacts : IDisposable
         {
             modelBuilder.ApplyNightShiftModel(schema);
         }
+    }
+
+    /// <summary>The system clock, moved by a fixed time.</summary>
+    private sealed class ShiftedClock(TimeSpan shift) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => base.GetUtcNow() + shift;
     }
 
     /// <summary>Creates an application's contexts, on a database that can be changed, and counts them.</summary>

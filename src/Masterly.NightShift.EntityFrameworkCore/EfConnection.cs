@@ -142,8 +142,10 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
 
         string data = StorageValues.SerializeServer(context);
 
-        // Read before the transaction, on a context of its own
-        DateTime now = HeartbeatTime();
+        // Heartbeats are written and timed out with the database's clock where the storage reads it, as on SQL
+        // Server: everything that tells a live server from a stopped one compares them with that clock. Read
+        // before the transaction, on a context of its own.
+        DateTime now = storage.Clock.UtcNow();
         storage.InTransaction(db =>
         {
             ServerRow? row = db.Set<ServerRow>().Find(serverId);
@@ -166,7 +168,7 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
     public override void Heartbeat(string serverId)
     {
         ArgumentNullException.ThrowIfNull(serverId);
-        DateTime now = HeartbeatTime();
+        DateTime now = storage.Clock.UtcNow();
 
         if (Read(context => context.Set<ServerRow>().Where(x => x.Id == serverId).ExecuteUpdate(s => s.SetProperty(x => x.LastHeartbeat, now))) == 0)
         {
@@ -181,8 +183,8 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
             throw new ArgumentException("The `timeOut` value must be positive.", nameof(timeOut));
         }
 
-        // By the database's clock where it is read: no heartbeat is older than that clock says (see HeartbeatTime),
-        // so a watchdog on a server whose clock runs ahead doesn't take the other servers for dead
+        // By the clock the heartbeats are written with, so a watchdog on a server whose clock runs ahead doesn't
+        // take the other servers for dead
         DateTime cutoff = storage.Clock.UtcNow() - timeOut;
         return Read(context => context.Set<ServerRow>().Where(x => x.LastHeartbeat < cutoff).ExecuteDelete());
     }
@@ -343,8 +345,11 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
         return Read(context => EfRows.ReadCounters(context, [key])).GetValueOrDefault(key);
     }
 
-    /// <summary>The database's time, where the storage reads it (the feature tells); not supported otherwise.</summary>
-    public override DateTime GetUtcDateTime() => storage.Clock.TryRead(out DateTime now) ? now : base.GetUtcDateTime();
+    /// <summary>
+    /// The database's time: read with a statement where the storage has one (the feature tells), this process's
+    /// clock on SQLite, whose clock it is. Not supported on a provider without a statement.
+    /// </summary>
+    public override DateTime GetUtcDateTime() => storage.Clock.TellsTheDatabasesTime ? storage.Clock.UtcNow() : base.GetUtcDateTime();
 
     bool ILeaseStore.TryTake(string resource, string owner, DateTime expireAt)
     {
@@ -438,20 +443,6 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// The time a heartbeat is stamped with: the later of the database's clock, where it is read, and this
-    /// process's. Heartbeats are compared with the database's clock by the dashboard's pages and by
-    /// <see cref="RemoveTimedOutServers"/>, and with the clock of their own process by the health endpoints, the
-    /// metrics and the health check. Stamped so, a live server is never taken for dead by the first, whatever its
-    /// clock, nor by the second in its own process; one that stopped is told later by as much as its clock was
-    /// ahead of the database's, as it is where every process goes by its own clock.
-    /// </summary>
-    private DateTime HeartbeatTime()
-    {
-        DateTime processNow = JobClock.UtcNow;
-        return storage.Clock.TryRead(out DateTime databaseNow) && databaseNow > processNow ? databaseNow : processNow;
     }
 
     private TimeSpan TimeToLive<TRow>(Expression<Func<TRow, bool>> predicate, Expression<Func<TRow, DateTime?>> expireAt)

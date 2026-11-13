@@ -5,8 +5,8 @@ using Masterly.NightShift.Storage.Conformance;
 namespace Masterly.NightShift.EntityFrameworkCore.Tests;
 
 /// <summary>
-/// A chain that is being created is protected by a lease, written by the client and compared by the servers. On
-/// this storage both tell the time with the database's clock, so their own clocks needn't agree.
+/// A chain that is being created is protected by a lease, written by the client and compared by the servers.
+/// Where this storage reads the database's clock, both tell the time with it, so their own clocks needn't agree.
 /// </summary>
 public sealed class EfChainLeaseFacts : IDisposable
 {
@@ -28,9 +28,14 @@ public sealed class EfChainLeaseFacts : IDisposable
     }
 
     [Fact]
-    public void ChainBeingCreated_IsNotTakenForAbandoned_ByAServerWhoseClockIsAhead_OnSqlite()
+    public void ChainBeingCreated_IsNotTakenForAbandoned_ByAServerWhoseClockIsAhead_OnADatabaseAskedForItsClock()
     {
-        AssertTheChainIsCreated(_database.CreateStorage(Options()));
+        // SQLite's clock is the process's own, which this test moves: here it is asked with a statement, as the
+        // database of any provider is with DatabaseClockSql
+        EntityFrameworkCoreStorageOptions options = Options();
+        options.DatabaseClockSql = "select strftime('%Y-%m-%d %H:%M:%f', 'now')";
+
+        AssertTheChainIsCreated(_database.CreateStorage(options));
     }
 
     [Fact]
