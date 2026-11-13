@@ -8,6 +8,10 @@ public static partial class JobChains
     /// <summary>The set that lists the chains a retry or a replacement left jobs to delete in, scored by the time of the last attempt.</summary>
     internal const string CleanupSetKey = "chains:cleanup";
 
+    // The set of the delayed job scheduler: the Scheduled jobs, by the time they are due, each as its id or, for a
+    // job with a queue of its own, "{queue}:{id}" (ScheduledState.Handler)
+    private const string ScheduleSetKey = "schedule";
+
     /// <summary>
     /// The set of the chains a server is to look at again, scored by the time of that look. It is the index the
     /// chain maintenance reads, so a run costs what is due and not what is kept. A chain enters it when it is
@@ -1100,7 +1104,7 @@ public static partial class JobChains
         {
             try
             {
-                ReleaseHeld(client, connection, chainId, release, heldJustNow);
+                ReleaseHeld(client, connection, release, cleanup.ReleaseRetry, heldJustNow);
                 release = null;
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -1109,7 +1113,9 @@ public static partial class JobChains
             }
         }
 
-        return remaining.Count == 0 && release == null ? null : new ChainCleanup { Reason = cleanup.Reason, Delete = remaining, Release = release };
+        return remaining.Count == 0 && release == null
+            ? null
+            : new ChainCleanup { Reason = cleanup.Reason, Delete = remaining, Release = release, ReleaseRetry = release == null ? null : cleanup.ReleaseRetry };
     }
 
     // A replaced job is deleted from a state where it hasn't started; one that finished, expired or runs is left
@@ -1136,23 +1142,17 @@ public static partial class JobChains
 
     // The step a retry held is enqueued, unless it left the hold already (the delayed job scheduler enqueued it).
     // The retry is recorded, so it counts: also for a step that a server put back into its state because it took
-    // the retry for abandoned, while the client, frozen, was recording it and stopped before it looked again.
-    private static void ReleaseHeld(IBackgroundJobClient client, IStorageConnection connection, string chainId, string jobId, bool heldJustNow)
+    // the retry for abandoned, while the client, frozen, was recording it and stopped before it looked again. Only
+    // for the retry that asked for it (retryId): a step that ran since, or that another retry held or put back,
+    // is left alone.
+    private static void ReleaseHeld(IBackgroundJobClient client, IStorageConnection connection, string jobId, string? retryId, bool heldJustNow)
     {
         string from = ScheduledState.StateName;
 
         if (!heldJustNow)
         {
             StateData? state = connection.GetStateData(jobId);
-            if (state == null)
-            {
-                return;
-            }
-
-            bool held = ScheduledState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase) &&
-                        string.Equals(state.Reason, ChainRetriedReason, StringComparison.Ordinal);
-
-            if (!held && !string.Equals(state.Reason, RetryAbandonedReason(chainId), StringComparison.Ordinal))
+            if (state == null || !IsHeldOrPutBackFor(connection, jobId, state, retryId))
             {
                 return;
             }
@@ -1160,6 +1160,59 @@ public static partial class JobChains
             from = state.Name;
         }
 
+        // A step with a queue of its own whose hold ended is in that queue already, though it is still Scheduled:
+        // the delayed job scheduler moves such a job without changing its state. Enqueued again, it would be in its
+        // queue twice, and two workers would run it at once. The worker that takes it runs it: the retry is recorded
+        if (ScheduledState.StateName.Equals(from, StringComparison.OrdinalIgnoreCase) && IsInItsQueueAlready(client, connection, jobId))
+        {
+            return;
+        }
+
         client.ChangeState(jobId, new EnqueuedState { Reason = ChainRetriedReason }, from);
+    }
+
+    // Whether a Scheduled job with a queue of its own was moved into that queue by the delayed job scheduler: its
+    // entry left the schedule. Where the storage can't tell, by whether it was due. Only the scheduler moving it at
+    // this very moment escapes the check, as it changes no state and takes no lock
+    private static bool IsInItsQueueAlready(IBackgroundJobClient client, IStorageConnection connection, string jobId)
+    {
+        string? queue = connection.GetJobData(jobId)?.Job?.Queue;
+        if (queue == null)
+        {
+            return false;
+        }
+
+        if (connection is JobStorageConnection storageConnection &&
+            client is IBackgroundJobClientV2 { Storage: { } storage } &&
+            storage.HasFeature(JobStorageFeatures.Connection.GetSetContains))
+        {
+            return !storageConnection.GetSetContains(ScheduleSetKey, $"{queue}:{jobId}");
+        }
+
+        StateData? state = connection.GetStateData(jobId);
+        return state?.Data != null &&
+               state.Data.TryGetValue("EnqueueAt", out string? enqueueAt) &&
+               JobHelper.DeserializeNullableDateTime(enqueueAt) is { } due &&
+               due <= JobClock.UtcNow;
+    }
+
+    // Whether a step is still held for the retry that asked for its release, or was put back for it. A step
+    // created again for the retry carries no note: its job exists for that retry only, so its hold says it.
+    private static bool IsHeldOrPutBackFor(IStorageConnection connection, string jobId, StateData state, string? retryId)
+    {
+        bool scheduled = ScheduledState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase);
+
+        if (retryId == null)
+        {
+            return scheduled && string.Equals(state.Reason, ChainRetriedReason, StringComparison.Ordinal);
+        }
+
+        if (IsPutBackFor(state, retryId))
+        {
+            return true;
+        }
+
+        return scheduled &&
+               string.Equals(RetryMarker.Parse(connection.GetJobParameter(jobId, ChainRetryParameter))?.Id, retryId, StringComparison.Ordinal);
     }
 }

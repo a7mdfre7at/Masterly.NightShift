@@ -148,12 +148,69 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     {
         // The client was frozen while it wrote the record, a server took the retry for abandoned meanwhile, and
         // the client stopped before it looked again: the retry is recorded, so it counts, and its step runs
-        PendingCleanup("c", "{\"reason\":\"r\",\"delete\":[],\"release\":\"held\"}");
+        PendingCleanup("c", "{\"reason\":\"r\",\"delete\":[],\"release\":\"held\",\"releaseRetry\":\"r2\"}");
         _states["held"] = State(FailedState.StateName, "The retry of chain c was abandoned");
+        _states["held"].Data["AbandonedRetry"] = "r2";
 
         Maintain();
 
         _client.Verify(x => x.ChangeState("held", It.Is<EnqueuedState>(state => state.Reason == "Chain retried from this step"), FailedState.StateName), Times.Once);
+        Assert.Empty(Set(CleanupSet));
+    }
+
+    [Theory]
+    [InlineData("r3")]
+    [InlineData(null)]
+    public void Maintain_LeavesAStepThatWasPutBackForAnotherRetry_ThanTheOneThatAskedForItsRelease(string putBackFor)
+    {
+        // The recorded retry r2 asked for the release; the step ran for it, failed again, and a later retry r3,
+        // abandoned, had it put back (or it was put back by a build that didn't say for which retry)
+        PendingCleanup("c", "{\"reason\":\"r\",\"delete\":[],\"release\":\"held\",\"releaseRetry\":\"r2\"}");
+        _states["held"] = State(FailedState.StateName, "The retry of chain c was abandoned");
+        if (putBackFor != null)
+        {
+            _states["held"].Data["AbandonedRetry"] = putBackFor;
+        }
+
+        Maintain();
+
+        _client.Verify(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
+        Assert.Empty(Set(CleanupSet));
+    }
+
+    [Fact]
+    public void Maintain_EnqueuesAStepStillHeldForTheRetryThatAskedForItsRelease_AndLeavesOneHeldForAnother()
+    {
+        PendingCleanup("c", "{\"reason\":\"r\",\"delete\":[],\"release\":\"held\",\"releaseRetry\":\"r2\"}");
+        PendingCleanup("d", "{\"reason\":\"r\",\"delete\":[],\"release\":\"other\",\"releaseRetry\":\"r2\"}");
+        _states["held"] = State(ScheduledState.StateName, "Chain retried from this step");
+        _states["other"] = State(ScheduledState.StateName, "Chain retried from this step");
+        _connection.Setup(x => x.GetJobParameter("held", "ChainRetry")).Returns("{\"id\":\"r2\",\"generation\":1,\"state\":\"Failed\",\"data\":{}}");
+        _connection.Setup(x => x.GetJobParameter("other", "ChainRetry")).Returns("{\"id\":\"r3\",\"generation\":2,\"state\":\"Failed\",\"data\":{}}");
+
+        Maintain();
+
+        _client.Verify(x => x.ChangeState("held", It.IsAny<EnqueuedState>(), ScheduledState.StateName), Times.Once);
+        _client.Verify(x => x.ChangeState("other", It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(-1, false)]
+    [InlineData(5, true)]
+    public void Maintain_EnqueuesAHeldStepWithAQueueOfItsOwn_OnlyWhileItIsNotInThatQueueAlready(int dueInMinutes, bool enqueued)
+    {
+        // Once its hold is due, the scheduler moves a job with a queue of its own into that queue and leaves it
+        // Scheduled: enqueued again, it would be there twice. Here the storage can't say what the schedule holds,
+        // so the time the hold ends tells.
+        PendingCleanup("c", "{\"reason\":\"r\",\"delete\":[],\"release\":\"held\",\"releaseRetry\":\"r2\"}");
+        _states["held"] = State(ScheduledState.StateName, "Chain retried from this step");
+        _states["held"].Data["EnqueueAt"] = JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(dueInMinutes));
+        _connection.Setup(x => x.GetJobParameter("held", "ChainRetry")).Returns("{\"id\":\"r2\",\"generation\":1,\"state\":\"Failed\",\"data\":{}}");
+        _connection.Setup(x => x.GetJobData("held")).Returns(new JobData { Job = Job.FromExpression(() => Console.WriteLine(), "critical"), State = ScheduledState.StateName });
+
+        Maintain();
+
+        _client.Verify(x => x.ChangeState("held", It.IsAny<EnqueuedState>(), ScheduledState.StateName), enqueued ? Times.Once() : Times.Never());
         Assert.Empty(Set(CleanupSet));
     }
 

@@ -10,9 +10,10 @@ public static partial class JobChains
     /// <summary>
     /// The state a held step goes back to when the change fails: the one it was in. With
     /// <paramref name="expireAt"/>, the time its job was to expire before it was held, the job expires then again,
-    /// not a whole retention later.
+    /// not a whole retention later. With <paramref name="heldFor"/>, the identifier of the retry that held the job,
+    /// the state is applied only while the job still carries the note of that retry.
     /// </summary>
-    private static IState Restore(StateData state, DateTime? expireAt = null)
+    private static IState Restore(StateData state, DateTime? expireAt = null, string? heldFor = null)
     {
         if (EnqueuedState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase))
         {
@@ -24,7 +25,7 @@ public static partial class JobChains
             return new ScheduledState(JobHelper.DeserializeDateTime(enqueueAt)) { Reason = state.Reason };
         }
 
-        return new RestoredState(state) { ExpireAt = expireAt };
+        return new RestoredState(state) { ExpireAt = expireAt, HeldFor = heldFor };
     }
 
     // Creates the steps of the levels from 'from' on that 'include' selects, level by level. 'jobs' has the job of
@@ -167,14 +168,16 @@ public static partial class JobChains
     }
 
     /// <summary>
-    /// Does what an earlier retry or replacement of the chain left to do, before the chain changes again. What
-    /// still can't be done stays in the record returned, for the next record written to carry it over.
+    /// Does what an earlier retry or replacement of the chain left to do, before the chain changes again, and
+    /// stores what is left, so a change that is then abandoned doesn't leave it to do a second time (a release of
+    /// a step that has run since). What still can't be done stays in the record returned, for the next record
+    /// written to carry it over.
     /// </summary>
-    private static ChainRecord FinishPendingCleanup(IBackgroundJobClient client, IStorageConnection connection, ChainRecord record)
+    private static ChainRecord FinishPendingCleanup(JobStorage storage, IBackgroundJobClient client, IStorageConnection connection, ChainRecord record)
     {
         return record.Cleanup == null
             ? record
-            : record with { Cleanup = RunCleanup(client, connection, record.ChainId, record.Cleanup, heldJustNow: false, out _) };
+            : record with { Cleanup = CompleteCleanup(storage, client, connection, record.ChainId, record.Cleanup, heldJustNow: false, out _) };
     }
 
     /// <summary>The jobs of the steps, the deepest steps first: deleted in that order, none starts the ones after it.</summary>
@@ -276,6 +279,15 @@ public static partial class JobChains
         /// retention from now, as a job that finishes is.
         /// </summary>
         public DateTime? ExpireAt { get; init; }
+
+        /// <summary>
+        /// The identifier of the retry whose hold this state ends, when the client of that retry asks for it: the
+        /// state is applied only while the job still carries the note of that retry, which
+        /// <see cref="JobChainStepFilter"/> checks under the job's lock. Otherwise the state change fails, and the
+        /// job is left to whoever moved it since: a server that put it back, somebody who requeued it, another
+        /// retry that holds it.
+        /// </summary>
+        public string? HeldFor { get; init; }
 
         public string Name { get; } = state.Name;
 
