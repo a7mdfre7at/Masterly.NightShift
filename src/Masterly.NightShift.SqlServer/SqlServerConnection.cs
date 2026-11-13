@@ -149,6 +149,18 @@ internal sealed class SqlServerConnection : JobStorageConnection
         }
     }
 
+    // How the parameters of a job are inserted when there are several: "select @jobId, Name, Value from (values
+    // (@name1, @value1), (@name2, @value2)) as p (Name, Value)", the job's identifier once for all rows, and never
+    // "values (@jobId, @name1, @value1), (@jobId, @name2, @value2)".
+    //
+    // With the identifier repeated in every row, SQL Server plans the check of the foreign key as if each row
+    // might name another job. Where the Job table is (nearly) empty when the plan is compiled (a new or purged
+    // database, a queue that ran dry), it then reads the whole Job table once instead of seeking each row: an
+    // index spool or a merge join over a scan of the table. That scan takes a shared lock on every row, the rows
+    // other callers have just inserted and not committed included. Two callers that each hold their new job's row
+    // and scan wait for each other: a deadlock, and so does every caller until the plan is compiled again. No
+    // hint reaches that check ("option (loop join)" keeps the spool and its scan). With one identifier for all
+    // rows the check is a seek of that one row, which the caller locked itself when it inserted the job.
     private static void InsertJobs(SqlServerStorage storage, DbConnection? dedicatedConnection, IReadOnlyList<JobInsert> inserts, int start, int count)
     {
         // One command that inserts every job with its parameters in a transaction, and returns the new
@@ -191,10 +203,11 @@ internal sealed class SqlServerConnection : JobStorageConnection
                 string name = $"@n{suffix}_{index.ToString(CultureInfo.InvariantCulture)}";
                 string value = $"@v{suffix}_{index.ToString(CultureInfo.InvariantCulture)}";
 
+                // The job's identifier once, outside the rows: see the comment on this method
                 query.Append(index == 0
-                    ? $"insert into [{schema}].JobParameter (JobId, Name, Value) values "
+                    ? $"insert into [{schema}].JobParameter (JobId, Name, Value) select @jobId, Name, Value from (values "
                     : ", ");
-                query.Append(CultureInfo.InvariantCulture, $"(@jobId, {name}, {value})");
+                query.Append(CultureInfo.InvariantCulture, $"({name}, {value})");
 
                 addParameters.Add(cmd => cmd
                     .AddParameter(name, parameter.Key, DbType.String, size: 40)
@@ -205,7 +218,7 @@ internal sealed class SqlServerConnection : JobStorageConnection
 
             if (index > 0)
             {
-                query.Append("; ");
+                query.Append(") as p (Name, Value); ");
             }
         }
 
@@ -310,6 +323,8 @@ internal sealed class SqlServerConnection : JobStorageConnection
 
         KeyValuePair<string, string?>[] parametersArray = [.. parameters];
 
+        // Several parameters are inserted with the job's identifier once, outside their rows: see InsertJobs
+
         if (parametersArray.Length <= 4)
         {
             if (parametersArray.Length == 1)
@@ -333,7 +348,7 @@ internal sealed class SqlServerConnection : JobStorageConnection
                     begin tran;
                     insert into [{schemaName}].Job (InvocationData, Arguments, CreatedAt, ExpireAt) values (@invocationData, @arguments, @createdAt, @expireAt);
                     select @jobId = scope_identity(); select @jobId;
-                    insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, @name1, @value1), (@jobId, @name2, @value2);
+                    insert into [{schemaName}].JobParameter (JobId, Name, Value) select @jobId, Name, Value from (values (@name1, @value1), (@name2, @value2)) as p (Name, Value);
                     commit tran;
                     """);
                 additionalParameters = cmd => cmd
@@ -349,7 +364,7 @@ internal sealed class SqlServerConnection : JobStorageConnection
                     begin tran;
                     insert into [{schemaName}].Job (InvocationData, Arguments, CreatedAt, ExpireAt) values (@invocationData, @arguments, @createdAt, @expireAt);
                     select @jobId = scope_identity(); select @jobId;
-                    insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, @name1, @value1), (@jobId, @name2, @value2), (@jobId, @name3, @value3);
+                    insert into [{schemaName}].JobParameter (JobId, Name, Value) select @jobId, Name, Value from (values (@name1, @value1), (@name2, @value2), (@name3, @value3)) as p (Name, Value);
                     commit tran;
                     """);
                 additionalParameters = cmd => cmd
@@ -367,7 +382,7 @@ internal sealed class SqlServerConnection : JobStorageConnection
                     begin tran;
                     insert into [{schemaName}].Job (InvocationData, Arguments, CreatedAt, ExpireAt) values (@invocationData, @arguments, @createdAt, @expireAt);
                     select @jobId = scope_identity(); select @jobId;
-                    insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, @name1, @value1), (@jobId, @name2, @value2), (@jobId, @name3, @value3), (@jobId, @name4, @value4);
+                    insert into [{schemaName}].JobParameter (JobId, Name, Value) select @jobId, Name, Value from (values (@name1, @value1), (@name2, @value2), (@name3, @value3), (@name4, @value4)) as p (Name, Value);
                     commit tran;
                     """);
                 additionalParameters = cmd => cmd
