@@ -144,21 +144,67 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
     /// <summary>
     /// Whether the job of a step still exists in a state other than Succeeded or Deleted: a step that failed for
     /// good and is kept, or one that waits, is scheduled, enqueued or processing. The chain's record is kept for as
-    /// long as there is one, so the chain can be read and run again from that step.
+    /// long as there is one, so the chain can be read and run again from that step. A waiting step that nothing
+    /// can start any more (<see cref="StrandedSteps"/>) doesn't count: it would keep the chain for as long as a
+    /// waiting job is kept, a year, with nothing of it left to run or to run again.
     /// </summary>
     internal bool HasLiveSteps()
     {
+        HashSet<string>? stranded = null;
+
         foreach (JobChainStepInfo step in Steps)
         {
-            if (step.State != null &&
-                !SucceededState.StateName.Equals(step.State, StringComparison.OrdinalIgnoreCase) &&
-                !DeletedState.StateName.Equals(step.State, StringComparison.OrdinalIgnoreCase))
+            if (step.State == null ||
+                SucceededState.StateName.Equals(step.State, StringComparison.OrdinalIgnoreCase) ||
+                DeletedState.StateName.Equals(step.State, StringComparison.OrdinalIgnoreCase))
             {
-                return true;
+                continue;
             }
+
+            if (IsAwaiting(step.State) && (stranded ??= StrandedSteps()).Contains(step.Key))
+            {
+                continue;
+            }
+
+            return true;
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// The keys of the waiting steps that nothing can start any more: every step such a step waits for is gone
+    /// (its job expired) or is stranded itself, and what is known of them doesn't decide it. A step whose job is
+    /// gone can't be requeued, nor retried with <c>RetryChainFrom</c>, so only somebody who enqueues or deletes
+    /// the waiting job by hand moves such a step. A step that waits for several steps isn't stranded while what
+    /// the gone ones wrote on it (<see cref="JobChainStepInfo.Outcomes"/>) decides it: a server starts or skips
+    /// it then.
+    /// </summary>
+    internal HashSet<string> StrandedSteps()
+    {
+        HashSet<string> stranded = new(StringComparer.Ordinal);
+        ILookup<int, JobChainStepInfo>? levels = null;
+
+        // A level always comes after the one it waits for, so the steps are decided in the order of their levels
+        foreach (JobChainStepInfo step in Steps.OrderBy(static x => x.Level))
+        {
+            if (!IsAwaiting(step.State))
+            {
+                continue;
+            }
+
+            levels ??= Steps.ToLookup(static x => x.Level);
+            List<JobChainStepInfo> parents = [.. levels[step.ParentLevel]];
+
+            if (parents.Count > 0 &&
+                parents.TrueForAll(parent => parent.State == null || stranded.Contains(parent.Key)) &&
+                JobChains.Decide(step, parents) == FanInContinuationsSupportAttribute.Decision.Undecided)
+            {
+                stranded.Add(step.Key);
+            }
+        }
+
+        return stranded;
     }
 
     /// <summary>

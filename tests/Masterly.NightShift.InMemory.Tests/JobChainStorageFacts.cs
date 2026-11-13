@@ -1516,6 +1516,54 @@ public sealed class JobChainStorageFacts : IDisposable
     }
 
     [Fact]
+    public void Server_UnlistsAChain_WhoseStepsWaitBehindAFailedStepWhoseJobExpired_OnceItsRecordExpired()
+    {
+        List<object> before = [.. GlobalJobFilters.Filters.Select(static x => x.Instance)];
+        GlobalConfiguration.Configuration.UseFailedJobRetention(TimeSpan.FromDays(7));
+
+        try
+        {
+            JobChainResult chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Then(() => Step("c")).Enqueue(_client)!;
+            Fail(chain.RootId);
+
+            // The failed job expires after a week, as asked: its chain can't be retried any more, nor requeued
+            MoveClock(TimeSpan.FromDays(8));
+            _storage.Database.RemoveExpired();
+            Assert.Null(StateOf(chain.RootId));
+            Assert.Throws<InvalidOperationException>(() => _storage.RetryChainFrom(chain.RootId));
+
+            // A server looks at the chain before its record expires, and leaves it to expire
+            MoveClock(TimeSpan.FromDays(16));
+            using (CreateServer())
+            {
+                WaitUntil(() => SetItems(ExpirySet).Contains(chain.ChainId), "the chain to be left to expire");
+            }
+
+            // The chain is read as it is meanwhile: finished, its waiting steps behind a step whose job is gone
+            JobChainInfo info = _storage.GetChain(chain.ChainId)!;
+            Assert.True(info.IsSettled);
+            Assert.Equal([null, AwaitingState.StateName, AwaitingState.StateName], info.Steps.Select(static x => x.State));
+
+            MoveClock(TimeSpan.FromDays(7));
+            using (CreateServer())
+            {
+                WaitUntil(() => !SetItems(JobChains.SetKey).Contains(chain.ChainId), "the chain whose record expired to leave the list");
+            }
+
+            Assert.Null(_storage.GetChain(chain.ChainId));
+            Assert.Empty(SetItems(ExpirySet));
+            Assert.DoesNotContain(chain.ChainId, SetItems(DueSet));
+        }
+        finally
+        {
+            foreach (object filter in GlobalJobFilters.Filters.Select(static x => x.Instance).Except(before).ToList())
+            {
+                GlobalJobFilters.Filters.Remove(filter);
+            }
+        }
+    }
+
+    [Fact]
     public void Server_LooksSoonAtAChain_WhoseFailedStepIsRequeued_HoweverLongItStoodStill()
     {
         JobChainResult chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client)!;

@@ -637,6 +637,95 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     }
 
     [Fact]
+    public void Maintain_LeavesAChainToExpire_WhoseWaitingStepsWaitBehindAStepWhoseJobIsGone()
+    {
+        // The first step failed for good and its job expired (UseFailedJobRetention): nothing can start the
+        // steps after it, which wait for as long as a waiting job is kept
+        Line("c", TimeSpan.FromDays(8), ("a", null), ("b", Awaiting("a")), ("d", Awaiting("b")));
+        _timesToLive[JobChains.GetKey("c")] = TimeSpan.FromDays(22);
+
+        Maintain();
+
+        Assert.Empty(Set(DueSet));
+        double expiresAt = Assert.Single(Set(ExpirySet)).Score;
+        Assert.InRange(expiresAt, After(TimeSpan.FromDays(22)), After(TimeSpan.FromDays(22.01)));
+        Assert.Equal(TimeSpan.FromDays(22), _timesToLive[JobChains.GetKey("c")]);
+    }
+
+    [Fact]
+    public void Maintain_KeepsTheRecord_OfAChainWithAStepThatWaitsBehindAStepWhoseJobIsGone_WhileAnotherStepOfItIsLeftToRun()
+    {
+        // Two branches: the job of one is gone, and the step after it waits for good; the other still runs
+        JobChain chain = JobChain.StartWith(() => JobChainFacts.Step("a"))
+            .ThenMany(branches => branches.Branch(() => JobChainFacts.Step("b")).Branch(() => JobChainFacts.Step("c")));
+        _hashes[JobChains.GetKey("c")] = new Dictionary<string, string>
+        {
+            ["Definition"] = JobChains.ToDefinition(chain),
+            ["Jobs"] = "{\"0.0\":\"a\",\"1.0\":\"b\",\"1.1\":\"c\"}",
+            ["CreatedAt"] = JobHelper.SerializeDateTime(DateTime.UtcNow.AddDays(-8)),
+        };
+        Set(JobChains.SetKey).Add((1, "c"));
+        Set(DueSet).Add((1, "c"));
+        _states["b"] = Awaiting("a");
+        _states["c"] = State(ProcessingState.StateName);
+        _timesToLive[JobChains.GetKey("c")] = TimeSpan.FromDays(22);
+
+        Maintain();
+
+        Assert.Empty(Set(ExpirySet));
+        Assert.Single(Set(DueSet));
+        Assert.True(_timesToLive[JobChains.GetKey("c")] > TimeSpan.FromDays(29));
+    }
+
+    [Fact]
+    public void StrandedSteps_AreTheWaitingStepsThatNothingCanStartAnyMore()
+    {
+        JobChainInfo info = new("c", 1, DateTime.UtcNow, ChainDeleteBehavior.Cascade,
+        [
+            new JobChainStepInfo("0.0", "a", null, 0, -1),
+            new JobChainStepInfo("1.0", "b", AwaitingState.StateName, 1, 0) { Link = ChainLink.Then, Options = JobContinuationOptions.OnlyOnSucceededState },
+            new JobChainStepInfo("1.1", "c", SucceededState.StateName, 1, 0),
+            new JobChainStepInfo("2.0", "d", AwaitingState.StateName, 2, 1) { Link = ChainLink.AfterAll },
+            new JobChainStepInfo("2.1", "e", AwaitingState.StateName, 2, 1) { Link = ChainLink.AfterAll },
+        ]);
+
+        // b waits for a step whose job is gone; the joins after b and c wait for a step that waits for good, and
+        // for one whose job exists, so only somebody who moves c could still decide them
+        Assert.Equal(["1.0"], info.StrandedSteps());
+        Assert.True(info.HasLiveSteps());
+
+        JobChainInfo gone = info with { Steps = [.. info.Steps.Select(static x => x.Key == "1.1" ? x with { State = null } : x)] };
+        Assert.Equal(["1.0", "2.0", "2.1"], gone.StrandedSteps().Order(StringComparer.Ordinal));
+        Assert.False(gone.HasLiveSteps());
+    }
+
+    [Fact]
+    public void StrandedSteps_LeaveOut_AStepThatWhatTheStepsBeforeItWroteOnItDecides()
+    {
+        JobChainInfo info = new("c", 1, DateTime.UtcNow, ChainDeleteBehavior.Cascade,
+        [
+            new JobChainStepInfo("0.0", "a", SucceededState.StateName, 0, -1),
+            new JobChainStepInfo("1.0", "b", null, 1, 0),
+            new JobChainStepInfo("1.1", "c", null, 1, 0),
+            new JobChainStepInfo("2.0", "done", AwaitingState.StateName, 2, 1)
+            {
+                Link = ChainLink.AfterAll,
+                Outcomes = new Dictionary<string, string> { ["b"] = SucceededState.StateName, ["c"] = SucceededState.StateName },
+            },
+            new JobChainStepInfo("2.1", "alert", AwaitingState.StateName, 2, 1)
+            {
+                Link = ChainLink.AfterAnyFailed,
+                Outcomes = new Dictionary<string, string> { ["b"] = SucceededState.StateName },
+            },
+        ]);
+
+        // done is decided (a server starts it); alert isn't: what c finished as isn't known
+        Assert.Equal(["2.1"], info.StrandedSteps());
+        Assert.True(info.HasLiveSteps());
+        Assert.Equal(["2.0"], info.NeverToldSteps().Select(static x => x.Key));
+    }
+
+    [Fact]
     public void Maintain_KeepsTheRecord_ForTheTimeThisProcessIsSetTo()
     {
         JobChain.RecordRetention = TimeSpan.FromDays(4);

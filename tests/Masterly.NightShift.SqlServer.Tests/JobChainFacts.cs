@@ -205,6 +205,35 @@ public class JobChainFacts
     }
 
     [Fact, CleanDatabase]
+    public async Task Server_LeavesAChainToExpire_WhoseStepsWaitBehindAFailedStepWhoseJobExpired()
+    {
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+
+        JobChainResult chain = JobChain.StartWith(() => FailOnce("a")).Then(() => Record("b")).Then(() => Record("c")).Enqueue(client)!;
+        Assert.True(client.ChangeState(chain.RootId, new FailedState(new InvalidOperationException("failed")), null));
+
+        // The failed job expired (UseFailedJobRetention); the record expires in three days, and a look is due
+        Expire(chain.RootId);
+        using (IStorageConnection connection = storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            ((JobStorageTransaction)transaction).ExpireHash(JobChains.GetKey(chain.ChainId), TimeSpan.FromDays(3));
+            transaction.AddToSet(DueSet, chain.ChainId, 0);
+            transaction.Commit();
+        }
+
+        using (CreateServer(storage))
+        {
+            await WaitUntilAsync(() => SetItems(storage, ExpirySet).Contains(chain.ChainId), "The chain that nothing can move on any more wasn't left to expire.");
+        }
+
+        Assert.DoesNotContain(chain.ChainId, SetItems(storage, DueSet));
+        Assert.InRange(RecordTimeToLive(storage, chain.ChainId), TimeSpan.FromDays(2.9), TimeSpan.FromDays(3));
+        Assert.Equal(AwaitingState.StateName, StateName(storage, chain.Steps["1.0"]));
+    }
+
+    [Fact, CleanDatabase]
     public void FanIn_IsDecidedByWhatAParentFinishedAs_OnceItsJobExpired()
     {
         SqlServerStorage storage = CreateStorage();
