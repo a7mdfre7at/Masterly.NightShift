@@ -1233,6 +1233,84 @@ public sealed class JobChainStepFilterFacts : IDisposable
         Assert.Same(due, _context.Object.CandidateState);
     }
 
+    [Theory]
+    [InlineData("Scheduled", "Enqueued")]
+    [InlineData("Enqueued", "Processing")]
+    public void OnStateElection_PutsAStepBack_WhoseMethodCanNotBeLoaded_WhenItsRetryWasAbandoned(string from, string to)
+    {
+        // Putting the step back needs none of its code: no Failed state in its history, no automatic retry
+        CanNotBeLoaded(from, to);
+        Step("1.0");
+        HeldForARetry(generation: 3, state: SucceededState.StateName);
+        Record(3, ("0.0", "41"), ("1.0", JobId));
+
+        _filter.OnStateElection(_context.Object);
+
+        JobChains.RestoredState restored = Assert.IsType<JobChains.RestoredState>(_context.Object.CandidateState);
+        Assert.Equal(SucceededState.StateName, restored.Name);
+        Assert.Empty(_context.Object.TraversedStates);
+    }
+
+    [Fact]
+    public void OnStateElection_HoldsAStepWhoseMethodCanNotBeLoaded_WhileItsRetryIsPrepared_WithoutAFailedStateInItsHistory()
+    {
+        CanNotBeLoaded(ScheduledState.StateName, EnqueuedState.StateName);
+        Step("1.0");
+        HeldForARetry(generation: 3, state: FailedState.StateName);
+        Record(3, ("0.0", "41"), ("1.0", JobId), Lease(since: TimeSpan.FromSeconds(30), until: TimeSpan.FromSeconds(90)));
+
+        _filter.OnStateElection(_context.Object);
+
+        ScheduledState held = Assert.IsType<ScheduledState>(_context.Object.CandidateState);
+        Assert.Equal($"Waiting for chain {ChainId} to be recorded", held.Reason);
+        Assert.Empty(_context.Object.TraversedStates);
+    }
+
+    [Fact]
+    public void OnStateElection_LetsAStepWhoseMethodCanNotBeLoaded_Fail_AsAnySuchJob_WhenItsRetryWasRecorded()
+    {
+        CanNotBeLoaded(ScheduledState.StateName, EnqueuedState.StateName);
+        FailedState failed = (FailedState)_context.ApplyContext.NewStateObject;
+        Step("1.0");
+        HeldForARetry(generation: 3, state: FailedState.StateName);
+        Record(4, ("0.0", "41"), ("1.0", JobId));
+
+        _filter.OnStateElection(_context.Object);
+
+        Assert.Same(failed, _context.Object.CandidateState);
+    }
+
+    [Fact]
+    public void OnStateElection_LetsAStepWhoseMethodCanNotBeLoaded_Fail_WhenItIsHeldForNoRetry()
+    {
+        CanNotBeLoaded(EnqueuedState.StateName, ProcessingState.StateName);
+        FailedState failed = (FailedState)_context.ApplyContext.NewStateObject;
+        Step("1.0");
+        Record(3, ("0.0", "41"), ("1.0", "77"));
+
+        _filter.OnStateElection(_context.Object);
+
+        Assert.Same(failed, _context.Object.CandidateState);
+        _connection.Verify(x => x.GetAllEntriesFromHash(It.IsAny<string>()), Times.Never);
+        _connection.Verify(x => x.GetValueFromHash(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void OnStateElection_LetsAStepFailedByHand_Fail_ThoughItIsHeldForARetry_AndItsMethodCanNotBeLoaded()
+    {
+        // Only the state the state changer makes of a state it can't apply: an operator's Failed state is applied
+        CanNotBeLoaded(ScheduledState.StateName, EnqueuedState.StateName);
+        FailedState byHand = new(new InvalidOperationException("Given up")) { Reason = "Failed by an operator" };
+        _context.ApplyContext.NewStateObject = byHand;
+        Step("1.0");
+        HeldForARetry(generation: 3, state: SucceededState.StateName);
+        Record(3, ("0.0", "41"), ("1.0", JobId));
+
+        _filter.OnStateElection(_context.Object);
+
+        Assert.Same(byHand, _context.Object.CandidateState);
+    }
+
     [Fact]
     public void OnStateElection_HoldsAStepHeldForARetry_WhileTheClientStillSaysItIsAtIt_AndKeepsItsNote()
     {
@@ -1543,6 +1621,17 @@ public sealed class JobChainStepFilterFacts : IDisposable
             Data = data ?? [],
             ExpireAt = new DateTime(2026, 12, 1, 0, 0, 0, DateTimeKind.Utc),
         }.Serialize();
+    }
+
+    // The state changer couldn't load the job's method for the state asked for, and made a Failed state of it
+    private void CanNotBeLoaded(string from, string to)
+    {
+        _context.ApplyContext.BackgroundJob.Job = null;
+        _context.ApplyContext.OldStateName = from;
+        _context.ApplyContext.NewStateObject = new FailedState(new InvalidOperationException("The type wasn't found."))
+        {
+            Reason = $"Can not change the state to '{to}': the job's type or method was not found.",
+        };
     }
 
     // The step carries the note of a retry of its chain that held it

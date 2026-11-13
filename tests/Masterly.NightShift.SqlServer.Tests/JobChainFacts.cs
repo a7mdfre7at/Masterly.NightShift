@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Masterly.NightShift.Client;
 using Masterly.NightShift.Server;
+using Masterly.NightShift.Storage.Monitoring;
 using ReferencedDapper::Dapper;
 
 namespace Masterly.NightShift.SqlServer.Tests;
@@ -663,6 +664,82 @@ public class JobChainFacts
             using IStorageConnection connection = storage.GetConnection();
             StateData state = connection.GetStateData(step);
             Assert.Equal((ScheduledState.StateName, "Rescheduled by an operator"), (state.Name, state.Reason));
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(hooks);
+        }
+    }
+
+    [Fact, CleanDatabase]
+    public async Task RetryChainFrom_ASucceededStep_ThatIsAbandoned_PutsItBack_AlsoWhenTheServerCanNotLoadItsMethod()
+    {
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        BackgroundJobClient client = new(storage);
+        JobChainResult chain = JobChain.StartWith(() => Record("a")).Then(() => RecordWithoutRetries("b")).Then(() => Record("c")).Enqueue(client);
+        string step = chain!.Steps["1.0"];
+
+        using (CreateServer(storage))
+        {
+            await WaitUntilSettledAsync(storage, chain.ChainId);
+        }
+
+        Assert.Equal(SucceededState.StateName, StateName(storage, step));
+        long failedBefore = storage.GetMonitoringApi().GetStatistics().Failed;
+
+        ChainHooks hooks = new() { CrashOnCreating = "c" };
+        GlobalJobFilters.Filters.Add(hooks);
+
+        try
+        {
+            // The retry stops before it is recorded
+            Assert.Throws<OutOfMemoryException>(() => storage.RetryChainFrom(step));
+            Assert.Equal(ScheduledState.StateName, StateName(storage, step));
+
+            // The servers run a build in which the step's method is gone; the lease lapses and the hold ends
+            using (DbConnection sql = ConnectionUtils.CreateConnection())
+            {
+                Assert.Equal(1, sql.Execute(
+                    $"update [{Constants.DefaultSchema}].Job set InvocationData = replace(InvocationData, 'RecordWithoutRetries', 'GoneWithoutRetries') where Id = @id",
+                    new { id = long.Parse(step) }));
+                Assert.Equal(1, sql.Execute(
+                    $"update [{Constants.DefaultSchema}].[Set] set Score = 0 where [Key] = 'schedule' and Value = @id",
+                    new { id = step }));
+            }
+
+            LapseLease(storage, chain.ChainId);
+
+            using BackgroundJobServer server = CreateServer(storage);
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            string reason = null;
+            string state = ScheduledState.StateName;
+            while (stopwatch.Elapsed < Timeout)
+            {
+                using (IStorageConnection connection = storage.GetConnection())
+                {
+                    StateData data = connection.GetStateData(step);
+                    state = data.Name;
+                    reason = data.Reason;
+                }
+
+                if (reason != "Chain retried from this step")
+                {
+                    break;
+                }
+
+                await Task.Delay(100, TestContext.Current.CancellationToken);
+            }
+
+            // The retry never happened: the step is Succeeded as it was. Putting it back needs none of its code.
+            Assert.Equal((SucceededState.StateName, $"The retry of chain {chain.ChainId} was abandoned"), (state, reason));
+
+            // Nothing says it failed: no Failed state in its history, no automatic retry, no failure counted
+            IList<StateHistoryDto> history = storage.GetMonitoringApi().JobDetails(step).History;
+            Assert.DoesNotContain(history, static x => x.StateName == FailedState.StateName);
+            Assert.DoesNotContain(history, static x => x.Reason?.StartsWith("Retry attempt", StringComparison.Ordinal) == true);
+            Assert.Equal(failedBefore, storage.GetMonitoringApi().GetStatistics().Failed);
+            Assert.Null(Parameter(storage, step, "ChainRetry"));
         }
         finally
         {
