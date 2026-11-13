@@ -1,3 +1,4 @@
+using System.Transactions;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Storage.Shared;
 using Microsoft.EntityFrameworkCore;
@@ -197,6 +198,7 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
         // A context is created here in any case, so a factory whose model lacks the tables is refused at once;
         // it tells the provider without connecting.
         _features.Remove(JobStorageFeatures.Connection.GetUtcDateTime);
+        using (SuppressAmbientTransaction())
         using (DbContext context = CreateContext())
         {
             Clock = new EfDatabaseClock(this, context.Database.ProviderName);
@@ -251,6 +253,7 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
     public override void Purge(StoragePurgeOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        using TransactionScope? suppressed = SuppressAmbientTransaction();
         using DbContext context = CreateContext();
         long removed = 0;
 
@@ -301,6 +304,35 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
     /// <inheritdoc />
     public override string ToString() => "Entity Framework Core storage";
 
+    /// <summary>
+    /// Keeps the storage's contexts out of a caller's ambient transaction (<see cref="TransactionScope"/>), for
+    /// as long as the result isn't disposed: the storage writes through contexts and connections of its own, so a
+    /// job created inside a caller's transaction exists whether that transaction commits or not, and a write of
+    /// the storage that fails never dooms it. Jobs staged in the application's context with <c>NightShift()</c>
+    /// are the exception, by design: they are rows of that context, saved by its <c>SaveChanges</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The ambient transaction is suppressed around everything that may open a connection, not only around the
+    /// opening: the provider enlists a connection when it is opened (SqlClient, Npgsql, MySQL and Oracle by
+    /// default), and EF Core itself looks at the ambient transaction every time it uses the connection,
+    /// enlisting one that it opened, or refusing to begin a transaction of its own, or failing on a provider
+    /// that can't take part in one (SQLite). Turning enlistment off in the connection string would cover
+    /// neither EF Core's own enlisting nor the application's connection string, which the application's own
+    /// context also uses, and the keyword differs from one provider to another.
+    /// </para>
+    /// <para>
+    /// A context whose connection the application opened and enlisted itself is used as it is: what runs on
+    /// it runs in that connection's transaction. Nothing is allocated outside a caller's transaction. The scope
+    /// is created and disposed on one thread, around synchronous calls; inside a scope that flows with async
+    /// calls, a scope of this thread still takes precedence while it lasts.
+    /// </para>
+    /// </remarks>
+    internal static TransactionScope? SuppressAmbientTransaction()
+    {
+        return Transaction.Current != null ? new TransactionScope(TransactionScopeOption.Suppress) : null;
+    }
+
     /// <summary>A new context whose model includes the storage's tables.</summary>
     internal DbContext CreateContext()
     {
@@ -318,6 +350,7 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
     /// <summary>Runs <paramref name="write"/> in a database transaction, through the provider's execution strategy.</summary>
     internal void InTransaction(Action<DbContext> write)
     {
+        using TransactionScope? suppressed = SuppressAmbientTransaction();
         using DbContext context = CreateContext();
         context.Database.CreateExecutionStrategy().Execute(() =>
         {
@@ -346,6 +379,7 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
     /// </summary>
     private void PrepareSchema()
     {
+        using TransactionScope? suppressed = SuppressAmbientTransaction();
         using DbContext context = CreateContext();
         IRelationalDatabaseCreator creator = context.GetService<IRelationalDatabaseCreator>();
         ILog logger = LogProvider.GetLogger(typeof(EntityFrameworkCoreStorage));

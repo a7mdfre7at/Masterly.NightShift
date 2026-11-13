@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Diagnostics;
+using System.Transactions;
 using Masterly.NightShift.Logging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -311,6 +312,7 @@ internal sealed class EfDatabaseClock
     private string? Ask(string sql, out DateTime databaseNow)
     {
         object? value;
+        using (EntityFrameworkCoreStorage.SuppressAmbientTransaction())
         using (DbContext context = _storage.CreateContext())
         {
             value = ExecuteScalar(context, sql);
@@ -402,6 +404,7 @@ internal sealed class EfDatabaseClock
     private DateTime Read(string sql)
     {
         object? value;
+        using (EntityFrameworkCoreStorage.SuppressAmbientTransaction())
         using (DbContext context = _storage.CreateContext())
         {
             value = ExecuteScalar(context, sql);
@@ -434,6 +437,7 @@ internal sealed class EfDatabaseClock
     {
         try
         {
+            using TransactionScope? suppressed = EntityFrameworkCoreStorage.SuppressAmbientTransaction();
             using DbContext context = _storage.CreateContext();
             return context.Database.CanConnect();
         }
