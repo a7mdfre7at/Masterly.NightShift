@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using Masterly.NightShift.Client;
 using Masterly.NightShift.Server;
 using Masterly.NightShift.Storage.Monitoring;
 
@@ -594,6 +595,48 @@ public abstract class StorageConformanceFacts : IDisposable
     }
 
     [Fact]
+    public void Requeue_MakesTheJobFetchableAgainAtOnce_InItsQueue_AndLeavesTheJobAsItWas()
+    {
+        // What a worker does with a job it gives back without having changed it (the first step of a chain that
+        // is still being created): as often as it takes, the job comes back, where it was, and nothing about it
+        // says that it was ever taken
+        string id = Enqueue("critical");
+        Connection(x => x.SetJobParameter(id, "Note", "\"kept\""));
+        IMonitoringApi monitoring = Storage.GetMonitoringApi();
+        int history = monitoring.JobDetails(id).History.Count;
+
+        using IStorageConnection connection = Storage.GetConnection();
+        for (int round = 0; round < 3; round++)
+        {
+            Stopwatch waited = Stopwatch.StartNew();
+            using CancellationTokenSource cancellation = new(Timeout);
+            using IFetchedJob fetched = connection.FetchNextJob(["critical"], cancellation.Token);
+
+            Assert.Equal(id, fetched.JobId);
+            Assert.InRange(waited.Elapsed, TimeSpan.Zero, TimeSpan.FromSeconds(5));
+            fetched.Requeue();
+
+            Assert.Equal(1, monitoring.EnqueuedCount("critical"));
+            Assert.Equal(0, monitoring.FetchedCount("critical"));
+        }
+
+        Assert.Null(TryFetch(["default"]));
+
+        StateData? state = connection.GetStateData(id);
+        Assert.Equal(EnqueuedState.StateName, state?.Name);
+        Assert.Equal("critical", state?.Data["Queue"]);
+        Assert.Equal(history, monitoring.JobDetails(id).History.Count);
+        Assert.Equal("\"kept\"", connection.GetJobParameter(id, "Note"));
+        Assert.Null(connection.GetJobParameter(id, "RetryCount"));
+        Assert.Null(connection.GetJobParameter(id, "StaleRestarts"));
+        Assert.Null(connection.GetJobParameter(id, "Lease"));
+
+        using IFetchedJob last = connection.FetchNextJob(["critical"], CancellationToken.None);
+        Assert.Equal(id, last.JobId);
+        last.RemoveFromQueue();
+    }
+
+    [Fact]
     public void FetchNextJob_WaitsForAJob_UntilCanceled()
     {
         using IStorageConnection connection = Storage.GetConnection();
@@ -1041,6 +1084,42 @@ public abstract class StorageConformanceFacts : IDisposable
     }
 
     [Fact]
+    public async Task Server_StartsAChain_WithoutEverHoldingItsFirstStep_ThoughAWorkerTakesItWhileTheChainIsCreated()
+    {
+        string key = NewKey();
+        SlowCreation slow = new(key + ":3", TimeSpan.FromMilliseconds(500));
+        GlobalJobFilters.Filters.Add(slow);
+
+        try
+        {
+            using BackgroundJobServer server = CreateServer(workers: 2);
+
+            // The workers are idle: one of them fetches the first step while the client still creates the third
+            JobChainResult chain = JobChain.StartWith(() => ConformanceJobs.Record(key + ":1"))
+                .Then(() => ConformanceJobs.Record(key + ":2"))
+                .Then(() => ConformanceJobs.Record(key + ":3"))
+                .Enqueue(new BackgroundJobClient(Storage))!;
+
+            await WaitUntilAsync(() => Storage.GetChain(chain.ChainId) is { IsSettled: true }, $"Chain {chain.ChainId} didn't settle.");
+
+            // It went back to its queue each time, with nothing written: its history is that of any job
+            IMonitoringApi monitoring = Storage.GetMonitoringApi();
+            Assert.Equal(
+                [EnqueuedState.StateName, ProcessingState.StateName, SucceededState.StateName],
+                monitoring.JobDetails(chain.RootId).History.Reverse().Select(static x => x.StateName));
+            Assert.Null(Connection(x => x.GetJobParameter(chain.RootId, "StaleRestarts")));
+            Assert.Null(Connection(x => x.GetJobParameter(chain.RootId, "RetryCount")));
+            Assert.Null(Connection(x => x.GetJobParameter(chain.RootId, "HeldQueue")));
+            Assert.Equal(1, ConformanceJobs.Runs(key + ":1"));
+            Assert.Equal(1, ConformanceJobs.Runs(key + ":3"));
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(slow);
+        }
+    }
+
+    [Fact]
     public async Task Server_KeepsTheRecordOfAChainWithAFailedStep_AndUnlistsAChainThatFinished_OnceItsRecordExpired()
     {
         string key = NewKey();
@@ -1239,6 +1318,22 @@ public abstract class StorageConformanceFacts : IDisposable
     }
 
     private static string NewKey() => Guid.NewGuid().ToString("N");
+
+    /// <summary>Makes the creation of the job with a given argument take a while.</summary>
+    private sealed class SlowCreation(string argument, TimeSpan delay) : IClientFilter
+    {
+        public void OnCreating(CreatingContext context)
+        {
+            if (context.Job.Type == typeof(ConformanceJobs) && context.Job.Args.Count > 0 && argument.Equals(context.Job.Args[0] as string, StringComparison.Ordinal))
+            {
+                Thread.Sleep(delay);
+            }
+        }
+
+        public void OnCreated(CreatedContext context)
+        {
+        }
+    }
 
     /// <summary>The state of a job that succeeded ten minutes ago, as the storage keeps it.</summary>
     private sealed class SucceededLongAgo : IState
