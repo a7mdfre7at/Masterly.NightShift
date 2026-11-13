@@ -147,9 +147,11 @@ public static partial class JobChains
     }
 
     /// <summary>
-    /// Gives the chain of a job a look by a server a few minutes from now (<see cref="DecisionWindow"/>, the time
-    /// after which a waiting step that wasn't started counts as never told). Best effort: without it the chain is
-    /// looked at when it was to be, later.
+    /// Asks for a look at the chain of a job by a server a few minutes from now (<see cref="DecisionWindow"/>, the
+    /// time after which a waiting step that wasn't started counts as never told). In an entry of its own
+    /// (<see cref="SoonSetKey"/>), not at the chain's place among the chains to look at: a look in progress writes
+    /// that place from what it read before this state change, and would put the chain weeks off again. Best
+    /// effort: without it the chain is looked at when it was to be, later.
     /// </summary>
     private static void LookSoon(JobStorage storage, IStorageConnection connection, string jobId, string? serializedChainId, bool keepRecord)
     {
@@ -167,15 +169,9 @@ public static partial class JobChains
                 return;
             }
 
+            // The look moves the chain to where it belongs then, also one that was left to expire
             using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
-            transaction.AddToSet(DueSetKey, chainId, JobHelper.ToTimestamp(JobClock.UtcNow + DecisionWindow));
-
-            // A chain left to expire is looked at again; where nothing expires, no chain is
-            if (storage.HasFeature(JobStorageFeatures.ExtendedApi))
-            {
-                transaction.RemoveFromSet(ExpirySetKey, chainId);
-            }
-
+            transaction.AddToSet(SoonSetKey, SoonEntry(chainId), JobHelper.ToTimestamp(JobClock.UtcNow + DecisionWindow));
             transaction.Commit();
 
             if (keepRecord)

@@ -18,6 +18,26 @@ public static partial class JobChains
     internal const string DueSetKey = "chains:due";
 
     /// <summary>
+    /// The set of the looks that were asked for: a step left the state it had finished in, so its chain moves on,
+    /// and a server is to look at it a few minutes later, however far off its place in <see cref="DueSetKey"/> is.
+    /// Each entry is <c>{chain}|{unique}</c>, scored by the time of the look, and is written once and removed only
+    /// by the look it asked for. So no look in progress, which wrote the chain's next place from what it had read
+    /// before, can lose it: the chain is looked at when the entry says, at the latest.
+    /// </summary>
+    internal const string SoonSetKey = "chains:soon";
+
+    private const char SoonSeparator = '|';
+
+    /// <summary>A new entry of <see cref="SoonSetKey"/> for a chain.</summary>
+    internal static string SoonEntry(string chainId) => $"{chainId}{SoonSeparator}{Guid.NewGuid():N}";
+
+    private static string ChainOfSoonEntry(string entry)
+    {
+        int separator = entry.LastIndexOf(SoonSeparator);
+        return separator < 0 ? entry : entry[..separator];
+    }
+
+    /// <summary>
     /// The set of the chains left to expire, scored by the time they leave the list of chains: nothing of them is
     /// left to run or to run again, so their record expires, or their record is gone before its time. Only on a
     /// storage that expires records, where a listed chain is in this set or in <see cref="DueSetKey"/>.
@@ -38,6 +58,9 @@ public static partial class JobChains
 
     /// <summary>How many chains that are due for a look one maintenance run looks at, at most.</summary>
     internal const int MaxLooksPerRun = 500;
+
+    /// <summary>How many looks that were asked for one maintenance run does, at most.</summary>
+    internal const int MaxAskedLooksPerRun = 500;
 
     /// <summary>How many chains left to expire one maintenance run looks at, at most.</summary>
     internal const int MaxExpiringPerRun = 500;
@@ -131,7 +154,10 @@ public static partial class JobChains
 
             int finished = FinishCleanups(storage, client, connection, out bool moreCleanups);
 
+            // The looks that were asked for come first: they give their chains a new place, so a chain isn't
+            // looked at twice in a run
             Looks looks = new();
+            bool moreAsked = LookAtAsked(storage, client, connection, looks, stopping);
             bool moreExpiring = storage.HasFeature(JobStorageFeatures.ExtendedApi) &&
                                 LookAtDue(storage, client, connection, ExpirySetKey, MaxExpiringPerRun, looks, stopping);
             bool moreDue = LookAtDue(storage, client, connection, DueSetKey, MaxLooksPerRun, looks, stopping);
@@ -146,7 +172,7 @@ public static partial class JobChains
                 Logger.Info($"Chain maintenance: {looks.Unlisted} chains whose record expired left the list, {finished} interrupted changes of chains were finished, {looks.Started} waiting steps that were never told to start were started or skipped, {placed} chains listed by an earlier build were given a look.");
             }
 
-            return new MaintenanceRun(true, moreToIndex || moreCleanups || moreExpiring || moreDue);
+            return new MaintenanceRun(true, moreToIndex || moreCleanups || moreAsked || moreExpiring || moreDue);
         }
     }
 
@@ -409,6 +435,84 @@ public static partial class JobChains
         }
 
         return taken >= max;
+    }
+
+    /// <summary>
+    /// Does the looks that were asked for and are due (<see cref="SoonSetKey"/>), the ones due longest first, at
+    /// most <see cref="MaxAskedLooksPerRun"/>: each chain is looked at once (<see cref="Look"/>), given its place
+    /// for the next look, wherever it was, and the entries that asked are removed. An entry is removed only once
+    /// its chain was looked at: one whose chain is being retried, replaced or deleted right now comes up again at
+    /// the next run, and one whose chain can't be read, a little later.
+    /// </summary>
+    /// <returns>Whether the run stopped at the limit: more looks may be due.</returns>
+    private static bool LookAtAsked(JobStorage storage, IBackgroundJobClient client, IStorageConnection connection, Looks looks, CancellationToken stopping)
+    {
+        DateTime now = JobClock.UtcNow;
+        HashSet<string> looked = new(StringComparer.Ordinal);
+        int taken = 0;
+
+        foreach (string entry in TakeDue(storage, connection, SoonSetKey, JobHelper.ToTimestamp(now), MaxAskedLooksPerRun))
+        {
+            if (stopping.IsCancellationRequested)
+            {
+                return false;
+            }
+
+            taken++;
+            string chainId = ChainOfSoonEntry(entry);
+
+            // Several steps of a chain may have asked: one look, after all of them asked, answers them all
+            DateTime? again = null;
+            if (!looked.Contains(chainId))
+            {
+                again = LookAsAsked(storage, client, connection, chainId, now, looks);
+                if (again == null)
+                {
+                    looked.Add(chainId);
+                }
+            }
+
+            Rescore(connection, SoonSetKey, entry, again);
+        }
+
+        return taken >= MaxAskedLooksPerRun;
+    }
+
+    /// <summary>One look that was asked for. Returns when to try again, or <c>null</c> once the chain was looked at and placed.</summary>
+    private static DateTime? LookAsAsked(JobStorage storage, IBackgroundJobClient client, IStorageConnection connection, string chainId, DateTime now, Looks looks)
+    {
+        try
+        {
+            ChainPlacement placement;
+            using (connection.AcquireDistributedLock(GetLockResource(chainId), TimeSpan.Zero))
+            {
+                placement = Look(storage, client, connection, chainId, leftToExpire: false, now, looks);
+            }
+
+            // The chain may be among the chains to look at or among the ones left to expire: it leaves the one
+            // it doesn't go to
+            if (!Place(connection, chainId, placement.Set == DueSetKey ? ExpirySetKey : DueSetKey, placement))
+            {
+                return now;
+            }
+
+            if (placement.Unlisted)
+            {
+                looks.Unlisted++;
+            }
+
+            return null;
+        }
+        catch (DistributedLockTimeoutException)
+        {
+            // The chain is being retried, replaced or deleted: looked at at the next run
+            return now;
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            Logger.WarnException($"Chain '{chainId}' couldn't be looked at after a step of it left the state it had finished in; a later maintenance run tries again.", ex);
+            return now + MaxWatchInterval;
+        }
     }
 
     /// <summary>

@@ -481,9 +481,12 @@ public sealed class JobChainStepFilterFacts : IDisposable
 
         context.AfterCommit.Run();
 
-        _expiring.Verify(x => x.AddToSet("chains:due", ChainId, It.IsInRange(
-            (double)JobHelper.ToTimestamp(DateTime.UtcNow.AddMinutes(4)), (double)JobHelper.ToTimestamp(DateTime.UtcNow.AddMinutes(6)), Moq.Range.Inclusive)));
-        _expiring.Verify(x => x.RemoveFromSet("chains:expiring", ChainId));
+        // In an entry of its own, which only the look it asks for removes: the chain's place among the chains to
+        // look at, which a look in progress is about to write from what it read before, is left alone
+        _expiring.Verify(x => x.AddToSet("chains:soon", It.Is<string>(entry => entry.StartsWith(ChainId + "|", StringComparison.Ordinal)), It.IsInRange(
+            (double)JobHelper.ToTimestamp(DateTime.UtcNow.AddMinutes(4)), (double)JobHelper.ToTimestamp(DateTime.UtcNow.AddMinutes(6)), Moq.Range.Inclusive)), Times.Once);
+        _expiring.Verify(x => x.AddToSet(It.IsNotIn("chains:soon"), It.IsAny<string>(), It.IsAny<double>()), Times.Never);
+        _expiring.Verify(x => x.RemoveFromSet(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
         _expiring.Verify(x => x.Commit());
     }
 
@@ -522,7 +525,7 @@ public sealed class JobChainStepFilterFacts : IDisposable
 
         context.AfterCommit.Run();
 
-        _expiring.Verify(x => x.AddToSet("chains:due", ChainId, It.IsAny<double>()));
+        _expiring.Verify(x => x.AddToSet("chains:soon", It.Is<string>(entry => entry.StartsWith(ChainId + "|", StringComparison.Ordinal)), It.IsAny<double>()));
 
         // And its record is kept longer, which is done at each state change only where the parameters are loaded
         _expiring.Verify(x => x.ExpireHash(JobChains.GetKey(ChainId), It.IsInRange(TimeSpan.FromDays(29.9), TimeSpan.FromDays(30), Moq.Range.Inclusive)));
@@ -561,17 +564,23 @@ public sealed class JobChainStepFilterFacts : IDisposable
     }
 
     [Fact]
-    public void OnStateApplied_LeavesTheChainsLeftToExpireAlone_OnAStorageWhoseRecordsNeverExpire()
+    public void OnStateApplied_AsksForALook_InANewEntryEachTime_SoNoneReplacesAnother()
     {
-        ApplyStateContextMock mock = LeftMock(FailedState.StateName, EnqueuedState.StateName);
-        mock.Storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(false);
-        ApplyStateContext context = WithCommit(mock);
+        List<string> entries = [];
+        _expiring.Setup(x => x.AddToSet("chains:soon", It.IsAny<string>(), It.IsAny<double>()))
+            .Callback<string, string, double>((_, entry, _) => entries.Add(entry));
 
-        _filter.OnStateApplied(context, context.Transaction);
-        context.AfterCommit.Run();
+        foreach (string from in (string[])[FailedState.StateName, SucceededState.StateName, DeletedState.StateName])
+        {
+            ApplyStateContext context = Left(from, EnqueuedState.StateName);
+            _filter.OnStateApplied(context, context.Transaction);
+            context.AfterCommit.Run();
+        }
 
-        _expiring.Verify(x => x.AddToSet("chains:due", ChainId, It.IsAny<double>()));
-        _expiring.Verify(x => x.RemoveFromSet(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        // A look that removes the entry it answered can't take one that was asked for since with it
+        Assert.Equal(3, entries.Distinct(StringComparer.Ordinal).Count());
+        Assert.All(entries, entry => Assert.StartsWith(ChainId + "|", entry, StringComparison.Ordinal));
+        Assert.All(entries, static entry => Assert.InRange(entry.Length, 1, 256));
     }
 
     [Fact]

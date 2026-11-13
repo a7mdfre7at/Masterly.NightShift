@@ -7,6 +7,7 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     private const string CleanupSet = "chains:cleanup";
     private const string DueSet = "chains:due";
     private const string ExpirySet = "chains:expiring";
+    private const string SoonSet = "chains:soon";
     private const string IndexHash = "chains:index";
 
     private readonly Mock<JobStorage> _storage = new();
@@ -67,6 +68,7 @@ public sealed class JobChainMaintenanceFacts : IDisposable
 
     public void Dispose()
     {
+        JobClock.TimeProvider = TimeProvider.System;
         JobChainMaintenanceProcess.Interval = _interval;
         JobChainMaintenanceProcess.BusyInterval = _busyInterval;
         JobChain.RecordRetention = _retention;
@@ -298,6 +300,113 @@ public sealed class JobChainMaintenanceFacts : IDisposable
             After(TimeSpan.FromHours(failedHoursAgo) - TimeSpan.FromMinutes(5)),
             After(TimeSpan.FromHours(failedHoursAgo) + TimeSpan.FromMinutes(5)));
         _client.Verify(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void Maintain_DoesNotLoseTheLookAskedFor_WhenAStepLeavesItsFinishedState_WhileItsChainIsLookedAt()
+    {
+        // The second step waits behind the first, which failed ten days ago: a look finds nothing to do, and says
+        // the next one is ten days off
+        Line("c", TimeSpan.FromDays(10), ("a", Finished(FailedState.StateName, TimeSpan.FromDays(10))), ("b", Awaiting("a")));
+        _timesToLive[JobChains.GetKey("c")] = TimeSpan.FromDays(25);
+
+        // Right after the look read the chain, somebody requeues the failed step; once that is committed, a look
+        // is asked for, a few minutes from now
+        bool requeued = false;
+        _connection.Setup(x => x.GetHashTtl(JobChains.GetKey("c"))).Returns(() =>
+        {
+            if (!requeued)
+            {
+                requeued = true;
+                LeavesItsFinishedState("a", "c", State(EnqueuedState.StateName));
+            }
+
+            return _timesToLive[JobChains.GetKey("c")];
+        });
+
+        Maintain();
+
+        // Whatever the look made of what it had read, the chain is looked at again when the requeue asked for it
+        Assert.True(requeued);
+        Assert.True(IsLookedAtWithin("c", TimeSpan.FromMinutes(5.5)), "The look that the requeue asked for was lost to the look in progress.");
+
+        // The step runs and succeeds, and the process that was to start the next one stops. Six minutes later
+        // a server finds the step that was never told to start, not ten days later.
+        _states["a"] = Finished(SucceededState.StateName, TimeSpan.Zero);
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromMinutes(6));
+
+        Maintain();
+
+        Assert.Equal(EnqueuedState.StateName, _states["b"].Name);
+    }
+
+    [Fact]
+    public void Maintain_LooksOnce_AtAChainAskedForSeveralTimes_AndForgetsWhatWasAsked()
+    {
+        Line("c", TimeSpan.FromDays(10), ("a", Finished(FailedState.StateName, TimeSpan.FromDays(10))), ("b", Awaiting("a")));
+        Set(DueSet).Clear();
+        Set(DueSet).Add((After(TimeSpan.FromDays(9)), "c"));
+        Set(SoonSet).Add((After(TimeSpan.FromMinutes(-3)), "c|1"));
+        Set(SoonSet).Add((After(TimeSpan.FromMinutes(-2)), "c|2"));
+        Set(SoonSet).Add((After(TimeSpan.FromMinutes(4)), "c|3"));
+
+        Maintain();
+
+        // One look for the two that were due; the one that isn't due yet stays, and the chain has a new place
+        _connection.Verify(x => x.GetAllEntriesFromHash(JobChains.GetKey("c")), Times.Once);
+        Assert.Equal(["c|3"], Set(SoonSet).Select(static x => x.Value));
+        Assert.Equal("c", Assert.Single(Set(DueSet)).Value);
+    }
+
+    [Fact]
+    public void Maintain_KeepsALookAskedFor_WhileTheChainIsBeingChanged_AndLooksAtTheNextRun()
+    {
+        Line("c", TimeSpan.FromDays(10), ("a", Finished(FailedState.StateName, TimeSpan.FromDays(10))), ("b", Awaiting("a")));
+        Set(DueSet).Clear();
+        Set(SoonSet).Add((After(TimeSpan.FromMinutes(-1)), "c|1"));
+        _busyLocks.Add("lock:chain:c");
+
+        Maintain();
+
+        Assert.Equal("c|1", Assert.Single(Set(SoonSet)).Value);
+        Assert.InRange(Set(SoonSet)[0].Score, After(TimeSpan.FromMinutes(-1)), After(TimeSpan.FromMinutes(1)));
+
+        _busyLocks.Clear();
+        Maintain();
+
+        Assert.Empty(Set(SoonSet));
+        Assert.Equal("c", Assert.Single(Set(DueSet)).Value);
+    }
+
+    [Fact]
+    public void Maintain_ForgetsALookAskedFor_OfAChainThatIsGone()
+    {
+        // Deleted since: nothing to look at, and nothing to list
+        Set(SoonSet).Add((After(TimeSpan.FromMinutes(-1)), "gone|1"));
+
+        Maintain();
+
+        Assert.Empty(Set(SoonSet));
+        Assert.Empty(Set(DueSet));
+        Assert.Empty(Set(ExpirySet));
+        Assert.Empty(Listed());
+    }
+
+    [Fact]
+    public void Maintain_MovesAChainLeftToExpire_BackAmongTheChainsToLookAt_WhenALookWasAskedForAndAStepIsLeftToRun()
+    {
+        // Everything of it had finished, so it was left to expire; then a step was requeued
+        Line("c", TimeSpan.FromDays(10), ("a", Finished(SucceededState.StateName, TimeSpan.FromDays(10))), ("b", State(EnqueuedState.StateName)));
+        _timesToLive[JobChains.GetKey("c")] = TimeSpan.FromDays(25);
+        Set(DueSet).Clear();
+        Set(ExpirySet).Add((After(TimeSpan.FromDays(25)), "c"));
+        Set(SoonSet).Add((After(TimeSpan.FromMinutes(-1)), "c|1"));
+
+        Maintain();
+
+        Assert.Empty(Set(SoonSet));
+        Assert.Empty(Set(ExpirySet));
+        Assert.Equal("c", Assert.Single(Set(DueSet)).Value);
     }
 
     [Fact]
@@ -961,6 +1070,46 @@ public sealed class JobChainMaintenanceFacts : IDisposable
         process.Execute(context.Object);
 
         _connection.Verify(x => x.GetValueFromHash(IndexHash, "Listed"), Times.Once);
+    }
+
+    // What a state change does that takes a step of a chain out of the state it had finished in, once it is
+    // committed: the filter's work after the commit
+    private void LeavesItsFinishedState(string jobId, string chainId, StateData newState)
+    {
+        Mock<IState> state = new();
+        state.Setup(x => x.Name).Returns(newState.Name);
+
+        ApplyStateContextMock mock = new()
+        {
+            Storage = _storage,
+            Connection = _connection.As<IStorageConnection>(),
+            NewStateObject = state.Object,
+            OldStateName = _states[jobId].Name,
+        };
+        mock.BackgroundJob.Id = jobId;
+        mock.BackgroundJob.ParametersSnapshot = new Dictionary<string, string> { [JobChains.ChainIdParameter] = $"\"{chainId}\"" };
+
+        ApplyStateContext context = mock.Object;
+        context.AfterCommit = new PostCommitActions();
+
+        new JobChainStepFilter().OnStateApplied(context, context.Transaction);
+        _states[jobId] = newState;
+        context.AfterCommit.Run();
+    }
+
+    // Whether a server is to look at a chain within a time from now: at its place among the chains to look at,
+    // or because a look was asked for
+    private bool IsLookedAtWithin(string chainId, TimeSpan time)
+    {
+        double until = After(time);
+        return Set(DueSet).Exists(x => x.Value == chainId && x.Score <= until) ||
+               Set(SoonSet).Exists(x => x.Value.StartsWith(chainId + "|", StringComparison.Ordinal) && x.Score <= until);
+    }
+
+    /// <summary>The system clock, moved by a fixed time.</summary>
+    private sealed class ShiftedClock(TimeSpan shift) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => base.GetUtcNow() + shift;
     }
 
     private JobChains.MaintenanceRun Maintain() => JobChains.Maintain(_storage.Object, _client.Object, ref _indexed, TestContext.Current.CancellationToken);
