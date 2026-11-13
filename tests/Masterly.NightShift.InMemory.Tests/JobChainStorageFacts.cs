@@ -16,6 +16,8 @@ namespace Masterly.NightShift.InMemory.Tests;
 public sealed class JobChainStorageFacts : IDisposable
 {
     private const string CleanupSet = "chains:cleanup";
+    private const string DueSet = "chains:due";
+    private const string ExpirySet = "chains:expiring";
 
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
     private static readonly ConcurrentQueue<string> Ran = new();
@@ -53,6 +55,12 @@ public sealed class JobChainStorageFacts : IDisposable
 
     /// <summary>A step that says it ran.</summary>
     public static void Run(string name) => Ran.Enqueue(name);
+
+    /// <summary>A first step that returns something.</summary>
+    public static int Produce(string name) => name.Length + 41;
+
+    /// <summary>A step that says what it was given: the result of the step before it.</summary>
+    public static void Consume(string name, [FromResult] int value) => Ran.Enqueue($"{name} {value}");
 
     /// <summary>A step that takes a moment, and says it ran once it has.</summary>
     public static void Slow(string name)
@@ -241,8 +249,10 @@ public sealed class JobChainStorageFacts : IDisposable
         // Every step is marked when the chain is recorded: a step that is still to run when the record is gone,
         // long after, runs as it always did
         JobChainResult chain = JobChain.StartWith(() => Run("a")).Then(() => Run("b")).Schedule(_client, TimeSpan.FromDays(45))!;
-        Assert.Equal("true", Parameter(chain.RootId, JobChains.ChainRecordedParameter));
-        Assert.Equal("true", Parameter(chain.Steps["1.0"], JobChains.ChainRecordedParameter));
+
+        // The mark says how long the record is kept, in seconds
+        Assert.Equal("2592000", Parameter(chain.RootId, JobChains.ChainRecordedParameter));
+        Assert.Equal("2592000", Parameter(chain.Steps["1.0"], JobChains.ChainRecordedParameter));
         RemoveRecord(chain.ChainId);
 
         using BackgroundJobServer server = CreateServer();
@@ -1059,42 +1069,150 @@ public sealed class JobChainStorageFacts : IDisposable
     }
 
     [Fact]
-    public void Server_RemovesChainsWhoseRecordExpired_FromTheList_PastTheOldOnesStillRecorded()
+    public void Server_KeepsAChainWithAFailedStep_ForAsLongAsTheJobExists_AndUnlistsAChainThatFinished_OnceItsRecordExpired()
     {
-        long old = JobHelper.ToTimestamp(JobClock.UtcNow - JobChain.RecordRetention - TimeSpan.FromDays(10));
+        JobChainResult failed = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client)!;
+        JobChainResult finished = JobChain.StartWith(() => Step("x")).Then(() => Step("y")).Enqueue(_client)!;
+        Fail(failed.RootId);
+        Succeed(finished.RootId);
+        Succeed(finished.Steps["1.0"]);
+
+        // A server looks at both a few minutes after they were recorded: nothing of the second is left to run
+        MoveClock(TimeSpan.FromMinutes(6));
+        using (CreateServer())
+        {
+            WaitUntil(() => SetItems(ExpirySet).Contains(finished.ChainId), "the chain that finished to be left to expire");
+        }
+
+        Assert.Contains(failed.ChainId, SetItems(DueSet));
+        Assert.DoesNotContain(finished.ChainId, SetItems(DueSet));
+
+        // Nobody touches the failed chain: before its record expires, a server keeps it longer
+        MoveClock(TimeSpan.FromDays(25));
+        Assert.InRange(RecordTimeToLive(failed.ChainId), TimeSpan.FromDays(4.9), TimeSpan.FromDays(5));
+        using (CreateServer())
+        {
+            WaitUntil(() => RecordTimeToLive(failed.ChainId) > TimeSpan.FromDays(29.9), "the record of the failed chain to be kept longer");
+        }
+
+        // The record of the chain that finished expires, and the chain leaves the list
+        MoveClock(TimeSpan.FromDays(6));
+        using (CreateServer())
+        {
+            WaitUntil(() => !SetItems(JobChains.SetKey).Contains(finished.ChainId), "the chain whose record expired to leave the list");
+        }
+
+        Assert.Empty(SetItems(ExpirySet));
+        Assert.Contains(failed.ChainId, SetItems(JobChains.SetKey));
+
+        // And so on, for as long as servers run: months later the failed chain can still be read, and run again
+        for (int i = 0; i < 4; i++)
+        {
+            MoveClock(TimeSpan.FromDays(23));
+            using (CreateServer())
+            {
+                WaitUntil(() => RecordTimeToLive(failed.ChainId) > TimeSpan.FromDays(29.9), "the record of the failed chain to be kept longer");
+            }
+        }
+
+        MoveClock(TimeSpan.FromDays(20));
+        Assert.Equal(1, _storage.GetChain(failed.ChainId)?.FailedCount);
+
+        JobChainResult retried = _storage.RetryChainFrom(failed.RootId);
+
+        Assert.Equal(EnqueuedState.StateName, StateOf(failed.RootId));
+        Assert.Equal(AwaitingState.StateName, StateOf(retried.Steps["1.0"]));
+    }
+
+    [Fact]
+    public void Server_LooksSoonAtAChain_WhoseFailedStepIsRequeued_HoweverLongItStoodStill()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client)!;
+        Fail(chain.RootId);
+
+        // Ten days after the failure a server looks at the chain, and won't again for as long
+        MoveClock(TimeSpan.FromDays(10));
+        using (CreateServer())
+        {
+            WaitUntil(() => !IsDueWithin(chain.ChainId, TimeSpan.FromDays(9)), "the chain to be looked at");
+        }
+
+        // The failed step is requeued, and succeeds, by a process that stops before it starts the next step
+        Assert.True(_client.ChangeState(chain.RootId, new EnqueuedState(), FailedState.StateName));
+        Assert.True(IsDueWithin(chain.ChainId, TimeSpan.FromMinutes(5)));
+        Assert.False(IsDueWithin(chain.ChainId, TimeSpan.FromMinutes(4)));
+        SucceedWithoutTellingTheNextStep(chain.RootId, null);
+
+        MoveClock(TimeSpan.FromMinutes(6));
+        using (CreateServer())
+        {
+            WaitUntil(() => StateOf(chain.Steps["1.0"]) != AwaitingState.StateName, "the step that was never told to start to be started");
+        }
+    }
+
+    [Fact]
+    public void Server_StartsAStepAfterASingleStep_ThatWasNeverToldToStart_WithTheResultOfTheStepBeforeIt()
+    {
+        // A chain without any group, with results passed to continuations (UseResultsInContinuations)
+        List<object> before = [.. GlobalJobFilters.Filters.Select(static x => x.Instance)];
+        GlobalConfiguration.Configuration.UseResultsInContinuations();
+
+        try
+        {
+            JobChainResult chain = JobChain.StartWith(() => Produce("p")).Then(() => Consume("consumed", 0)).Enqueue(_client)!;
+            SucceedWithoutTellingTheNextStep(chain.RootId, 42);
+            Assert.Equal(AwaitingState.StateName, StateOf(chain.Steps["1.0"]));
+
+            // Later nobody is about to start it any more, and a server does, handing it what its parent returned
+            MoveClock(TimeSpan.FromMinutes(6));
+            using (CreateServer())
+            {
+                WaitUntil(() => Ran.Contains("consumed 42"), "the second step to run with the result of the first");
+                WaitUntilSettled(chain.ChainId);
+            }
+
+            Assert.Equal(["consumed 42"], Ran);
+            Assert.Equal(SucceededState.StateName, StateOf(chain.Steps["1.0"]));
+        }
+        finally
+        {
+            foreach (object filter in GlobalJobFilters.Filters.Select(static x => x.Instance).Except(before).ToList())
+            {
+                GlobalJobFilters.Filters.Remove(filter);
+            }
+        }
+    }
+
+    [Fact]
+    public void Server_GivesTheChainsListedByAnEarlierBuild_ALook_AndRemembersThatItDid()
+    {
+        // As an earlier build left them: listed, and only the one with a step after a group among the chains to
+        // look at, in a set of its own
+        JobChainResult line = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client)!;
+        JobChainResult joined = JobChain.StartWith(() => Step("a"))
+            .ThenMany(branches => branches.Branch(() => Step("b")).Branch(() => Step("c")))
+            .ThenAfterAll(() => Step("d"))
+            .Enqueue(_client)!;
+        Fail(line.RootId);
+        Fail(joined.RootId);
+
         using (IStorageConnection connection = _storage.GetConnection())
         using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
-            // More old chains still recorded (retried, scheduled far ahead) than a page of the list holds
-            for (int i = 0; i < 150; i++)
-            {
-                transaction.AddToSet(JobChains.SetKey, $"kept-{i:000}", old + i);
-                transaction.SetRangeInHash(JobChains.GetKey($"kept-{i:000}"), new Dictionary<string, string>
-                {
-                    ["Jobs"] = "{}",
-                    ["CreatedAt"] = JobHelper.SerializeDateTime(JobHelper.FromTimestamp(old + i)),
-                });
-            }
-
-            for (int i = 0; i < 30; i++)
-            {
-                transaction.AddToSet(JobChains.SetKey, $"expired-{i:00}", old + 1000 + i);
-            }
-
+            transaction.RemoveFromSet(DueSet, line.ChainId);
+            transaction.RemoveFromSet(DueSet, joined.ChainId);
+            transaction.AddToSet("chains:joins", joined.ChainId, JobHelper.ToTimestamp(JobClock.UtcNow));
             transaction.Commit();
         }
 
-        JobChainResult chain = JobChain.StartWith(() => Step("a")).Schedule(_client, TimeSpan.FromHours(1))!;
-
         using (CreateServer())
         {
-            WaitUntil(() => !SetItems(JobChains.SetKey).Any(static x => x.StartsWith("expired", StringComparison.Ordinal)), "the expired chains to leave the list");
+            WaitUntil(() => HashField("chains:index", "Listed") == "done", "the chains listed to be gone through");
         }
 
-        HashSet<string> listed = SetItems(JobChains.SetKey);
-        Assert.Equal(151, listed.Count);
-        Assert.Contains("kept-149", listed);
-        Assert.Contains(chain.ChainId, listed);
+        Assert.Equal(new[] { line.ChainId, joined.ChainId }.Order(StringComparer.Ordinal), SetItems(DueSet).Order(StringComparer.Ordinal));
+        Assert.Empty(SetItems("chains:joins"));
+        Assert.Equal(2, SetItems(JobChains.SetKey).Count);
     }
 
     [Fact]
@@ -1114,6 +1232,31 @@ public sealed class JobChainStorageFacts : IDisposable
     private void Succeed(string jobId) => Assert.True(_client.ChangeState(jobId, new SucceededState(null, 0, 0), null));
 
     private void Fail(string jobId) => Assert.True(_client.ChangeState(jobId, new FailedState(new InvalidOperationException("failed")), null));
+
+    // What a process does that stops between the commit of a step's state and the start of the steps after it:
+    // the state is stored, and nobody is told
+    private void SucceedWithoutTellingTheNextStep(string jobId, object? result)
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+        transaction.SetJobState(jobId, new SucceededState(result, 0, 0));
+        transaction.Commit();
+    }
+
+    // Whether a server is to look at a chain within a time from now
+    private bool IsDueWithin(string chainId, TimeSpan time)
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+        return ((JobStorageConnection)connection)
+            .GetFirstByLowestScoreFromSet(DueSet, 0, JobHelper.ToTimestamp(JobClock.UtcNow + time), 1000)
+            .Contains(chainId);
+    }
+
+    private string? HashField(string key, string field)
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+        return connection.GetAllEntriesFromHash(key)?.GetValueOrDefault(field);
+    }
 
     private string? StateOf(string jobId)
     {
