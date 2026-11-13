@@ -259,59 +259,66 @@ public class Worker : IBackgroundProcess
         JobLookAgain lookAgain = new();
         long began = 0;
         TimeSpan waited = TimeSpan.Zero;
+        bool keeping = false;
         stopped = false;
 
-        while (true)
+        try
         {
-            bool offered = waited < _waits.MaxPerJob && _waits.CanWait;
-
-            IState? appliedState = TryChangeState(
-                context,
-                connection,
-                jobId,
-                processingState,
-                null,
-                EligibleWorkerStates,
-                null,
-                out backgroundJob,
-                initializeToken,
-                context.StoppingToken,
-                lookAgain: offered ? lookAgain : null);
-
-            if (appliedState != null || !offered || !lookAgain.Requested)
+            while (true)
             {
-                return appliedState;
-            }
+                // While it keeps the job, the pool counts the time, the looks included: offered while the budget
+                // lasts and the job hasn't been kept too long
+                bool offered = waited < _waits.MaxPerJob && _waits.CanWait;
 
-            if (began == 0)
-            {
-                began = Stopwatch.GetTimestamp();
-            }
+                IState? appliedState = TryChangeState(
+                    context,
+                    connection,
+                    jobId,
+                    processingState,
+                    null,
+                    EligibleWorkerStates,
+                    null,
+                    out backgroundJob,
+                    initializeToken,
+                    context.StoppingToken,
+                    lookAgain: offered ? lookAgain : null);
 
-            // Told how long by the pool: not at all when its budget was used up meanwhile, and then the next
-            // state change comes without the offer
-            TimeSpan pause = _waits.Begin(Pause(lookAgain.Pause, waited, _waits.MaxPerJob));
-            if (pause > TimeSpan.Zero)
-            {
-                try
+                if (appliedState != null || !offered || !lookAgain.Requested)
+                {
+                    return appliedState;
+                }
+
+                if (!keeping)
+                {
+                    // Refused when the budget ran out since: the next look comes without the offer
+                    keeping = _waits.Enter();
+                    began = Stopwatch.GetTimestamp();
+                }
+
+                // Told how long by the pool: not at all when its budget was used up meanwhile
+                TimeSpan pause = keeping ? _waits.Allow(Pause(lookAgain.Pause, waited, _waits.MaxPerJob)) : TimeSpan.Zero;
+                if (pause > TimeSpan.Zero)
                 {
                     // Ends at once when the server stops
                     context.StoppingToken.Wait(pause);
                 }
-                finally
+
+                if (context.StoppingToken.IsCancellationRequested)
                 {
-                    _waits.End();
+                    stopped = true;
+                    return null;
                 }
-            }
 
-            if (context.StoppingToken.IsCancellationRequested)
+                // By the clock of the machine: the application's clock may stand still
+                waited = keeping ? Stopwatch.GetElapsedTime(began) : _waits.MaxPerJob;
+            }
+        }
+        finally
+        {
+            if (keeping)
             {
-                stopped = true;
-                return null;
+                _waits.Leave();
             }
-
-            // By the clock of the machine: the application's clock may stand still
-            waited = Stopwatch.GetElapsedTime(began);
         }
     }
 

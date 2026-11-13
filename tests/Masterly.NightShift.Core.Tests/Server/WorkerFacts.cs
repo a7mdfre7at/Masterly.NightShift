@@ -786,6 +786,43 @@ public class WorkerFacts
     }
 
     [Fact]
+    public void Execute_CountsTheLooksThemselves_AgainstThePoolsBudget_NotOnlyThePausesBetweenThem()
+    {
+        // A slow storage: each look at the job takes a quarter of a second. The worker keeps the job, and takes no
+        // other, for all of that time, so the pool's budget is spent by it too.
+        WorkerWaits waits = new(TimeSpan.FromMilliseconds(300), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(5), Stopwatch.GetTimestamp);
+        List<(bool Offered, TimeSpan At)> looks = [];
+        Stopwatch started = Stopwatch.StartNew();
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Returns<StateChangeContext>(ctx =>
+            {
+                if (ctx.NewState is not ProcessingState)
+                {
+                    return ctx.NewState;
+                }
+
+                looks.Add((ctx.LookAgain != null, started.Elapsed));
+                Thread.Sleep(250);
+
+                if (ctx.LookAgain == null)
+                {
+                    return new ScheduledState(TimeSpan.FromSeconds(2));
+                }
+
+                ctx.LookAgain.Request(TimeSpan.FromMilliseconds(10));
+                return null;
+            });
+
+        CreateWorker(waits: waits).Execute(_context.Object);
+
+        // From the end of the first look, when the worker began to wait, to the look that offers nothing more: the
+        // budget, and the look in progress when it ran out at most
+        TimeSpan held = looks[^1].At - (looks[0].At + TimeSpan.FromMilliseconds(250));
+        Assert.False(looks[^1].Offered);
+        Assert.InRange(held, TimeSpan.FromMilliseconds(250), TimeSpan.FromMilliseconds(500));
+    }
+
+    [Fact]
     public void Execute_CountsItselfAsLookingForAJob_OnlyWhileItFetchesOne()
     {
         // While it looks for a job, the waits of the other workers of its pool cost the pool nothing
@@ -795,9 +832,10 @@ public class WorkerFacts
             .Returns(() =>
             {
                 // Another worker of the pool waits meanwhile, for longer than the pool's budget
-                duringFetch = waits.Begin(TimeSpan.FromMilliseconds(200));
+                Assert.True(waits.Enter());
+                duringFetch = waits.Allow(TimeSpan.FromMilliseconds(200));
                 Thread.Sleep(200);
-                waits.End();
+                waits.Leave();
                 return _fetchedJob.Object;
             });
 
@@ -808,9 +846,10 @@ public class WorkerFacts
         Assert.True(waits.CanWait);
 
         // The same wait once this worker has its job costs the pool its budget
-        Assert.InRange(waits.Begin(TimeSpan.FromMilliseconds(200)), TimeSpan.FromMilliseconds(1), TimeSpan.FromMilliseconds(100));
+        Assert.True(waits.Enter());
+        Assert.InRange(waits.Allow(TimeSpan.FromMilliseconds(200)), TimeSpan.FromMilliseconds(1), TimeSpan.FromMilliseconds(100));
         Thread.Sleep(150);
-        waits.End();
+        waits.Leave();
         Assert.False(waits.CanWait);
     }
 

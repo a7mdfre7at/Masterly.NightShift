@@ -3,24 +3,28 @@ using System.Diagnostics;
 namespace Masterly.NightShift.Server;
 
 /// <summary>
-/// How long the workers of one pool may wait with a job in hand (see <see cref="JobLookAgain"/>): a worker that
-/// waits for the first step of a chain to be recorded keeps that job and takes no other, so what it costs the
-/// other jobs of the pool is bounded here, whatever the number of chains being created and of workers.
+/// How long the workers of one pool may keep a job they were asked to look at again (see
+/// <see cref="JobLookAgain"/>): a worker that waits for the first step of a chain to be recorded keeps that job,
+/// looks at it again and again, and takes no other, so what it costs the other jobs of the pool is bounded here,
+/// whatever the number of chains being created and of workers.
 /// </summary>
 /// <remarks>
 /// <para>
-/// A wait costs the other jobs nothing while another worker of the pool is looking for a job
+/// A worker keeps a job from the moment it is first asked to look again (<see cref="Enter"/>) until the job runs
+/// or the worker stops waiting for it (<see cref="Leave"/>): the pauses and the looks themselves, which take
+/// storage round trips. That costs the other jobs nothing while another worker of the pool is looking for a job
 /// (<see cref="EnterFetch"/>): whatever becomes runnable in a queue of the pool is taken by that worker at once.
-/// It costs them time from the moment no worker is: every worker is then waiting, or running a job. That time is
+/// It costs them time from the moment no worker is: every worker then keeps a job, or runs one. That time is
 /// counted, by the clock of the machine (<see cref="Stopwatch"/>, not the application's clock, which a test or a
 /// simulation may stop), and the pool is given <see cref="Budget"/> of it in any <see cref="Window"/>. Once it
-/// is used up, no worker of the pool is offered to wait until time has passed, and the filter that would have
-/// asked holds the job the way it did before workers waited.
+/// is used up, no worker of the pool is offered to look again until time has passed, and the filter that would
+/// have asked holds the job the way it did before workers waited.
 /// </para>
 /// <para>
-/// So a job that is runnable in a queue of the pool waits for waiting workers for <see cref="Budget"/> at most in
-/// any <see cref="Window"/> it spends in its queue, plus the wait in progress when the budget runs out
-/// (<see cref="MaxPause"/> at most). And a single job is waited for <see cref="MaxPerJob"/> at most.
+/// So a job that is runnable in a queue of the pool waits for workers that keep jobs for <see cref="Budget"/> at
+/// most in any <see cref="Window"/> it spends in its queue, plus the look in progress when the budget runs out
+/// (one state change). And a single job is kept <see cref="MaxPerJob"/> at most, also by the clock of the
+/// machine.
 /// </para>
 /// </remarks>
 internal sealed class WorkerWaits
@@ -86,7 +90,7 @@ internal sealed class WorkerWaits
     /// <summary>How long a worker waits for one job at most, all its looks together.</summary>
     public TimeSpan MaxPerJob { get; }
 
-    /// <summary>Whether a worker of the pool may wait now: the pool hasn't used up its budget.</summary>
+    /// <summary>Whether a worker of the pool may keep a job now: the pool hasn't used up its budget.</summary>
     public bool CanWait
     {
         get
@@ -124,12 +128,34 @@ internal sealed class WorkerWaits
     }
 
     /// <summary>
-    /// A worker is about to wait for <paramref name="pause"/> with a job in hand. Returns how long it may: the
-    /// pause, or less when no other worker is looking for a job and the budget doesn't cover it, or
-    /// <see cref="TimeSpan.Zero"/> when the budget is used up, and the worker doesn't wait. A worker that was
-    /// told a time calls <see cref="End"/> when it has waited.
+    /// A worker keeps a job it was asked to look at again: counted from now until <see cref="Leave"/>, pauses and
+    /// looks alike. Refused, and nothing is counted, when the budget is used up.
     /// </summary>
-    public TimeSpan Begin(TimeSpan pause)
+    /// <returns>Whether the worker may keep the job; when it does, it calls <see cref="Leave"/> once.</returns>
+    public bool Enter()
+    {
+        lock (_lock)
+        {
+            long now = _timestamp();
+            Settle(now);
+
+            if (Spent(now) >= _budget)
+            {
+                return false;
+            }
+
+            _waiting++;
+            Mark(now);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// How long a worker that keeps a job (<see cref="Enter"/>) may pause before it looks again: the pause it asks
+    /// for, or less when no other worker of the pool is looking for a job and the budget doesn't cover it, or
+    /// <see cref="TimeSpan.Zero"/> when the budget is used up: it looks once more without the offer to wait.
+    /// </summary>
+    public TimeSpan Allow(TimeSpan pause)
     {
         lock (_lock)
         {
@@ -142,22 +168,14 @@ internal sealed class WorkerWaits
                 return TimeSpan.Zero;
             }
 
-            _waiting++;
-            Mark(now);
-
-            // Counted from now on: not longer than what is left. A wait that begins while another worker looks
-            // for a job may run into the budget's end when that worker finds one: by one pause at most.
-            if (_costlySince >= 0 && ToTimestamp(pause) > left)
-            {
-                return FromTimestamp(left);
-            }
-
-            return pause;
+            // Not longer than what is left. A pause that begins while another worker looks for a job may run
+            // into the budget's end when that worker finds one: by one pause at most.
+            return _costlySince >= 0 && ToTimestamp(pause) > left ? FromTimestamp(left) : pause;
         }
     }
 
-    /// <summary>The worker has waited.</summary>
-    public void End()
+    /// <summary>The worker doesn't keep the job any more: it runs it, holds it another way, or gives it up.</summary>
+    public void Leave()
     {
         lock (_lock)
         {

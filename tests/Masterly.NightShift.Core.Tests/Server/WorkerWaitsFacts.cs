@@ -29,9 +29,9 @@ public class WorkerWaitsFacts
     }
 
     [Fact]
-    public void Begin_LetsAWorkerWait_ForThePauseItAsksFor()
+    public void Allow_LetsAWorkerThatKeepsAJobWait_ForThePauseItAsksFor()
     {
-        Assert.Equal(TimeSpan.FromMilliseconds(250), _waits.Begin(TimeSpan.FromMilliseconds(250)));
+        Assert.Equal(TimeSpan.FromMilliseconds(250), Begin(TimeSpan.FromMilliseconds(250)));
     }
 
     [Fact]
@@ -46,15 +46,15 @@ public class WorkerWaitsFacts
 
         // Two seconds were waited: no more for now
         Assert.False(_waits.CanWait);
-        Assert.Equal(TimeSpan.Zero, _waits.Begin(TimeSpan.FromMilliseconds(250)));
+        Assert.Equal(TimeSpan.Zero, Begin(TimeSpan.FromMilliseconds(250)));
     }
 
     [Fact]
-    public void Begin_CutsAWaitShort_AtWhatIsLeftOfTheBudget_WhenNoWorkerLooksForAJob()
+    public void Allow_CutsAWaitShort_AtWhatIsLeftOfTheBudget_WhenNoWorkerLooksForAJob()
     {
         Wait(TimeSpan.FromMilliseconds(1900));
 
-        Assert.InRange(_waits.Begin(TimeSpan.FromMilliseconds(250)), TimeSpan.FromMilliseconds(99), TimeSpan.FromMilliseconds(101));
+        Assert.InRange(Begin(TimeSpan.FromMilliseconds(250)), TimeSpan.FromMilliseconds(99), TimeSpan.FromMilliseconds(101));
     }
 
     [Fact]
@@ -69,20 +69,20 @@ public class WorkerWaitsFacts
         }
 
         Assert.True(_waits.CanWait);
-        Assert.Equal(TimeSpan.FromMilliseconds(250), _waits.Begin(TimeSpan.FromMilliseconds(250)));
+        Assert.Equal(TimeSpan.FromMilliseconds(250), Begin(TimeSpan.FromMilliseconds(250)));
     }
 
     [Fact]
     public void Waits_AreCounted_FromTheMomentTheLastWorkerThatLookedForAJobHasOne()
     {
         _waits.EnterFetch();
-        Assert.Equal(TimeSpan.FromMilliseconds(250), _waits.Begin(TimeSpan.FromMilliseconds(250)));
+        Assert.Equal(TimeSpan.FromMilliseconds(250), Begin(TimeSpan.FromMilliseconds(250)));
         Pass(TimeSpan.FromMilliseconds(100));
 
         // The other worker found a job: from here on, this one's wait keeps the pool from every other job
         _waits.LeaveFetch();
         Pass(TimeSpan.FromMilliseconds(150));
-        _waits.End();
+        _waits.Leave();
 
         Wait(TimeSpan.FromMilliseconds(1800));
         Assert.True(_waits.CanWait);
@@ -96,20 +96,45 @@ public class WorkerWaitsFacts
         // Four workers wait side by side for a second: the other jobs waited one second, not four
         for (int i = 0; i < 4; i++)
         {
-            Assert.True(_waits.Begin(TimeSpan.FromSeconds(1)) > TimeSpan.Zero);
+            Assert.True(Begin(TimeSpan.FromSeconds(1)) > TimeSpan.Zero);
         }
 
         Pass(TimeSpan.FromSeconds(1));
 
         for (int i = 0; i < 4; i++)
         {
-            _waits.End();
+            _waits.Leave();
         }
 
         Assert.True(_waits.CanWait);
         Wait(TimeSpan.FromMilliseconds(900));
         Assert.True(_waits.CanWait);
         Wait(TimeSpan.FromMilliseconds(150));
+        Assert.False(_waits.CanWait);
+    }
+
+    [Fact]
+    public void Enter_IsRefused_OnceTheBudgetIsUsedUp_AndCountsNothingThen()
+    {
+        Wait(TimeSpan.FromSeconds(2));
+
+        Assert.False(_waits.Enter());
+        Pass(TimeSpan.FromSeconds(12));
+        Assert.True(_waits.CanWait);
+    }
+
+    [Fact]
+    public void Keeping_IsCounted_BetweenThePausesToo()
+    {
+        // The looks at the job, between two pauses, keep it from the other jobs as much as the pauses do
+        Assert.True(_waits.Enter());
+        Assert.Equal(TimeSpan.FromMilliseconds(100), _waits.Allow(TimeSpan.FromMilliseconds(100)));
+        Pass(TimeSpan.FromMilliseconds(100));
+        Pass(TimeSpan.FromMilliseconds(1500));
+        Assert.InRange(_waits.Allow(TimeSpan.FromMilliseconds(500)), TimeSpan.FromMilliseconds(399), TimeSpan.FromMilliseconds(401));
+        Pass(TimeSpan.FromMilliseconds(400));
+        _waits.Leave();
+
         Assert.False(_waits.CanWait);
     }
 
@@ -136,11 +161,11 @@ public class WorkerWaitsFacts
 
         for (int i = 0; i < 2000 && _now < Stopwatch.Frequency * 1060; i++)
         {
-            TimeSpan allowed = _waits.Begin(TimeSpan.FromMilliseconds(250));
+            TimeSpan allowed = Begin(TimeSpan.FromMilliseconds(250));
             if (allowed > TimeSpan.Zero)
             {
                 Pass(allowed);
-                _waits.End();
+                _waits.Leave();
                 waits.Add((_now, (long)(allowed.TotalSeconds * Stopwatch.Frequency)));
             }
 
@@ -162,9 +187,26 @@ public class WorkerWaitsFacts
     // A worker waits, and no other looks for a job meanwhile unless the test said so
     private void Wait(TimeSpan time)
     {
-        Assert.True(_waits.Begin(time) > TimeSpan.Zero);
+        Assert.True(Begin(time) > TimeSpan.Zero);
         Pass(time);
-        _waits.End();
+        _waits.Leave();
+    }
+
+    // A worker keeps a job and asks to pause: how long it may, or nothing (and it doesn't keep the job)
+    private TimeSpan Begin(TimeSpan pause)
+    {
+        if (!_waits.Enter())
+        {
+            return TimeSpan.Zero;
+        }
+
+        TimeSpan allowed = _waits.Allow(pause);
+        if (allowed <= TimeSpan.Zero)
+        {
+            _waits.Leave();
+        }
+
+        return allowed;
     }
 
     private void Pass(TimeSpan time) => _now += (long)(time.TotalSeconds * Stopwatch.Frequency);
