@@ -599,19 +599,28 @@ $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where
         // on again after it, for the commands that follow in the same command. Any other error is thrown again
         // with THROW, which ends the command: after RAISERROR the commands that follow, and the commit, would run.
         // And no variable is declared, as a command may hold this text several times.
+        //
+        // The parameter of a job that doesn't exist (any more) is not written, and the rest of the transaction is:
+        // the job expired or was purged, which is no reason to lose a state change or a chain's record. So the
+        // insert looks for the job, a read of the row the foreign key reads anyway, and a job deleted between that
+        // read and the insert (the foreign key's error, 547) is skipped like one that was gone before.
         string query = _storage.GetQueryFromTemplate(static schemaName => $"""
             set xact_abort off;
             begin try
               update [{schemaName}].JobParameter set Value = @value where JobId = @jobId and Name = @name;
-              if @@ROWCOUNT = 0 insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, @name, @value);
+              if @@ROWCOUNT = 0
+                insert into [{schemaName}].JobParameter (JobId, Name, Value)
+                select @jobId, @name, @value
+                where exists (select * from [{schemaName}].Job with (forceseek) where Id = @jobId);
             end try
             begin catch
-              if ERROR_NUMBER() not in (2601, 2627)
+              if ERROR_NUMBER() not in (2601, 2627, 547)
               begin
                 set xact_abort on;
                 throw;
               end
-              update [{schemaName}].JobParameter set Value = @value where JobId = @jobId and Name = @name;
+              if ERROR_NUMBER() <> 547
+                update [{schemaName}].JobParameter set Value = @value where JobId = @jobId and Name = @name;
             end catch
             set xact_abort on;
             """);
