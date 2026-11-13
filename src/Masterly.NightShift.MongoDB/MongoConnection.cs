@@ -230,9 +230,16 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
         ArgumentNullException.ThrowIfNull(serverId);
         ArgumentNullException.ThrowIfNull(context);
 
+        // Heartbeats are written and timed out with the server's clock, the one GetUtcDateTime answers with:
+        // everything that tells a live server from a stopped one compares them with it, whatever the clocks of
+        // the processes say
         _collections.Servers.UpdateOne(
             Filter.Eq("_id", serverId),
-            Update.Set("Data", StorageValues.SerializeServer(context)).Set("LastHeartbeat", JobClock.UtcNow),
+            MongoDocuments.SetFields(new BsonDocument
+            {
+                ["Data"] = new BsonDocument("$literal", StorageValues.SerializeServer(context)),
+                ["LastHeartbeat"] = MongoDocuments.ServerTime(TimeSpan.Zero),
+            }),
             new UpdateOptions { IsUpsert = true });
     }
 
@@ -245,7 +252,9 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
     public override void Heartbeat(string serverId)
     {
         ArgumentNullException.ThrowIfNull(serverId);
-        UpdateResult result = _collections.Servers.UpdateOne(Filter.Eq("_id", serverId), Update.Set("LastHeartbeat", JobClock.UtcNow));
+        UpdateResult result = _collections.Servers.UpdateOne(
+            Filter.Eq("_id", serverId),
+            MongoDocuments.SetFields(new BsonDocument("LastHeartbeat", MongoDocuments.ServerTime(TimeSpan.Zero))));
         if (result.MatchedCount == 0)
         {
             throw new BackgroundServerGoneException();
@@ -259,7 +268,11 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
             throw new ArgumentException("The `timeOut` value must be positive.", nameof(timeOut));
         }
 
-        return (int)_collections.Servers.DeleteMany(Filter.Lt("LastHeartbeat", JobClock.UtcNow - timeOut)).DeletedCount;
+        // By the server's clock, as the heartbeats are written: a watchdog on a process whose clock runs ahead
+        // doesn't take the other servers for dead, and one whose clock runs behind notices a stopped one on time
+        return (int)_collections.Servers.DeleteMany(Filter.And(
+            Filter.Type("LastHeartbeat", BsonType.DateTime),
+            MongoDocuments.OlderThan("LastHeartbeat", timeOut))).DeletedCount;
     }
 
     public override HashSet<string> GetAllItemsFromSet(string key)
