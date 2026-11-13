@@ -173,6 +173,13 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             return;
         }
 
+        // The hold of a retry ends: that isn't a schedule coming due, so no schedule policy decides the step
+        if (context.CandidateState is EnqueuedState { IsDue: true } due)
+        {
+            EnqueueHeldStepAsItIs(context, due);
+            return;
+        }
+
         // Only a job about to run. A step held here is put back in its queue by DrainModeFilter, after the filters
         // that may still schedule it again: restoring the queue here, first, would forget it for those.
         if (context.CandidateState is not ProcessingState)
@@ -277,6 +284,28 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
         if (retry != null && verdict != Verdict.PutBack && job.ParametersSnapshot == null)
         {
             JobChains.ForgetRetryMarker(context.Storage, context.Connection, context.Transaction, context.AfterCommit, job.Id, note, beforeCommit: false);
+        }
+    }
+
+    // The delayed job scheduler enqueues a job that carries the note of a retry: the hold of the retry ended, or a
+    // hold of this filter that followed it. Nothing was scheduled, so nothing is due: the job goes to its queue
+    // as one enqueued by hand does, where no schedule policy skips it or moves it on, and the worker that takes
+    // it decides by the record. The note stays, as on any step on its way from the hold to a worker.
+    private static void EnqueueHeldStepAsItIs(ElectStateContext context, EnqueuedState due)
+    {
+        try
+        {
+            BackgroundJob job = context.BackgroundJob;
+            if (JobChains.RetryMarker.Parse(ReadParameter(job, context.Connection, JobChains.ChainRetryParameter)) == null)
+            {
+                return;
+            }
+
+            context.ReplaceCandidateState(new EnqueuedState(due.Queue) { Reason = due.Reason });
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            Logger.DebugException($"Whether background job '{context.BackgroundJob.Id}' is held for a retry of its chain couldn't be read when its hold ended; its schedule policy, if it has one, is asked as for a job that is due.", ex);
         }
     }
 

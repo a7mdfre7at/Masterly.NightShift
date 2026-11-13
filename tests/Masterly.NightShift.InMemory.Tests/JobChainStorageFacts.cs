@@ -967,6 +967,83 @@ public sealed class JobChainStorageFacts : IDisposable
         throw new InvalidOperationException("broken");
     }
 
+    [Theory]
+    [InlineData(WhenBlocked.Skip)]
+    [InlineData(WhenBlocked.Reject)]
+    [InlineData(WhenBlocked.MoveForward)]
+    public void RetryChainFrom_ThatIsAbandoned_PutsItsStepBack_WhateverItsSchedulePolicySaysWhenItsHoldEnds(WhenBlocked whenBlocked)
+    {
+        _storage.SaveSchedulePolicy(new SchedulePolicy("calendar"));
+        JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Once("b"))
+            .Enqueue(_client, new ScheduleOptions { Policy = "calendar", WhenBlocked = whenBlocked })!;
+        string step = chain.Steps["0.0"];
+        Fail(step);
+
+        using BackgroundJobServer server = CreateServer();
+        Thread.Sleep(500);
+
+        // A holiday begins
+        DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+        _storage.SaveSchedulePolicy(new SchedulePolicy("calendar").ExcludeDate(today.AddDays(-1)).ExcludeDate(today).ExcludeDate(today.AddDays(1)));
+
+        // The retry stops before it is recorded
+        _filter.CrashOn = "b";
+        Assert.Throws<OutOfMemoryException>(() => _storage.RetryChainFrom(step));
+        _filter.CrashOn = null;
+        Assert.Equal(ScheduledState.StateName, StateOf(step));
+
+        // The hold of a retry isn't a schedule: when it ends, the policy neither skips the step nor moves it on
+        MoveClock(TimeSpan.FromMinutes(3));
+        WaitUntil(() => StateOf(step) == FailedState.StateName, "the step to be put back");
+        Thread.Sleep(300);
+
+        // The retry never happened: the step is Failed as it was, and the step after it still waits
+        Assert.Equal(
+            (FailedState.StateName, (string?)$"The retry of chain {chain.ChainId} was abandoned", AwaitingState.StateName),
+            (StateOf(step), ReasonOf(step), StateOf(chain.Steps["1.0"])));
+        Assert.DoesNotContain(History(step), static x => x.StateName == DeletedState.StateName || x.Reason?.StartsWith("Moved by policy", StringComparison.Ordinal) == true);
+        Assert.Null(Parameter(step, "ChainRetry"));
+        Assert.True(_storage.GetChain(chain.ChainId)!.IsSettled);
+        Assert.Empty(Ran);
+    }
+
+    [Theory]
+    [InlineData(WhenBlocked.Skip)]
+    [InlineData(WhenBlocked.MoveForward)]
+    public void RetryChainFrom_ThatOutlastsTheHoldOfItsStep_IsNotSkippedOrMovedByTheSchedulePolicyOfTheStep(WhenBlocked whenBlocked)
+    {
+        _storage.SaveSchedulePolicy(new SchedulePolicy("calendar"));
+        JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Once("b"))
+            .Enqueue(_client, new ScheduleOptions { Policy = "calendar", WhenBlocked = whenBlocked })!;
+        string step = chain.Steps["0.0"];
+        Fail(step);
+
+        using BackgroundJobServer server = CreateServer();
+        Thread.Sleep(500);
+
+        DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+        _storage.SaveSchedulePolicy(new SchedulePolicy("calendar").ExcludeDate(today.AddDays(-1)).ExcludeDate(today).ExcludeDate(today.AddDays(1)));
+
+        _filter.PauseOn = "b";
+        _filter.WhilePaused = () =>
+        {
+            // The client is still at it when the hold ends, at a time the policy blocks: the step comes up, and
+            // waits for the retry as any held step does
+            RenewLease(chain.ChainId, TimeSpan.FromMinutes(5));
+            MoveClock(TimeSpan.FromMinutes(3));
+            WaitUntil(() => ReasonOf(step) == $"Waiting for chain {chain.ChainId} to be recorded", "the step to wait for the retry");
+        };
+
+        // The retry is recorded, and the step runs for it, as a step released by its retry does
+        JobChainResult retried = _storage.RetryChainFrom(step);
+        WaitUntil(() => Ran.Count == 2, "the retried steps to run");
+
+        Assert.Equal(["a", "b"], Ran);
+        Assert.Equal(step, retried.Steps["0.0"]);
+        Assert.Equal(2, _storage.GetChain(chain.ChainId)?.Generation);
+        Assert.DoesNotContain(History(step), static x => x.StateName == DeletedState.StateName || x.Reason?.StartsWith("Moved by policy", StringComparison.Ordinal) == true);
+    }
+
     [Fact]
     public void Step_PutBackAfterAnAbandonedRetry_IsNotToldAboutAsIfItHadFailedAgain()
     {

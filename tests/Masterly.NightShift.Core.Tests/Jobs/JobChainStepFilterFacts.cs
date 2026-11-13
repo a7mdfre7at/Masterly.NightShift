@@ -1172,6 +1172,68 @@ public sealed class JobChainStepFilterFacts : IDisposable
     }
 
     [Fact]
+    public void OnStateElection_EnqueuesAStepHeldForARetry_WhoseHoldEnds_AsOneEnqueuedByHand_SoNoSchedulePolicyDecidesIt()
+    {
+        // The delayed job scheduler enqueues the step when the hold of the retry ends: nothing was scheduled, so
+        // nothing is due
+        Step("0.0");
+        HeldForARetry(generation: 3, state: FailedState.StateName);
+        _context.ApplyContext.OldStateName = ScheduledState.StateName;
+        EnqueuedState due = new("critical") { Reason = "Triggered by the scheduler", IsDue = true };
+        _context.ApplyContext.NewStateObject = due;
+
+        _filter.OnStateElection(_context.Object);
+
+        EnqueuedState enqueued = Assert.IsType<EnqueuedState>(_context.Object.CandidateState);
+        Assert.False(enqueued.IsDue);
+        Assert.Equal("critical", enqueued.Queue);
+        Assert.Equal("Triggered by the scheduler", enqueued.Reason);
+        Assert.Empty(_context.Object.TraversedStates);
+        _connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        Assert.Empty(_expiring.Invocations);
+    }
+
+    [Fact]
+    public void OnStateElection_LeavesAJobThatIsDue_WithoutTheNoteOfARetry_ToItsSchedulePolicy()
+    {
+        Step("0.0");
+        _context.ApplyContext.OldStateName = ScheduledState.StateName;
+        EnqueuedState due = new() { IsDue = true };
+        _context.ApplyContext.NewStateObject = due;
+
+        _filter.OnStateElection(_context.Object);
+
+        Assert.Same(due, _context.Object.CandidateState);
+        Assert.Empty(_connection.Invocations);
+    }
+
+    [Fact]
+    public void OnStateElection_ReadsTheNote_OfAJobThatIsDue_WhenTheStorageLoadsNoParameters()
+    {
+        _context.ApplyContext.Connection.Setup(x => x.GetJobParameter(JobId, "ChainRetry")).Returns(Note(generation: 3));
+        _context.ApplyContext.OldStateName = ScheduledState.StateName;
+        _context.ApplyContext.NewStateObject = new EnqueuedState { IsDue = true };
+
+        _filter.OnStateElection(_context.Object);
+
+        Assert.False(Assert.IsType<EnqueuedState>(_context.Object.CandidateState).IsDue);
+        Assert.Single(_context.ApplyContext.Connection.Invocations);
+    }
+
+    [Fact]
+    public void OnStateElection_LeavesAJobThatIsDue_ToItsSchedulePolicy_WhenItsNoteCanNotBeRead()
+    {
+        _context.ApplyContext.Connection.Setup(x => x.GetJobParameter(JobId, "ChainRetry")).Throws(new InvalidOperationException("The storage is down."));
+        _context.ApplyContext.OldStateName = ScheduledState.StateName;
+        EnqueuedState due = new() { IsDue = true };
+        _context.ApplyContext.NewStateObject = due;
+
+        _filter.OnStateElection(_context.Object);
+
+        Assert.Same(due, _context.Object.CandidateState);
+    }
+
+    [Fact]
     public void OnStateElection_HoldsAStepHeldForARetry_WhileTheClientStillSaysItIsAtIt_AndKeepsItsNote()
     {
         Step("1.0");
