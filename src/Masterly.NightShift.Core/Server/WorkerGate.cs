@@ -146,7 +146,8 @@ internal sealed class WorkerGate
             if (since > holds)
             {
                 return new Reason(
-                    $"Server '{serverId}' takes no jobs: no deployment check of deployment '{_deploymentId}' has succeeded for {since}, longer than the {holds} after which another deployment may take over, so it can't tell whether it is still the current one. It takes jobs again once a check succeeds.",
+                    // No elapsed time in the text: the text decides whether it is logged again, once per change
+                    $"Server '{serverId}' takes no jobs: no deployment check of deployment '{_deploymentId}' has succeeded for longer than the {holds} after which another deployment may take over, so it can't tell whether it is still the current one. It takes jobs again once a check succeeds.",
                     Warn: true);
             }
         }
