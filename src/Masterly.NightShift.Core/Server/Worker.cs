@@ -143,7 +143,7 @@ public class Worker : IBackgroundProcess
                 // released. This thread waits a moment with the job still invisible, so no other worker takes it
                 // meanwhile only to give it back too, and then returns it to its queue, where it is fetched again.
                 // The wait ends at once when the server stops.
-                if (giveBack.Requested)
+                if (appliedState == null && giveBack.Requested)
                 {
                     context.StoppingToken.Wait(giveBack.Pause);
 

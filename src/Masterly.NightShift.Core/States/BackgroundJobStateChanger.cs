@@ -49,6 +49,11 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
 
     public IState? ChangeState(StateChangeContext context)
     {
+        // Only where everything written here can be dropped (the transaction is this method's own) and the
+        // filters run: a filter that asks otherwise is told no, and holds the job another way
+        JobGiveBack? giveBack = context.Transaction == null && !context.DisableFilters ? context.GiveBack : null;
+        giveBack?.Reset();
+
         // To ensure that job state will be changed only from one of the
         // specified states, we need to ensure that other users/workers
         // are not able to change the state of the job during the
@@ -68,11 +73,6 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
 
         PostCommitActions? afterCommit = null;
         IState appliedState;
-
-        // Only where everything written here can be dropped (the transaction is this method's own) and the
-        // filters run: a filter that asks otherwise is told no, and holds the job another way
-        JobGiveBack? giveBack = context.Transaction == null && !context.DisableFilters ? context.GiveBack : null;
-        giveBack?.Reset();
 
         try
         {
