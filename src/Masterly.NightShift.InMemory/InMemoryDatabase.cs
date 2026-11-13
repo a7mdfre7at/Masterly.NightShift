@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Storage.Monitoring;
 using Masterly.NightShift.Storage.Shared;
@@ -8,6 +9,14 @@ namespace Masterly.NightShift.InMemory;
 /// Everything the in-memory storage holds, behind one lock. Reads return copies, so a reader never sees a
 /// transaction half applied, and a transaction is applied as a whole under the lock.
 /// </summary>
+/// <remarks>
+/// Two clocks are used. The times that are stored and shown, and that say when something expires, comes due or
+/// stopped sending heartbeats, are <see cref="JobClock"/>'s, which a test may replace and move. Whether a lock's
+/// lease or a fetched job's invisibility has lapsed is judged by a clock that only moves forward at the pace of
+/// real time (<see cref="Stopwatch"/>), as the timers that renew them do: a test that moves its clock to tomorrow
+/// while a lock is held or a job runs gives neither to a second owner, and one whose clock stands still
+/// doesn't keep them for good.
+/// </remarks>
 internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseStore
 {
     // At most this many expired jobs are removed under the lock at once; a sweep that hits it sweeps again soon
@@ -27,7 +36,9 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
     // Where each job is queued, so removing an expired job doesn't scan every queue
     private readonly Dictionary<long, List<(string Queue, long EntryId)>> _queueEntriesByJob = [];
     private readonly Dictionary<string, ServerEntry> _servers = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, (string Owner, DateTime ExpireAt)> _leases = new(StringComparer.Ordinal);
+
+    // The owner of each lease, and when it was taken or last renewed, by the monotonic clock
+    private readonly Dictionary<string, (string Owner, long RenewedAt)> _leases = new(StringComparer.Ordinal);
     private TaskCompletionSource _enqueued = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private long _nextJobId;
     private long _nextQueueEntryId;
@@ -346,8 +357,6 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
             lock (_lock)
             {
                 SweepIfDue();
-                DateTime now = JobClock.UtcNow;
-                DateTime staleBefore = now - options.InvisibilityTimeout;
 
                 foreach (string queue in queues)
                 {
@@ -358,9 +367,9 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
 
                     foreach (QueueEntry entry in entries.Values)
                     {
-                        if (entry.FetchedAt == null || entry.FetchedAt < staleBefore)
+                        if (entry.FetchedAt == null || Stopwatch.GetElapsedTime(entry.FetchedAt.Value) > options.InvisibilityTimeout)
                         {
-                            entry.FetchedAt = now;
+                            entry.FetchedAt = Stopwatch.GetTimestamp();
                             entry.Token = Guid.NewGuid().ToString("N");
                             return (entry.Id, entry.JobId, queue, entry.Token);
                         }
@@ -398,7 +407,7 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
                     Signal();
                     break;
                 case FetchedAction.KeepAlive:
-                    entry.FetchedAt = JobClock.UtcNow;
+                    entry.FetchedAt = Stopwatch.GetTimestamp();
                     break;
             }
         }
@@ -552,16 +561,20 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
 
     // Leases (distributed locks)
 
+    // A lease lasts the lock lifetime of the options from the moment it is taken or renewed, by the monotonic
+    // clock. The time it is asked to last until is told by JobClock, which a test may move, and isn't used: every
+    // lock of this storage is taken for that lifetime.
     public bool TryTake(string resource, string owner, DateTime expireAt)
     {
         lock (_lock)
         {
-            if (_leases.TryGetValue(resource, out (string Owner, DateTime ExpireAt) lease) && lease.ExpireAt > JobClock.UtcNow)
+            if (_leases.TryGetValue(resource, out (string Owner, long RenewedAt) lease)
+                && Stopwatch.GetElapsedTime(lease.RenewedAt) < options.DistributedLockLifetime)
             {
                 return false;
             }
 
-            _leases[resource] = (owner, expireAt);
+            _leases[resource] = (owner, Stopwatch.GetTimestamp());
             return true;
         }
     }
@@ -570,12 +583,12 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
     {
         lock (_lock)
         {
-            if (!_leases.TryGetValue(resource, out (string Owner, DateTime ExpireAt) lease) || lease.Owner != owner)
+            if (!_leases.TryGetValue(resource, out (string Owner, long RenewedAt) lease) || lease.Owner != owner)
             {
                 return false;
             }
 
-            _leases[resource] = (owner, expireAt);
+            _leases[resource] = (owner, Stopwatch.GetTimestamp());
             return true;
         }
     }
@@ -584,7 +597,7 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
     {
         lock (_lock)
         {
-            if (_leases.TryGetValue(resource, out (string Owner, DateTime ExpireAt) lease) && lease.Owner == owner)
+            if (_leases.TryGetValue(resource, out (string Owner, long RenewedAt) lease) && lease.Owner == owner)
             {
                 _leases.Remove(resource);
             }
@@ -1032,7 +1045,8 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
 
         public long JobId { get; } = jobId;
 
-        public DateTime? FetchedAt { get; set; }
+        /// <summary>When the entry was fetched or last kept alive, by the monotonic clock; <c>null</c> while nobody has it.</summary>
+        public long? FetchedAt { get; set; }
 
         public string? Token { get; set; }
     }
