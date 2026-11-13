@@ -98,6 +98,11 @@ public class JobChainFirstStepFacts
                 storage);
             using CancellationTokenSource stop = new();
 
+            // The server is up and fetching before the load begins: chains created while it starts would be
+            // ahead of the job in the fetch order, whatever the workers' waits cost
+            client.Create(() => Mark("warm-up"), new EnqueuedState("beta"));
+            Assert.True(SpinWait.SpinUntil(() => Runs.ContainsKey("warm-up"), TimeSpan.FromSeconds(30)), "The server didn't start.");
+
             Task[] creators = [.. Enumerable.Range(0, workers).Select(_ => Task.Run(() =>
             {
                 while (!stop.IsCancellationRequested)
