@@ -804,7 +804,7 @@ public static partial class JobChains
         {
             try
             {
-                ReleaseHeld(client, connection, release, heldJustNow);
+                ReleaseHeld(client, connection, chainId, release, heldJustNow);
                 release = null;
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -838,20 +838,32 @@ public static partial class JobChains
         return false;
     }
 
-    // The step a retry held is enqueued, unless it left the hold already (the delayed job scheduler enqueued it)
-    private static void ReleaseHeld(IBackgroundJobClient client, IStorageConnection connection, string jobId, bool heldJustNow)
+    // The step a retry held is enqueued, unless it left the hold already (the delayed job scheduler enqueued it).
+    // The retry is recorded, so it counts: also for a step that a server put back into its state because it took
+    // the retry for abandoned, while the client, frozen, was recording it and stopped before it looked again.
+    private static void ReleaseHeld(IBackgroundJobClient client, IStorageConnection connection, string chainId, string jobId, bool heldJustNow)
     {
+        string from = ScheduledState.StateName;
+
         if (!heldJustNow)
         {
             StateData? state = connection.GetStateData(jobId);
-            if (state == null ||
-                !ScheduledState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(state.Reason, ChainRetriedReason, StringComparison.Ordinal))
+            if (state == null)
             {
                 return;
             }
+
+            bool held = ScheduledState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(state.Reason, ChainRetriedReason, StringComparison.Ordinal);
+
+            if (!held && !string.Equals(state.Reason, RetryAbandonedReason(chainId), StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            from = state.Name;
         }
 
-        client.ChangeState(jobId, new EnqueuedState { Reason = ChainRetriedReason }, ScheduledState.StateName);
+        client.ChangeState(jobId, new EnqueuedState { Reason = ChainRetriedReason }, from);
     }
 }

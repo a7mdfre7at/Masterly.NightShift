@@ -4,11 +4,6 @@ namespace Masterly.NightShift;
 
 public static partial class JobChains
 {
-    // How long the step a retry starts from stays out of its state while the retry is prepared. Short: the chain's
-    // lease keeps the step from running meanwhile, even when the hold ends first; and should the retrying process
-    // stop, the step runs again this long after, with the steps the record still lists after it.
-    private static readonly TimeSpan HoldTime = TimeSpan.FromMinutes(5);
-
     /// <summary>A state that takes a step out of the state it finished in, so nothing reacts to that state, while a retry is prepared.</summary>
     private static ScheduledState Hold(string reason) => new(JobClock.UtcNow + HoldTime) { Reason = reason };
 
@@ -107,10 +102,12 @@ public static partial class JobChains
         return null;
     }
 
+    // Deleted by a server because the record didn't list it, or as what an abandoned retry had created; or gone
     private static bool IsRefused(string chainId, StateData? state)
     {
         return state == null ||
-               (DeletedState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase) && JobChainStepFilter.IsRefusal(chainId, state.Reason));
+               (DeletedState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase) &&
+                (JobChainStepFilter.IsRefusal(chainId, state.Reason) || string.Equals(state.Reason, RetryAbandonedReason(chainId), StringComparison.Ordinal)));
     }
 
     private static InvalidOperationException Abandoned(string chainId, string jobId, string change)
@@ -163,22 +160,6 @@ public static partial class JobChains
         }
 
         return nothingLeft;
-    }
-
-    /// <summary>Moves a held step out of its hold; a step the delayed job scheduler enqueued meanwhile is left as it is.</summary>
-    private static void Release(IBackgroundJobClient client, string jobId, IState state, string chainId)
-    {
-        try
-        {
-            if (!client.ChangeState(jobId, state, ScheduledState.StateName))
-            {
-                Logger.Warn($"Background job '{jobId}' of chain '{chainId}' left its hold meanwhile, so it wasn't moved to {state.Name}.");
-            }
-        }
-        catch (Exception ex) when (ex.IsCatchableExceptionType())
-        {
-            Logger.WarnException($"Background job '{jobId}' of chain '{chainId}' couldn't be moved to {state.Name}; it runs once its hold ends.", ex);
-        }
     }
 
     /// <summary>
@@ -269,10 +250,13 @@ public static partial class JobChains
     private static bool IsProcessing(string? state) => ProcessingState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// A state stored before, applied again with its data: a failed or deleted step a failed retry puts back. Its
-    /// handlers and filters go by its name, as for the original state; the filters that count outcomes
-    /// (<see cref="StatisticsHistoryAttribute"/>) leave it out, because the step was counted when it reached the
-    /// state the first time.
+    /// A state stored before, applied again with its data: a step that a retry which failed, or was abandoned,
+    /// puts back into the state it was in. It isn't a new event. Its handlers and the filters that keep things in
+    /// step with the state go by its name, as for the original state: the job expires again as it did, and its
+    /// counters are right. The filters that react to an outcome go by the type of the state, or leave it out by
+    /// name: no automatic retry, no alert, no monitor, no outcome counted (<see cref="StatisticsHistoryAttribute"/>),
+    /// no entry in the activity feed, because the step was told about when it reached the state the first time.
+    /// A continuation that started then isn't waiting any more, so it doesn't start again.
     /// </summary>
     internal sealed class RestoredState(StateData state) : IState
     {

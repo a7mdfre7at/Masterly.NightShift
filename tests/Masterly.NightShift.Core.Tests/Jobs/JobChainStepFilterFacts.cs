@@ -954,6 +954,345 @@ public sealed class JobChainStepFilterFacts : IDisposable
         Assert.Empty(_connection.Invocations);
     }
 
+    [Fact]
+    public void OnStateElection_WritesTheNoteOfARetry_WithTheStateThatHoldsItsStep_WhereTheStorageCan()
+    {
+        JobChains.RetryHold hold = new(DateTime.UtcNow.AddMinutes(2), Note(generation: 3)) { Reason = "Chain retried from this step" };
+        _context.ApplyContext.NewStateObject = hold;
+        _context.ApplyContext.OldStateName = FailedState.StateName;
+        _context.ApplyContext.Transaction = _expiring.As<IWriteOnlyTransaction>();
+        _context.ApplyContext.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Transaction.SetJobParameter)).Returns(true);
+
+        _filter.OnStateElection(_context.Object);
+
+        // In the transaction of the state change: the step is never held without it, nor marked without being held
+        _expiring.Verify(x => x.SetJobParameter(JobId, "ChainRetry", hold.Marker), Times.Once);
+        Assert.True(hold.Marked);
+        Assert.Same(hold, _context.Object.CandidateState);
+        Assert.Empty(_context.ApplyContext.Connection.Invocations);
+    }
+
+    [Fact]
+    public void OnStateElection_LeavesTheNoteOfARetry_ToTheClient_WhereTheStorageCanNotWriteItWithTheState()
+    {
+        JobChains.RetryHold hold = new(DateTime.UtcNow.AddMinutes(2), Note(generation: 3));
+        _context.ApplyContext.NewStateObject = hold;
+        _context.ApplyContext.OldStateName = FailedState.StateName;
+        _context.ApplyContext.Transaction = _expiring.As<IWriteOnlyTransaction>();
+
+        _filter.OnStateElection(_context.Object);
+
+        Assert.False(hold.Marked);
+        _expiring.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        Assert.Empty(_context.ApplyContext.Connection.Invocations);
+    }
+
+    [Fact]
+    public void OnStateElection_PutsAStepBack_WhoseRetryWasNeverRecorded_AndDoesNotRunIt()
+    {
+        // Held for a retry that began at generation 3; nobody says any more that the chain is being changed, and
+        // the record is still at generation 3
+        Step("1.0");
+        HeldForARetry(generation: 3, state: FailedState.StateName, data: new Dictionary<string, string> { ["FailedAt"] = "2026-01-01T00:00:00.0000000Z", ["ExceptionMessage"] = "It broke" });
+        Record(3, ("0.0", "41"), ("1.0", JobId), ("2.0", "43"));
+
+        _filter.OnStateElection(_context.Object);
+
+        // The state it was in, with its data and a reason that says why it is there again; not a new failure
+        JobChains.RestoredState restored = Assert.IsType<JobChains.RestoredState>(_context.Object.CandidateState);
+        Assert.Equal(FailedState.StateName, restored.Name);
+        Assert.Equal($"The retry of chain {ChainId} was abandoned", restored.Reason);
+        Assert.False(restored.IsFinal);
+        Assert.Equal("It broke", restored.SerializeData()["ExceptionMessage"]);
+        Assert.Equal("2026-01-01T00:00:00.0000000Z", restored.SerializeData()["FailedAt"]);
+
+        // And not by way of the Processing state: the job's history doesn't say that it ran
+        Assert.Empty(_context.Object.TraversedStates);
+    }
+
+    [Theory]
+    [InlineData("Succeeded", true)]
+    [InlineData("Deleted", true)]
+    [InlineData("Failed", false)]
+    public void OnStateElection_PutsAStepBack_IntoAStateThatIsFinalOrNot_AsTheStateItWasInIs(string state, bool final)
+    {
+        // So the job expires again when it had finished, and stays when it had failed
+        Step("1.0");
+        HeldForARetry(generation: 1, state: state);
+        Record(1, ("0.0", "41"), ("1.0", JobId));
+
+        _filter.OnStateElection(_context.Object);
+
+        Assert.Equal(state, _context.Object.CandidateState.Name);
+        Assert.Equal(final, _context.Object.CandidateState.IsFinal);
+    }
+
+    [Fact]
+    public void OnStateElection_TakesTheNoteOfAnAbandonedRetryOff_InTheTransactionThatPutsTheStepBack()
+    {
+        Step("1.0");
+        HeldForARetry(generation: 3, state: FailedState.StateName);
+        Record(3, ("0.0", "41"), ("1.0", JobId));
+        _context.ApplyContext.Transaction = _expiring.As<IWriteOnlyTransaction>();
+        _context.ApplyContext.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Transaction.SetJobParameter)).Returns(true);
+
+        _filter.OnStateElection(_context.Object);
+
+        _expiring.Verify(x => x.SetJobParameter(JobId, "ChainRetry", null), Times.Once);
+        _connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void OnStateElection_TakesTheNoteOfAnAbandonedRetryOff_OnlyOnceTheStepIsPutBack_WhereTheStorageCanNotDoBothAtOnce()
+    {
+        // Were it taken off before, a state change that fails would leave a step that runs when it is tried again
+        Step("1.0");
+        HeldForARetry(generation: 3, state: FailedState.StateName);
+        Record(3, ("0.0", "41"), ("1.0", JobId));
+        _context.ApplyContext.Object.AfterCommit = new PostCommitActions();
+
+        _filter.OnStateElection(_context.Object);
+
+        _connection.Verify(x => x.SetJobParameter(JobId, "ChainRetry", null), Times.Never);
+
+        _context.ApplyContext.Object.AfterCommit.Run();
+
+        _connection.Verify(x => x.SetJobParameter(JobId, "ChainRetry", null), Times.Once);
+    }
+
+    [Fact]
+    public void OnStateElection_HoldsAStepHeldForARetry_WhileTheClientStillSaysItIsAtIt_AndKeepsItsNote()
+    {
+        Step("1.0");
+        HeldForARetry(generation: 3, state: FailedState.StateName);
+        Record(3, ("0.0", "41"), ("1.0", JobId), Lease(since: TimeSpan.FromMinutes(3), until: TimeSpan.FromSeconds(50)));
+        _context.ApplyContext.Object.AfterCommit = new PostCommitActions();
+
+        _filter.OnStateElection(_context.Object);
+        _context.ApplyContext.Object.AfterCommit.Run();
+
+        ScheduledState held = Assert.IsType<ScheduledState>(_context.Object.CandidateState);
+        Assert.Equal($"Waiting for chain {ChainId} to be recorded", held.Reason);
+        _connection.Verify(x => x.SetJobParameter(JobId, "ChainRetry", It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void OnStateElection_LetsAStepHeldForARetryRun_OnceTheRetryIsRecorded()
+    {
+        // The record is past the generation the retry started from: the retry happened
+        Step("1.0");
+        HeldForARetry(generation: 3, state: FailedState.StateName);
+        Record(4, ("0.0", "41"), ("1.0", JobId), ("2.0", "50"));
+
+        _filter.OnStateElection(_context.Object);
+
+        Assert.IsType<ProcessingState>(_context.Object.CandidateState);
+    }
+
+    [Fact]
+    public void OnStateElection_DecidesAStepHeldForARetry_AsAnyStep_WhenTheRecordIsGoneOrWasWrittenAnew()
+    {
+        // The chain was deleted while the step was held
+        Step("1.0");
+        HeldForARetry(generation: 3, state: FailedState.StateName);
+        _connection.Setup(x => x.GetAllEntriesFromHash(JobChains.GetKey(ChainId))).Returns((Dictionary<string, string>)null);
+        _context.ApplyContext.Storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(false);
+
+        _filter.OnStateElection(_context.Object);
+
+        DeletedState deleted = Assert.IsType<DeletedState>(_context.Object.CandidateState);
+        Assert.Equal($"Chain {ChainId} isn't recorded: it was deleted or never completely created", deleted.Reason);
+    }
+
+    [Fact]
+    public void OnStateElection_DeletesAStepHeldForARetry_ThatARecordOfAnotherGenerationDoesNotList()
+    {
+        Step("1.0");
+        HeldForARetry(generation: 3, state: FailedState.StateName);
+        Record(1, ("0.0", "90"), ("1.0", "91"));
+
+        _filter.OnStateElection(_context.Object);
+
+        DeletedState deleted = Assert.IsType<DeletedState>(_context.Object.CandidateState);
+        Assert.Equal($"Not a current step of chain {ChainId}", deleted.Reason);
+    }
+
+    [Fact]
+    public void OnStateElection_TakesNoAccountOfTheNoteOfARetry_OnAJobPickedUpAgainWhileItWasProcessing()
+    {
+        // The note couldn't be taken off when the step was let run: it is stale, and must not put the job back
+        Step("1.0");
+        HeldForARetry(generation: 3, state: FailedState.StateName);
+        Record(3, ("0.0", "41"), ("1.0", JobId));
+        _context.ApplyContext.OldStateName = ProcessingState.StateName;
+
+        _filter.OnStateElection(_context.Object);
+
+        Assert.IsType<ProcessingState>(_context.Object.CandidateState);
+    }
+
+    [Fact]
+    public void OnStateElection_LetsAListedStepRun_WhenTheNoteOfARetryOnItCanNotBeRead()
+    {
+        Step("1.0");
+        _context.ApplyContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string>(_context.ApplyContext.BackgroundJob.ParametersSnapshot) { ["ChainRetry"] = "not json" };
+        Record(3, ("0.0", "41"), ("1.0", JobId));
+
+        _filter.OnStateElection(_context.Object);
+
+        Assert.IsType<ProcessingState>(_context.Object.CandidateState);
+    }
+
+    [Fact]
+    public void OnStateElection_ReadsTheNoteOfARetry_OnAStorageThatLoadsNoParameters_AndTakesItOffItself()
+    {
+        _context.ApplyContext.Connection = _connection.As<IStorageConnection>();
+        _connection.Setup(x => x.GetJobParameter(JobId, JobChains.ChainIdParameter)).Returns($"\"{ChainId}\"");
+        _connection.Setup(x => x.GetJobParameter(JobId, JobChains.ChainStepParameter)).Returns("\"1.0\"");
+        _connection.Setup(x => x.GetJobParameter(JobId, "ChainRetry")).Returns(Note(generation: 3));
+        Record(4, ("0.0", "41"), ("1.0", JobId));
+        _context.ApplyContext.Object.AfterCommit = new PostCommitActions();
+
+        _filter.OnStateElection(_context.Object);
+        _context.ApplyContext.Object.AfterCommit.Run();
+
+        // Recorded: the step runs, and nothing else would take the note off there
+        Assert.IsType<ProcessingState>(_context.Object.CandidateState);
+        _connection.Verify(x => x.SetJobParameter(JobId, "ChainRetry", null), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("Scheduled", "Enqueued")]
+    [InlineData("Enqueued", "Scheduled")]
+    [InlineData("Scheduled", "Scheduled")]
+    public void OnStateApplied_KeepsTheNoteOfARetry_WhileTheStepGoesFromItsHoldTowardsAWorker(string from, string to)
+    {
+        ApplyStateContextMock mock = WithTheNoteOfARetry(from, to, transactional: true);
+
+        _filter.OnStateApplied(mock.Object, mock.Object.Transaction);
+        mock.Object.AfterCommit.Run();
+
+        _expiring.Verify(x => x.SetJobParameter(It.IsAny<string>(), "ChainRetry", It.IsAny<string>()), Times.Never);
+        _connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), "ChainRetry", It.IsAny<string>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("Enqueued", "Processing")]
+    [InlineData("Enqueued", "Failed")]
+    [InlineData("Scheduled", "Deleted")]
+    [InlineData("Scheduled", "Succeeded")]
+    [InlineData("Failed", "Enqueued")]
+    [InlineData("Deleted", "Enqueued")]
+    [InlineData("Processing", "Succeeded")]
+    public void OnStateApplied_TakesTheNoteOfARetryOff_WithAnyOtherStateChange_InItsTransaction(string from, string to)
+    {
+        ApplyStateContextMock mock = WithTheNoteOfARetry(from, to, transactional: true);
+
+        _filter.OnStateApplied(mock.Object, mock.Object.Transaction);
+
+        _expiring.Verify(x => x.SetJobParameter(JobId, "ChainRetry", null), Times.Once);
+        _connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), "ChainRetry", It.IsAny<string>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("Failed", "Enqueued")]
+    [InlineData("Deleted", "Enqueued")]
+    [InlineData("Succeeded", "Scheduled")]
+    [InlineData("Processing", "Succeeded")]
+    public void OnStateApplied_TakesAStaleNoteOff_BeforeTheStateChangeIsCommitted_WhereTheStorageCanNotDoBothAtOnce(string from, string to)
+    {
+        // The job wasn't held when it left that state: the note was never followed by a hold, or was left
+        // behind. Were it still there after a requeue, the job would be put back instead of running.
+        ApplyStateContextMock mock = WithTheNoteOfARetry(from, to, transactional: false);
+
+        _filter.OnStateApplied(mock.Object, mock.Object.Transaction);
+
+        _connection.Verify(x => x.SetJobParameter(JobId, "ChainRetry", null), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("Enqueued", "Processing")]
+    [InlineData("Enqueued", "Failed")]
+    [InlineData("Scheduled", "Deleted")]
+    public void OnStateApplied_TakesTheNoteOfAStepThatLeavesItsHoldOff_OnlyOnceThatIsCommitted_WhereTheStorageCanNotDoBothAtOnce(string from, string to)
+    {
+        // Were it taken off before, a state change that fails would leave a step held without its note
+        ApplyStateContextMock mock = WithTheNoteOfARetry(from, to, transactional: false);
+
+        _filter.OnStateApplied(mock.Object, mock.Object.Transaction);
+
+        _connection.Verify(x => x.SetJobParameter(JobId, "ChainRetry", null), Times.Never);
+
+        mock.Object.AfterCommit.Run();
+
+        _connection.Verify(x => x.SetJobParameter(JobId, "ChainRetry", null), Times.Once);
+    }
+
+    [Fact]
+    public void OnStateApplied_LeavesTheNoteWrittenWithTheHold_OfAStepThatIsHeldAgain()
+    {
+        ApplyStateContextMock mock = WithTheNoteOfARetry(
+            FailedState.StateName,
+            ScheduledState.StateName,
+            transactional: true,
+            new JobChains.RetryHold(DateTime.UtcNow.AddMinutes(2), Note(generation: 4)));
+
+        _filter.OnStateApplied(mock.Object, mock.Object.Transaction);
+
+        _expiring.Verify(x => x.SetJobParameter(It.IsAny<string>(), "ChainRetry", null), Times.Never);
+    }
+
+    [Fact]
+    public void OnStateApplied_DoesNotThrow_WhenTheNoteOfARetryCanNotBeTakenOff()
+    {
+        ApplyStateContextMock mock = WithTheNoteOfARetry(FailedState.StateName, EnqueuedState.StateName, transactional: false);
+        _connection.Setup(x => x.SetJobParameter(JobId, "ChainRetry", null)).Throws<InvalidOperationException>();
+
+        _filter.OnStateApplied(mock.Object, mock.Object.Transaction);
+    }
+
+    // A step that carries the note of a retry and goes from a state to another
+    private ApplyStateContextMock WithTheNoteOfARetry(string from, string to, bool transactional, IState newState = null)
+    {
+        ApplyStateContextMock mock = LeftMock(from, to);
+        mock.NewStateObject = newState ?? mock.NewStateObject;
+        mock.Transaction = _expiring.As<IWriteOnlyTransaction>();
+        mock.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Transaction.SetJobParameter)).Returns(transactional);
+        mock.BackgroundJob.ParametersSnapshot = new Dictionary<string, string>
+        {
+            [JobChains.ChainIdParameter] = $"\"{ChainId}\"",
+            ["ChainRetry"] = Note(generation: 3),
+        };
+        mock.BackgroundJob.CreatedAt = DateTime.UtcNow;
+        mock.Object.AfterCommit = new PostCommitActions();
+        return mock;
+    }
+
+    private static string Note(int generation, string state = "Failed", Dictionary<string, string> data = null)
+    {
+        return new JobChains.RetryMarker { Id = "0123456789abcdef", Generation = generation, State = state, Reason = "The old reason", Data = data ?? [] }.Serialize();
+    }
+
+    // The step carries the note of a retry of its chain that held it
+    private void HeldForARetry(int generation, string state, Dictionary<string, string> data = null)
+    {
+        Dictionary<string, string> parameters = new(_context.ApplyContext.BackgroundJob.ParametersSnapshot) { ["ChainRetry"] = Note(generation, state, data) };
+        _context.ApplyContext.BackgroundJob.ParametersSnapshot = parameters;
+    }
+
+    // The whole record of the chain, with its generation
+    private void Record(int generation, params (string Key, string JobId)[] jobs)
+    {
+        string serialized = "{" + string.Join(",", jobs.Select(static x => $"\"{x.Key}\":\"{x.JobId}\"")) + "}";
+        _connection.Setup(x => x.GetValueFromHash(JobChains.GetKey(ChainId), "Jobs")).Returns(serialized);
+        _connection.Setup(x => x.GetAllEntriesFromHash(JobChains.GetKey(ChainId))).Returns(new Dictionary<string, string>
+        {
+            ["Jobs"] = serialized,
+            ["Definition"] = "{}",
+            ["Generation"] = generation.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        });
+    }
+
     // The state change of a worker that fetched the job and can put it back in its queue
     private JobGiveBack FetchedByAWorker()
     {

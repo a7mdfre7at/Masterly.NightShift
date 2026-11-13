@@ -79,6 +79,18 @@ public class ElectStateContext
         }
     }
 
+    /// <summary>
+    /// Sets the candidate state without counting the one it replaces among the <see cref="TraversedStates"/>,
+    /// which are written to the job's history: for a filter that finds that the job never was a candidate for
+    /// that state, so its history doesn't say it was (a job that is put back into the state it was in instead of
+    /// being processed never was Processing).
+    /// </summary>
+    internal void ReplaceCandidateState([NotNull] IState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        _candidateState = state;
+    }
+
     [CanBeNull]
     public string? CurrentState { get; }
 

@@ -28,6 +28,9 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
 {
     internal static readonly HashSet<string> KnownFinalStates = [DeletedState.StateName, SucceededState.StateName];
 
+    /// <summary>The job parameter that lists the continuations of a job.</summary>
+    internal const string ContinuationsParameter = "Continuations";
+
     private static readonly TimeSpan AddJobLockTimeout = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan ContinuationStateFetchTimeout = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan ContinuationInvalidTimeout = TimeSpan.FromMinutes(15);

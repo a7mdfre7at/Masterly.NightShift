@@ -135,6 +135,20 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     }
 
     [Fact]
+    public void Maintain_EnqueuesTheStepOfARecordedRetry_ThatAServerHadPutBack_WhileItsClientWasRecordingIt()
+    {
+        // The client was frozen while it wrote the record, a server took the retry for abandoned meanwhile, and
+        // the client stopped before it looked again: the retry is recorded, so it counts, and its step runs
+        PendingCleanup("c", "{\"reason\":\"r\",\"delete\":[],\"release\":\"held\"}");
+        _states["held"] = State(FailedState.StateName, "The retry of chain c was abandoned");
+
+        Maintain();
+
+        _client.Verify(x => x.ChangeState("held", It.Is<EnqueuedState>(state => state.Reason == "Chain retried from this step"), FailedState.StateName), Times.Once);
+        Assert.Empty(Set(CleanupSet));
+    }
+
+    [Fact]
     public void Maintain_LeavesAStepThatLeftItsHoldByItself()
     {
         PendingCleanup("c", "{\"reason\":\"r\",\"delete\":[],\"release\":\"held\"}");
