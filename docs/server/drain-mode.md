@@ -1,6 +1,6 @@
 # Drain mode
 
-Drain mode pauses job processing without stopping any server: running jobs finish, and jobs that workers pick up are held and tried again later. Turn it on before a deployment or a database maintenance window, pause a single queue when an external service is down, or pause one server before you take its machine offline.
+Drain mode pauses job processing without stopping any server: running jobs finish, and new jobs wait, held and tried again later or, for a paused server, left in their queues for the other servers. Turn it on before a deployment or a database maintenance window, pause a single queue when an external service is down, or pause one server before you take its machine offline.
 
 ## Quick example
 
@@ -28,9 +28,9 @@ Drain mode is stored in the storage, in the `hangfire:control` hash (the name ke
 
 - the **global switch**, which holds every job;
 - **paused queues**, which hold the jobs of those queues only;
-- **paused servers**, which make one server hold the jobs it picks up.
+- **paused servers**, which make one server stop taking jobs.
 
-Nothing changes in the way jobs are created, scheduled or enqueued, apart from putting a held job back in its queue. The work happens when a worker picks a job up: the worker asks to move the job to Processing, and `DrainModeFilter`, an election filter registered globally by default, checks the switch. If the job must be held, the filter replaces Processing with Scheduled for `DrainMode.HoldInterval` (30 seconds), with one of these reasons:
+Nothing changes in the way jobs are created, scheduled or enqueued, apart from putting a held job back in its queue. A paused server's workers stop fetching (see [A paused server stops fetching](#a-paused-server-stops-fetching)); for the global switch and paused queues, the work happens when a worker picks a job up: the worker asks to move the job to Processing, and `DrainModeFilter`, an election filter registered globally by default, checks the switch. If the job must be held, the filter replaces Processing with Scheduled for `DrainMode.HoldInterval` (30 seconds), with one of these reasons:
 
 | Reason | Constant on `DrainModeFilter` (namespace `Masterly.NightShift.Server`) | When |
 | --- | --- | --- |
@@ -46,6 +46,16 @@ The job's queue is found the way the Enqueued state finds it, so every way of ch
 
 A job that was running when its server stopped (the shutdown reached `ShutdownTimeout`) or crashed goes back to its queue still in the Processing state, which names no queue. When the next worker picks it up, and only when something needs the queue (a queue is paused, or the global switch or a paused server holds the job), the filter reads the job's history and takes the queue of its last Enqueued state. So such a job is held by a paused `emails` queue whether its queue came from `[Queue("emails")]` or from `new EnqueuedState("emails")`, and goes back to `emails` after the hold. This costs one more read, on that path only; jobs picked up from their Enqueued state don't need it.
 
+### A paused server stops fetching
+
+The workers of a server paused with `PauseServer` (or by [deployment fencing](reliability.md#deployment-fencing)) don't fetch jobs: the jobs stay in their queues, and the other servers take them. Before each fetch, a worker asks whether its server is paused, from the cached state (see below), so a pause takes effect within `CacheDuration`, 2 seconds. While its server is paused, a worker looks again every 5 seconds, so a resume is noticed within about 5 seconds more.
+
+A worker that was already waiting for a job when the pause landed takes one more. `DrainModeFilter` holds that job, as above, with the reason `Held: server '{id}' is paused`, so at most one job per worker is held. The time such a job is held doesn't make it late: [`[SkipIfLate]`](../filters/timing.md#skipiflateattribute), `RecurringJobOptions.SkipAfter` and `ScheduleOptions.SkipAfter` leave it out, because the other servers could have run the job meanwhile. It is kept in the `ServerHold` job parameter (`DrainModeFilter.ServerHoldParameter`). The time a job is held by the global switch or a paused queue counts as lateness, as nothing could run the job then.
+
+The global switch and paused queues work as before: workers fetch, and hold what they fetch.
+
+### Caching
+
 Each process caches the switch for `DrainMode.CacheDuration` (2 seconds), one cache per storage, so checking it costs one small read every couple of seconds per process and storage, not one per job. A change made in one process is seen by the others within that time.
 
 ## API
@@ -58,7 +68,7 @@ All members are static members of `DrainMode`. Every method except `ClearStaleSe
 | `Disable(connection)` | `void` | | Turns the global switch off. Held jobs run as soon as their hold ends. Paused queues and servers stay paused. |
 | `PauseQueue(connection, queue, reason = null)` | `void` | | Holds the jobs of one queue; other queues keep flowing. The name is trimmed and lowercased. |
 | `ResumeQueue(connection, queue)` | `void` | | Lets the jobs of a paused queue run again. |
-| `PauseServer(connection, serverId, reason = null)` | `void` | | Makes one server hold every job it picks up: the job goes to Scheduled for `HoldInterval`, then any server may take it. `serverId` is the full server ID, `{name}:{process id}:{guid}`, as shown on the Servers page; the server name alone matches nothing. |
+| `PauseServer(connection, serverId, reason = null)` | `void` | | Makes one server stop taking jobs: its workers stop fetching, the jobs stay in their queues for the other servers, and its running jobs finish. A job a worker was already waiting for when the pause landed is held for `HoldInterval`. `serverId` is the full server ID, `{name}:{process id}:{guid}`, as shown on the Servers page; the server name alone matches nothing. |
 | `ResumeServer(connection, serverId)` | `void` | | Lets a paused server work again. With the old ID of a server that has stopped, clears its leftover pause. |
 | `ClearStaleServerPauses(storage)` | `IReadOnlyList<string>` | | Takes a `JobStorage`, not a connection. Clears the pause of every server that the storage no longer lists as running, and returns their IDs. Pauses of running servers stay. |
 | `Read(connection)` | `DrainModeStatus` | | Reads the current state directly from the storage. |
@@ -83,7 +93,7 @@ All members are static members of `DrainMode`. Every method except `ClearStaleSe
 | `PausedQueues` | `IReadOnlyDictionary<string, string?>` | Paused queues and the reason for each. Keys are case-insensitive. |
 | `PausedServers` | `IReadOnlyDictionary<string, string?>` | Paused server IDs and the reason for each. |
 | `IsQueuePaused(queue)` | `bool` | Whether jobs of the queue are held, by the global switch or on their own. |
-| `IsServerPaused(serverId)` | `bool` | Whether the server holds the jobs it picks up, by the global switch or on its own. Takes the full server ID. |
+| `IsServerPaused(serverId)` | `bool` | Whether the server is paused, by the global switch or on its own. Takes the full server ID. |
 | `Inactive` | `DrainModeStatus` | Static. The state with nothing paused. |
 
 ### On the dashboard
@@ -176,7 +186,7 @@ public static void PauseServersOn(JobStorage storage, string machineName)
 
 ### Clear pauses left by stopped servers
 
-A server that stops while paused leaves its pause behind, under an ID that no server will use again. It holds nothing and the dashboard's health checks ignore it, but it stays in storage. Clear such entries from the Servers page, or from code, for example after a deployment:
+A server that dies while paused leaves its pause behind, under an ID that no server will use again (a server that stops, or restarts with a new ID, removes its own). It holds nothing and the dashboard's health checks ignore it, but it stays in storage. Clear such entries from the Servers page, or from code, for example after a deployment:
 
 ```csharp
 IReadOnlyList<string> cleared = DrainMode.ClearStaleServerPauses(storage);
@@ -227,8 +237,8 @@ DrainMode.HoldInterval = TimeSpan.FromSeconds(10);
 - **A held job keeps cycling.** Every hold adds a Scheduled and an Enqueued entry to the job's history, and a few storage writes. For a pause of hours with many waiting jobs, consider a longer `HoldInterval`.
 - **A held job keeps its queue.** After a hold, a job goes back to the queue it was in, however that queue was chosen, including a job that was interrupted while it ran and comes back in the Processing state; see [How it works](#how-it-works). A job whose queue came only from `new EnqueuedState("emails")` keeps it in the `HeldQueue` job parameter until the hold ends. Its later retries go to `default`, as they would without the hold; give the job a queue of its own (`Enqueue("emails", ...)` or `[Queue("emails")]`) to keep retries in `emails`.
 - **Long server IDs work.** Server IDs built from long host names (Kubernetes pod names can have 63 characters) are stored under a hashed field, so pausing, resuming, clearing and the dashboard listing work with the full ID as usual.
-- **A paused server still takes jobs from the queue**, then holds them: each goes to Scheduled for the hold interval. After the hold, any server may pick the job up, including the paused one, which holds it again. Other servers end up running the work, but a job may be delayed by more than one hold.
-- **Server pauses don't survive a restart.** The server ID contains a GUID that is new every time the server starts, including the automatic restart after its entry was removed from the storage, so a restarted server is not paused. Pause it again if needed. The old ID stays recorded as paused, but it has no effect: the dashboard banner, the Wallboard and the health endpoint ignore pauses of servers that are no longer registered. The Servers page lists them under **Pauses left by stopped servers** with a **Clear** button. From code, clear one with `DrainMode.ResumeServer(connection, "<old server id>")`, or with `DrainMode.ClearStaleServerPauses(storage)` for every stopped server at once.
+- **A paused server takes no jobs from its queues.** Its workers stop fetching within the 2 seconds the state is cached, and look again every 5 seconds while it lasts. A `Worker` you add yourself as an additional process isn't stopped this way: it fetches, and `DrainModeFilter` holds what it takes.
+- **Server pauses don't survive a restart.** The server ID contains a GUID that is new every time the server starts, including the automatic restart after its entry was removed from the storage, so a restarted server is not paused. Pause it again if needed. A server removes its own pause when it stops or gets a new ID. A server that dies can't: its old ID stays recorded as paused, with no effect. The dashboard banner, the Wallboard and the health endpoint ignore pauses of servers that are no longer registered, and the Servers page lists them under **Pauses left by stopped servers** with a **Clear** button. From code, clear one with `DrainMode.ResumeServer(connection, "<old server id>")`, or with `DrainMode.ClearStaleServerPauses(storage)` for every stopped server at once.
 - **Pause by the full server ID.** `PauseServer` and `IsServerPaused` compare the whole ID (`{name}:{process id}:{guid}`). Pausing `"web-1"` doesn't pause the server `web-1:4242:0f8fad5b-...`; look the ID up on the Servers page or in `IMonitoringApi.Servers()`, as in [Pause every server on one machine](#pause-every-server-on-one-machine).
 - **The global switch, queue pauses and server pauses are independent.** `Disable` turns off only the global switch.
 - **Drain mode needs the global filters.** `DrainModeFilter` is in `GlobalJobFilters.Filters` by default. If you remove it, or give a server a `FilterProvider` that does not include the global filters, that server ignores drain mode. Servers running a version without drain mode ignore it too.

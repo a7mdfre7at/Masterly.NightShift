@@ -53,6 +53,7 @@ The storage supports every optional feature: the extended API, transactional ack
 - **Not for production.** Jobs are lost when the process stops, and servers in other processes can't see them.
 - **Memory grows with jobs.** Finished jobs are kept for `JobStorage.JobExpirationTimeout` (one day by default); set `MaxExpirationTime` when a process creates many jobs.
 - **Ids restart at 1** in every process.
+- **Two clocks.** The times that are stored and shown, and that decide when something expires, comes due or stopped sending heartbeats, come from the library's clock, which `UseTimeProvider` can replace. Whether a lock's lease or a fetched job's invisibility has lapsed is judged by the machine's monotonic clock, at the pace of real time. So a test that moves its clock forward expires jobs, makes scheduled jobs due and times out servers, but never hands a held lock or a running job to a second owner, and a clock that stands still keeps neither for good.
 
 ## See also
 
