@@ -69,7 +69,7 @@ public class CheckoutController
 
 The trace context is stored even when nobody listens to the `Masterly.NightShift` source: if there is a W3C `Activity.Current` when the job is created (for example the ASP.NET Core request span), its id is saved, so the job joins the caller's trace as soon as a listener is attached on the server side.
 
-When nothing listens, the cost is close to zero. The filter checks `ActivitySource.HasListeners()` and each instrument's `Enabled` flag before doing any work. It reads the Enqueued state (one storage query per job start) and the job parameters on the server only when someone listens to the source.
+When nothing listens, the cost is close to zero. The filter checks `ActivitySource.HasListeners()` and each instrument's `Enabled` flag before doing any work, and builds no span names, job names or outcomes then. It reads the Enqueued state (one storage query per job start) and the job parameters on the server only when someone listens to the source.
 
 Every attempt of a job is its own `process` span. A job that is retried three times produces three `process` spans, all children of the same `create` span.
 

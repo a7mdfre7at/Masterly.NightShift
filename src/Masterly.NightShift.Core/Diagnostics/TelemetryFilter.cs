@@ -40,8 +40,10 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        string? jobName = GetJobName(context.Job);
-        Activity? activity = NightShiftTelemetry.ActivitySource.StartActivity($"create {jobName}", ActivityKind.Producer);
+        // The name is built only when someone listens: the filter must stay cheap otherwise
+        Activity? activity = NightShiftTelemetry.ActivitySource.HasListeners()
+            ? NightShiftTelemetry.ActivitySource.StartActivity($"create {GetJobName(context.Job)}", ActivityKind.Producer)
+            : null;
 
         if (activity != null)
         {
@@ -109,9 +111,14 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
         ArgumentNullException.ThrowIfNull(context);
 
         Job? job = context.BackgroundJob.Job;
-        string? jobName = GetJobName(job);
+        bool counted = NightShiftTelemetry.ActiveJobs.Enabled;
+        bool late = NightShiftTelemetry.JobLateness.Enabled;
+        bool traced = NightShiftTelemetry.ActivitySource.HasListeners();
 
-        if (NightShiftTelemetry.ActivitySource.HasListeners())
+        // The name is built only when something uses it: the filter must stay cheap when nobody listens
+        string? jobName = counted || late || traced ? GetJobName(job) : null;
+
+        if (traced)
         {
             // Reading parameters may query the storage, so do it only when someone listens
             string? traceParent = context.GetJobParameter<string>(TraceParentParameter, allowStale: true);
@@ -141,7 +148,7 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
             FetchedQueues.Remove(context.BackgroundJob);
         }
 
-        if (NightShiftTelemetry.ActiveJobs.Enabled)
+        if (counted)
         {
             NightShiftTelemetry.ActiveJobs.Add(1, Tag("nightshift.job.name", jobName));
 
@@ -154,7 +161,7 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
             context.Items[ProcessStartedKey] = Stopwatch.GetTimestamp();
         }
 
-        if (NightShiftTelemetry.JobLateness.Enabled)
+        if (late)
         {
             RecordLateness(context, jobName);
         }
@@ -197,22 +204,33 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        bool counted = context.Items.ContainsKey(ActiveCountedKey);
+        bool completed = NightShiftTelemetry.JobsCompleted.Enabled;
+        bool timed = context.Items.TryGetValue(ProcessStartedKey, out object? started) && started is long;
+        bool traced = context.Items.TryGetValue(ProcessActivityKey, out object? value) && value is Activity;
+
+        // Nothing is classified or named when nobody listens: the filter must stay cheap then
+        if (!counted && !completed && !timed && !traced)
+        {
+            return;
+        }
+
         string outcome = GetOutcome(context);
         string? errorType = outcome == OutcomeFailed ? GetErrorType(context.Exception) : null;
 
-        string? jobName = GetJobName(context.BackgroundJob.Job);
+        string? jobName = counted || completed || timed ? GetJobName(context.BackgroundJob.Job) : null;
 
-        if (context.Items.ContainsKey(ActiveCountedKey))
+        if (counted)
         {
             NightShiftTelemetry.ActiveJobs.Add(-1, Tag("nightshift.job.name", jobName));
         }
 
-        if (NightShiftTelemetry.JobsCompleted.Enabled)
+        if (completed)
         {
             NightShiftTelemetry.JobsCompleted.Add(1, Tag("nightshift.job.name", jobName), Tag("nightshift.job.outcome", outcome), Tag("error.type", errorType));
         }
 
-        if (context.Items.TryGetValue(ProcessStartedKey, out object? started) && started is long startedAt)
+        if (timed && started is long startedAt)
         {
             NightShiftTelemetry.JobDuration.Record(
                 Stopwatch.GetElapsedTime(startedAt).TotalSeconds,
@@ -221,7 +239,7 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
                 Tag("error.type", errorType));
         }
 
-        if (context.Items.TryGetValue(ProcessActivityKey, out object? value) && value is Activity activity)
+        if (traced && value is Activity activity)
         {
             if (activity.IsAllDataRequested)
             {
