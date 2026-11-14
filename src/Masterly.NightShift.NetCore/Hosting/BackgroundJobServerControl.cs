@@ -18,13 +18,14 @@ public interface IBackgroundJobServerControl
 
     /// <summary>
     /// Stops the running servers and waits until they shut down, or until <paramref name="cancellationToken"/> is
-    /// canceled. Their running jobs get the server's stop and shutdown timeouts, as when the host stops.
+    /// canceled. Their running jobs get the server's stop and shutdown timeouts, as when the host stops. A canceled
+    /// token stops only the waiting: the servers go on shutting down, and the host's stop waits for them.
     /// </summary>
     /// <param name="cancellationToken">Stops waiting.</param>
     Task StopAsync(CancellationToken cancellationToken = default);
 }
 
-/// <summary>The servers of a container, registered as they are created.</summary>
+/// <summary>The servers of a container, registered as the host starts them.</summary>
 internal sealed class BackgroundJobServerControl : IBackgroundJobServerControl
 {
     private readonly List<BackgroundJobServerHostedService> _servers = [];
@@ -47,7 +48,11 @@ internal sealed class BackgroundJobServerControl : IBackgroundJobServerControl
     {
         lock (_lock)
         {
-            _servers.Add(server);
+            // The host's StartingAsync and StartAsync both register the service
+            if (!_servers.Contains(server))
+            {
+                _servers.Add(server);
+            }
         }
     }
 

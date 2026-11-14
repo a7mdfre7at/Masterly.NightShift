@@ -134,10 +134,10 @@ With `StartMode = ServerStartMode.Manual`, a server added with `AddNightShiftSer
 | Member | What it does |
 |---|---|
 | `StartAsync()` | Starts the servers that aren't running. A server stopped before starts again with a new server id. Throws `InvalidOperationException` once the host has stopped a server |
-| `StopAsync(cancellationToken)` | Stops the running servers and waits for them to shut down, with their stop and shutdown timeouts |
+| `StopAsync(cancellationToken)` | Stops the running servers and waits for them to shut down, with their stop and shutdown timeouts. A canceled token stops only the waiting: the servers go on shutting down, and the host waits for them when it stops |
 | `IsRunning` | Whether at least one server runs |
 
-It works for automatic servers too, to stop processing during a maintenance window and start it again. Calls made before the application has started are honoured: a server started by `StartAsync` isn't started a second time with the host, and an automatic server stopped by `StopAsync` stays stopped when the application starts. Once the host is stopping, nothing starts a server again. A `BackgroundJobServer` you create yourself always starts at once.
+It works for automatic servers too, to stop processing during a maintenance window and start it again. Calls made before the application has started are honoured: a server started by `StartAsync` isn't started a second time with the host, and an automatic server stopped by `StopAsync` stays stopped when the application starts. Once the host is stopping, nothing starts a server again. The control knows the servers the host has started: a server added with `AddNightShiftServer` joins it when the host starts its hosted service, so instances created by anything else that resolves the hosted services are never started. A `BackgroundJobServer` you create yourself always starts at once.
 
 ## A pool for long jobs
 

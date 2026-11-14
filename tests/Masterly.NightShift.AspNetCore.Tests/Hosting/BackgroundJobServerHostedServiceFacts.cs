@@ -1,5 +1,6 @@
 using Masterly.NightShift.AspNetCore.Tests.Stubs;
 using Masterly.NightShift.Logging;
+using Masterly.NightShift.Server;
 using Masterly.NightShift.Storage;
 using Microsoft.Extensions.Hosting;
 
@@ -243,6 +244,119 @@ public class BackgroundJobServerHostedServiceFacts
             .AddNightShift(_ => { })
             .AddNightShiftServer()
             .BuildServiceProvider();
+    }
+
+    [Fact]
+    public async Task StopAsync_WaitsForAServer_TheControlIsStopping()
+    {
+        _options.StopTimeout = TimeSpan.FromSeconds(30);
+        _options.ShutdownTimeout = TimeSpan.FromSeconds(30);
+        using BusyProcess busy = new();
+        using ServiceProvider provider = BuildProviderWith(busy);
+        BackgroundJobServerHostedService hosted = provider.GetServices<IHostedService>().OfType<BackgroundJobServerHostedService>().Single();
+        IBackgroundJobServerControl control = provider.GetRequiredService<IBackgroundJobServerControl>();
+        await hosted.StartAsync(CancellationToken.None);
+        Assert.True(busy.Entered.Wait(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+
+        Task controlStop = control.StopAsync(CancellationToken.None);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
+        await hosted.StopAsync(CancellationToken.None);
+
+        // The host disposes the container once StopAsync returns: the server must have shut down by then
+        Assert.True(busy.Finished.IsSet);
+        await controlStop;
+        hosted.Dispose();
+    }
+
+    [Fact]
+    public async Task Control_StopAsync_CanceledWhileWaiting_LetsTheServerShutDownWithItsTimeouts()
+    {
+        _options.StopTimeout = TimeSpan.FromSeconds(1);
+        _options.ShutdownTimeout = TimeSpan.FromSeconds(2);
+        using BusyProcess busy = new();
+        using ServiceProvider provider = BuildProviderWith(busy);
+        BackgroundJobServerHostedService hosted = provider.GetServices<IHostedService>().OfType<BackgroundJobServerHostedService>().Single();
+        IBackgroundJobServerControl control = provider.GetRequiredService<IBackgroundJobServerControl>();
+        await hosted.StartAsync(CancellationToken.None);
+        Assert.True(busy.Entered.Wait(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+
+        using CancellationTokenSource cts = new(TimeSpan.FromMilliseconds(300));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => control.StopAsync(cts.Token));
+        Assert.True(busy.Finished.Wait(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+
+        Assert.True(busy.SawShutdown);
+        await hosted.StopAsync(CancellationToken.None);
+        hosted.Dispose();
+    }
+
+    [Fact]
+    public async Task Control_StartsOnlyTheServersTheHostStarted()
+    {
+        _options.StartMode = ServerStartMode.Manual;
+        using ServiceProvider provider = BuildProviderWith(null);
+
+        // Something else resolves the hosted services too, which creates other instances
+        IHostedService[] extra = [.. provider.GetServices<IHostedService>()];
+        BackgroundJobServerHostedService hosted = provider.GetServices<IHostedService>().OfType<BackgroundJobServerHostedService>().Single();
+        IBackgroundJobServerControl control = provider.GetRequiredService<IBackgroundJobServerControl>();
+        await hosted.StartAsync(CancellationToken.None);
+
+        await control.StartAsync(TestContext.Current.CancellationToken);
+
+        _storage.Verify(x => x.WriteOptionsToLog(It.IsAny<ILog>()), Times.Once);
+        await control.StopAsync(TestContext.Current.CancellationToken);
+        Assert.NotEmpty(extra);
+        hosted.Dispose();
+    }
+
+    private ServiceProvider BuildProviderWith(BusyProcess? busy)
+    {
+        IServiceCollection services = new ServiceCollection()
+            .AddSingleton(_storage.Object)
+            .AddSingleton(_options);
+
+        if (busy != null)
+        {
+            services.AddSingleton<IBackgroundProcess>(busy);
+        }
+
+        return services
+            .AddNightShift(_ => { })
+            .AddNightShiftServer()
+            .BuildServiceProvider();
+    }
+
+    // Holds the server's shutdown up until its shutdown token fires, or for 8 seconds
+    private sealed class BusyProcess : IBackgroundProcess, IDisposable
+    {
+        public ManualResetEventSlim Entered { get; } = new();
+
+        public ManualResetEventSlim Finished { get; } = new();
+
+        public ManualResetEventSlim Release { get; } = new();
+
+        public bool SawShutdown { get; private set; }
+
+        public void Execute(BackgroundProcessContext context)
+        {
+            if (Finished.IsSet)
+            {
+                context.Wait(TimeSpan.FromMilliseconds(50));
+                return;
+            }
+
+            Entered.Set();
+            int index = WaitHandle.WaitAny([context.ShutdownToken.WaitHandle, Release.WaitHandle], TimeSpan.FromSeconds(8));
+            SawShutdown = index == 0;
+            Finished.Set();
+        }
+
+        public void Dispose()
+        {
+            Entered.Dispose();
+            Finished.Dispose();
+            Release.Dispose();
+        }
     }
 
     [Fact]
