@@ -9,7 +9,8 @@ public class ScheduleForecastFacts
 
     private static RecurringJobDto Dto(string id, string cron, bool paused = false, string timeZone = null)
     {
-        return new RecurringJobDto { Id = id, Cron = cron, Paused = paused, TimeZoneId = timeZone, Job = Job.FromExpression(() => Sample()) };
+        // The scheduler has a next execution for every job it runs
+        return new RecurringJobDto { Id = id, Cron = cron, Paused = paused, TimeZoneId = timeZone, Job = Job.FromExpression(() => Sample()), NextExecution = new DateTime(2026, 11, 4, 13, 0, 0, DateTimeKind.Utc) };
     }
 
     [Fact]
@@ -115,6 +116,56 @@ public class ScheduleForecastFacts
         ScheduleForecast.Row row = Assert.Single(forecast.Rows);
         Assert.Equal("paused", row.Id);
         Assert.Empty(row.Occurrences);
+    }
+
+    [Fact]
+    public void Build_ProjectsNothing_ForAJobWithoutANextExecution()
+    {
+        // The scheduler doesn't run it: it ended, or its policy allows none of its occurrences
+        RecurringJobDto stopped = Dto("stopped", "0 * * * *");
+        stopped.NextExecution = null;
+
+        ScheduleForecast forecast = ScheduleForecast.Build([stopped], _from, TimeSpan.FromHours(24), _ => null);
+
+        Assert.Empty(Assert.Single(forecast.Rows).Occurrences);
+    }
+
+    [Fact]
+    public void Build_LeavesOutTheOccurrencesThePolicyBlocks()
+    {
+        // 2026-11-04 is a Wednesday: the occurrences of Saturday and Sunday are blocked
+        RecurringJobDto daily = Dto("daily", "0 9 * * *");
+        daily.Policy = "weekdays";
+        SchedulePolicyCalendar weekdays = SchedulePolicyCalendar.FromPolicies(
+            "weekdays",
+            [new SchedulePolicy("weekdays").AllowWeekdays(DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday)],
+            new DefaultTimeZoneResolver());
+
+        ScheduleForecast forecast = ScheduleForecast.Build([daily], _from, TimeSpan.FromDays(7), _ => null, policies: name => name == "weekdays" ? weekdays : null);
+
+        ScheduleForecast.Row row = Assert.Single(forecast.Rows);
+        Assert.Equal(
+            [5, 6, 9, 10, 11],
+            row.Occurrences.Select(static x => x.Day));
+    }
+
+    [Fact]
+    public void Build_ReadsEachPolicyOnce_PerForecast()
+    {
+        Mock<IStorageConnection> connection = new();
+        connection.Setup(x => x.GetAllItemsFromSet("recurring-jobs")).Returns(["a", "b"]);
+        Dictionary<string, string> hash = RecurringJobHash("0 9 * * *", null);
+        hash["Policy"] = "weekdays";
+        connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:a")).Returns(hash);
+        connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:b")).Returns(hash);
+        Dictionary<string, string> policy = new SchedulePolicy("weekdays").AllowWeekdays(DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday).ToFields();
+        policy[SchedulePolicy.RevisionField] = "1";
+        connection.Setup(x => x.GetAllEntriesFromHash(SchedulePolicies.GetKey("weekdays"))).Returns(policy);
+
+        ScheduleForecast forecast = ScheduleForecast.Build(connection.Object, _from, TimeSpan.FromDays(7));
+
+        Assert.All(forecast.Rows, static row => Assert.Equal([5, 6, 9, 10, 11], row.Occurrences.Select(static x => x.Day)));
+        connection.Verify(x => x.GetAllEntriesFromHash(SchedulePolicies.GetKey("weekdays")), Times.Once);
     }
 
     [Fact]
@@ -302,6 +353,7 @@ public class ScheduleForecastFacts
         {
             { "Cron", cron },
             { "Job", InvocationData.SerializeJob(Job.FromExpression(() => Sample())).SerializePayload() },
+            { "NextExecution", JobHelper.SerializeDateTime(new DateTime(2026, 11, 4, 13, 0, 0, DateTimeKind.Utc)) },
         };
         if (timeZoneId != null)
         {

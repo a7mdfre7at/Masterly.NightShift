@@ -150,6 +150,9 @@ public class ForecastPageFacts
         {
             { "Cron", cron },
             { "Job", InvocationData.SerializeJob(job).SerializePayload() },
+
+            // The scheduler has a next execution for every job it runs
+            { "NextExecution", JobHelper.SerializeDateTime(DateTime.UtcNow) },
         };
 
         foreach (KeyValuePair<string, string> pair in extra ?? [])

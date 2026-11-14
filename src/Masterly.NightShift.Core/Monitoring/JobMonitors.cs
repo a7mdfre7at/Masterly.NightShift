@@ -109,26 +109,49 @@ public sealed class DailyDeadlineMonitor : JobMonitor
     /// <summary>How long after <see cref="By"/> before an incident.</summary>
     public TimeSpan Grace { get; }
 
+    // A deadline whose grace ends at or after midnight (by 23:00 with 2 hours of grace) is judged on the next local
+    // day, from midnight until the next night's deadline is judged
+    private bool EndsAfterMidnight => By + Grace >= TimeSpan.FromDays(1);
+
     internal override (JobMonitorState State, string? Reason) Evaluate(JobMonitorData data, DateTime now, JobStorage storage)
     {
-        DateTime local = TimeZoneInfo.ConvertTimeFromUtc(now, TimeZone);
+        DateTime today = TimeZoneInfo.ConvertTimeFromUtc(now, TimeZone).Date;
+        DateTime day = EndsAfterMidnight ? today.AddDays(-1) : today;
 
-        if (data.LastSuccessAt is { } success && TimeZoneInfo.ConvertTimeFromUtc(success, TimeZone).Date == local.Date)
+        // A success after the deadline counts too: a late run ends the incident
+        if (data.LastSuccessAt is { } success && GetDayOf(success) >= day)
         {
             return (JobMonitorState.Healthy, null);
         }
 
-        DateTime due = ToUtc(DateTime.SpecifyKind(local.Date + By, DateTimeKind.Unspecified)) + Grace;
-        return now < due
-            ? (JobMonitorState.Waiting, null)
-            : (JobMonitorState.NeedsAttention, string.Create(CultureInfo.InvariantCulture, $"No job of {Method} succeeded today by {By:hh\\:mm} ({TimeZone.Id})."));
+        if (now < GetDue(day))
+        {
+            return (JobMonitorState.Waiting, null);
+        }
+
+        return (JobMonitorState.NeedsAttention, day == today
+            ? string.Create(CultureInfo.InvariantCulture, $"No job of {Method} succeeded today by {By:hh\\:mm} ({TimeZone.Id}).")
+            : string.Create(CultureInfo.InvariantCulture, $"No job of {Method} succeeded by {By:hh\\:mm} on {day:yyyy-MM-dd} ({TimeZone.Id})."));
     }
 
-    // A success recorded earlier the same local day is enough: a later one doesn't change the verdict
+    // A success recorded earlier for the same day is enough: a later one doesn't change the verdict
     internal override bool IsSuccessFresh(DateTime recorded, DateTime now)
     {
-        return base.IsSuccessFresh(recorded, now)
-            && TimeZoneInfo.ConvertTimeFromUtc(recorded, TimeZone).Date == TimeZoneInfo.ConvertTimeFromUtc(now, TimeZone).Date;
+        return base.IsSuccessFresh(recorded, now) && GetDayOf(recorded) == GetDayOf(now);
+    }
+
+    // The local day a success at that instant counts for: its own date, except a success after midnight inside the
+    // grace of the night before, which counts for that night and not for the next
+    private DateTime GetDayOf(DateTime instant)
+    {
+        DateTime date = TimeZoneInfo.ConvertTimeFromUtc(instant, TimeZone).Date;
+        return EndsAfterMidnight && instant < GetDue(date.AddDays(-1)) ? date.AddDays(-1) : date;
+    }
+
+    // The grace is a duration, so on the nights clocks change the deadline is that long after By on the clock
+    private DateTime GetDue(DateTime day)
+    {
+        return ToUtc(DateTime.SpecifyKind(day + By, DateTimeKind.Unspecified)) + Grace;
     }
 
     private DateTime ToUtc(DateTime local)

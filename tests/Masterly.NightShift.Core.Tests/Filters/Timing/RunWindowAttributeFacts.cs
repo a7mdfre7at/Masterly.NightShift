@@ -14,7 +14,7 @@ public class RunWindowAttributeFacts : IDisposable
 
     public void Dispose()
     {
-        RunWindowAttribute.Clock = () => DateTime.UtcNow;
+        RunWindowAttribute.Clock = null;
     }
 
     private static DateTime Utc(string text) => DateTime.SpecifyKind(DateTime.Parse(text), DateTimeKind.Utc);

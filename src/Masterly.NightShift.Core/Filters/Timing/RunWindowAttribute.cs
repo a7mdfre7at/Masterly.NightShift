@@ -62,8 +62,12 @@ public class RunWindowAttribute : JobFilterAttribute, IElectStateFilter
     /// <summary>Whether the window is a blackout (the job may run only outside it).</summary>
     protected virtual bool Invert => false;
 
-    /// <summary>Replaceable for tests.</summary>
-    internal static Func<DateTime> Clock { get; set; } = static () => JobClock.UtcNow;
+    /// <summary>
+    /// Replaces the clock, for tests. Without it the job is judged by the storage's clock where the storage has one,
+    /// the clock the delayed job scheduler finds jobs due by: with a process clock behind it, a job put back for the
+    /// window's start would be due at once, and taken again and again.
+    /// </summary>
+    internal static Func<DateTime>? Clock { get; set; }
 
     /// <inheritdoc />
     public void OnStateElection(ElectStateContext context)
@@ -82,7 +86,7 @@ public class RunWindowAttribute : JobFilterAttribute, IElectStateFilter
             return;
         }
 
-        DateTime nowUtc = Clock();
+        DateTime nowUtc = Clock?.Invoke() ?? StorageTime.UtcNow(context.Storage, context.Connection);
         DateTime nextStartUtc = GetNextStart(nowUtc, out bool allowedNow);
         if (allowedNow)
         {

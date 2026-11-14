@@ -28,6 +28,8 @@ A monitor watches the jobs of one method, written `Type.Method` with the type's 
 
 A `DailyDeadlineMonitor` whose deadline falls in the hour skipped when clocks go forward (02:30 on the night clocks jump from 02:00 to 03:00) uses the first valid minute after it, 03:00, that day.
 
+A `DailyDeadlineMonitor` whose deadline with its grace ends at or after midnight (`by` 23:00 with 2 hours of `grace`) judges each night on the next day: until 01:00 it is `Waiting` (or `Healthy` when the night's job succeeded), from 01:00 it needs attention when no job succeeded since the night's start, and it tells about that night until the next night's deadline is judged, at midnight. A success after midnight but inside the grace (00:40) counts for the night before, not for the next one; a later success (any time the next day) ends an open incident. The grace is a duration, so on the nights clocks change the deadline is that long after `by` in real time, not on the clock.
+
 ## How it works
 
 1. `UseJobMonitor` registers the monitor and the global filter that records, for monitored methods only, each success and each final failure in the monitor's storage hash `monitor:{name}`, once the state change is committed. For other jobs the filter costs a dictionary lookup.

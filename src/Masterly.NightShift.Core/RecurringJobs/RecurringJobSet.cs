@@ -1,5 +1,7 @@
 using System.Linq.Expressions;
+using Masterly.NightShift.Client;
 using Masterly.NightShift.Logging;
+using Masterly.NightShift.Profiling;
 
 namespace Masterly.NightShift;
 
@@ -247,7 +249,9 @@ public sealed class RecurringJobSet
     /// </summary>
     /// <param name="scope">
     /// Tells which recurring job identifiers may be retired, for example the ones with a given prefix. Every
-    /// identifier when omitted.
+    /// identifier when omitted. A stored job records only that a set declared it, not which one: when several
+    /// applications declare sets in one storage, give each a scope, or each start of one pauses the jobs of the
+    /// others. A set without a scope that retires jobs logs a warning.
     /// </param>
     /// <returns>This set, to chain calls.</returns>
     /// <exception cref="InvalidOperationException"><see cref="RemoveUndeclared"/> was called.</exception>
@@ -446,22 +450,33 @@ public sealed class RecurringJobSet
         bool declared = hash.TryGetValue(DeclaredField, out string? declaredValue) && declaredValue == "1";
         bool retired = hash.TryGetValue(RetiredField, out string? retiredValue) && retiredValue == "1";
 
+        if (declared && !retired)
+        {
+            return;
+        }
+
+        Dictionary<string, string> fields = new()
+        {
+            [DeclaredField] = "1",
+            [RetiredField] = string.Empty,
+        };
+
+        // Resumed and no longer retired in one transaction: a job resumed but still marked retired would never be
+        // retired again
+        if (retired && manager is RecurringJobManager recurringJobManager)
+        {
+            recurringJobManager.SetPaused(recurringJobId, paused: false, fields);
+            Logger.Info($"Recurring job '{recurringJobId}' is declared again and was resumed.");
+            return;
+        }
+
         if (retired && manager is IRecurringJobManagerV3 managerV3)
         {
             managerV3.Resume(recurringJobId);
             Logger.Info($"Recurring job '{recurringJobId}' is declared again and was resumed.");
         }
 
-        if (declared && !retired)
-        {
-            return;
-        }
-
-        SetFields(storage, recurringJobId, new Dictionary<string, string>
-        {
-            [DeclaredField] = "1",
-            [RetiredField] = string.Empty,
-        });
+        SetFields(storage, recurringJobId, fields);
     }
 
     private List<string> RetireUndeclaredJobs(IRecurringJobManager manager, JobStorage storage)
@@ -495,9 +510,28 @@ public sealed class RecurringJobSet
 
         foreach (string id in retired)
         {
-            managerV3.Pause(id);
-            SetFields(storage, id, new Dictionary<string, string> { [RetiredField] = "1" });
+            Dictionary<string, string> fields = new() { [RetiredField] = "1" };
+
+            // Paused and marked retired in one transaction: a job paused but not marked would stay paused when a
+            // set declares it again
+            if (managerV3 is RecurringJobManager recurringJobManager)
+            {
+                recurringJobManager.SetPaused(id, paused: true, fields);
+            }
+            else
+            {
+                managerV3.Pause(id);
+                SetFields(storage, id, fields);
+            }
+
             Logger.Info($"Recurring job '{id}' is no longer declared and was paused.");
+        }
+
+        // Nothing tells whose set declared a job: without a scope, the jobs of another application's set in the
+        // same storage look like jobs this one stopped declaring
+        if (retired.Count > 0 && _removalScope == null)
+        {
+            Logger.Warn($"RetireUndeclared paused {retired.Count} recurring job(s) that a set declared before and this one doesn't: {string.Join(", ", retired)}. When several applications declare sets in one storage, give each set a scope, or each start of one pauses the jobs of the others.");
         }
 
         return retired;
@@ -512,7 +546,9 @@ public sealed class RecurringJobSet
         transaction.Commit();
     }
 
-    // Under a lock, so replicas starting together create each job once
+    // Under a lock, so replicas starting together create each job once. The job is created without a state, and
+    // started in the transaction that records its key, as the recurring job scheduler does: a failure in between
+    // leaves a job that never runs, and the next application creates it again
     private List<string> CreateOnceJobs(JobStorage storage)
     {
         if (_once.Count == 0)
@@ -521,7 +557,7 @@ public sealed class RecurringJobSet
         }
 
         List<string> created = [];
-        BackgroundJobClient client = new(storage);
+        BackgroundJobFactory factory = new(JobFilterProviders.Providers);
 
         using IStorageConnection connection = storage.GetConnection();
         using IDisposable distributedLock = connection.AcquireDistributedLock($"{OnceHashKey}:lock", LockTimeout);
@@ -535,28 +571,47 @@ public sealed class RecurringJobSet
                 continue;
             }
 
-            IState state = once.Delay.HasValue && once.Delay.Value > TimeSpan.Zero
-                ? new ScheduledState(once.Delay.Value)
-                : new EnqueuedState();
+            BackgroundJob? backgroundJob = factory.Create(new CreateContext(storage, connection, once.Job, null));
 
-            string? jobId = client.Create(once.Job, state);
-
-            if (jobId == null)
+            if (string.IsNullOrEmpty(backgroundJob?.Id))
             {
                 Logger.Warn($"The once job '{once.Key}' was not created, because a client filter canceled it. The next application tries again.");
                 continue;
             }
 
-            using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
-            {
-                transaction.SetRangeInHash(OnceHashKey, [new KeyValuePair<string, string>(once.Key, jobId)]);
-                transaction.Commit();
-            }
-
+            Start(storage, connection, factory.StateMachine, backgroundJob, once);
             created.Add(once.Key);
         }
 
         return created;
+    }
+
+    private static void Start(JobStorage storage, IStorageConnection connection, IStateMachine stateMachine, BackgroundJob backgroundJob, OnceDeclaration once)
+    {
+        IState state = once.Delay.HasValue && once.Delay.Value > TimeSpan.Zero
+            ? new ScheduledState(once.Delay.Value)
+            : new EnqueuedState();
+
+        PostCommitActions afterCommit = new();
+
+        try
+        {
+            using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+            stateMachine.ApplyState(new ApplyStateContext(storage, connection, transaction, backgroundJob, state, null, EmptyProfiler.Instance, stateMachine)
+            {
+                AfterCommit = afterCommit,
+            });
+            transaction.SetRangeInHash(OnceHashKey, [new KeyValuePair<string, string>(once.Key, backgroundJob.Id)]);
+            transaction.Commit();
+        }
+        catch
+        {
+            // Work about something already stored on its own still runs, a retry wouldn't do it again
+            afterCommit.RunAfterFailure();
+            throw;
+        }
+
+        afterCommit.Run();
     }
 
     private RecurringJobSet AddOnce(string key, Func<Job> createJob, TimeSpan? delay)

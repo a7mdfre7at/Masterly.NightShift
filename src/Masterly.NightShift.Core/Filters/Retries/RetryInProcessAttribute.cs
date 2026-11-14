@@ -10,8 +10,10 @@ namespace Masterly.NightShift;
 /// the right tool for longer back-off.
 /// </summary>
 /// <remarks>
-/// Cancellation (<see cref="OperationCanceledException"/>) and <see cref="JobAbortedException"/> are never
-/// retried. With an empty <see cref="ExceptionTypes"/>, neither are <see cref="RetryLaterException"/> and
+/// Cancellation (<see cref="OperationCanceledException"/>), <see cref="JobAbortedException"/> and
+/// <see cref="TerminateJobException"/> (also wrapped in another exception, and the one a
+/// <see cref="JobTimeoutAttribute"/> with <see cref="JobTimeoutAttribute.OnTimeout"/> <c>Fail</c> or <c>Cancel</c>
+/// throws) are never retried, even when <see cref="ExceptionTypes"/> lists a base type of theirs. With an empty <see cref="ExceptionTypes"/>, neither are <see cref="RetryLaterException"/> and
 /// <see cref="ConcurrencyLimitException"/>: they ask for a later attempt, which an immediate one would ignore. List
 /// them in <see cref="ExceptionTypes"/> to retry them in place anyway. Delays grow linearly: the n-th retry waits
 /// <c>n × DelayMilliseconds</c>, up to about 24.8 days. For a synchronous job method the worker thread waits out the delay, so every
@@ -65,7 +67,8 @@ public sealed class RetryInProcessAttribute : AsyncJobInterceptorAttribute
 
     /// <summary>
     /// Gets or sets the exception types (including subclasses) worth retrying. Empty means every exception except
-    /// cancellation, <see cref="RetryLaterException"/> and <see cref="ConcurrencyLimitException"/>.
+    /// cancellation, <see cref="RetryLaterException"/> and <see cref="ConcurrencyLimitException"/>. Cancellation,
+    /// <see cref="JobAbortedException"/> and <see cref="TerminateJobException"/> are never retried, whatever is listed.
     /// </summary>
     public Type[] ExceptionTypes { get; set; }
 
@@ -123,6 +126,13 @@ public sealed class RetryInProcessAttribute : AsyncJobInterceptorAttribute
     private bool ShouldRetry(Exception exception)
     {
         if (exception is OperationCanceledException or JobAbortedException)
+        {
+            return false;
+        }
+
+        // The job decided how it ends (skipped, canceled, failed for good, a timeout's action), whatever the types
+        // listed: running it again would undo that
+        if (TerminateJobFilter.Find(exception) != null)
         {
             return false;
         }

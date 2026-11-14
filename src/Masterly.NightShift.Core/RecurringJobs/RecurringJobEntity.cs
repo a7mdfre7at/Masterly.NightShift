@@ -385,11 +385,18 @@ internal sealed class RecurringJobEntity
         TimeZoneInfo timeZone = timeZoneResolver.GetTimeZoneById(TimeZoneId);
         PolicySearch search = new(cron, timeZone, LoadPolicy(timeZoneResolver));
 
-        if (MisfireHandling == MisfireHandlingMode.RunLatest && SkipAfter.HasValue)
+        // Only the occurrences inside the window can run, so the older ones aren't even looked at: a job that runs
+        // every second doesn't walk through a long outage occurrence by occurrence, under the scheduler's lock
+        TimeSpan? window = MisfireHandling switch
         {
-            // Only the occurrences inside the window can run, so the older ones aren't even looked at: a job
-            // that runs every second doesn't walk through a long outage occurrence by occurrence
-            DateTime windowStart = now - SkipAfter.Value;
+            MisfireHandlingMode.RunLatest => SkipAfter,
+            MisfireHandlingMode.Ignorable => precision,
+            _ => null,
+        };
+
+        if (window.HasValue)
+        {
+            DateTime windowStart = now - window.Value;
             if (windowStart.AddSeconds(-1) > from)
             {
                 from = windowStart.AddSeconds(-1);

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using Masterly.NightShift.Server;
+using Masterly.NightShift.Storage.Monitoring;
 
 namespace Masterly.NightShift.SqlServer.Tests;
 
@@ -93,6 +94,126 @@ public class SchedulePolicyFacts
 
         Assert.Equal(ScheduledState.StateName, state.Name);
         Assert.Equal(DayAfterTomorrow, JobHelper.DeserializeDateTime(state.Data["EnqueueAt"]));
+    }
+
+    [Fact, CleanDatabase]
+    public async Task DueJobWithItsOwnQueue_IsMovedForward_WhenThePolicyChangedSinceItWasScheduled()
+    {
+        SqlServerStorage storage = CreateStorage();
+        storage.SaveSchedulePolicy(new SchedulePolicy("closed"));
+        string jobId = new BackgroundJobClient(storage).Schedule(
+            () => Answer(),
+            TimeSpan.FromSeconds(1),
+            new ScheduleOptions { Policy = "closed", Queue = "critical" });
+        storage.SaveSchedulePolicy(BlockTodayAndTomorrow("closed"));
+
+        StateData state;
+        using (new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 1, Queues = ["critical"], SchedulePollingInterval = TimeSpan.FromMilliseconds(200) }, storage))
+        {
+            state = await WaitForStateAsync(storage, jobId, static x => x.Reason?.StartsWith("Moved by policy", StringComparison.Ordinal) == true);
+
+            // Long enough for a worker to run it, had it been let through
+            await Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        }
+
+        Assert.Equal(ScheduledState.StateName, state.Name);
+        Assert.Equal(DayAfterTomorrow, JobHelper.DeserializeDateTime(state.Data["EnqueueAt"]));
+        Assert.DoesNotContain(
+            storage.GetMonitoringApi().JobDetails(jobId).History,
+            static x => x.StateName == SucceededState.StateName || x.StateName == ProcessingState.StateName);
+
+        // Back in the schedule for its new time, under its queue, and in no queue
+        using IStorageConnection connection = storage.GetConnection();
+        Assert.Contains($"critical:{jobId}", connection.GetAllItemsFromSet("schedule"));
+        Assert.Equal(0, storage.GetMonitoringApi().EnqueuedCount("critical"));
+    }
+
+    [Fact, CleanDatabase]
+    public async Task DueJobWithItsOwnQueue_Runs_WhenThePolicyAllowsIt()
+    {
+        SqlServerStorage storage = CreateStorage();
+        storage.SaveSchedulePolicy(new SchedulePolicy("open"));
+        string jobId = new BackgroundJobClient(storage).Schedule(
+            () => Answer(),
+            TimeSpan.FromSeconds(1),
+            new ScheduleOptions { Policy = "open", Queue = "critical" });
+
+        JobStateInfo state;
+        using (new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 1, Queues = ["critical"], SchedulePollingInterval = TimeSpan.FromMilliseconds(200) }, storage))
+        {
+            state = await storage.WaitForCompletionAsync(jobId, Timeout, TestContext.Current.CancellationToken);
+        }
+
+        Assert.Equal(SucceededState.StateName, state.Name);
+        Assert.Single(storage.GetMonitoringApi().JobDetails(jobId).History, static x => x.StateName == ProcessingState.StateName);
+    }
+
+    [Fact, CleanDatabase]
+    public async Task DueJob_IsJudgedByTheStorageClock_SoAProcessClockBehindItDoesNotMoveItAgainAndAgain()
+    {
+        SqlServerStorage storage = CreateStorage();
+        DateTime databaseNow;
+        using (IStorageConnection connection = storage.GetConnection())
+        {
+            databaseNow = ((JobStorageConnection)connection).GetUtcDateTime();
+        }
+
+        DateTime windowStart = new DateTime(databaseNow.Ticks - (databaseNow.Ticks % TimeSpan.TicksPerSecond), DateTimeKind.Utc).AddSeconds(-5);
+        storage.SaveSchedulePolicy(new SchedulePolicy("open-now").AllowBetween(windowStart.TimeOfDay, windowStart.TimeOfDay.Add(TimeSpan.FromMinutes(30))));
+        string jobId = new BackgroundJobClient(storage).Schedule(() => Answer(), new DateTimeOffset(windowStart), new ScheduleOptions { Policy = "open-now" });
+
+        TimeProvider original = JobClock.TimeProvider;
+        JobClock.TimeProvider = new OffsetClock(TimeSpan.FromSeconds(-30));
+        try
+        {
+            using (new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 1, SchedulePollingInterval = TimeSpan.FromSeconds(5) }, storage))
+            {
+                await Task.Delay(TimeSpan.FromSeconds(4), TestContext.Current.CancellationToken);
+            }
+        }
+        finally
+        {
+            JobClock.TimeProvider = original;
+        }
+
+        int moves = storage.GetMonitoringApi().JobDetails(jobId).History
+            .Count(static x => x.Reason?.StartsWith("Moved by policy", StringComparison.Ordinal) == true);
+        Assert.InRange(moves, 0, 2);
+    }
+
+    [Fact, CleanDatabase]
+    public async Task RunWindow_JudgesByTheStorageClock_SoAProcessClockBehindItDoesNotPutTheJobBackAgainAndAgain()
+    {
+        SqlServerStorage storage = CreateStorage();
+        DateTime databaseNow;
+        using (IStorageConnection connection = storage.GetConnection())
+        {
+            databaseNow = ((JobStorageConnection)connection).GetUtcDateTime();
+        }
+
+        DateTime windowStart = new DateTime(databaseNow.Ticks - (databaseNow.Ticks % TimeSpan.TicksPerSecond), DateTimeKind.Utc).AddSeconds(-5);
+        RunWindowAttribute window = new($"{windowStart:HH:mm:ss}-{windowStart.AddMinutes(30):HH:mm:ss}");
+        string jobId = new BackgroundJobClient(storage).Enqueue(() => Answer());
+
+        TimeProvider original = JobClock.TimeProvider;
+        GlobalJobFilters.Filters.Add(window);
+        JobClock.TimeProvider = new OffsetClock(TimeSpan.FromSeconds(-30));
+        try
+        {
+            using (new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 1, SchedulePollingInterval = TimeSpan.FromSeconds(5) }, storage))
+            {
+                await Task.Delay(TimeSpan.FromSeconds(4), TestContext.Current.CancellationToken);
+            }
+        }
+        finally
+        {
+            JobClock.TimeProvider = original;
+            GlobalJobFilters.Filters.Remove(window);
+        }
+
+        IList<StateHistoryDto> history = storage.GetMonitoringApi().JobDetails(jobId).History;
+        Assert.InRange(history.Count(static x => x.Reason?.StartsWith("Outside the run window", StringComparison.Ordinal) == true), 0, 1);
+        Assert.Equal(SucceededState.StateName, history[0].StateName);
     }
 
     [Fact, CleanDatabase]
@@ -366,6 +487,11 @@ public class SchedulePolicyFacts
 
             await Task.Delay(100, TestContext.Current.CancellationToken);
         }
+    }
+
+    private sealed class OffsetClock(TimeSpan offset) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => System.GetUtcNow() + offset;
     }
 
     private sealed class FlakyDates : IScheduleDateProvider
