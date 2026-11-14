@@ -827,6 +827,7 @@ internal sealed class EfExpirationManager(EntityFrameworkCoreStorage storage) : 
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(EfExpirationManager));
 
     private long? _lastFullRun;
+    private bool _withoutCascade;
 
     public void Execute(BackgroundProcessContext context)
     {
@@ -884,21 +885,88 @@ internal sealed class EfExpirationManager(EntityFrameworkCoreStorage storage) : 
                 break;
             }
 
-            // The jobs go first, and only those still expired: a job requeued since it was read (a requeue persists
-            // it) stays, with its history, parameters and new queue entry. The foreign keys of the model delete the
-            // states and parameters of a deleted job with it; where the database doesn't enforce them (SQLite with
-            // foreign keys off), they are deleted next, with the queue entries, which have none: only those of
-            // jobs that are gone.
-            db.Set<JobRow>().Where(x => ids.Contains(x.Id) && x.ExpireAt < now).ExecuteDelete();
-            db.Set<StateRow>().Where(x => ids.Contains(x.JobId) && !db.Set<JobRow>().Any(y => y.Id == x.JobId)).ExecuteDelete();
-            db.Set<JobParameterRow>().Where(x => ids.Contains(x.JobId) && !db.Set<JobRow>().Any(y => y.Id == x.JobId)).ExecuteDelete();
-            db.Set<JobQueueRow>().Where(x => ids.Contains(x.JobId) && !db.Set<JobRow>().Any(y => y.Id == x.JobId)).ExecuteDelete();
+            if (_withoutCascade || !TryRemoveJobsFirst(db, ids, now))
+            {
+                RemoveJobsInOneTransaction(db, ids, now);
+            }
         }
 
         RemoveInBatches(db.Set<SetRow>().Where(x => x.ExpireAt < now).OrderBy(static x => x.ExpireAt), cancellationToken);
         RemoveInBatches(db.Set<ListRow>().Where(x => x.ExpireAt < now).OrderBy(static x => x.ExpireAt), cancellationToken);
         RemoveInBatches(db.Set<HashRow>().Where(x => x.ExpireAt < now).OrderBy(static x => x.ExpireAt), cancellationToken);
         RemoveInBatches(db.Set<AggregatedCounterRow>().Where(x => x.ExpireAt < now).OrderBy(static x => x.ExpireAt), cancellationToken);
+    }
+
+    // The jobs go first, and only those still expired: a job requeued since it was read (a requeue persists it)
+    // stays, with its history, parameters and new queue entry. The foreign keys of the model delete the states and
+    // parameters of a deleted job with it; where the database doesn't enforce them (SQLite with foreign keys off),
+    // they are deleted next, with the queue entries, which have none: only those of jobs that are gone. Where the
+    // foreign keys don't cascade (tables made by a migration of the application's own), deleting the jobs fails,
+    // and nothing is deleted: false.
+    private bool TryRemoveJobsFirst(DbContext db, List<long> ids, DateTime now)
+    {
+        try
+        {
+            db.Set<JobRow>().Where(x => ids.Contains(x.Id) && x.ExpireAt < now).ExecuteDelete();
+        }
+        catch (Exception ex) when (IsForeignKeyViolation(ex))
+        {
+            _withoutCascade = true;
+            Logger.WarnException(
+                "Expired jobs can't be deleted before their states and parameters: the foreign keys of the State and JobParameter tables don't cascade deletes. They are deleted in order, in a transaction, instead; make those foreign keys ON DELETE CASCADE, as the storage's model does, to delete them with less work.",
+                ex);
+            return false;
+        }
+
+        db.Set<StateRow>().Where(x => ids.Contains(x.JobId) && !db.Set<JobRow>().Any(y => y.Id == x.JobId)).ExecuteDelete();
+        db.Set<JobParameterRow>().Where(x => ids.Contains(x.JobId) && !db.Set<JobRow>().Any(y => y.Id == x.JobId)).ExecuteDelete();
+        RemoveOrphanedQueueEntries(db, ids);
+        return true;
+    }
+
+    // Children first, without cascading foreign keys. The jobs still expired are locked first, by an update that
+    // changes nothing, so a requeue, which updates the job, waits for the commit and then finds it gone: no job
+    // keeps going without the history deleted here. Row locks held to the commit do that at read committed on
+    // every server that has them; SQLite runs one writing transaction at a time.
+    private static void RemoveJobsInOneTransaction(DbContext db, List<long> ids, DateTime now)
+    {
+        db.Database.CreateExecutionStrategy().Execute((Db: db, Ids: ids, Now: now), static state =>
+        {
+            (DbContext context, List<long> batch, DateTime expiredBefore) = state;
+            using IDbContextTransaction transaction = context.Database.BeginTransaction();
+            IQueryable<JobRow> expired = context.Set<JobRow>().Where(x => batch.Contains(x.Id) && x.ExpireAt < expiredBefore);
+
+            expired.ExecuteUpdate(static s => s.SetProperty(static x => x.ExpireAt, static x => x.ExpireAt));
+            context.Set<StateRow>().Where(x => expired.Any(y => y.Id == x.JobId)).ExecuteDelete();
+            context.Set<JobParameterRow>().Where(x => expired.Any(y => y.Id == x.JobId)).ExecuteDelete();
+            expired.ExecuteDelete();
+            RemoveOrphanedQueueEntries(context, batch);
+            transaction.Commit();
+        });
+    }
+
+    private static void RemoveOrphanedQueueEntries(DbContext db, List<long> ids)
+    {
+        db.Set<JobQueueRow>().Where(x => ids.Contains(x.JobId) && !db.Set<JobRow>().Any(y => y.Id == x.JobId)).ExecuteDelete();
+    }
+
+    // Providers report it with exceptions of their own: SQL Server by number 547, MySQL by 1451, Oracle by 2292
+    // (ORA-02292), SQLite by extended code 787, and PostgreSQL, as the standard says, by SQLSTATE 23503
+    private static bool IsForeignKeyViolation(Exception exception)
+    {
+        if ((exception as DbException ?? exception.InnerException as DbException) is not { } dbException)
+        {
+            return false;
+        }
+
+        return dbException.SqlState == "23503"
+            || ReadNumber(dbException, "Number") is 547 or 1451 or 2292
+            || ReadNumber(dbException, "SqliteExtendedErrorCode") is 787;
+    }
+
+    private static int? ReadNumber(DbException exception, string property)
+    {
+        return exception.GetType().GetProperty(property)?.GetValue(exception) as int?;
     }
 
     // A batch per statement, so a large backlog never holds its locks, or grows the log, in one statement

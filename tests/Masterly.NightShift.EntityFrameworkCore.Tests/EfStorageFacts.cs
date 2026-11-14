@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using Masterly.NightShift.Server;
 using Masterly.NightShift.Storage.Conformance;
+using Masterly.NightShift.Storage.Monitoring;
 using Masterly.NightShift.Storage.Shared;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -139,6 +140,179 @@ public sealed class EfStorageFacts : IDisposable
         Assert.Equal(EnqueuedState.StateName, reader.GetStateData(id)?.Name);
         Assert.Equal(1, storage.GetMonitoringApi().EnqueuedCount("default"));
         Assert.Equal(2, storage.GetMonitoringApi().JobDetails(id)?.History.Count);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ExpirationManager_DeletesExpiredJobs_WhereTheForeignKeysDoNotCascade(bool sqlServer)
+    {
+        EntityFrameworkCoreStorage storage = sqlServer ? CreateSqlServerStorageWithoutCascades() : CreateSqliteStorageWithoutCascades();
+        string expired = CreateJob(storage);
+        string kept = CreateJob(storage);
+        Commit(storage, x =>
+        {
+            x.SetJobState(expired, new SucceededState(null, 1, 1));
+            x.SetJobState(kept, new EnqueuedState());
+            x.AddToQueue("default", kept);
+            x.ExpireJob(expired, TimeSpan.FromSeconds(-1));
+        });
+        using (IStorageConnection connection = storage.GetConnection())
+        {
+            connection.SetJobParameter(expired, "Culture", "en");
+            connection.SetJobParameter(kept, "Culture", "en");
+        }
+
+        EfExpirationManager manager = new(storage);
+        manager.RemoveExpired(CancellationToken.None);
+
+        using IStorageConnection reader = storage.GetConnection();
+        Assert.Null(reader.GetJobData(expired));
+        Assert.Equal(EnqueuedState.StateName, reader.GetStateData(kept)?.Name);
+        Assert.Equal("en", reader.GetJobParameter(kept, "Culture"));
+        Assert.Equal(1, storage.GetMonitoringApi().EnqueuedCount("default"));
+        using DbContext context = storage.CreateContext();
+        long expiredId = long.Parse(expired, CultureInfo.InvariantCulture);
+        Assert.False(context.Set<StateRow>().Any(x => x.JobId == expiredId));
+        Assert.False(context.Set<JobParameterRow>().Any(x => x.JobId == expiredId));
+
+        // Later batches go straight to the transaction
+        string next = CreateJob(storage);
+        Commit(storage, x => x.ExpireJob(next, TimeSpan.FromSeconds(-1)));
+        manager.RemoveExpired(CancellationToken.None);
+        Assert.Null(reader.GetJobData(next));
+    }
+
+    [Fact]
+    public void ExpirationManager_WithoutCascades_NeverLeavesARequeuedJobWithoutItsHistory_OnSqlServer()
+    {
+        EntityFrameworkCoreStorage storage = CreateSqlServerStorageWithoutCascades();
+        string id = CreateJob(storage);
+        Commit(storage, x =>
+        {
+            x.SetJobState(id, new SucceededState(null, 1, 1));
+            x.ExpireJob(id, TimeSpan.FromSeconds(-1));
+        });
+        Exception? requeueFailure = null;
+        Thread? requeue = null;
+
+        // A requeue from the dashboard, after the states were deleted and before the job is
+        int jobDeletes = 0;
+        BeforeCommand beforeJobDelete = new(
+            static x => DeletesFrom(x, "Job"),
+            () =>
+            {
+                if (++jobDeletes != 2)
+                {
+                    return; // The first is the delete that fails without cascades
+                }
+
+                requeue = new Thread(() =>
+                {
+                    try
+                    {
+                        Commit(storage, x =>
+                        {
+                            x.SetJobState(id, new EnqueuedState());
+                            x.PersistJob(id);
+                            x.AddToQueue("default", id);
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        requeueFailure = ex;
+                    }
+                });
+                requeue.Start();
+                requeue.Join(TimeSpan.FromSeconds(2));
+            });
+        EntityFrameworkCoreStorage expiring = new(o => o.UseSqlServer(SqlServerDatabase.ConnectionString("NoCascade")).AddInterceptors(beforeJobDelete));
+
+        new EfExpirationManager(expiring).RemoveExpired(CancellationToken.None);
+        requeue?.Join();
+
+        Assert.Equal(2, jobDeletes);
+        using IStorageConnection reader = storage.GetConnection();
+        JobDetailsDto? details = storage.GetMonitoringApi().JobDetails(id);
+        if (details != null)
+        {
+            Assert.Equal(2, details.History.Count);
+        }
+        else
+        {
+            // The requeue waited for the commit, then found no job to change
+            Assert.Null(requeueFailure);
+            using DbContext context = storage.CreateContext();
+            long jobId = long.Parse(id, CultureInfo.InvariantCulture);
+            Assert.False(context.Set<StateRow>().Any(x => x.JobId == jobId));
+        }
+    }
+
+    // SQLite can't change a foreign key: the tables, still empty, are made again without ON DELETE CASCADE
+    private EntityFrameworkCoreStorage CreateSqliteStorageWithoutCascades()
+    {
+        EntityFrameworkCoreStorage storage = _database.CreateStorage();
+        foreach (string table in new[] { "State", "JobParameter" })
+        {
+            using SqliteConnection connection = new(_database.ConnectionString);
+            connection.Open();
+            string create = QueryStrings(connection, $"select sql from sqlite_master where type = 'table' and name = '{table}'").Single();
+            List<string> indexes = QueryStrings(connection, $"select sql from sqlite_master where type = 'index' and tbl_name = '{table}' and sql is not null");
+            string withoutCascade = create.Replace("ON DELETE CASCADE", string.Empty, StringComparison.OrdinalIgnoreCase);
+            Assert.NotEqual(create, withoutCascade);
+
+            ExecuteSql($"drop table \"{table}\"");
+            ExecuteSql(withoutCascade);
+            indexes.ForEach(ExecuteSql);
+        }
+
+        return storage;
+    }
+
+    // A database of its own: its foreign keys are made again without ON DELETE CASCADE
+    private static EntityFrameworkCoreStorage CreateSqlServerStorageWithoutCascades()
+    {
+        string connectionString = SqlServerDatabase.ConnectionString("NoCascade");
+        EntityFrameworkCoreStorage storage = new(o => o.UseSqlServer(connectionString));
+        storage.Purge(new StoragePurgeOptions { KeepAuditLog = false, KeepDrainMode = false, KeepRecurringJobs = false, KeepServers = false });
+        using DbContext context = storage.CreateContext();
+        context.Set<LockRow>().ExecuteDelete();
+        context.Database.ExecuteSqlRaw("""
+            declare @sql nvarchar(max) = N'';
+            select @sql += N'alter table ' + quotename(schema_name(t.schema_id)) + N'.' + quotename(t.name) + N' drop constraint ' + quotename(fk.name) + N';'
+                + N'alter table ' + quotename(schema_name(t.schema_id)) + N'.' + quotename(t.name) + N' add constraint ' + quotename(fk.name)
+                + N' foreign key (JobId) references ' + quotename(schema_name(r.schema_id)) + N'.' + quotename(r.name) + N' (Id);'
+            from sys.foreign_keys fk
+            join sys.tables t on t.object_id = fk.parent_object_id
+            join sys.tables r on r.object_id = fk.referenced_object_id
+            where r.name = N'Job' and t.name in (N'State', N'JobParameter');
+            exec sp_executesql @sql;
+            """);
+        Assert.Equal(0, context.Database.SqlQueryRaw<int>("select count(*) as Value from sys.foreign_keys where delete_referential_action <> 0 and object_name(referenced_object_id) = N'Job'").Single());
+        return storage;
+    }
+
+    // A DELETE of the rows of a table, not one that only reads it in a subquery, as EF Core writes it for SQL Server
+    private static bool DeletesFrom(DbCommand command, string table)
+    {
+        string[] lines = command.CommandText.Split('\n');
+        return lines.Length > 1
+            && lines[0].StartsWith("DELETE", StringComparison.OrdinalIgnoreCase)
+            && lines[1].Contains($"].[{table}] AS", StringComparison.Ordinal);
+    }
+
+    private static List<string> QueryStrings(SqliteConnection connection, string sql)
+    {
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = sql;
+        using SqliteDataReader reader = command.ExecuteReader();
+        List<string> values = [];
+        while (reader.Read())
+        {
+            values.Add(reader.GetString(0));
+        }
+
+        return values;
     }
 
     [Fact]
@@ -909,6 +1083,20 @@ public sealed class EfStorageFacts : IDisposable
             if (!Ran && command.CommandText.StartsWith("DELETE", StringComparison.OrdinalIgnoreCase))
             {
                 Ran = true;
+                action();
+            }
+
+            return result;
+        }
+    }
+
+    /// <summary>Runs an action before each command that matches.</summary>
+    private sealed class BeforeCommand(Func<DbCommand, bool> matches, Action action) : DbCommandInterceptor
+    {
+        public override InterceptionResult<int> NonQueryExecuting(DbCommand command, CommandEventData eventData, InterceptionResult<int> result)
+        {
+            if (matches(command))
+            {
                 action();
             }
 
