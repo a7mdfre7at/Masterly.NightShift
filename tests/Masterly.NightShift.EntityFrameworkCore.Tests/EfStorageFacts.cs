@@ -27,6 +27,25 @@ public sealed class EfStorageFacts : IDisposable
     }
 
     [Fact]
+    public void Lock_WhoseHandleWasNotDisposed_IsReleased_WithItsConnection()
+    {
+        EntityFrameworkCoreStorage storage = _database.CreateStorage(new EntityFrameworkCoreStorageOptions { DistributedLockLifetime = TimeSpan.FromSeconds(1) });
+        IStorageConnection first = storage.GetConnection();
+        IDisposable forgotten = first.AcquireDistributedLock("resource", TimeSpan.Zero);
+
+        first.Dispose();
+
+        using IStorageConnection second = storage.GetConnection();
+        IDisposable taken = second.AcquireDistributedLock("resource", TimeSpan.FromSeconds(5));
+
+        // The forgotten handle no longer holds anything, so it releases nothing
+        forgotten.Dispose();
+        using IStorageConnection third = storage.GetConnection();
+        Assert.Throws<DistributedLockTimeoutException>(() => third.AcquireDistributedLock("resource", TimeSpan.Zero));
+        taken.Dispose();
+    }
+
+    [Fact]
     public void PrepareSchema_CreatesTheTables_InADatabaseThatHasOthers()
     {
         using (SqliteConnection connection = new(_database.ConnectionString))

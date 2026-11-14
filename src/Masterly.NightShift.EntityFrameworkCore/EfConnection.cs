@@ -37,6 +37,16 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage, Func<DbCo
         return _locks.Acquire(stored, () => LeaseLock.Acquire(this, stored, timeout, storage.Options.DistributedLockLifetime));
     }
 
+    /// <summary>
+    /// Releases the locks taken through this connection whose handles weren't disposed, as SQL Server does when a
+    /// connection that holds application locks is closed: a lease would otherwise be renewed for good.
+    /// </summary>
+    public override void Dispose()
+    {
+        _locks.ReleaseAll();
+        base.Dispose();
+    }
+
     public override string? CreateExpiredJob(Job job, IDictionary<string, string?> parameters, DateTime createdAt, TimeSpan expireIn)
     {
         ArgumentNullException.ThrowIfNull(job);
