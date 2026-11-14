@@ -48,13 +48,18 @@
         else
         {
             StateHistoryDto currentState = job.History[0];
-            if (currentState.StateName == ProcessingState.StateName)
+            // Older data names the server ServerName; data without either says nothing about the server
+            string? processingServerId = currentState.StateName != ProcessingState.StateName ? null
+                : currentState.Data.TryGetValue("ServerId", out string? stateServerId) ? stateServerId
+                : currentState.Data.TryGetValue("ServerName", out string? stateServerName) ? stateServerName
+                : null;
+            if (processingServerId != null)
             {
-                ServerDto? server = monitor.Servers().FirstOrDefault(x => x.Name == currentState.Data["ServerId"]);
+                ServerDto? server = monitor.Servers().FirstOrDefault(x => x.Name == processingServerId);
                 if (server == null)
                 {
                     <div class="alert alert-danger">
-                        @Html.Raw(String.Format(Strings.JobDetailsPage_JobAbortedNotActive_Warning_Html, Html.HtmlEncode(currentState.Data["ServerId"]), Html.HtmlEncode(Url.To("/servers"))))
+                        @Html.Raw(String.Format(Strings.JobDetailsPage_JobAbortedNotActive_Warning_Html, Html.HtmlEncode(processingServerId), Html.HtmlEncode(Url.To("/servers"))))
                     </div>
                 }
                 else if (server.Heartbeat.HasValue && server.Heartbeat < (StorageUtcNow ?? ApplicationUtcNow).Add(DashboardOptions.ServerPossiblyAbortedThreshold.Negate()))

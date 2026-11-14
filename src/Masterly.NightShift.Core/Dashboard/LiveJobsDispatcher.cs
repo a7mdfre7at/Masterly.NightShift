@@ -63,7 +63,10 @@ internal sealed class LiveJobsDispatcher : IDashboardDispatcher
                 startedAt = JobHelper.DeserializeNullableDateTime(startedAtValue);
             }
 
-            stateData.Data.TryGetValue("ServerId", out serverId);
+            if (!stateData.Data.TryGetValue("ServerId", out serverId))
+            {
+                stateData.Data.TryGetValue("ServerName", out serverId);
+            }
         }
 
         bool isProcessing = ProcessingState.StateName.Equals(stateData.Name, StringComparison.OrdinalIgnoreCase);

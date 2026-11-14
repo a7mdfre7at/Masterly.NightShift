@@ -158,10 +158,10 @@
                                     else
                                     {
                                         <td class="min-width">
-                                            @Html.ServerId(job.Value.ServerId!)
+                                            @Html.ServerId(job.Value.ServerId)
                                         </td>
                                         <td class="word-break">
-                                            @if (servers.All(x => x.Name != job.Value.ServerId || x.Heartbeat < (StorageUtcNow ?? ApplicationUtcNow).Add(DashboardOptions.ServerPossiblyAbortedThreshold.Negate())))
+                                            @if (job.Value.ServerId != null && servers.All(x => x.Name != job.Value.ServerId || x.Heartbeat < (StorageUtcNow ?? ApplicationUtcNow).Add(DashboardOptions.ServerPossiblyAbortedThreshold.Negate())))
                                             {
                                                 <span title="@Strings.ProcessingJobsPage_Aborted" class="glyphicon glyphicon-warning-sign glyphicon-sm text-warning"></span>
                                             }

@@ -168,6 +168,28 @@ public class JobDetailsPageFacts
     }
 
     [Fact]
+    public void Render_ReadsTheServer_FromTheLegacyServerNameKey()
+    {
+        SetupJob(Details(ProcessingState.StateName, new Dictionary<string, string> { { "ServerName", "srv-legacy" }, { "WorkerId", "worker-1" } }));
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        Assert.Contains(string.Format(Strings.JobDetailsPage_JobAbortedNotActive_Warning_Html, "srv-legacy", "/servers"), html);
+    }
+
+    [Fact]
+    public void Render_AProcessingStateWithoutAServer_ShowsTheJob_WithoutTheAbortedWarning()
+    {
+        // Data of another writer: no ServerId and no legacy ServerName
+        SetupJob(Details(ProcessingState.StateName, new Dictionary<string, string> { { "WorkerId", "worker-1" } }));
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        Assert.Contains("SampleJobs.Work", html);
+        Assert.DoesNotContain(Strings.JobDetailsPage_JobAbortedNotActive_Warning_Html[..20], html);
+    }
+
+    [Fact]
     public void Render_EncodesTheServerId_InTheAbortedJobWarning()
     {
         SetupJob(Details(ProcessingState.StateName, ProcessingData("<img src=x onerror=alert(1)>")));

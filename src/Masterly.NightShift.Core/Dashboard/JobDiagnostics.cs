@@ -307,7 +307,10 @@ internal static partial class JobDiagnostics
 
     private static void DiagnoseProcessing(RazorPage page, IMonitoringApi monitor, JobDetailsDto details, StateHistoryDto current, DateTime now, List<JobDiagnostic> findings)
     {
-        string? serverId = current.Data != null && current.Data.TryGetValue("ServerId", out string? value) ? value : null;
+        string? serverId = current.Data == null ? null
+            : current.Data.TryGetValue("ServerId", out string? value) ? value
+            : current.Data.TryGetValue("ServerName", out string? legacyName) ? legacyName
+            : null;
         DateTime? startedAt = current.Data != null && current.Data.TryGetValue("StartedAt", out string? started) ? JobHelper.DeserializeNullableDateTime(started) : null;
         TimeSpan running = startedAt.HasValue ? now - startedAt.Value : now - current.CreatedAt;
         ServerDto? server = serverId != null ? monitor.Servers().FirstOrDefault(x => x.Name == serverId) : null;
@@ -318,7 +321,7 @@ internal static partial class JobDiagnostics
         }
         else if (server != null && !IsAlive(page, server, now))
         {
-            findings.Add(new JobDiagnostic("server-stale", JobDiagnosticSeverity.Problem, Format(page, Strings.Diagnostics_ServerStale, page.Html.ServerId(serverId!), page.Html.RelativeTime(server.Heartbeat ?? server.StartedAt)), page.Url.To("/servers"), Strings.NavigationMenu_Servers)); // server was found by this id
+            findings.Add(new JobDiagnostic("server-stale", JobDiagnosticSeverity.Problem, Format(page, Strings.Diagnostics_ServerStale, page.Html.ServerId(serverId), page.Html.RelativeTime(server.Heartbeat ?? server.StartedAt)), page.Url.To("/servers"), Strings.NavigationMenu_Servers));
         }
 
         JobInsight? insight = null;
