@@ -236,6 +236,88 @@ public class JsonConvertersFacts
     [DataCompatibilityRangeTheory, CleanSerializerSettings]
     [InlineData(false)]
     [InlineData(true)]
+    public void SerializeJob_RefusesAValueType_ThatWouldNotReadBack_InAJobCreatedWithItsConstructor(bool recommended)
+    {
+        Configure(recommended);
+        Job job = new(typeof(Sink), typeof(Sink).GetMethod(nameof(Sink.Measure))!, [new Temperature(21.5)]);
+
+        Assert.Throws<NotSupportedException>(() => InvocationData.SerializeJob(job));
+    }
+
+    [DataCompatibilityRangeTheory, CleanSerializerSettings]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SerializeJob_WritesAJobReadFromStorage_WhoseValueTypeIsReadAsItsDefault(bool recommended)
+    {
+        Configure(recommended);
+        string parameterTypes = SerializationHelper.Serialize(new[] { typeof(Temperature).AssemblyQualifiedName });
+        InvocationData stored = new(typeof(Sink).AssemblyQualifiedName!, nameof(Sink.Measure), parameterTypes, "[\"{\\\"Celsius\\\":21.5}\"]");
+        Job job = stored.DeserializeJob();
+
+        InvocationData again = InvocationData.SerializeJob(job);
+
+        Assert.Equal(default(Temperature), again.DeserializeJob().Args[0]);
+    }
+
+    [DataCompatibilityRangeTheory, CleanSerializerSettings]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SerializeJob_KeepsAValueType_WhoseValueIsWrittenAsItsDefault(bool recommended)
+    {
+        Configure(recommended);
+        ComputedOnly marker = default;
+        Temperature zero = default;
+
+        Job back = InvocationData.SerializeJob(Job.FromExpression(() => Sink.Mark(marker, zero))).DeserializeJob();
+
+        Assert.Equal<object>([marker, zero], back.Args);
+    }
+
+    // S1 with Newtonsoft.Json's reference ids: "$id" before "$type"
+
+    [DataCompatibilityRangeFact, CleanSerializerSettings]
+    public void ObjectValue_WithAReferenceIdBeforeItsType_IsReadAsThatType()
+    {
+        GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
+
+        object? list = SerializationHelper.Deserialize(
+            "{\"$id\":\"1\",\"$type\":\"System.Collections.Generic.List`1[[System.Int32, mscorlib]], mscorlib\",\"$values\":[1,2]}",
+            typeof(object),
+            SerializationOption.User);
+        object? gadget = SerializationHelper.Deserialize(
+            $"{{\"$id\":\"1\",\"$type\":\"{GadgetType}\",\"Command\":\"ping\"}}", typeof(object), SerializationOption.User);
+        object? dictionary = SerializationHelper.Deserialize(
+            "{\"$id\":\"1\",\"$type\":\"System.Collections.Generic.Dictionary`2[[System.String, mscorlib],[System.Int32, mscorlib]], mscorlib\",\"a\":1}",
+            typeof(Dictionary<string, int>),
+            SerializationOption.User);
+
+        Assert.Equal([1, 2], Assert.IsType<List<int>>(list));
+        Assert.Equal("ping", Assert.IsType<Gadget>(gadget).Command);
+        Assert.Equal(new Dictionary<string, int> { ["a"] = 1 }, dictionary);
+    }
+
+    [DataCompatibilityRangeFact, CleanSerializerSettings]
+    public void ValueWithAReferenceIdKeyBeforeATypeKey_PassedAsObject_IsReadBackAsItself()
+    {
+        GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
+        Gadget.Constructed = 0;
+        Dictionary<string, string> form = new() { ["$id"] = "1", ["$type"] = GadgetType, ["Command"] = "calc.exe" };
+        Dictionary<string, object> referenceOnly = new() { ["$id"] = "1", ["n"] = 2L };
+        using JsonDocument document = JsonDocument.Parse($"{{\"$id\":\"1\",\"$type\":\"{GadgetType}\",\"Command\":\"calc.exe\"}}");
+
+        object formBack = RoundTripAsObject(form);
+        object referenceOnlyBack = RoundTripAsObject(referenceOnly);
+        object elementBack = RoundTripAsObject(document.RootElement);
+
+        Assert.Equal(form, Assert.IsType<Dictionary<string, string>>(formBack));
+        Assert.Equal(referenceOnly, Assert.IsType<Dictionary<string, object>>(referenceOnlyBack));
+        Assert.Equal(document.RootElement.GetRawText(), Assert.IsType<JsonElement>(elementBack).GetRawText());
+        Assert.Equal(0, Gadget.Constructed);
+    }
+
+    [DataCompatibilityRangeTheory, CleanSerializerSettings]
+    [InlineData(false)]
+    [InlineData(true)]
     public void SerializeJob_KeepsValueTypes_ThatReadBack(bool recommended)
     {
         Configure(recommended);
@@ -318,6 +400,44 @@ public class JsonConvertersFacts
         }
     }
 
+    [Fact, CleanSerializerSettings]
+    public void DeserializeInput_RefusesATypeName_InAValueOfTypeObject()
+    {
+        GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
+
+        Assert.Throws<JsonException>(() => SerializationHelper.DeserializeInput(
+            "{\"shape\":{\"$type\":\"circle\",\"r\":1}}", typeof(Dictionary<string, object>)));
+    }
+
+    [Fact, CleanSerializerSettings, GlobalLock(Reason = "Changes the type serializer and resolver")]
+    public void DeserializeInput_ReadsAnInterfaceValue_WhoseTypeIsNamedByACustomTypeSerializer()
+    {
+        List<string> resolved = [];
+        try
+        {
+            GlobalConfiguration.Configuration
+                .UseTypeSerializer(static x => x == typeof(Named) ? "named" : TypeHelper.DefaultTypeSerializer(x))
+                .UseTypeResolver(x =>
+                {
+                    resolved.Add(x);
+                    return x == "named" ? typeof(Named) : TypeHelper.DefaultTypeResolver(x);
+                });
+
+            string input = SerializationHelper.SerializeInput(new Named { Name = "n" }, typeof(ILabelled))!;
+            object? named = SerializationHelper.DeserializeInput(input, typeof(ILabelled));
+
+            Assert.StartsWith("{\"$type\":\"named\"", input, StringComparison.Ordinal);
+            Assert.Equal("n", Assert.IsType<Named>(named).Name);
+            Assert.Throws<JsonException>(() => SerializationHelper.DeserializeInput(
+                "{\"$type\":\"unknown\",\"Name\":\"n\"}", typeof(ILabelled)));
+            Assert.Equal(["named"], resolved);
+        }
+        finally
+        {
+            GlobalConfiguration.Configuration.UseDefaultTypeSerializer().UseDefaultTypeResolver();
+        }
+    }
+
     private static object RoundTripAsObject(object value)
     {
         string json = SerializationHelper.Serialize(value, typeof(object), SerializationOption.User);
@@ -387,6 +507,11 @@ public class JsonConvertersFacts
         public string? Scale { get; }
     }
 
+    public readonly struct ComputedOnly
+    {
+        public bool IsMarker => true;
+    }
+
     public readonly struct Money(decimal amount, string currency)
     {
         public decimal Amount { get; } = amount;
@@ -446,6 +571,10 @@ public class JsonConvertersFacts
         }
 
         public static void Press(ConsoleKeyInfo key)
+        {
+        }
+
+        public static void Mark(ComputedOnly marker, Temperature zero)
         {
         }
 

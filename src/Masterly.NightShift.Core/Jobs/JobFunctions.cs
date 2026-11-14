@@ -56,12 +56,13 @@ public abstract class JobFunction([NotNull] string name)
     /// and any other object is converted through JSON, with the application's serializer settings.
     /// </summary>
     /// <remarks>
-    /// A payload may come from another service, a script or a message, so it is read as data, the way the
-    /// dashboard reads what an operator types: a value declared as <see cref="object"/> (in a dictionary of objects,
-    /// for example) is read as plain JSON, and a <c>"$type"</c> in it is refused instead of creating the type it
-    /// names; a <see cref="Type"/> value is refused; a value declared as an interface or abstract class takes a
-    /// <c>"$type"</c> only when it names a loaded type assignable to it. An object converted through JSON is
-    /// written without type names, so its <see cref="object"/> members arrive as plain JSON too.
+    /// A payload may come from another service, a script or a message, so it is read as data, never as type
+    /// names: a value declared as <see cref="object"/> (in a dictionary of objects, for example) is read as plain
+    /// JSON, and a <c>"$type"</c> in it stays data (in the <see cref="JsonElement"/>) instead of creating the
+    /// type it names; a <see cref="Type"/> value is refused; a value declared as an interface or abstract class takes
+    /// a <c>"$type"</c> only when it names a loaded type assignable to it, as in the dashboard's forms. An object
+    /// converted through JSON is written without type names, so its <see cref="object"/> members arrive as plain
+    /// JSON too.
     /// </remarks>
     /// <exception cref="ArgumentException">The payload can't be read as the type.</exception>
     protected object? ConvertPayload([CanBeNull] object? payload, [NotNull] Type type)
@@ -85,7 +86,7 @@ public abstract class JobFunction([NotNull] string name)
 
         try
         {
-            return SerializationHelper.DeserializeInput(ToJson(payload), type);
+            return SerializationHelper.DeserializeData(ToJson(payload), type);
         }
         catch (Exception ex) when (ex is JsonException or NotSupportedException or FormatException or InvalidOperationException)
         {

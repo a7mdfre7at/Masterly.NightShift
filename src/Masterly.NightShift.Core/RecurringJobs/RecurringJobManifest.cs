@@ -490,7 +490,7 @@ public static class RecurringJobManifest
             }
         }
 
-        return new Job(job.Type, job.Method, arguments, job.Queue);
+        return new Job(job.Type, job.Method, arguments, job.Queue) { ArgumentsReadBack = job.ArgumentsReadBack };
     }
 
     private static InvocationData? GetStoredInvocationData(IStorageConnection connection, string recurringJobId, ILog logger)

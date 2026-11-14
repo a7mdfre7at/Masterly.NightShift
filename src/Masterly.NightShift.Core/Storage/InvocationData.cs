@@ -80,7 +80,7 @@ public class InvocationData(string type, string method, string? parameterTypes, 
             }
 
             failure = JobLoadFailure.Unknown;
-            return new Job(type, method, arguments, Queue);
+            return new Job(type, method, arguments, Queue) { ArgumentsReadBack = true };
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
@@ -107,7 +107,8 @@ public class InvocationData(string type, string method, string? parameterTypes, 
 
         string arguments = job.Args.Count == 0
             ? "[]"
-            : ArgumentCompression.Compress(SerializationHelper.Serialize(SerializeArguments(job.Method, job.Args)));
+            : ArgumentCompression.Compress(SerializationHelper.Serialize(
+                SerializeArguments(job.Method, job.Args, ensureReadsBack: !job.ArgumentsReadBack)));
 
         return new InvocationData(typeName, methodName, parameterTypes, arguments, job.Queue);
     }
@@ -216,7 +217,9 @@ public class InvocationData(string type, string method, string? parameterTypes, 
         });
     }
 
-    internal static string[] SerializeArguments(MethodInfo methodInfo, IReadOnlyList<object> arguments)
+    // ensureReadsBack: refuse a value type that would be read back as its default value, for arguments user code
+    // gave; arguments read back from stored data are written as they are
+    internal static string[] SerializeArguments(MethodInfo methodInfo, IReadOnlyList<object> arguments, bool ensureReadsBack = true)
     {
         List<string> serializedArguments = new(arguments.Count);
         ParameterInfo[] parameters = methodInfo.GetParameters();
@@ -245,7 +248,10 @@ public class InvocationData(string type, string method, string? parameterTypes, 
                 else
                 {
                     // A value type that would be read back as its default value fails here, not when the job runs
-                    SerializationHelper.EnsureArgumentReadsBack(argument.GetType(), parameter.ParameterType);
+                    if (ensureReadsBack)
+                    {
+                        SerializationHelper.EnsureArgumentReadsBack(argument, parameter.ParameterType);
+                    }
 
                     value = SerializationHelper.Serialize(
                         argument,

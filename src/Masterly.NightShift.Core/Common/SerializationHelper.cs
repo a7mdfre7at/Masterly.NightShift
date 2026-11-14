@@ -292,17 +292,18 @@ public static class SerializationHelper
 
     /// <summary>
     /// Throws <see cref="NotSupportedException"/> for a job argument of a value type that the user options would
-    /// write as its read-only members and read back as its default value: none of the members it writes can be set,
-    /// and no constructor takes them. Checked once per type, when a job is created, so a job that would run with
-    /// the wrong value is never stored. A value declared as <see cref="object"/> is checked only when the options
-    /// keep type names, since otherwise it is read back as plain JSON anyway.
+    /// write as its read-only members and read back as its default value (none of the members it writes can be set,
+    /// and no constructor takes them), unless the value is written exactly as that default value, so nothing would
+    /// be lost. The type is checked once, when a job is created, so a job that would run with the wrong value is
+    /// never stored. A value declared as <see cref="object"/> is checked only when the options keep type names,
+    /// since otherwise it is read back as plain JSON anyway.
     /// </summary>
-    internal static void EnsureArgumentReadsBack([NotNull] Type valueType, [NotNull] Type declaredType)
+    internal static void EnsureArgumentReadsBack([NotNull] object value, [NotNull] Type declaredType)
     {
-        ArgumentNullException.ThrowIfNull(valueType);
+        ArgumentNullException.ThrowIfNull(value);
         ArgumentNullException.ThrowIfNull(declaredType);
 
-        GetUserSerializerOptions().EnsureReadsBack(valueType, declaredType);
+        GetUserSerializerOptions().EnsureReadsBack(value, declaredType);
     }
 
     /// <summary>
@@ -322,7 +323,24 @@ public static class SerializationHelper
             return null;
         }
 
-        return GetUserSerializerOptions().DeserializeInput(value, type);
+        return GetUserSerializerOptions().DeserializeInput(value, type, rejectTypeNames: true);
+    }
+
+    /// <summary>
+    /// Reads data from another service, a script or a message (a job function's payload) as a value of
+    /// <paramref name="type"/>, like <see cref="DeserializeInput"/>, except that a value declared as
+    /// <see cref="object"/> is read as plain JSON with any <c>"$type"</c> in it kept as data: it is neither resolved
+    /// nor refused.
+    /// </summary>
+    internal static object? DeserializeData([CanBeNull] string? value, [NotNull] Type type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return GetUserSerializerOptions().DeserializeInput(value, type, rejectTypeNames: false);
     }
 
     /// <summary>
@@ -655,35 +673,56 @@ public static class SerializationHelper
         // Whether values declared as object are written with their type name, and read back as that type
         private bool KeepsTypeNames { get; }
 
-        // Value types these options write as members they can't read back, see EnsureArgumentReadsBack
-        private readonly ConcurrentDictionary<Type, bool> _readAsDefault = new();
+        // Value types these options write as members they can't read back, with how their default value is
+        // written (null for the other types), see EnsureArgumentReadsBack
+        private readonly ConcurrentDictionary<Type, string?> _readAsDefault = new();
 
-        public void EnsureReadsBack(Type valueType, Type declaredType)
+        public void EnsureReadsBack(object value, Type declaredType)
         {
+            Type valueType = value.GetType();
             if (!valueType.IsValueType || (declaredType == typeof(object) && !KeepsTypeNames))
             {
                 return;
             }
 
-            if (_readAsDefault.GetOrAdd(valueType, IsReadAsDefault))
+            string? defaultJson = _readAsDefault.GetOrAdd(valueType, WriteDefaultIfReadAsDefault);
+            if (defaultJson == null || IsWrittenAs(value, valueType, defaultJson))
             {
-                throw new NotSupportedException(
-                    $"A job argument of type '{valueType}' can't be stored: the serializer settings write it as its read-only members, " +
-                    "which can't be read back, so the job would run with its default value. Add a JsonConverter for the type, " +
-                    "mark the constructor that sets its members with [JsonConstructor], or pass the data in a type that can be read back.");
+                // Read back as it is, or written as its default value, which is what it is read back as
+                return;
             }
+
+            throw new NotSupportedException(
+                $"A job argument of type '{valueType}' can't be stored: the serializer settings write it as its read-only members, " +
+                "which can't be read back, so the job would run with its default value. Add a JsonConverter for the type, " +
+                "mark the constructor that sets its members with [JsonConstructor], or pass the data in a type that can be read back.");
         }
 
-        private bool IsReadAsDefault(Type type)
+        private string? WriteDefaultIfReadAsDefault(Type type)
         {
             try
             {
-                return JsonRoundTrip.IsReadAsDefault(StrictReading.GetTypeInfo(type));
+                return JsonRoundTrip.IsReadAsDefault(StrictReading.GetTypeInfo(type))
+                    ? JsonSerializer.Serialize(Activator.CreateInstance(type), type, Writing)
+                    : null;
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
-                // The options can't describe the type: writing it fails on its own, as before
-                return false;
+                // The options can't describe or write the type: writing it fails on its own, as before
+                return null;
+            }
+        }
+
+        private bool IsWrittenAs(object value, Type type, string json)
+        {
+            try
+            {
+                return string.Equals(JsonSerializer.Serialize(value, type, Writing), json, StringComparison.Ordinal);
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                // Writing it fails on its own, as before
+                return true;
             }
         }
 
@@ -694,11 +733,16 @@ public static class SerializationHelper
         public JsonSerializerOptions StrictReading { get; }
         public JsonSerializerOptions Reading { get; }
 
-        // The same options for text an operator types: values declared as object never resolve a "$type"
+        // The same options for text an operator types: values declared as object never resolve a "$type", and
+        // refuse it
 
-        public JsonSerializerOptions InputWriting => LazyInitializer.EnsureInitialized(ref field, () => ForInput(Writing));
-        public JsonSerializerOptions InputStrictReading => LazyInitializer.EnsureInitialized(ref field, () => ForInput(StrictReading));
-        public JsonSerializerOptions InputReading => LazyInitializer.EnsureInitialized(ref field, () => ForInput(Reading));
+        public JsonSerializerOptions InputWriting => LazyInitializer.EnsureInitialized(ref field, () => ForInput(Writing, rejectTypeNames: true));
+        public JsonSerializerOptions InputStrictReading => LazyInitializer.EnsureInitialized(ref field, () => ForInput(StrictReading, rejectTypeNames: true));
+        public JsonSerializerOptions InputReading => LazyInitializer.EnsureInitialized(ref field, () => ForInput(Reading, rejectTypeNames: true));
+
+        // And for data from elsewhere: values declared as object never resolve a "$type", and keep it as data
+        private JsonSerializerOptions DataStrictReading => LazyInitializer.EnsureInitialized(ref field, () => ForInput(StrictReading, rejectTypeNames: false));
+        private JsonSerializerOptions DataReading => LazyInitializer.EnsureInitialized(ref field, () => ForInput(Reading, rejectTypeNames: false));
 
         // Types the lenient copy can't describe, for example members whose names differ only by case, which
         // collide once names are case-insensitive. They are read with the options they were written with.
@@ -724,28 +768,29 @@ public static class SerializationHelper
             }
         }
 
-        public object? DeserializeInput(string value, Type type)
+        public object? DeserializeInput(string value, Type type, bool rejectTypeNames)
         {
+            JsonSerializerOptions strict = rejectTypeNames ? InputStrictReading : DataStrictReading;
             if (ReferenceEquals(Reading, StrictReading) || _strictTypes.ContainsKey(type))
             {
-                return DeserializeWith(value, type, InputStrictReading);
+                return DeserializeWith(value, type, strict);
             }
 
             try
             {
-                return DeserializeWith(value, type, InputReading);
+                return DeserializeWith(value, type, rejectTypeNames ? InputReading : DataReading);
             }
             catch (InvalidOperationException)
             {
                 _strictTypes.TryAdd(type, true);
-                return DeserializeWith(value, type, InputStrictReading);
+                return DeserializeWith(value, type, strict);
             }
         }
 
-        private static JsonSerializerOptions ForInput(JsonSerializerOptions options)
+        private static JsonSerializerOptions ForInput(JsonSerializerOptions options, bool rejectTypeNames)
         {
             JsonSerializerOptions copy = new(options);
-            InferredObjectJsonConverter converter = new(typeNames: false, rejectTypeNames: true);
+            InferredObjectJsonConverter converter = new(typeNames: false, rejectTypeNames);
             bool replaced = false;
 
             for (int i = 0; i < copy.Converters.Count; i++)
