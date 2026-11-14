@@ -513,7 +513,7 @@ public static class SerializationHelper
                 $"A value of the interface or abstract type '{type}' must be a JSON object with a \"{TypeNamedJson.TypeProperty}\" property naming its actual type.");
         }
 
-        return TypeNamedJson.Read(root, TypeNamedJson.ResolveType(typeName, type), options);
+        return TypeNamedJson.Read(root, TypeNamedJson.ResolveType(typeName, type, options), options);
     }
 
     /// <summary>

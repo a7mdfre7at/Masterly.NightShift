@@ -35,7 +35,7 @@ internal sealed class StateJsonConverter : JsonConverter<IState>
             throw new JsonException($"A state must be a JSON object with a \"{TypeNamedJson.TypeProperty}\" property.");
         }
 
-        return (IState?)TypeNamedJson.Read(root, TypeNamedJson.ResolveType(typeName, typeof(IState)), options);
+        return (IState?)TypeNamedJson.Read(root, TypeNamedJson.ResolveType(typeName, typeof(IState), options), options);
     }
 
     public override void Write(Utf8JsonWriter writer, IState value, JsonSerializerOptions options)
@@ -49,9 +49,16 @@ internal sealed class StateJsonConverter : JsonConverter<IState>
 /// an object back as that type. States, values declared as <see cref="object"/> when type names are kept, and
 /// values declared as an interface or abstract class are stored this way.
 /// </summary>
+/// <remarks>
+/// Only a leading <c>"$type"</c> names a type: Newtonsoft.Json and this class always write it first. A value whose
+/// own members include a <c>"$type"</c> or a <c>"$values"</c> (a dictionary with such a key, a
+/// <see cref="JsonElement"/> with such a property) is written as <c>{"$type": …, "$values": {…}}</c>, its members
+/// inside <c>"$values"</c>, so they read back as they were and never name the type the value is read as.
+/// </remarks>
 internal static class TypeNamedJson
 {
     public const string TypeProperty = "$type";
+    public const string ValuesProperty = "$values";
 
     /// <summary>
     /// Writes every member of the value's actual type, after a <c>"$type"</c> property naming that type. A value
@@ -69,34 +76,60 @@ internal static class TypeNamedJson
 
         writer.WriteStartObject();
         writer.WriteString(TypeProperty, JsonTypeNames.Simple(TypeHelper.CurrentTypeSerializer(type)));
-        foreach (JsonProperty property in element.EnumerateObject())
+        if (HasMetadataMember(element))
         {
-            property.WriteTo(writer);
+            writer.WritePropertyName(ValuesProperty);
+            element.WriteTo(writer);
+        }
+        else
+        {
+            foreach (JsonProperty property in element.EnumerateObject())
+            {
+                property.WriteTo(writer);
+            }
         }
         writer.WriteEndObject();
     }
 
+    /// <summary>Returns the type name of an object that starts with a <c>"$type"</c> property.</summary>
     public static bool TryGetTypeName(JsonElement root, out string typeName)
     {
-        if (root.ValueKind == JsonValueKind.Object &&
-            root.TryGetProperty(TypeProperty, out JsonElement property) && property.ValueKind == JsonValueKind.String)
+        if (root.ValueKind == JsonValueKind.Object)
         {
-            typeName = property.GetString()!; // The token is a string
-            return true;
+            using JsonElement.ObjectEnumerator properties = root.EnumerateObject();
+            if (properties.MoveNext() && properties.Current.NameEquals(TypeProperty) &&
+                properties.Current.Value.ValueKind == JsonValueKind.String)
+            {
+                typeName = properties.Current.Value.GetString()!; // The token is a string
+                return true;
+            }
         }
 
         typeName = null!; // Unused when this returns false
         return false;
     }
 
+    /// <summary>Tells whether an object has a <c>"$type"</c> property anywhere.</summary>
+    public static bool HasTypeProperty(JsonElement root)
+    {
+        return root.ValueKind == JsonValueKind.Object && root.TryGetProperty(TypeProperty, out _);
+    }
+
     /// <summary>
     /// Resolves a <c>"$type"</c> name through the configured type resolver, and checks that it names a concrete
     /// type assignable to <paramref name="expectedType"/>, so stored data can't make a server create anything else.
+    /// For text an operator typed (<paramref name="options"/> read input), the name must first name such a type in
+    /// an assembly that is already loaded, so the text can't make Masterly.NightShift load anything.
     /// </summary>
-    public static Type ResolveType(string typeName, Type expectedType)
+    public static Type ResolveType(string typeName, Type expectedType, JsonSerializerOptions options)
     {
+        if (RefusedTypeInputJsonConverter.IsInput(options) && !IsUsable(LoadedTypes.Find(typeName), expectedType))
+        {
+            throw new JsonException($"The type '{typeName}' in \"{TypeProperty}\" isn't a loaded concrete type assignable to '{expectedType}'.");
+        }
+
         Type type = TypeHelper.CurrentTypeResolver(typeName);
-        if (!expectedType.IsAssignableFrom(type) || type.IsInterface || type.IsAbstract)
+        if (!IsUsable(type, expectedType))
         {
             throw new JsonException($"The type '{typeName}' in \"{TypeProperty}\" isn't a concrete type assignable to '{expectedType}'.");
         }
@@ -104,29 +137,117 @@ internal static class TypeNamedJson
         return type;
     }
 
-    /// <summary>Reads an object written by <see cref="Write"/> as <paramref name="type"/>, leaving out <c>"$type"</c>.</summary>
-    public static object? Read(JsonElement root, Type type, JsonSerializerOptions options)
+    private static bool IsUsable(Type? type, Type expectedType)
     {
-        return JsonSerializer.Deserialize(WithoutTypeProperty(root), type, options);
+        return type != null && expectedType.IsAssignableFrom(type) && !type.IsInterface && !type.IsAbstract;
     }
 
+    /// <summary>
+    /// Reads an object written by <see cref="Write"/> as <paramref name="type"/>: the members after the leading
+    /// <c>"$type"</c>, or the value of <c>"$values"</c> when it is the only other member.
+    /// </summary>
+    public static object? Read(JsonElement root, Type type, JsonSerializerOptions options)
+    {
+        return TryGetValues(root, out JsonElement values)
+            ? values.Deserialize(type, options)
+            : JsonSerializer.Deserialize(WithoutTypeProperty(root), type, options);
+    }
+
+    // {"$type": …, "$values": …} and nothing else: a collection the previous serializer wrapped, or a value whose
+    // own members include "$type" or "$values"
+    private static bool TryGetValues(JsonElement root, out JsonElement values)
+    {
+        using JsonElement.ObjectEnumerator properties = root.EnumerateObject();
+        if (properties.MoveNext() && properties.MoveNext() && properties.Current.NameEquals(ValuesProperty))
+        {
+            values = properties.Current.Value;
+            return !properties.MoveNext();
+        }
+
+        values = default;
+        return false;
+    }
+
+    private static bool HasMetadataMember(JsonElement element)
+    {
+        foreach (JsonProperty property in element.EnumerateObject())
+        {
+            if (property.NameEquals(TypeProperty) || property.NameEquals(ValuesProperty))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>The object without its leading <c>"$type"</c> property; any later property is kept.</summary>
     public static byte[] WithoutTypeProperty(JsonElement root)
     {
         using MemoryStream stream = new();
         using (Utf8JsonWriter writer = new(stream))
         {
             writer.WriteStartObject();
+            bool first = true;
             foreach (JsonProperty property in root.EnumerateObject())
             {
-                if (!property.NameEquals(TypeProperty))
+                if (!first || !property.NameEquals(TypeProperty))
                 {
                     property.WriteTo(writer);
                 }
+
+                first = false;
             }
             writer.WriteEndObject();
         }
 
         return stream.ToArray();
+    }
+}
+
+/// <summary>
+/// Finds a type by name among the assemblies already loaded, without loading any: for type names in text an
+/// operator typed, which must not make the process load an assembly or a type of the text's choosing.
+/// </summary>
+internal static class LoadedTypes
+{
+    private static readonly Assembly CoreLibrary = typeof(object).Assembly;
+
+    /// <summary>The type, or <c>null</c> when the name doesn't name a type of an assembly already loaded.</summary>
+    public static Type? Find(string typeName)
+    {
+        try
+        {
+            return Type.GetType(typeName, FindAssembly, FindType, throwOnError: false);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            return null;
+        }
+    }
+
+    private static Assembly? FindAssembly(AssemblyName name)
+    {
+        if (string.Equals(name.Name, "mscorlib", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name.Name, CoreLibrary.GetName().Name, StringComparison.OrdinalIgnoreCase))
+        {
+            return CoreLibrary;
+        }
+
+        foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            if (string.Equals(assembly.GetName().Name, name.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                return assembly;
+            }
+        }
+
+        return null;
+    }
+
+    private static Type? FindType(Assembly? assembly, string name, bool ignoreCase)
+    {
+        return (assembly ?? CoreLibrary).GetType(name, throwOnError: false, ignoreCase);
     }
 }
 
@@ -182,6 +303,15 @@ internal sealed class TypeNameJsonConverter : JsonConverter<Type>
 /// </summary>
 internal sealed class RefusedTypeInputJsonConverter : JsonConverter<Type>
 {
+    /// <summary>
+    /// Tells whether the options read text an operator typed: the dashboard's input options put this converter
+    /// first.
+    /// </summary>
+    public static bool IsInput(JsonSerializerOptions options)
+    {
+        return options.Converters.Count > 0 && options.Converters[0] is RefusedTypeInputJsonConverter;
+    }
+
     public override bool CanConvert(Type typeToConvert) => typeof(Type).IsAssignableFrom(typeToConvert);
 
     public override Type? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
@@ -282,15 +412,15 @@ internal sealed class LenientEnumConverterFactory : JsonConverterFactory
 /// </remarks>
 internal sealed class InferredObjectJsonConverter(bool typeNames, bool rejectTypeNames) : JsonConverter<object>
 {
-    private const string ValuesProperty = "$values";
-
-    private readonly bool _typeNames = typeNames && !rejectTypeNames;
     private readonly bool _rejectTypeNames = rejectTypeNames;
 
     public InferredObjectJsonConverter(bool typeNames)
         : this(typeNames, rejectTypeNames: false)
     {
     }
+
+    /// <summary>Tells whether object values are written with their type name and read back as that type.</summary>
+    public bool TypeNames { get; } = typeNames && !rejectTypeNames;
 
     public override object? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
@@ -308,18 +438,16 @@ internal sealed class InferredObjectJsonConverter(bool typeNames, bool rejectTyp
         using JsonDocument document = JsonDocument.ParseValue(ref reader);
         JsonElement root = document.RootElement;
 
-        if (_rejectTypeNames && TypeNamedJson.TryGetTypeName(root, out _))
+        if (_rejectTypeNames && TypeNamedJson.HasTypeProperty(root))
         {
             throw new JsonException(
                 $"A \"{TypeNamedJson.TypeProperty}\" property can't be used here: a value of type object is read as plain JSON.");
         }
 
-        if (_typeNames && TypeNamedJson.TryGetTypeName(root, out string? typeName))
+        // Only a leading "$type" names the type: a later one is the value's own member
+        if (TypeNames && TypeNamedJson.TryGetTypeName(root, out string? typeName))
         {
-            Type type = TypeHelper.CurrentTypeResolver(typeName);
-            return root.TryGetProperty(ValuesProperty, out JsonElement values)
-                ? JsonSerializer.Deserialize(values.GetRawText(), type, options)
-                : TypeNamedJson.Read(root, type, options);
+            return TypeNamedJson.Read(root, TypeHelper.CurrentTypeResolver(typeName), options);
         }
 
         return root.Clone();
@@ -335,7 +463,7 @@ internal sealed class InferredObjectJsonConverter(bool typeNames, bool rejectTyp
             return;
         }
 
-        if (!_typeNames)
+        if (!TypeNames)
         {
             JsonSerializer.Serialize(writer, value, type, options);
             return;
@@ -413,7 +541,9 @@ internal sealed class LegacyTypedArrayConverterFactory : JsonConverterFactory
 /// rewritten without them, guided by the declared type, and then read as usual: the values are read as the
 /// declared type, and the stored type name is ignored, so stored data can't make a server create a type it names.
 /// Arrays wrapped this way are read by <see cref="LegacyTypedArrayConverterFactory"/>; this also covers collections
-/// nested in arrays, collections and dictionaries.
+/// nested in arrays, collections and dictionaries. With the options for text an operator typed
+/// (<see cref="RefusedTypeInputJsonConverter.IsInput"/>), a dictionary's leading <c>"$type"</c> is never resolved:
+/// it is an ordinary key.
 /// </summary>
 internal static class LegacyCollectionJson
 {
@@ -436,7 +566,7 @@ internal static class LegacyCollectionJson
     /// Tells, from the first token of a value and without reading it, whether it may need to be rewritten: an
     /// object for a collection, a dictionary with a leading <c>"$type"</c>, or items that may be wrapped themselves.
     /// </summary>
-    public static bool MayBeWrapped(ref Utf8JsonReader reader, Type type)
+    public static bool MayBeWrapped(ref Utf8JsonReader reader, Type type, JsonSerializerOptions options)
     {
         Shape shape = GetShape(type);
         bool collection = shape.Kind is ShapeKind.Collection or ShapeKind.Array;
@@ -453,6 +583,11 @@ internal static class LegacyCollectionJson
                     return true;
                 }
 
+                if (RefusedTypeInputJsonConverter.IsInput(options))
+                {
+                    return false;
+                }
+
                 Utf8JsonReader copy = reader;
                 return copy.Read() && copy.TokenType == JsonTokenType.PropertyName && copy.ValueTextEquals(TypeNamedJson.TypeProperty) &&
                        copy.Read() && copy.TokenType == JsonTokenType.String && IsLegacyTypeName(copy.GetString(), shape.Type);
@@ -461,19 +596,19 @@ internal static class LegacyCollectionJson
         }
     }
 
-    /// <summary>Tells whether a value with this shape needs to be rewritten to be read.</summary>
-    public static bool IsWrapped(JsonElement element, Type type)
+    /// <summary>Tells whether a value with this shape needs to be rewritten to be read with <paramref name="options"/>.</summary>
+    public static bool IsWrapped(JsonElement element, Type type, JsonSerializerOptions options)
     {
-        return IsWrapped(element, GetShape(type));
+        return IsWrapped(element, GetShape(type), !RefusedTypeInputJsonConverter.IsInput(options));
     }
 
     /// <summary>Returns the JSON without the type names the previous serializer added to collections and dictionaries.</summary>
-    public static byte[] Unwrap(JsonElement element, Type type)
+    public static byte[] Unwrap(JsonElement element, Type type, JsonSerializerOptions options)
     {
         using MemoryStream stream = new();
         using (Utf8JsonWriter writer = new(stream))
         {
-            Write(element, GetShape(type), writer);
+            Write(element, GetShape(type), writer, !RefusedTypeInputJsonConverter.IsInput(options));
         }
 
         return stream.ToArray();
@@ -492,21 +627,22 @@ internal static class LegacyCollectionJson
         using JsonDocument document = JsonDocument.Parse(json, documentOptions);
         JsonElement root = document.RootElement;
 
-        return IsWrapped(root, type)
-            ? JsonSerializer.Deserialize(Unwrap(root, type), type, options)
+        return IsWrapped(root, type, options)
+            ? JsonSerializer.Deserialize(Unwrap(root, type, options), type, options)
             : root.Deserialize(type, options);
     }
 
-    private static bool IsWrapped(JsonElement element, Shape shape)
+    // typeNames: a dictionary's leading "$type" may be the previous serializer's type name, not a key
+    private static bool IsWrapped(JsonElement element, Shape shape, bool typeNames)
     {
         switch (element.ValueKind)
         {
             case JsonValueKind.Object when shape.Kind is ShapeKind.Collection or ShapeKind.Array:
                 return true;
             case JsonValueKind.Object when shape.Kind == ShapeKind.Dictionary:
-                if (StartsWithTypeName(element, shape.Type!))
+                if (typeNames && StartsWithTypeName(element, shape.Type!)) // Only collection shapes reach this, and they have a type
                 {
-                    return true; // Only collection shapes reach this, and they have a type
+                    return true;
                 }
 
                 if (shape.Item.Kind == ShapeKind.None)
@@ -516,7 +652,7 @@ internal static class LegacyCollectionJson
 
                 foreach (JsonProperty property in element.EnumerateObject())
                 {
-                    if (IsWrapped(property.Value, shape.Item))
+                    if (IsWrapped(property.Value, shape.Item, typeNames))
                     {
                         return true;
                     }
@@ -525,7 +661,7 @@ internal static class LegacyCollectionJson
             case JsonValueKind.Array when (shape.Kind == ShapeKind.Collection || shape.Kind == ShapeKind.Array) && shape.Item.Kind != ShapeKind.None:
                 foreach (JsonElement item in element.EnumerateArray())
                 {
-                    if (IsWrapped(item, shape.Item))
+                    if (IsWrapped(item, shape.Item, typeNames))
                     {
                         return true;
                     }
@@ -536,7 +672,7 @@ internal static class LegacyCollectionJson
         }
     }
 
-    private static void Write(JsonElement element, Shape shape, Utf8JsonWriter writer)
+    private static void Write(JsonElement element, Shape shape, Utf8JsonWriter writer, bool typeNames)
     {
         switch (element.ValueKind)
         {
@@ -544,7 +680,7 @@ internal static class LegacyCollectionJson
                 // A collection that isn't wrapped is left to fail as it would have
                 if (element.TryGetProperty(ValuesProperty, out JsonElement values))
                 {
-                    Write(values, shape, writer);
+                    Write(values, shape, writer, typeNames);
                 }
                 else
                 {
@@ -554,7 +690,7 @@ internal static class LegacyCollectionJson
                 return;
             case JsonValueKind.Object when shape.Kind == ShapeKind.Dictionary:
                 writer.WriteStartObject();
-                bool skipFirst = StartsWithTypeName(element, shape.Type!); // Only collection shapes reach this, and they have a type
+                bool skipFirst = typeNames && StartsWithTypeName(element, shape.Type!); // Only collection shapes reach this, and they have a type
                 foreach (JsonProperty property in element.EnumerateObject())
                 {
                     if (skipFirst)
@@ -564,7 +700,7 @@ internal static class LegacyCollectionJson
                     }
 
                     writer.WritePropertyName(property.Name);
-                    Write(property.Value, shape.Item, writer);
+                    Write(property.Value, shape.Item, writer, typeNames);
                 }
                 writer.WriteEndObject();
                 return;
@@ -572,7 +708,7 @@ internal static class LegacyCollectionJson
                 writer.WriteStartArray();
                 foreach (JsonElement item in element.EnumerateArray())
                 {
-                    Write(item, shape.Item, writer);
+                    Write(item, shape.Item, writer, typeNames);
                 }
                 writer.WriteEndArray();
                 return;
@@ -810,7 +946,7 @@ internal static class JsonLegacyCollectionModifier
     {
         public override T? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (!LegacyCollectionJson.MayBeWrapped(ref reader, typeof(T)))
+            if (!LegacyCollectionJson.MayBeWrapped(ref reader, typeof(T), options))
             {
                 return JsonSerializer.Deserialize<T>(ref reader, options);
             }
@@ -818,8 +954,8 @@ internal static class JsonLegacyCollectionModifier
             using JsonDocument document = JsonDocument.ParseValue(ref reader);
             JsonElement root = document.RootElement;
 
-            return LegacyCollectionJson.IsWrapped(root, typeof(T))
-                ? JsonSerializer.Deserialize<T>(LegacyCollectionJson.Unwrap(root, typeof(T)), options)
+            return LegacyCollectionJson.IsWrapped(root, typeof(T), options)
+                ? JsonSerializer.Deserialize<T>(LegacyCollectionJson.Unwrap(root, typeof(T), options), options)
                 : root.Deserialize<T>(options);
         }
 
