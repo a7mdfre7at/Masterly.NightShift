@@ -153,6 +153,59 @@ public sealed class EfStorageFacts : IDisposable
     }
 
     [Fact]
+    public void Transaction_AddingASetValueAgain_AfterRemovingTheSet_KeepsIt()
+    {
+        EntityFrameworkCoreStorage storage = _database.CreateStorage();
+
+        Commit(storage, static x =>
+        {
+            x.AddToSet("set", "value");
+            ((JobStorageTransaction)x).RemoveSet("set");
+            x.AddToSet("set", "value");
+        });
+
+        using IStorageConnection reader = storage.GetConnection();
+        Assert.Equal(["value"], reader.GetAllItemsFromSet("set"));
+    }
+
+    [Fact]
+    public void Transaction_SettingAHashFieldAgain_AfterRemovingTheHash_KeepsTheLastValue()
+    {
+        EntityFrameworkCoreStorage storage = _database.CreateStorage();
+
+        Commit(storage, static x =>
+        {
+            x.SetRangeInHash("hash", [new("field", "1")]);
+            x.RemoveHash("hash");
+            x.SetRangeInHash("hash", [new("field", "2")]);
+        });
+
+        using IStorageConnection reader = storage.GetConnection();
+        Assert.Equal("2", ((JobStorageConnection)reader).GetValueFromHash("hash", "field"));
+    }
+
+    [Fact]
+    public void Transaction_AddingAHashField_AfterPersistingTheHash_DoesNotGiveItTheOldExpiry()
+    {
+        EntityFrameworkCoreStorage storage = _database.CreateStorage();
+        Commit(storage, static x =>
+        {
+            x.SetRangeInHash("hash", [new("field", "1")]);
+            ((JobStorageTransaction)x).ExpireHash("hash", TimeSpan.FromHours(1));
+        });
+
+        Commit(storage, static x =>
+        {
+            x.SetRangeInHash("hash", [new("field", "2")]);
+            ((JobStorageTransaction)x).PersistHash("hash");
+            x.SetRangeInHash("hash", [new("other", "3")]);
+        });
+
+        using IStorageConnection reader = storage.GetConnection();
+        Assert.Equal(TimeSpan.FromSeconds(-1), ((JobStorageConnection)reader).GetHashTtl("hash"));
+    }
+
+    [Fact]
     public void StagedWrites_RemovingAndAddingAgain_KeepTheLastWrite()
     {
         EntityFrameworkCoreStorage storage = _database.CreateStorage();
