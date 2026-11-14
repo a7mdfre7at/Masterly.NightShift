@@ -15,6 +15,7 @@
 
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Server;
+using Microsoft.Data.SqlClient;
 
 namespace Masterly.NightShift.SqlServer;
 
@@ -27,6 +28,8 @@ internal sealed class ExpirationManager : IBackgroundProcess
 
     // The state cleanup seeks on the [State].[CreatedAt] index, which comes with this schema version
     private const int StateCleanupSchemaVersion = 9;
+
+    private const int LockTimeoutErrorNumber = 1222;
 
     private static readonly string[] ProcessedTables =
     [
@@ -256,12 +259,32 @@ internal sealed class ExpirationManager : IBackgroundProcess
             {
                 return command.ExecuteNonQuery();
             }
-            catch (DbException ex) when (cancellationToken.IsCancellationRequested || ex.Message.Contains("Lock request time out period exceeded"))
+            catch (DbException ex) when (cancellationToken.IsCancellationRequested || IsLockTimeout(ex))
             {
-                // Exception was triggered due to the Cancel method call, ignoring
+                // Triggered by the Cancel method call, or another session holds a row past "set lock_timeout":
+                // the rest is removed on the next run
                 return 0;
             }
         }
     }
-}
 
+    // Error 1222. Its message is in the session's language, so it is recognised by its number, and by the
+    // English message only for a client other than SqlClient
+    private static bool IsLockTimeout(DbException exception)
+    {
+        if (exception is SqlException sqlException)
+        {
+            foreach (SqlError error in sqlException.Errors)
+            {
+                if (error.Number == LockTimeoutErrorNumber)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return exception.Message.Contains("Lock request time out period exceeded", StringComparison.Ordinal);
+    }
+}

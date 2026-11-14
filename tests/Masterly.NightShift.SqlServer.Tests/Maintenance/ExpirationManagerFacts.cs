@@ -1,5 +1,7 @@
 ﻿extern alias ReferencedDapper;
+using System.Collections.Concurrent;
 using System.Data.Common;
+using Masterly.NightShift.Logging;
 using ReferencedDapper::Dapper;
 
 namespace Masterly.NightShift.SqlServer.Tests;
@@ -104,6 +106,32 @@ values ('', '', getutcdate(), @expireAt)";
         manager.Execute(_cts.Token);
 
         Assert.Equal(0, connection.ExecuteScalar<int>("select count(*) from [Bk{x}].Job"));
+    }
+
+    // Error 1222 is reported in the session's language: the message alone doesn't tell it
+    [Fact, CleanDatabase]
+    public void Execute_LogsNoError_WhenARowIsLocked_InASessionWithAnotherLanguage()
+    {
+        using DbConnection connection = CreateConnection();
+        connection.Execute(
+            $"insert into [{Constants.DefaultSchema}].Job (InvocationData, Arguments, CreatedAt, ExpireAt) values (N'', N'', getutcdate(), @expireAt)",
+            new { expireAt = DateTime.UtcNow.AddMonths(-1) });
+        using DbConnection blocker = CreateConnection();
+        using DbTransaction blocking = blocker.BeginTransaction();
+        blocker.Execute($"update [{Constants.DefaultSchema}].Job set ExpireAt = ExpireAt", transaction: blocking);
+        SqlServerStorage storage = new(static () =>
+        {
+            DbConnection german = ConnectionUtils.CreateConnection();
+            german.Execute("set language Deutsch");
+            return german;
+        });
+        ExpirationManager manager = new(storage, TimeSpan.Zero, TimeSpan.FromTicks(1));
+        using RecordingLogs logs = RecordingLogs.Use();
+
+        manager.Execute(_cts.Token);
+
+        blocking.Rollback();
+        Assert.DoesNotContain(logs.Messages, static x => x.Level >= LogLevel.Warn);
     }
 
     [Fact, CleanDatabase]
@@ -287,5 +315,35 @@ values (N'key', 1, @expireAt)";
     {
         SqlServerStorage storage = new(ConnectionUtils.CreateConnection);
         return new ExpirationManager(storage, stateExpirationTimeout ?? TimeSpan.Zero, TimeSpan.FromTicks(1));
+    }
+
+    /// <summary>Keeps what Masterly.NightShift logs while in use. Test assemblies run one test at a time.</summary>
+    private sealed class RecordingLogs : ILogProvider, ILog, IDisposable
+    {
+        private readonly ConcurrentQueue<(LogLevel Level, string Message)> _messages = new();
+
+        public IReadOnlyCollection<(LogLevel Level, string Message)> Messages => _messages;
+
+        public static RecordingLogs Use()
+        {
+            RecordingLogs logs = new();
+            GlobalConfiguration.Configuration.UseLogProvider(logs);
+            return logs;
+        }
+
+        public ILog GetLogger(string name) => this;
+
+        public bool Log(LogLevel logLevel, Func<string> messageFunc, Exception exception = null)
+        {
+            // Without a message, the call only asks whether the level is enabled
+            if (messageFunc != null)
+            {
+                _messages.Enqueue((logLevel, messageFunc()));
+            }
+
+            return true;
+        }
+
+        public void Dispose() => GlobalConfiguration.Configuration.UseNoOpLogProvider();
     }
 }
