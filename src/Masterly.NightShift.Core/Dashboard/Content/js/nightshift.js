@@ -544,7 +544,7 @@
             var match = /[?&]edit=([^&]+)/.exec(window.location.search);
             if (match) {
                 var button = $('.js-recurring-edit').filter(function () {
-                    return String($(this).data('id')) === decodeURIComponent(match[1].replace(/\+/g, ' '));
+                    return $(this).attr('data-id') === decodeURIComponent(match[1].replace(/\+/g, ' '));
                 }).first();
 
                 if (button.length) {
@@ -554,19 +554,21 @@
         }
 
         RecurringJobEditor.prototype.open = function (button) {
-            this._jobId = String(button.data('id'));
+            // .attr, not .data: jQuery's .data() converts the text, so the id "[7]" read as the array [7] and
+            // the update was posted for the job "7"
+            this._jobId = button.attr('data-id') || '';
             this._modal.find('.js-recurring-edit-id').text(this._jobId);
-            this._cron.val(button.data('cron') || '');
+            this._cron.val(button.attr('data-cron') || '');
             // The list holds the host's own zones. A job's zone can be missing there (an IANA id on Windows, a
             // Windows id on Linux, an id only a custom resolver knows), so it's added rather than left unselected,
             // which previewed in UTC; the server resolves it like the scheduler does.
-            var timezone = String(button.data('timezone') || 'UTC');
+            var timezone = button.attr('data-timezone') || 'UTC';
             if (!this._timezone.find('option').filter(function () { return this.value === timezone; }).length) {
                 this._timezone.append($('<option>').val(timezone).text(timezone));
             }
             this._timezone.val(timezone);
-            this._queue.val(button.data('queue') || '');
-            this._misfire.val(button.data('misfire') || 'Relaxed');
+            this._queue.val(button.attr('data-queue') || '');
+            this._misfire.val(button.attr('data-misfire') || 'Relaxed');
             this._startAt = button.data('start-at') || '';
             this._endAt = button.data('end-at') || '';
             this._error.hide().text('');
@@ -687,7 +689,7 @@
 
         LiveJobs.prototype._startDetails = function () {
             var self = this;
-            var jobId = String(this._details.data('job-id'));
+            var jobId = this._details.attr('data-job-id');
             var initialState = this._details.data('state');
             var startedAt = parseInt(this._details.data('started-at'));
 
@@ -778,7 +780,7 @@
 
         LiveJobs.prototype._startRows = function () {
             var self = this;
-            var ids = this._rows.map(function () { return String($(this).data('job-id')); }).get().slice(0, LiveJobs.MAX_JOBS);
+            var ids = this._rows.map(function () { return $(this).attr('data-job-id'); }).get().slice(0, LiveJobs.MAX_JOBS);
 
             var poll = function () {
                 // A hidden tab doesn't need the rows; the next poll after it's shown again catches up
@@ -792,7 +794,7 @@
                     .done(function (data) {
                         self._rows.each(function () {
                             var row = $(this);
-                            var job = data.jobs && data.jobs[String(row.data('job-id'))];
+                            var job = data.jobs && data.jobs[row.attr('data-job-id')];
                             if (!job) return;
 
                             if (job.progress) {
@@ -1803,11 +1805,11 @@
         CatalogRunner.prototype.open = function (button) {
             var parameters = button.data('parameters') || [];
 
-            this._id.val(button.data('id') || '');
-            this._source.val(button.data('source') || '');
+            this._id.val(button.attr('data-id') || '');
+            this._source.val(button.attr('data-source') || '');
             // "Run again with changes" starts in the job's own queue; the Catalog page in "default"
-            this._modal.find('[name="queue"]').val(button.data('queue') || '');
-            this._title.text(button.data('type') + '.' + button.data('method'));
+            this._modal.find('[name="queue"]').val(button.attr('data-queue') || '');
+            this._title.text(button.attr('data-type') + '.' + button.attr('data-method'));
             this._error.hide().text('');
             this._success.hide().empty();
             this._submit.button('reset');
@@ -1947,7 +1949,7 @@
             var needle = $.trim(text).toLowerCase();
             $('.js-catalog-entry').each(function () {
                 var row = $(this);
-                row.toggle(!needle || String(row.data('search')).toLowerCase().indexOf(needle) >= 0);
+                row.toggle(!needle || String(row.attr('data-search') || '').toLowerCase().indexOf(needle) >= 0);
             });
             $('.js-catalog-group').each(function () {
                 var group = $(this);
@@ -1980,7 +1982,7 @@
             $(document).on('click', '.js-copy-code', function (e) {
                 e.preventDefault();
                 var button = $(this);
-                var code = String(button.data('code'));
+                var code = button.attr('data-code') || '';
                 var original = button.html();
                 var done = function () {
                     button.addClass('btn-success').html('<span class="glyphicon glyphicon-ok"></span> ' + button.data('copied'));
@@ -2148,12 +2150,12 @@
             $(document).on('click', '.js-watch-toggle', function (e) {
                 e.preventDefault();
                 var button = $(this);
-                self.toggle(String(button.data('id')), String(button.data('name') || ''), button.data('state'));
+                self.toggle(button.attr('data-id') || '', button.attr('data-name') || '', button.attr('data-state'));
             });
 
             this._panel.on('click', '.js-watch-remove', function (e) {
                 e.preventDefault();
-                self.remove(String($(this).data('id')));
+                self.remove($(this).attr('data-id') || '');
             });
         }
 
@@ -2188,7 +2190,7 @@
             var self = this;
             $('.js-watch-toggle').each(function () {
                 var button = $(this);
-                var watching = self._find(String(button.data('id'))) >= 0;
+                var watching = self._find(button.attr('data-id') || '') >= 0;
                 button.toggleClass('active btn-info', watching).removeClass(watching ? 'btn-default' : 'btn-info').addClass(watching ? '' : 'btn-default')
                     .attr('aria-pressed', watching ? 'true' : 'false');
                 button.find('.js-watch-label').text(watching ? button.data('text-watching') : button.data('text-watch'));

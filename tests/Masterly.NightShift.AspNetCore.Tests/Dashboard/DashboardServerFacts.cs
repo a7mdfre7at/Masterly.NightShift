@@ -422,7 +422,7 @@ public class DashboardServerFacts
 
         string bundle = await app.GetStringAsync("/nightshift/js1");
 
-        Assert.Contains("this._modal.find('[name=\"queue\"]').val(button.data('queue') || '');", bundle);
+        Assert.Contains("this._modal.find('[name=\"queue\"]').val(button.attr('data-queue') || '');", bundle);
         Assert.Contains("input = $('<input type=\"datetime-local\" step=\"1\" class=\"form-control\">').attr({ id: id, name: name }).val(value);", bundle);
     }
 
@@ -460,6 +460,23 @@ public class DashboardServerFacts
 
         Assert.Contains("this._timezone.append($('<option>').val(timezone).text(timezone));", bundle);
         Assert.Contains("queue: $.trim(this._queue.val()),", bundle);
+    }
+
+    [Fact]
+    public async Task TheScriptBundle_ReadsIdsAndNamesAsWritten_NotThroughJQuerysDataConversion()
+    {
+        // .data('id') JSON-parses "[7]" and turns "7" into a number, so the schedule editor of the job "[7]"
+        // saved the job "7"
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+
+        string bundle = await app.GetStringAsync("/nightshift/js1");
+
+        Assert.Contains("this._jobId = button.attr('data-id') || '';", bundle);
+        Assert.Contains("return $(this).attr('data-id') === decodeURIComponent(", bundle);
+        Assert.Contains("self.toggle(button.attr('data-id') || '', button.attr('data-name') || '', button.attr('data-state'));", bundle);
+        Assert.DoesNotContain(".data('id')", bundle);
+        Assert.DoesNotContain(".data('name')", bundle);
+        Assert.DoesNotContain(".data('job-id')", bundle);
     }
 
     [Fact]
