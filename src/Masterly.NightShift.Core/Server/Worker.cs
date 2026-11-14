@@ -61,6 +61,9 @@ public class Worker : IBackgroundProcess
     // Whether this worker warned that its storage reports a queue entry id it can't give (once is enough)
     private int _queueEntryUnsupportedLogged;
 
+    // Whether the transactions of a storage that reports transactional acknowledge can do it, asked once per storage
+    private TransactionalAcknowledge? _transactionalAcknowledge;
+
     private readonly IEnumerable<string> _queues;
 
     private readonly IBackgroundJobPerformer _performer;
@@ -172,7 +175,7 @@ public class Worker : IBackgroundProcess
             // It will be re-queued after the JobTimeout was expired.
 
             IState? state = PerformJob(context, connection, fetchedJob.JobId, workerId, backgroundJob!, disposeAfterStateChange, out IReadOnlyDictionary<string, object>? customData); // Loaded by the change to Processing above
-            bool transactionalAck = context.Storage.HasFeature(JobStorageFeatures.Transaction.RemoveFromQueue(fetchedJob.GetType()));
+            bool transactionalAck = CanAcknowledgeInTransaction(context.Storage, connection, fetchedJob);
 
             if (state != null)
             {
@@ -395,6 +398,44 @@ public class Worker : IBackgroundProcess
     }
 
     /// <summary>Disposes the fetched job when the worker is done with it, unless that was done already.</summary>
+    /// <summary>
+    /// Whether the final state change can remove the job from its queue in its own transaction. The storage must
+    /// report <see cref="JobStorageFeatures.Transaction.RemoveFromQueue"/>, and its transactions must derive from
+    /// <see cref="JobStorageTransaction"/>, or every final state change throws, the last-resort one to Failed
+    /// included, and the job runs again and again. A wrapper storage can report the feature with transactions of
+    /// its own: the job is then removed from its queue after the commit, as on a storage without the feature.
+    /// </summary>
+    private bool CanAcknowledgeInTransaction(JobStorage storage, IStorageConnection connection, IFetchedJob fetchedJob)
+    {
+        if (!storage.HasFeature(JobStorageFeatures.Transaction.RemoveFromQueue(fetchedJob.GetType())))
+        {
+            return false;
+        }
+
+        TransactionalAcknowledge? known = Volatile.Read(ref _transactionalAcknowledge);
+        if (known != null && ReferenceEquals(known.Storage, storage))
+        {
+            return known.Supported;
+        }
+
+        // The transaction's type answers: it is created, never committed
+        bool supported;
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            supported = transaction is JobStorageTransaction;
+        }
+
+        if (!supported)
+        {
+            _logger.Warn($"The storage {storage.GetType().Name} reports that its transactions remove a fetched job from its queue, but they don't derive from {nameof(JobStorageTransaction)}: jobs are removed from their queues after the commit of their state change.");
+        }
+
+        Volatile.Write(ref _transactionalAcknowledge, new TransactionalAcknowledge(storage, supported));
+        return supported;
+    }
+
+    private sealed record TransactionalAcknowledge(JobStorage Storage, bool Supported);
+
     private sealed class FetchedJobScope(IFetchedJob fetchedJob) : IDisposable
     {
         public bool Disposed { get; set; }

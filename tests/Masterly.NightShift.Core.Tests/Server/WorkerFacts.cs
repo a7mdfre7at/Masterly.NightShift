@@ -272,6 +272,37 @@ public class WorkerFacts
     }
 
     [Fact]
+    public void Execute_AcknowledgesTheJobAfterTheCommit_WhenTheStorageReportsTransactionalAcknowledge_ButItsTransactionCanNotDoIt()
+    {
+        // A wrapper storage that passes HasFeature on, with transactions that aren't JobStorageTransaction ones:
+        // BackgroundJobStateChanger refuses a state change that should acknowledge the job in them
+        _context.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Transaction.RemoveFromQueue(_fetchedJob.Object.GetType()))).Returns(true);
+        _connection.Setup(x => x.CreateWriteTransaction()).Returns(new Mock<IWriteOnlyTransaction>().Object);
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Returns<StateChangeContext>(ctx => ctx.CompleteJob != null
+                ? throw new InvalidOperationException("Storage transaction class must inherit the JobStorageTransaction class to use transactional acknowledge")
+                : ctx.NewState);
+
+        CreateWorker(1).Execute(_context.Object);
+
+        _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx => ctx.NewState is SucceededState && ctx.CompleteJob == null)));
+        _fetchedJob.Verify(x => x.RemoveFromQueue());
+        _fetchedJob.Verify(x => x.Requeue(), Times.Never);
+    }
+
+    [Fact]
+    public void Execute_AcknowledgesTheJobInTheTransactionOfItsFinalState_WhenTheStorageCan()
+    {
+        Mock<JobStorageTransaction> transaction = new();
+        _context.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Transaction.RemoveFromQueue(_fetchedJob.Object.GetType()))).Returns(true);
+        _connection.Setup(x => x.CreateWriteTransaction()).Returns(transaction.Object);
+
+        CreateWorker().Execute(_context.Object);
+
+        _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx => ctx.NewState is SucceededState && ctx.CompleteJob == _fetchedJob.Object)));
+    }
+
+    [Fact]
     public void Execute_RemovesTheEntryFromTheQueue_WhenTheJobIsRunFromAnotherEntry()
     {
         // The state changer refuses the change to Processing: another worker runs the job from another entry
