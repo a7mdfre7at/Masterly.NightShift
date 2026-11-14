@@ -397,7 +397,6 @@ public class Worker : IBackgroundProcess
         return true;
     }
 
-    /// <summary>Disposes the fetched job when the worker is done with it, unless that was done already.</summary>
     /// <summary>
     /// Whether the final state change can remove the job from its queue in its own transaction. The storage must
     /// report <see cref="JobStorageFeatures.Transaction.RemoveFromQueue"/>, and its transactions must derive from
@@ -436,6 +435,7 @@ public class Worker : IBackgroundProcess
 
     private sealed record TransactionalAcknowledge(JobStorage Storage, bool Supported);
 
+    /// <summary>Disposes the fetched job when the worker is done with it, unless that was done already.</summary>
     private sealed class FetchedJobScope(IFetchedJob fetchedJob) : IDisposable
     {
         public bool Disposed { get; set; }
