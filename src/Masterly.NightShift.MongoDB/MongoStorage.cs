@@ -32,6 +32,8 @@ public sealed class MongoStorageOptions
     /// of this time. Thirty seconds by default.
     /// </summary>
     public TimeSpan DistributedLockLifetime { get; set; } = TimeSpan.FromSeconds(30);
+
+    internal MongoStorageOptions Copy() => (MongoStorageOptions)MemberwiseClone();
 }
 
 /// <summary>
@@ -40,11 +42,19 @@ public sealed class MongoStorageOptions
 /// their indexes are created when the storage starts, and TTL indexes remove what expires.
 /// </summary>
 /// <remarks>
+/// <para>
+/// Every write waits until a majority of the replica set has it, and every read goes to the primary and sees only
+/// what a majority has, whatever the defaults of the client or the database are: a job whose id was returned, a
+/// claimed queue entry or a taken lock survives a failover, and nothing is decided on a write a failover could
+/// roll back.
+/// </para>
+/// <para>
 /// Fetched jobs, distributed locks and server heartbeats are stamped and timed out with the server's clock, so
 /// processes whose clocks differ agree on when a job's worker, a lock's holder or a server is gone. List items
 /// are ordered by their ObjectId, which the driver makes from the second they are inserted, a value per process
 /// and a counter: items that different processes insert within the same second are ordered by process, not by
 /// the moment they were inserted.
+/// </para>
 /// </remarks>
 public sealed class MongoStorage : JobStorage
 {
@@ -52,15 +62,19 @@ public sealed class MongoStorage : JobStorage
     private const int MinimumWireVersion = 13;
 
     private readonly Dictionary<string, bool> _features = StorageRules.Features(typeof(MongoFetchedJob));
-    private TaskCompletionSource _enqueued = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>
     /// A storage on a new client, from a connection string and a database name. It connects to the server at once:
     /// it reads the server's version and topology, then creates the indexes.
     /// </summary>
+    /// <remarks>
+    /// The driver shares the connections of the clients created with the same settings, and keeps them for the
+    /// lifetime of the process (disposing a client doesn't close them), so the storage has nothing to dispose: a
+    /// storage created again from the same connection string uses the same connections.
+    /// </remarks>
     /// <param name="connectionString">A MongoDB connection string.</param>
     /// <param name="databaseName">The database that holds the collections.</param>
-    /// <param name="options">The options, or <c>null</c> for the defaults.</param>
+    /// <param name="options">The options, or <c>null</c> for the defaults. The storage keeps a copy.</param>
     /// <exception cref="ArgumentNullException"><paramref name="connectionString"/> or <paramref name="databaseName"/> is <c>null</c>.</exception>
     /// <exception cref="NotSupportedException">The server is a standalone server, without transactions, or older than MongoDB 5.0.</exception>
     public MongoStorage([NotNull] string connectionString, [NotNull] string databaseName, [CanBeNull] MongoStorageOptions? options = null)
@@ -73,14 +87,17 @@ public sealed class MongoStorage : JobStorage
     /// container. It connects to the server at once: it reads the server's version and topology, then creates the
     /// indexes.
     /// </summary>
-    /// <param name="database">The database that holds the collections.</param>
-    /// <param name="options">The options, or <c>null</c> for the defaults.</param>
+    /// <param name="database">
+    /// The database that holds the collections. The storage uses it with settings of its own, whatever the
+    /// database's are: majority write concern, majority read concern, and the primary.
+    /// </param>
+    /// <param name="options">The options, or <c>null</c> for the defaults. The storage keeps a copy.</param>
     /// <exception cref="ArgumentNullException"><paramref name="database"/> is <c>null</c>.</exception>
     /// <exception cref="NotSupportedException">The server is a standalone server, without transactions, or older than MongoDB 5.0.</exception>
     public MongoStorage([NotNull] IMongoDatabase database, [CanBeNull] MongoStorageOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(database);
-        options ??= new MongoStorageOptions();
+        options = options?.Copy() ?? new MongoStorageOptions();
         if (string.IsNullOrEmpty(options.CollectionPrefix))
         {
             throw new ArgumentException("The collection prefix can't be empty.", nameof(options));
@@ -106,23 +123,27 @@ public sealed class MongoStorage : JobStorage
             throw new ArgumentException("The lock lifetime must be at least a second.", nameof(options));
         }
 
-        Database = database;
-        Options = options;
-        Collections = new MongoCollections(database, options.CollectionPrefix);
-
         EnsureTransactions(database);
+
+        Database = database;
+        Settings = options;
+        Collections = new MongoCollections(Durable(database), options.CollectionPrefix);
         Collections.CreateIndexes();
     }
 
-    /// <summary>The options the storage was created with.</summary>
-    public MongoStorageOptions Options { get; }
+    /// <summary>A copy of the options the storage was created with; changing it changes nothing.</summary>
+    public MongoStorageOptions Options => Settings.Copy();
 
-    /// <summary>The database that holds the collections.</summary>
+    /// <summary>The database that holds the collections, as it was given; the storage uses it with settings of its own.</summary>
     public IMongoDatabase Database { get; }
+
+    /// <summary>The options the storage uses, copied when it was created.</summary>
+    internal MongoStorageOptions Settings { get; }
 
     internal MongoCollections Collections { get; }
 
-    internal Task Enqueued => Volatile.Read(ref _enqueued).Task;
+    /// <summary>Wakes the workers of this process waiting for a job in a queue, when a job is enqueued to it.</summary>
+    internal QueueSignals Signals { get; } = new();
 
     /// <inheritdoc />
     public override IMonitoringApi GetMonitoringApi() => new MongoMonitoringApi(this);
@@ -183,21 +204,15 @@ public sealed class MongoStorage : JobStorage
     {
         ArgumentNullException.ThrowIfNull(logger);
         logger.Info("Using the following options for the MongoDB job storage:");
-        logger.Info($"    Database: '{Database.DatabaseNamespace.DatabaseName}', collection prefix: '{Options.CollectionPrefix}'.");
-        logger.Info($"    Invisibility timeout: {Options.InvisibilityTimeout}.");
-        logger.Info($"    Queue poll interval: {Options.QueuePollInterval}.");
-        logger.Info($"    Counters aggregate interval: {Options.CountersAggregateInterval}.");
-        logger.Info($"    Distributed lock lifetime: {Options.DistributedLockLifetime}.");
+        logger.Info($"    Database: '{Database.DatabaseNamespace.DatabaseName}', collection prefix: '{Settings.CollectionPrefix}'.");
+        logger.Info($"    Invisibility timeout: {Settings.InvisibilityTimeout}.");
+        logger.Info($"    Queue poll interval: {Settings.QueuePollInterval}.");
+        logger.Info($"    Counters aggregate interval: {Settings.CountersAggregateInterval}.");
+        logger.Info($"    Distributed lock lifetime: {Settings.DistributedLockLifetime}.");
     }
 
     /// <inheritdoc />
-    public override string ToString() => $"MongoDB storage ({Database.DatabaseNamespace.DatabaseName}, {Options.CollectionPrefix})";
-
-    /// <summary>Wakes the workers of this process waiting for a job.</summary>
-    internal void Signal()
-    {
-        Interlocked.Exchange(ref _enqueued, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult();
-    }
+    public override string ToString() => $"MongoDB storage ({Database.DatabaseNamespace.DatabaseName}, {Settings.CollectionPrefix})";
 
     /// <summary>
     /// Runs <paramref name="write"/> in a transaction, which the driver retries on transient errors. It reads
@@ -245,6 +260,23 @@ public sealed class MongoStorage : JobStorage
     private static void EnsureTransactions(IMongoDatabase database)
     {
         EnsureSupported(database.RunCommand<BsonDocument>(new BsonDocument("hello", 1)));
+    }
+
+    /// <summary>
+    /// The database with the settings every operation outside a transaction needs, whatever the client's or the
+    /// database's are. Writes wait for a majority: a write the primary alone acknowledged, or nobody did, can be
+    /// rolled back by a failover, and a job whose id was returned would vanish or a lock have two owners. Reads
+    /// go to the primary, which every write reaches first, and see what a majority has: Core decides on what it
+    /// reads (a job's state, a lock's owner), so it must never read a write that a failover could roll back. On
+    /// the primary such a read costs about what a local one does, and since every write of the storage waits for
+    /// a majority, a process still reads what it wrote.
+    /// </summary>
+    private static IMongoDatabase Durable(IMongoDatabase database)
+    {
+        return database
+            .WithWriteConcern(WriteConcern.WMajority)
+            .WithReadConcern(ReadConcern.Majority)
+            .WithReadPreference(ReadPreference.Primary);
     }
 }
 
