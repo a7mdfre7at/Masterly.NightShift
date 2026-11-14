@@ -60,10 +60,19 @@ public class RetryLaterException : Exception
     }
 
     /// <summary>Asks for a retry at the given moment (UTC, or local time converted to UTC), with a reason shown in the dashboard.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The moment is more than <see cref="MaxDelay"/> (one year) from now.</exception>
     public RetryLaterException(DateTime retryAt, [CanBeNull] string? reason)
         : base(reason ?? $"The job asked to be retried at {retryAt.ToUniversalTime():u}.")
     {
-        RetryAt = retryAt.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(retryAt, DateTimeKind.Utc) : retryAt.ToUniversalTime();
+        DateTime utc = retryAt.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(retryAt, DateTimeKind.Utc) : retryAt.ToUniversalTime();
+
+        // As for a delay: the expirations computed from a moment near DateTime.MaxValue would overflow
+        if (utc - JobClock.UtcNow > MaxDelay)
+        {
+            throw new ArgumentOutOfRangeException(nameof(retryAt), retryAt, "The moment can't be more than one year from now.");
+        }
+
+        RetryAt = utc;
         Reason = reason;
     }
 

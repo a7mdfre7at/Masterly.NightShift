@@ -33,6 +33,17 @@ public class RetryLaterFacts : IDisposable
     }
 
     [Fact]
+    public void Ctor_WithMoment_RejectsAMomentMoreThanAYearAway_LikeTheDelay()
+    {
+        // A moment near DateTime.MaxValue made the expirations computed from it overflow, failing every retry
+        Assert.Throws<ArgumentOutOfRangeException>(() => new RetryLaterException(DateTime.MaxValue));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new RetryLaterException(JobClock.UtcNow.AddDays(400), "far away"));
+
+        DateTime inAYear = JobClock.UtcNow.Add(RetryLaterException.MaxDelay).AddMinutes(-1);
+        Assert.Equal(inAYear, new RetryLaterException(inAYear).RetryAt);
+    }
+
+    [Fact]
     public void GetRetryAt_UsesTheDelay_OrTheMoment()
     {
         Assert.Equal(_now.AddMinutes(5), new RetryLaterException(TimeSpan.FromMinutes(5)).GetRetryAt(_now));

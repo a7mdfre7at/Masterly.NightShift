@@ -252,7 +252,7 @@ public class ReportService
 |-------------|---------|
 | `RetryLaterException(TimeSpan delay)` | Run again after `delay`. Negative delays, and delays longer than `RetryLaterException.MaxDelay` (365 days), throw `ArgumentOutOfRangeException`. |
 | `RetryLaterException(TimeSpan delay, string? reason)` | The same, with a reason shown in the dashboard. |
-| `RetryLaterException(DateTime retryAt)` | Run again at `retryAt`. A UTC or local time is converted to UTC; an `Unspecified` kind is taken as UTC. |
+| `RetryLaterException(DateTime retryAt)` | Run again at `retryAt`. A UTC or local time is converted to UTC; an `Unspecified` kind is taken as UTC. A moment more than `RetryLaterException.MaxDelay` (365 days) from now (`JobClock.UtcNow`) throws `ArgumentOutOfRangeException`, as a longer delay does; a moment in the past runs the job again at once. |
 | `RetryLaterException(DateTime retryAt, string? reason)` | The same, with a reason. |
 
 | Property | Type | Meaning |
