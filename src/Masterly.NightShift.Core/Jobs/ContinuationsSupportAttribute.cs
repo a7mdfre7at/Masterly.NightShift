@@ -247,6 +247,15 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
                 continue;
             }
 
+            // A failure or the start of processing leaves the continuations that wait for another outcome waiting.
+            // Decided from the options alone, before anything is read: a parent that starts processing or fails
+            // doesn't read the continuations it leaves alone, nor wait for one that has no state yet
+            FanInContinuationsSupportAttribute.Decision decision = Decide(context.CandidateState.Name, continuation.Options, _knownFinalStates);
+            if (decision == FanInContinuationsSupportAttribute.Decision.Undecided)
+            {
+                continue;
+            }
+
             StateData? currentState = GetContinuationState(context, continuation.JobId, ContinuationStateFetchTimeout);
             if (currentState == null)
             {
@@ -261,13 +270,6 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
             }
 
             IState? nextState;
-            FanInContinuationsSupportAttribute.Decision decision = Decide(context.CandidateState.Name, continuation.Options, _knownFinalStates);
-
-            // A failure or the start of processing leaves the continuations that wait for another outcome waiting
-            if (decision == FanInContinuationsSupportAttribute.Decision.Undecided)
-            {
-                continue;
-            }
 
             if (decision == FanInContinuationsSupportAttribute.Decision.Skip)
             {

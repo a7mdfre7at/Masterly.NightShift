@@ -443,6 +443,35 @@ public class ContinuationsSupportAttributeFacts
         _stateChanger.Verify(x => x.ChangeState(It.IsAny<StateChangeContext>()), Times.Never);
     }
 
+    [Theory]
+    [InlineData("Failed", JobContinuationOptions.OnlyOnSucceededState)]
+    [InlineData("Failed", JobContinuationOptions.OnlyOnProcessingState)]
+    [InlineData("Processing", JobContinuationOptions.OnlyOnSucceededState)]
+    [InlineData("Processing", JobContinuationOptions.OnlyOnFailedState)]
+    public void OnStateElection_DoesNotReadTheContinuations_ThatAFailedOrProcessingParentLeavesWaiting(string parentState, JobContinuationOptions options)
+    {
+        // A continuation that has no state yet would make the parent's state change wait for it, under its lock
+        SetUpParentWithContinuation(parentState, options);
+
+        CreateFilter().OnStateElection(_context.Object);
+
+        _context.ApplyContext.Connection.Verify(x => x.GetJobData(_continuationId), Times.Never);
+        _context.ApplyContext.Connection.Verify(x => x.GetStateData(_continuationId), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("Succeeded", JobContinuationOptions.OnlyOnFailedState)]
+    [InlineData("Failed", JobContinuationOptions.OnlyOnFailedState)]
+    [InlineData("Processing", JobContinuationOptions.OnlyOnProcessingState)]
+    public void OnStateElection_ReadsTheContinuations_ThatTheParentStartsOrSkips(string parentState, JobContinuationOptions options)
+    {
+        SetUpParentWithContinuation(parentState, options);
+
+        CreateFilter().OnStateElection(_context.Object);
+
+        _context.ApplyContext.Connection.Verify(x => x.GetStateData(_continuationId));
+    }
+
     [Fact]
     public void OnStateElection_DeletesAFailureContinuation_WhenTheParentSucceeds()
     {
