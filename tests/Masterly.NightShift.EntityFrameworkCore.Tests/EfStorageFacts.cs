@@ -1,4 +1,5 @@
 using System.Globalization;
+using Masterly.NightShift.Server;
 using Masterly.NightShift.Storage.Conformance;
 using Masterly.NightShift.Storage.Shared;
 using Microsoft.Data.Sqlite;
@@ -111,6 +112,44 @@ public sealed class EfStorageFacts : IDisposable
 
         using IStorageConnection reader = storage.GetConnection();
         Assert.Equal(["nightly"], reader.GetAllItemsFromSet("recurring-jobs"));
+    }
+
+    [Theory]
+    [InlineData(QueryTrackingBehavior.NoTracking, true)]
+    [InlineData(QueryTrackingBehavior.NoTrackingWithIdentityResolution, true)]
+    [InlineData(QueryTrackingBehavior.TrackAll, false)]
+    public void Writes_ThroughApplicationContexts_ThatDoNotTrackQueriesOrDetectChanges_UpdateExistingRows(QueryTrackingBehavior tracking, bool detectChanges)
+    {
+        _ = _database.CreateStorage();
+        EntityFrameworkCoreStorage storage = new(() => new ApplicationContext(
+            new DbContextOptionsBuilder<ApplicationContext>().UseSqlite(_database.ConnectionString).UseQueryTrackingBehavior(tracking).Options,
+            detectChanges));
+        string id;
+        using (IStorageConnection connection = storage.GetConnection())
+        {
+            id = connection.CreateExpiredJob(Job.FromExpression(() => ConformanceJobs.Record("x")), new Dictionary<string, string?>(), JobClock.UtcNow, TimeSpan.FromHours(1))!;
+            connection.SetRangeInHash("hash", [new("field", "1")]);
+            connection.SetRangeInHash("hash", [new("field", "2")]);
+            connection.SetJobParameter(id, "RetryCount", "1");
+            connection.SetJobParameter(id, "RetryCount", "2");
+            connection.AnnounceServer("server", new ServerContext { Queues = ["default"], WorkerCount = 1 });
+            connection.AnnounceServer("server", new ServerContext { Queues = ["default"], WorkerCount = 2 });
+        }
+
+        Commit(storage, x => x.AddToSet("schedule", id, 100));
+        Commit(storage, x => x.AddToSet("schedule", id, 200));
+        EfCountersAggregator aggregator = new(storage);
+        Commit(storage, static x => x.IncrementCounter("counter"));
+        aggregator.AggregateBatch();
+        Commit(storage, static x => x.IncrementCounter("counter"));
+        aggregator.AggregateBatch();
+
+        using IStorageConnection reader = storage.GetConnection();
+        Assert.Equal("2", ((JobStorageConnection)reader).GetValueFromHash("hash", "field"));
+        Assert.Equal("2", reader.GetJobParameter(id, "RetryCount"));
+        Assert.Equal(id, reader.GetFirstByLowestScoreFromSet("schedule", 150, 250));
+        Assert.Equal(2, ((JobStorageConnection)reader).GetCounter("counter"));
+        Assert.Equal(2, Assert.Single(storage.GetMonitoringApi().Servers()).WorkersCount);
     }
 
     [Fact]
@@ -469,5 +508,20 @@ public sealed class EfStorageFacts : IDisposable
                 x.InsertToList(key, i.ToString(CultureInfo.InvariantCulture));
             }
         });
+    }
+
+    /// <summary>An application's context, configured as the application likes: the storage must work with it.</summary>
+    private sealed class ApplicationContext : DbContext
+    {
+        public ApplicationContext(DbContextOptions<ApplicationContext> options, bool detectChanges)
+            : base(options)
+        {
+            ChangeTracker.AutoDetectChangesEnabled = detectChanges;
+        }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.ApplyNightShiftModel(schema: null);
+        }
     }
 }

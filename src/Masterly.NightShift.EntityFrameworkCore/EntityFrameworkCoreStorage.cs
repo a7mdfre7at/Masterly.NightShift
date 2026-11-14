@@ -338,11 +338,18 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
         return Transaction.Current != null ? new TransactionScope(TransactionScopeOption.Suppress) : null;
     }
 
-    /// <summary>A new context whose model includes the storage's tables.</summary>
+    /// <summary>
+    /// A new context whose model includes the storage's tables. It tracks what its queries load and detects the
+    /// changes of tracked rows, whatever the application's factory configured: the storage changes rows it found
+    /// with <c>Find</c> or a query, and a row that isn't tracked, or whose change isn't detected, would be saved
+    /// unchanged without a word.
+    /// </summary>
     internal DbContext CreateContext()
     {
         DbContext context = _contextFactory() ?? throw new InvalidOperationException("The context factory returned null.");
         EnsureModel(context);
+        context.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.TrackAll;
+        context.ChangeTracker.AutoDetectChangesEnabled = true;
         return context;
     }
 

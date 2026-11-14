@@ -382,6 +382,18 @@ internal static class StorageRows
         }
     }
 
+    /// <summary>Detects the changes of the storage's rows the context tracks, and of no other entity.</summary>
+    public static void DetectChanges(DbContext context)
+    {
+        foreach (EntityEntry entry in context.ChangeTracker.Entries().ToList())
+        {
+            if (Types.Contains(entry.Metadata.ClrType))
+            {
+                entry.DetectChanges();
+            }
+        }
+    }
+
     /// <summary>What the context is about to write to the storage's tables.</summary>
     public static List<string> Written(DbContext context)
     {
@@ -719,17 +731,35 @@ internal sealed class StagingTransaction(EntityFrameworkCoreStorage storage, EfC
         // A row the context loaded or saved earlier may have changed since: the writer reads it again
         StorageRows.Forget(context, everyState: false);
 
-        EfOperationWriter writer = new(context, immediate: false);
-        foreach (StorageOperation operation in operations)
+        // The writer changes rows it found, so they must be tracked, whatever the application set for its own
+        // queries; the setting is the application's again afterwards
+        QueryTrackingBehavior tracking = context.ChangeTracker.QueryTrackingBehavior;
+        context.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.TrackAll;
+        try
         {
-            writer.Write(operation);
+            EfOperationWriter writer = new(context, immediate: false);
+            foreach (StorageOperation operation in operations)
+            {
+                writer.Write(operation);
+            }
+
+            foreach (string continuation in ContinuationsOfOthers(operations))
+            {
+                // Committed with the continuation, so a server registers it should the process stop before it does
+                writer.Write(new AddToSetOperation(StagedContinuations.Key, continuation, JobHelper.ToTimestamp(JobClock.UtcNow)));
+                subscription.Defer(continuation);
+            }
+        }
+        finally
+        {
+            context.ChangeTracker.QueryTrackingBehavior = tracking;
         }
 
-        foreach (string continuation in ContinuationsOfOthers(operations))
+        // A context that doesn't detect changes would save the rows the writer changed as they were: their
+        // changes are detected now, and only theirs, so the application's own entities stay as it left them
+        if (!context.ChangeTracker.AutoDetectChangesEnabled)
         {
-            // Committed with the continuation, so a server registers it should the process stop before it does
-            writer.Write(new AddToSetOperation(StagedContinuations.Key, continuation, JobHelper.ToTimestamp(JobClock.UtcNow)));
-            subscription.Defer(continuation);
+            StorageRows.DetectChanges(context);
         }
     }
 

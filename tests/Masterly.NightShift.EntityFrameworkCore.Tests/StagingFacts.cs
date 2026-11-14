@@ -224,6 +224,36 @@ public sealed class StagingFacts : IDisposable
         Assert.Null(_storage.GetMonitoringApi().JobDetails(id)?.ExpireAt);
     }
 
+    [Theory]
+    [InlineData(QueryTrackingBehavior.NoTracking, true)]
+    [InlineData(QueryTrackingBehavior.TrackAll, false)]
+    public void Staging_InAContextThatDoesNotTrackQueriesOrDetectChanges_UpdatesExistingRows_AndKeepsTheContextsSettings(QueryTrackingBehavior tracking, bool detectChanges)
+    {
+        using ShopContext context = new(new DbContextOptionsBuilder<ShopContext>().UseSqlite(_database.ConnectionString).UseQueryTrackingBehavior(tracking).Options);
+        context.ChangeTracker.AutoDetectChangesEnabled = detectChanges;
+
+        // The job's row was reserved outside the context: staging changes its state and expiry
+        string id = context.NightShift(_storage).Enqueue(() => ConformanceJobs.Record("a"))!;
+        StageInHash(context, "1");
+        context.SaveChanges();
+        Assert.Equal(EnqueuedState.StateName, State(id));
+        Assert.Null(_storage.GetMonitoringApi().JobDetails(id)?.ExpireAt);
+
+        Assert.True(new BackgroundJobClient(_storage).ChangeState(id, new SucceededState(null, 1, 1), EnqueuedState.StateName));
+        Assert.True(context.NightShift(_storage).Requeue(id));
+        StageInHash(context, "2");
+        context.SaveChanges();
+
+        Assert.Equal(EnqueuedState.StateName, State(id));
+        using (IStorageConnection reader = _storage.GetConnection())
+        {
+            Assert.Equal("2", ((JobStorageConnection)reader).GetValueFromHash("hash", "field"));
+        }
+
+        Assert.Equal(tracking, context.ChangeTracker.QueryTrackingBehavior);
+        Assert.Equal(detectChanges, context.ChangeTracker.AutoDetectChangesEnabled);
+    }
+
     [Fact]
     public void SetValue_StagedInTheContextThatStagedIt_AfterAnotherProcessRemovedIt_IsAddedAgain()
     {
@@ -421,6 +451,14 @@ public sealed class StagingFacts : IDisposable
     {
         using IStorageConnection connection = _storage.GetConnection();
         return connection.GetStateData(id)?.Name;
+    }
+
+    private void StageInHash(ShopContext context, string value)
+    {
+        using IStorageConnection connection = ((IBackgroundJobClientV2)context.NightShift(_storage)).Storage.GetConnection();
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+        transaction.SetRangeInHash("hash", [new("field", value)]);
+        transaction.Commit();
     }
 
     private ShopContext CreateContext() => new(new DbContextOptionsBuilder<ShopContext>().UseSqlite(_database.ConnectionString).Options);
