@@ -167,13 +167,33 @@ public sealed class JobFunctionsFacts : IDisposable
     }
 
     [Fact, GlobalLock(Reason = "Changes the global functions"), CleanSerializerSettings]
-    public void CreateJob_RefusesATypeName_InAPayloadMemberOfTypeObject()
+    public void CreateJob_KeepsATypeName_InAPayloadMemberOfTypeObject_AsData()
     {
         GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
         JobFunctions.Add<Untrusted>();
         Common.JsonConvertersFacts.Gadget.Constructed = 0;
         string gadget = typeof(Common.JsonConvertersFacts.Gadget).AssemblyQualifiedName!;
-        string message = $"{{\"Name\":\"x\",\"Extra\":{{\"k\":{{\"$type\":\"{gadget}\",\"Command\":\"calc.exe\"}}}}}}";
+        string message = $"{{\"Name\":\"x\",\"Extra\":{{\"k\":{{\"$type\":\"{gadget}\",\"Command\":\"calc.exe\"}},\"shape\":{{\"$type\":\"circle\",\"r\":1}}}}}}";
+
+        Job job = JobFunctions.Find("untrusted.payload")!.CreateJob(message, null);
+        Job back = InvocationData.SerializeJob(job).DeserializeJob();
+
+        UntrustedPayload payload = Assert.IsType<UntrustedPayload>(job.Args[0]);
+        UntrustedPayload stored = Assert.IsType<UntrustedPayload>(back.Args[0]);
+        Assert.Equal("circle", Assert.IsType<JsonElement>(payload.Extra!["shape"]).GetProperty("$type").GetString());
+        Assert.Equal(gadget, Assert.IsType<JsonElement>(stored.Extra!["k"]).GetProperty("$type").GetString());
+        Assert.Equal("circle", Assert.IsType<JsonElement>(stored.Extra["shape"]).GetProperty("$type").GetString());
+        Assert.Equal(0, Common.JsonConvertersFacts.Gadget.Constructed);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the global functions"), CleanSerializerSettings]
+    public void CreateJob_RefusesATypeName_InAnInterfaceMember_ThatNamesNoLoadedAssignableType()
+    {
+        GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
+        JobFunctions.Add<Untrusted>();
+        Common.JsonConvertersFacts.Gadget.Constructed = 0;
+        string gadget = typeof(Common.JsonConvertersFacts.Gadget).AssemblyQualifiedName!;
+        string message = $"{{\"Name\":\"x\",\"Label\":{{\"$type\":\"{gadget}\",\"Command\":\"calc.exe\"}}}}";
 
         Assert.Throws<ArgumentException>("payload", () => JobFunctions.Find("untrusted.payload")!.CreateJob(message, null));
         Assert.Equal(0, Common.JsonConvertersFacts.Gadget.Constructed);
@@ -374,6 +394,7 @@ public sealed class JobFunctionsFacts : IDisposable
     {
         public string? Name { get; set; }
         public Dictionary<string, object>? Extra { get; set; }
+        public Common.JsonConvertersFacts.ILabelled? Label { get; set; }
     }
 
     /// <summary>An assembly one of whose types can't be loaded, as when a dependency is missing.</summary>

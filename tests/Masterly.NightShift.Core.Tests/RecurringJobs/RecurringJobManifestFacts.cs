@@ -450,6 +450,30 @@ public class RecurringJobManifestFacts
         Assert.Equal("[\"42\"]", entry["job"]["arguments"].GetValue<string>());
     }
 
+    [Fact, GlobalLock(Reason = "Sets the log provider")]
+    public void Export_WritesArgumentsThatCannotBeDecompressed_AsStored_AndTheOtherJobs()
+    {
+        // Not GZip data: decompressing it throws InvalidDataException, as arguments past the length allowed do
+        string arguments = "gz:" + Convert.ToBase64String("not gzip data"u8.ToArray());
+        AddExisting("good", "0 * * * *");
+        _hashes["recurring-job:orphan"] = new Dictionary<string, string>
+        {
+            { "Cron", "0 3 * * *" },
+            { "Job", new InvocationData("Missing.Jobs, Missing", "Run", "[\"System.String\"]", arguments).SerializePayload() },
+        };
+        RecordingLogProvider recording = new();
+
+        JsonArray entries;
+        using (recording.Use())
+        {
+            entries = JsonNode.Parse(RecurringJobManifest.Export(_connection.Object))["recurringJobs"].AsArray();
+        }
+
+        Assert.Equal(["good", "orphan"], entries.Select(static x => x["id"].GetValue<string>()));
+        Assert.Equal(arguments, entries[1]["job"]["arguments"].GetValue<string>());
+        Assert.Contains("'orphan'", Assert.Single(recording.Entries, static m => m.Level == LogLevel.Warn).Message);
+    }
+
     [DataCompatibilityRangeFact]
     public void Export_WritesEmptyArrays_ForAStoredMethodWithoutParameters()
     {

@@ -52,12 +52,12 @@ The parameters the server fills itself (`CancellationToken`, `IJobCancellationTo
 
 A payload that doesn't fit throws `ArgumentException` when the job is created: a value of the wrong type, a missing parameter, a property the function has no parameter for, a payload for a function that takes none. The payload is converted with the application's serializer settings and stored as the job's arguments.
 
-A payload often comes from another service, a script or a message, so it is read as data, the way the dashboard reads what an operator types, whatever the serializer settings:
+A payload often comes from another service, a script or a message, so it is read as data, never as type names, whatever the serializer settings:
 
-- A value declared as `object`, in the payload type or in a dictionary of objects, is read as plain JSON (a `JsonElement` or a primitive). A `"$type"` in it is refused with `ArgumentException` instead of creating the type it names.
+- A value declared as `object`, in the payload type or in a dictionary of objects, is read as plain JSON (a `JsonElement` or a primitive). A `"$type"` in it, such as the type discriminator of a service using System.Text.Json polymorphism or Newtonsoft.Json type names (`{"Data":{"shape":{"$type":"circle","r":1}}}`), stays data: the `JsonElement` keeps it, and it never creates the type it names. The job stores and reads it back as that `JsonElement`.
 - A `System.Type` value is refused.
 - A dictionary's leading `"$type"` entry is an ordinary key.
-- A value declared as an interface or abstract class takes a `"$type"` only when it names a type of an assembly already loaded that implements or derives from it.
+- A value declared as an interface or abstract class takes a `"$type"` only when it names a type of an assembly already loaded that implements or derives from it, or the name your [type serializer](../configuration/serialization.md#how-type-is-handled) gives such a type, as in the dashboard's job forms.
 
 A payload object that isn't the parameter's type is converted through JSON without type names, so its `object` members arrive as plain JSON too. A parameter declared as `object` itself receives the payload value as it is (for a JSON payload, the `JsonElement`), and the job stores it as that.
 

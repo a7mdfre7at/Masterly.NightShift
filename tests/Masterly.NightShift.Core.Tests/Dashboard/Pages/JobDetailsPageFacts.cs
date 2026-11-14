@@ -47,6 +47,23 @@ public class JobDetailsPageFacts
         Assert.Contains("id=\"catalogRunner\"", html);
     }
 
+    [Fact]
+    public void Render_EncodesAnIdWithASlashAndALiteralPercent2F_InEveryUrlOfThePage()
+    {
+        // A third-party storage may use any text as a job id; the route hands the page the decoded id
+        const string id = "a/b%2Fc~d";
+        _renderer.Monitoring.Setup(x => x.JobDetails(id)).Returns(Details(FailedState.StateName));
+
+        string html = _renderer.Render(new JobDetailsPage(id));
+
+        Assert.Contains("data-url=\"/jobs/export/a~2Fb~252Fc~7Ed\"", html);
+        Assert.Contains("data-url=\"/jobs/notes/add/a~2Fb~252Fc~7Ed\"", html);
+        Assert.Contains("data-ajax=\"/jobs/actions/requeue/a~2Fb~252Fc~7Ed\"", html);
+        Assert.Contains("data-ajax=\"/jobs/actions/delete/a~2Fb~252Fc~7Ed\"", html);
+        Assert.DoesNotContain("/jobs/export/a/", html);
+        Assert.DoesNotContain("/jobs/actions/delete/a/", html);
+    }
+
     [Theory]
     [InlineData("Failed")]
     [InlineData("Processing")]

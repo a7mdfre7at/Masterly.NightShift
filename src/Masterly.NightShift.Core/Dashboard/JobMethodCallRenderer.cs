@@ -85,7 +85,8 @@ internal static class JobMethodCallRenderer
         builder.Append('(');
 
         ParameterInfo[] parameters = job.Method.GetParameters();
-        string[] arguments = InvocationData.SerializeArguments(job.Method, job.Args);
+        // Only shown, never stored: a job is shown as it is
+        string[] arguments = InvocationData.SerializeArguments(job.Method, job.Args, ensureReadsBack: false);
         List<string> renderedArguments = new(parameters.Length);
         int renderedArgumentsTotalLength = 0;
 

@@ -236,6 +236,14 @@ public partial class Job
     [CanBeNull]
     public string? Queue { get; }
 
+    /// <summary>
+    /// Whether the arguments were read back from stored data (<see cref="InvocationData.DeserializeJob"/>), not
+    /// given by user code. Such a job is written again as it is: an argument the serializer settings read back as
+    /// its default value already is that value, so <see cref="InvocationData.SerializeJob"/> refuses it only for a
+    /// job created from user values.
+    /// </summary>
+    internal bool ArgumentsReadBack { get; init; }
+
     public override string ToString()
     {
         return ToString(includeQueue: true);
