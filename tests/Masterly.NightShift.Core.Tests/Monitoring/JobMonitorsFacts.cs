@@ -308,6 +308,99 @@ public sealed class JobMonitorsFacts : IDisposable
     }
 
     [Fact]
+    public void DailyDeadline_ThatEndsAfterMidnight_NeedsAttention_WhenNoJobSucceeded()
+    {
+        DailyDeadlineMonitor monitor = new("nightly", "Reports.Build", TimeSpan.FromHours(23), grace: TimeSpan.FromHours(2));
+        DateTime start = new(2026, 11, 20, 0, 0, 0, DateTimeKind.Utc);
+        List<JobMonitorState> states = [];
+
+        for (DateTime now = start; now < start.AddDays(2); now = now.AddMinutes(30))
+        {
+            states.Add(monitor.Evaluate(Data(), now, _storage.Object).State);
+        }
+
+        Assert.Contains(JobMonitorState.NeedsAttention, states);
+    }
+
+    [Theory]
+    // Until the next night's deadline, the monitor tells about the night before
+    [InlineData("2026-11-20 22:30", "2026-11-19 22:10", "Healthy")]
+    [InlineData("2026-11-20 22:30", null, "NeedsAttention")]
+    [InlineData("2026-11-21 00:30", "2026-11-19 22:10", "Waiting")]
+    [InlineData("2026-11-21 00:30", null, "Waiting")]
+    [InlineData("2026-11-21 01:00", null, "NeedsAttention")]
+    [InlineData("2026-11-21 12:00", null, "NeedsAttention")]
+    [InlineData("2026-11-21 00:30", "2026-11-20 22:10", "Healthy")]
+    [InlineData("2026-11-21 12:00", "2026-11-20 22:10", "Healthy")]
+    // Late, but inside the grace: the success after midnight counts for the night before
+    [InlineData("2026-11-21 12:00", "2026-11-21 00:40", "Healthy")]
+    // ...and not for the night after
+    [InlineData("2026-11-22 01:30", "2026-11-21 00:40", "NeedsAttention")]
+    // A success after the incident opened ends it
+    [InlineData("2026-11-21 22:30", "2026-11-21 22:10", "Healthy")]
+    public void DailyDeadline_ThatEndsAfterMidnight_JudgesTheNightBeforeUntilTheNextDeadline(string now, string lastSuccess, string expected)
+    {
+        DailyDeadlineMonitor monitor = new("nightly", "Reports.Build", TimeSpan.FromHours(23), grace: TimeSpan.FromHours(2));
+        JobMonitorData data = Data(lastSuccess: lastSuccess == null ? null : Utc(lastSuccess));
+
+        (JobMonitorState state, string reason) = monitor.Evaluate(data, Utc(now), _storage.Object);
+
+        Assert.Equal(expected, state.ToString());
+        if (state == JobMonitorState.NeedsAttention)
+        {
+            Assert.StartsWith("No job of Reports.Build succeeded by 23:00 on 2026-11-", reason, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void DailyDeadline_ThatEndsAtMidnight_NeedsAttention_AfterMidnight()
+    {
+        DailyDeadlineMonitor monitor = new("nightly", "Reports.Build", TimeSpan.FromHours(22), grace: TimeSpan.FromHours(2));
+        JobMonitorData data = Data(lastSuccess: Utc("2026-11-19 21:00"));
+
+        Assert.Equal(JobMonitorState.Healthy, monitor.Evaluate(data, Utc("2026-11-20 23:59"), _storage.Object).State);
+        Assert.Equal(JobMonitorState.NeedsAttention, monitor.Evaluate(data, Utc("2026-11-21 00:01"), _storage.Object).State);
+    }
+
+    [Fact]
+    public void DailyDeadline_ThatEndsAfterMidnight_FollowsTheClocks_OnDaylightSavingNights()
+    {
+        TimeZoneInfo berlin = TimeZoneInfo.FindSystemTimeZoneById(SchedulePolicyFacts.BerlinTimeZoneId);
+        DailyDeadlineMonitor monitor = new("nightly", "Reports.Build", new TimeSpan(23, 30, 0), berlin, grace: TimeSpan.FromHours(4));
+
+        // 2026-03-28 23:30 in Berlin is 22:30 UTC; four hours later it is 02:30 UTC, 04:30 after the clocks jumped
+        Assert.Equal(JobMonitorState.Waiting, monitor.Evaluate(Data(), Utc("2026-03-29 02:29"), _storage.Object).State);
+        Assert.Equal(JobMonitorState.NeedsAttention, monitor.Evaluate(Data(), Utc("2026-03-29 02:31"), _storage.Object).State);
+
+        // A success at 02:00 UTC (04:00 in Berlin, later than 23:30 plus four hours on the clock) is inside that
+        // night's grace, and counts for it, not for the next
+        JobMonitorData late = Data(lastSuccess: Utc("2026-03-29 02:00"));
+        Assert.Equal(JobMonitorState.Healthy, monitor.Evaluate(late, Utc("2026-03-29 12:00"), _storage.Object).State);
+        Assert.Equal(JobMonitorState.NeedsAttention, monitor.Evaluate(late, Utc("2026-03-30 02:00"), _storage.Object).State);
+
+        // 2026-10-24 23:30 in Berlin is 21:30 UTC; four hours later it is 01:30 UTC, 02:30 after the clocks went back
+        Assert.Equal(JobMonitorState.Waiting, monitor.Evaluate(Data(), Utc("2026-10-25 01:29"), _storage.Object).State);
+        Assert.Equal(JobMonitorState.NeedsAttention, monitor.Evaluate(Data(), Utc("2026-10-25 01:31"), _storage.Object).State);
+    }
+
+    [Fact]
+    public void RecordOutcome_WritesTheFirstSuccessOfTheNextNight_ForADeadlineThatEndsAfterMidnight()
+    {
+        JobMonitors.Add(new DailyDeadlineMonitor("nightly", "Reports.Build", TimeSpan.FromHours(23), grace: TimeSpan.FromHours(2)));
+        DateTime beforeDeadline = Utc("2026-11-21 01:00").AddSeconds(-1);
+
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: true, beforeDeadline);
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: true, beforeDeadline.AddSeconds(2));
+
+        Assert.Equal(JobHelper.SerializeDateTime(beforeDeadline.AddSeconds(2)), _storage.Hashes["monitor:nightly"]["LastSuccessAt"]);
+    }
+
+    private static DateTime Utc(string text)
+    {
+        return DateTime.SpecifyKind(DateTime.Parse(text, System.Globalization.CultureInfo.InvariantCulture), DateTimeKind.Utc);
+    }
+
+    [Fact]
     public void Check_GoesOnWithTheOtherMonitors_WhenOneCannotBeRead()
     {
         JobMonitors.Add(new DailyDeadlineMonitor("broken", "Reports.Build", TimeSpan.FromHours(7)));
