@@ -194,6 +194,28 @@ public class SqlServerConnectionFacts
         Assert.True(PhysicalConnectionCloses(session.SessionId, session.ConnectTime));
     }
 
+    // Keeping a connection out of its pool clears the whole pool, so the common failure, a timeout, never does it
+    [Fact, CleanDatabase]
+    public void AcquireDistributedLock_KeepsTheSessionPooled_WhenTheAcquireTimesOut()
+    {
+        (int SessionId, DateTime ConnectTime) session = default;
+        SqlServerStorage storage = new(() =>
+        {
+            DbConnection opened = ConnectionUtils.CreateConnection();
+            session = opened.QuerySingle<(int, DateTime)>("select session_id, connect_time from sys.dm_exec_connections where session_id = @@spid");
+            return opened;
+        }, new SqlServerStorageOptions { PrepareSchemaIfNecessary = false, TryAutoDetectSchemaDependentOptions = false });
+        using DbConnection holder = OpenInAnotherPool();
+        SqlServerDistributedLock.Acquire(holder, $"{Constants.DefaultSchema}:bk:timeout", TimeSpan.Zero);
+
+        using (SqlServerConnection connection = (SqlServerConnection)storage.GetConnection())
+        {
+            Assert.Throws<DistributedLockTimeoutException>(() => connection.AcquireDistributedLock("bk:timeout", TimeSpan.FromSeconds(1)));
+        }
+
+        Assert.False(PhysicalConnectionCloses(session.SessionId, session.ConnectTime));
+    }
+
     // Logging out takes the server a moment. A new connection may get the same session id, and a pooled one keeps
     // its connection when it is reused, so it is asked from another pool.
     private static bool PhysicalConnectionCloses(int sessionId, DateTime connectTime)
