@@ -225,6 +225,26 @@ public class WorkerFacts
     }
 
     [Fact]
+    public void Execute_RunsTheJob_WhenTheStorageReportsTheQueueEntryIdButCanNotGiveIt()
+    {
+        // A wrapper storage that passes HasFeature on without overriding the member
+        Mock<JobStorageConnection> connection = UseStorageConnection();
+        _context.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Connection.GetQueueEntryId)).Returns(true);
+        connection.Setup(x => x.GetQueueEntryId(_fetchedJob.Object)).Throws<NotSupportedException>();
+        List<StateChangeContext> contexts = [];
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Callback<StateChangeContext>(contexts.Add)
+            .Returns<StateChangeContext>(ctx => ctx.NewState);
+
+        CreateWorker().Execute(_context.Object);
+
+        Assert.Null(Assert.IsType<ProcessingState>(contexts[0].NewState).QueueEntry);
+        Assert.Contains(contexts, ctx => ctx.NewState is SucceededState);
+        _fetchedJob.Verify(x => x.RemoveFromQueue());
+        _fetchedJob.Verify(x => x.Requeue(), Times.Never);
+    }
+
+    [Fact]
     public void Execute_RemovesTheEntryFromTheQueue_WhenTheJobIsRunFromAnotherEntry()
     {
         // The state changer refuses the change to Processing: another worker runs the job from another entry

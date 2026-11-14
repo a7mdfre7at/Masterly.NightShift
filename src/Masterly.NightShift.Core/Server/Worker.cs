@@ -61,6 +61,9 @@ public class Worker : IBackgroundProcess
 
     private readonly ILog _logger = LogProvider.For<Worker>();
 
+    // Whether this worker warned that its storage reports a queue entry id it can't give (once is enough)
+    private int _queueEntryUnsupportedLogged;
+
     private readonly IEnumerable<string> _queues;
 
     private readonly IBackgroundJobPerformer _performer;
@@ -413,11 +416,30 @@ public class Worker : IBackgroundProcess
     /// The queue entry the job was fetched from, where the storage tells it: so the job runs once when it has
     /// several entries (see <see cref="JobStorageConnection.GetQueueEntryId"/>).
     /// </summary>
-    private static string? GetQueueEntry(JobStorage storage, IStorageConnection connection, IFetchedJob fetchedJob)
+    private string? GetQueueEntry(JobStorage storage, IStorageConnection connection, IFetchedJob fetchedJob)
     {
-        return connection is JobStorageConnection storageConnection && storage.HasFeature(JobStorageFeatures.Connection.GetQueueEntryId)
-            ? storageConnection.GetQueueEntryId(fetchedJob)
-            : null;
+        if (connection is not JobStorageConnection storageConnection || !storage.HasFeature(JobStorageFeatures.Connection.GetQueueEntryId))
+        {
+            return null;
+        }
+
+        try
+        {
+            return storageConnection.GetQueueEntryId(fetchedJob);
+        }
+        catch (NotSupportedException ex)
+        {
+            // A storage that reports the feature without the member (a wrapper that passes HasFeature on, say)
+            // would otherwise fail every job it hands out: the job runs as without the feature
+            if (Interlocked.Exchange(ref _queueEntryUnsupportedLogged, 1) == 0)
+            {
+                _logger.WarnException(
+                    $"The storage {storage} reports {JobStorageFeatures.Connection.GetQueueEntryId} but its connection doesn't support it, so a job with more than one queue entry can run twice at once.",
+                    ex);
+            }
+
+            return null;
+        }
     }
 
     /// <summary>The id of the worker running in <paramref name="context"/>, the same string on every call.</summary>
