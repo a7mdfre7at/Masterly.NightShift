@@ -923,6 +923,9 @@ public static partial class JobChains
             if (placement.Unlisted)
             {
                 transaction.RemoveFromSet(SetKey, chainId);
+
+                // Also an entry whose time to live was never set: its process stopped before it set it
+                transaction.RemoveHash(GetStepOutcomesKey(chainId));
             }
             else if (placement.ListedAt is { } createdAt)
             {
@@ -967,7 +970,7 @@ public static partial class JobChains
         {
             try
             {
-                if (Redrive(client, connection, step.JobId))
+                if (Redrive(client, connection, step.JobId, info.ChainId))
                 {
                     redriven++;
                     Logger.Warn($"Step '{step.Key}' of chain '{info.ChainId}', background job '{step.JobId}', was still waiting although the steps before it finished more than {DecisionWindow.TotalMinutes:0} minutes ago: the process that was to start it stopped, or couldn't. It was decided again now.");
@@ -1006,8 +1009,9 @@ public static partial class JobChains
     }
 
     // Decides a waiting step again from the stored states of the steps it waits for, as the filter that would
-    // have told it does, and changes it only from the Awaiting state: whoever decides it first wins
-    private static bool Redrive(IBackgroundJobClient client, IStorageConnection connection, string jobId)
+    // have told it does, and changes it only from the Awaiting state: whoever decides it first wins. A step whose
+    // job is gone counts as what it wrote on this one, or else as what its chain kept it finished as.
+    private static bool Redrive(IBackgroundJobClient client, IStorageConnection connection, string jobId, string chainId)
     {
         StateData? state = connection.GetStateData(jobId);
         if (state?.Data == null || !IsAwaiting(state.Name))
@@ -1018,11 +1022,11 @@ public static partial class JobChains
         HashSet<string> finalStates = ContinuationsSupportAttribute.KnownFinalStates;
         FanInContinuationsSupportAttribute.Decision decision;
         IState? nextState = null;
+        Dictionary<string, string>? kept = null;
 
         if (AwaitingJobsState.FromStateData(state.Data) is { } group)
         {
-            // A step whose job is gone counts as what it wrote on this one when it finished, and as not finished
-            // when it wrote nothing: this decides only from what is known
+            // Not finished when nothing is known of it: this decides only from what is known
             Dictionary<string, string>? written = null;
             decision = FanInContinuationsSupportAttribute.Evaluate(
                 group.Mode,
@@ -1031,7 +1035,8 @@ public static partial class JobChains
                 parentId => FanInContinuationsSupportAttribute.GetKnownParentState(
                     connection,
                     parentId,
-                    () => written ??= FanInContinuationsSupportAttribute.ReadOutcomes(connection, jobId)),
+                    () => written ??= FanInContinuationsSupportAttribute.ReadOutcomes(connection, jobId))
+                    ?? KeptOutcome(parentId),
                 finalStates);
             nextState = group.NextState;
         }
@@ -1045,7 +1050,7 @@ public static partial class JobChains
             }
 
             StateData? parent = connection.GetStateData(parentId);
-            decision = ContinuationsSupportAttribute.Decide(parent?.Name, options, finalStates);
+            decision = ContinuationsSupportAttribute.Decide(parent?.Name ?? KeptOutcome(parentId), options, finalStates);
 
             if (decision == FanInContinuationsSupportAttribute.Decision.Start)
             {
@@ -1053,7 +1058,7 @@ public static partial class JobChains
                 // continuation as it starts it: so does this, from the parent's stored state. A continuation
                 // started without would run with the wrong input, so one whose parent's state can't be read any
                 // more is left waiting, for a requeue. A step that waits for several steps is never handed any.
-                if (GlobalJobFilters.Filters.Any(static x => x.Instance is ContinuationsSupportAttribute { PushResults: true }))
+                if (ContinuationsSupportAttribute.PushesResults())
                 {
                     if (parent?.Data == null)
                     {
@@ -1081,6 +1086,12 @@ public static partial class JobChains
             : new DeletedState { Reason = ConditionNotMetReason };
 
         return client.ChangeState(jobId, newState, AwaitingState.StateName);
+
+        // Only for a parent whose job is gone, or has no state: what the chain kept it finished as, read once
+        string? KeptOutcome(string parentId)
+        {
+            return (kept ??= ReadStepOutcomes(connection, chainId)).GetValueOrDefault(parentId);
+        }
     }
 
     /// <summary>

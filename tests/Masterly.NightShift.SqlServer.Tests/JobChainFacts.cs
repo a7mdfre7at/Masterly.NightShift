@@ -95,6 +95,42 @@ public class JobChainFacts
     }
 
     [Fact, CleanDatabase]
+    public async Task Chain_CanBeRetriedFromAFailedBranch_AfterTheJobOfABranchThatSucceededExpired()
+    {
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        _failures = 1;
+
+        JobChainResult chain = JobChain.StartWith(() => Record("a"))
+            .ThenMany(branches => branches.Branch(() => FailOnce("b")).Branch(() => Record("c")))
+            .ThenAfterAll(() => Record("done"))
+            .ThenAfterAnyFailed(() => Record("alert"))
+            .Enqueue(new BackgroundJobClient(storage))!;
+
+        using (CreateServer(storage))
+        {
+            await WaitUntilSettledAsync(storage, chain.ChainId);
+        }
+
+        // A day later the job of the branch that succeeded has expired
+        Expire(chain.Steps["1.1"]);
+        Assert.Equal(SucceededState.StateName, storage.GetChain(chain.ChainId)!.Steps.Single(static x => x.Key == "1.1").FinishedAs);
+
+        Log.Clear();
+        JobChainResult retried = storage.RetryChainFrom(chain.Steps["1.0"]);
+
+        using (CreateServer(storage))
+        {
+            await WaitUntilSettledAsync(storage, chain.ChainId);
+        }
+
+        Assert.Equal(["b", "done"], Log.Order(StringComparer.Ordinal));
+        Assert.Equal(SucceededState.StateName, storage.GetChain(chain.ChainId)!.Steps.Single(static x => x.Key == "2.0").State);
+        Assert.Equal(DeletedState.StateName, storage.GetChain(chain.ChainId)!.Steps.Single(static x => x.Key == "2.1").State);
+        Assert.NotEqual(chain.Steps["2.0"], retried.Steps["2.0"]);
+    }
+
+    [Fact, CleanDatabase]
     public void RetryChainFrom_Refuses_WhileTheChainIsRunning_OrForAJobOutsideAChain()
     {
         SqlServerStorage storage = CreateStorage();

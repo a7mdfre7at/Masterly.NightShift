@@ -362,6 +362,12 @@ public static partial class JobChains
             JobStorageTransaction? expiring = expires ? transaction as JobStorageTransaction : null;
             expiring?.ExpireHash(GetKey(ChainId), expireAt - now);
 
+            // What the steps finished as lives as long: a retry or a replacement keeps the steps that finished
+            if (Generation > 1)
+            {
+                expiring?.ExpireHash(GetStepOutcomesKey(ChainId), StepOutcomesExpiry(expireAt - now));
+            }
+
             // The time the marks say, among those any process wrote, once for this process
             ConcurrentDictionary<long, byte> written = WrittenRetentions.GetOrCreateValue(storage);
             long seconds = (long)retention.TotalSeconds;
@@ -433,6 +439,9 @@ public static partial class JobChains
         public JobChainInfo ToInfo(IStorageConnection connection, bool everyMethod = true)
         {
             List<JobChainStepInfo> steps = [];
+
+            // Read once, and only for a chain with a step whose job is gone
+            Dictionary<string, string>? outcomes = null;
             for (int level = 0; level < Definition.Levels.Count; level++)
             {
                 LevelDefinition levelDefinition = Definition.Levels[level];
@@ -455,6 +464,7 @@ public static partial class JobChains
                         FinishedAt = ReadFinishedAt(state),
                         DueAt = ReadDueAt(state),
                         Outcomes = ReadOutcomes(connection, jobId, state, steps, levelDefinition.Parent),
+                        FinishedAs = state == null ? (outcomes ??= ReadStepOutcomes(connection, ChainId)).GetValueOrDefault(jobId) : null,
                     });
                 }
             }

@@ -109,6 +109,25 @@ public class ChainFlowchartFacts
     }
 
     [Fact]
+    public void Render_ShowsWhatTheStepsWhoseJobsExpiredFinishedAs_AndOffersToRetryTheOneThatFailed()
+    {
+        JobChain definition = JobChain.StartWith(() => Step("a")).Then(() => Step("b"));
+        SetUpChain("c5", definition, ["50", "51"]);
+        _renderer.Connection.Setup(x => x.GetAllEntriesFromHash(JobChains.GetStepOutcomesKey("c5")))
+            .Returns(new Dictionary<string, string> { ["50"] = SucceededState.StateName, ["51"] = FailedState.StateName });
+        JobChainInfo chain = _renderer.Storage.Object.GetChain("c5")!;
+
+        string html = ChainFlowchartRenderer.Render(CreatePage(), ChainFlowchart.Build(_renderer.Storage.Object, chain, Now)).ToString();
+
+        Assert.Equal([SucceededState.StateName, FailedState.StateName], chain.Steps.Select(static x => x.FinishedAs));
+        Assert.Equal(ChainFlowStatus.FinishedWithFailures, ChainFlowchart.StatusOf(chain));
+        Assert.Contains("Succeeded (job expired)", html, StringComparison.Ordinal);
+        Assert.Contains("Failed (job expired)", html, StringComparison.Ordinal);
+        Assert.Contains("/chains/retry/51", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("/chains/retry/50\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Build_MergesTheStepsConsoles_InTimeOrder()
     {
         JobChainInfo chain = SetUpOrderChain();

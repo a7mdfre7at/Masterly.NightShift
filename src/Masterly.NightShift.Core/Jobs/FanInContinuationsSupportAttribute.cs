@@ -146,17 +146,32 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
         ListUnconfirmed(connection, childId);
 
         // Every parent is checked before the child is registered on any, so a missing parent doesn't leave the
-        // child's id on the parents before it, which would then wait for a job that is never created
+        // child's id on the parents before it, which would then wait for a job that is never created. A parent
+        // whose job is gone counts as what it is known to have finished as, when that is known.
+        Dictionary<string, string>? goneWithOutcome = null;
         foreach (string parentId in awaiting.ParentIds)
         {
-            EnsureParentExists(connection, parentId);
+            if (!IsGoneWithKnownOutcome(connection, awaiting, parentId, ref goneWithOutcome))
+            {
+                EnsureParentExists(connection, parentId);
+            }
         }
 
         foreach (string parentId in awaiting.ParentIds)
         {
+            if (goneWithOutcome?.ContainsKey(parentId) == true)
+            {
+                continue;
+            }
+
             using (connection.AcquireDistributedJobLock(parentId, LockTimeout))
             {
                 // Checked again under the lock: the parent may have expired since
+                if (IsGoneWithKnownOutcome(connection, awaiting, parentId, ref goneWithOutcome))
+                {
+                    continue;
+                }
+
                 EnsureParentExists(connection, parentId);
 
                 List<string> children = Parse(connection.GetJobParameter(parentId, ParameterName));
@@ -169,7 +184,7 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
         }
 
         // A parent may have finished before our registration became visible to it: decide right away.
-        Decision decision = Evaluate(awaiting, parentId => GetParentState(connection, parentId));
+        Decision decision = Evaluate(awaiting, parentId => goneWithOutcome?.GetValueOrDefault(parentId) ?? GetParentState(connection, parentId));
 
         if (decision != Decision.Undecided)
         {
@@ -180,8 +195,13 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
             return;
         }
 
-        // It waits: what its parents finish as is kept for it, and goes with the state change that ends the wait
+        // It waits: what its parents finish as is kept for it, and goes with the state change that ends the wait.
+        // The parents that are gone tell it with this state, as they would have when they finished.
         MarkKeepsOutcomes(context, childId);
+        if (goneWithOutcome != null)
+        {
+            context.Transaction.SetRangeInHash(GetOutcomesKey(childId), goneWithOutcome);
+        }
 
         if (context.AfterCommit != null)
         {
@@ -247,6 +267,26 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
         {
             context.Connection.SetJobParameter(childId, OutcomesParameterName, key);
         }
+    }
+
+    // A parent whose job doesn't exist, and whose outcome the state knows (a step of a chain that a retry waits for
+    // again): noted in 'gone', the first time
+    private static bool IsGoneWithKnownOutcome(IStorageConnection connection, AwaitingJobsState awaiting, string parentId, ref Dictionary<string, string>? gone)
+    {
+        if (gone?.ContainsKey(parentId) == true)
+        {
+            return true;
+        }
+
+        if (awaiting.KnownOutcomes == null ||
+            !awaiting.KnownOutcomes.TryGetValue(parentId, out string? outcome) ||
+            connection.GetJobData(parentId) != null)
+        {
+            return false;
+        }
+
+        (gone ??= new Dictionary<string, string>(StringComparer.Ordinal))[parentId] = outcome;
+        return true;
     }
 
     private static void EnsureParentExists(IStorageConnection connection, string parentId)

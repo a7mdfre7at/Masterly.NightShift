@@ -5519,6 +5519,24 @@ namespace Masterly.NightShift.Dashboard.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to {0} (job expired).
+        /// </summary>
+        public static string ChainFlow_FinishedAsExpired {
+            get {
+                return ResourceManager.GetString("ChainFlow_FinishedAsExpired", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to (job expired).
+        /// </summary>
+        public static string ChainDetailsPage_JobExpired {
+            get {
+                return ResourceManager.GetString("ChainDetailsPage_JobExpired", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Jobs: {0} · Groups: {1}.
         /// </summary>
         public static string ChainFlow_Summary {

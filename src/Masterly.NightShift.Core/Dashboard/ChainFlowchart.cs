@@ -184,7 +184,7 @@ internal sealed class ChainFlowchart
 
         if (steps.All(static x => x.IsSettled || x.Info.State == null))
         {
-            return steps.Any(static x => IsState(x.Info.State, FailedState.StateName)) ? ChainFlowStatus.FinishedWithFailures : ChainFlowStatus.Done;
+            return steps.Any(static x => IsState(x.Info.StateOrOutcome, FailedState.StateName)) ? ChainFlowStatus.FinishedWithFailures : ChainFlowStatus.Done;
         }
 
         return steps.All(static x => HasNotStarted(x.Info.State)) ? ChainFlowStatus.Waiting : ChainFlowStatus.Running;
@@ -517,8 +517,8 @@ internal static class ChainFlowchartRenderer
             string progress = pending == 0
                 ? Strings.ChainFlow_GroupSettled
                 : string.Format(CultureInfo.CurrentCulture, Strings.ChainFlow_GroupPending, pending, level.Steps.Count);
-            int succeeded = level.Steps.Count(static x => SucceededState.StateName.Equals(x.Info.State, StringComparison.OrdinalIgnoreCase));
-            int failed = level.Steps.Count(static x => FailedState.StateName.Equals(x.Info.State, StringComparison.OrdinalIgnoreCase));
+            int succeeded = level.Steps.Count(static x => SucceededState.StateName.Equals(x.Info.StateOrOutcome, StringComparison.OrdinalIgnoreCase));
+            int failed = level.Steps.Count(static x => FailedState.StateName.Equals(x.Info.StateOrOutcome, StringComparison.OrdinalIgnoreCase));
 
             html.Append("<div class=\"hf-flow-box-foot\"><span>").Append(Encode(progress)).Append("</span><span>");
             html.Append(Encode(string.Format(CultureInfo.CurrentCulture, Strings.ChainFlow_Counts, succeeded, failed))).Append("</span></div>");
@@ -583,8 +583,9 @@ internal static class ChainFlowchartRenderer
     private static void AppendCard(StringBuilder html, RazorPage page, ChainFlowStep step, (int X, int Y) position, bool canRetry)
     {
         JobChainStepInfo info = step.Info;
-        string state = info.State ?? Strings.Common_JobExpired;
-        string color = info.State != null ? JobHistoryRenderer.GetForegroundStateColor(info.State) : "#5F7882";
+        // A step whose job expired shows what it finished as, when the chain kept it
+        string state = info.State ?? (info.FinishedAs != null ? string.Format(CultureInfo.CurrentCulture, Strings.ChainFlow_FinishedAsExpired, info.FinishedAs) : Strings.Common_JobExpired);
+        string color = info.StateOrOutcome != null ? JobHistoryRenderer.GetForegroundStateColor(info.StateOrOutcome) : "#5F7882";
         bool dim = info.State == null || step.Condition == ChainFlowCondition.NotRun;
         string css = "hf-flow-card" + (dim ? " hf-flow-dim" : string.Empty) + (IsProcessing(info.State) ? " hf-flow-active" : string.Empty);
 
@@ -642,7 +643,7 @@ internal static class ChainFlowchartRenderer
             html.Append("<span class=\"hf-flow-retries\" title=\"").Append(Encode(retries)).Append("\"><span class=\"glyphicon glyphicon-repeat\"></span> ").Append(step.RetryCount.ToString(CultureInfo.InvariantCulture)).Append("</span>");
         }
 
-        if (canRetry && (FailedState.StateName.Equals(info.State, StringComparison.OrdinalIgnoreCase) || DeletedState.StateName.Equals(info.State, StringComparison.OrdinalIgnoreCase)))
+        if (canRetry && (FailedState.StateName.Equals(info.StateOrOutcome, StringComparison.OrdinalIgnoreCase) || DeletedState.StateName.Equals(info.StateOrOutcome, StringComparison.OrdinalIgnoreCase)))
         {
             html.Append("<button class=\"btn btn-xs btn-primary\" data-ajax=\"").Append(Encode(page.Url.To("/chains/retry/" + Uri.EscapeDataString(info.JobId)))).Append("\" data-loading-text=\"").Append(Encode(Strings.ChainDetailsPage_Retrying)).Append("\">");
             html.Append("<span class=\"glyphicon glyphicon-repeat\"></span> ").Append(Encode(Strings.ChainDetailsPage_RetryFromHere)).Append("</button>");

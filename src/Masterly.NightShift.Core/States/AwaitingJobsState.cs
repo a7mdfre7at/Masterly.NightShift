@@ -97,6 +97,14 @@ public sealed class AwaitingJobsState : IState
     /// <inheritdoc />
     public string? Reason { get; set; }
 
+    /// <summary>
+    /// What parents whose jobs may be gone finished as, by parent: a step of a chain created again by a retry waits
+    /// for the steps beside the retried one, which the chain kept. A parent whose job doesn't exist when the state is
+    /// elected counts as this outcome rather than refusing the state. Never stored: it is written, as each parent
+    /// writes what it finished as, for the job while it waits (<see cref="FanInContinuationsSupportAttribute"/>).
+    /// </summary>
+    internal IReadOnlyDictionary<string, string>? KnownOutcomes { get; init; }
+
     /// <inheritdoc />
     [JsonIgnore]
     public bool IsFinal => false;

@@ -32,6 +32,7 @@ public static partial class JobChains
     // each step, read for the parents and written for the steps created; 'created' receives each job created, in
     // order, so a failure can delete them. 'levelAt' loads a level's steps when they are created, and no other.
     // 'whenLapsed' is called when the lease is found lapsed at a renewal: it throws when the chain can't go on.
+    // 'knownOutcomes' has what steps that aren't created again finished as, by job, for a parent whose job is gone.
     private static void CreateLevels(
         IBackgroundJobClientV2 client,
         int levelCount,
@@ -42,7 +43,8 @@ public static partial class JobChains
         Func<int, bool> include,
         List<string> created,
         ChainLease lease,
-        Action whenLapsed)
+        Action whenLapsed,
+        IReadOnlyDictionary<string, string>? knownOutcomes = null)
     {
         for (int level = from; level < levelCount; level++)
         {
@@ -63,10 +65,11 @@ public static partial class JobChains
                     whenLapsed();
                 }
 
-                // A parent that expired makes the creation throw InvalidOperationException
+                // A parent that expired makes the creation throw InvalidOperationException, unless what it finished
+                // as is known
                 ChainStep step = steps.Steps[i];
                 string key = Key(level, i);
-                string jobId = Create(client, step.Job, StateFor(step, parents), chainId, key, null);
+                string jobId = Create(client, step.Job, StateFor(step, parents, knownOutcomes), chainId, key, null);
                 jobs[key] = jobId;
                 created.Add(jobId);
             }

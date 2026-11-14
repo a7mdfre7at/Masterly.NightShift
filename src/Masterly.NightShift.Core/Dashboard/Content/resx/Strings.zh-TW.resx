@@ -1818,6 +1818,12 @@
   <data name="ChainFlow_Counts" xml:space="preserve">
     <value>{0} 成功 · {1} 失敗</value>
   </data>
+  <data name="ChainFlow_FinishedAsExpired" xml:space="preserve">
+    <value>{0}（工作已過期）</value>
+  </data>
+  <data name="ChainDetailsPage_JobExpired" xml:space="preserve">
+    <value>（工作已過期）</value>
+  </data>
   <data name="ChainFlow_Summary" xml:space="preserve">
     <value>工作：{0} · 群組：{1}</value>
   </data>

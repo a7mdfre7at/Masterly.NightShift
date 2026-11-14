@@ -430,6 +430,12 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
         return true;
     }
 
+    /// <summary>Whether the continuations are handed the results of their parents (<c>UseResultsInContinuations</c>).</summary>
+    internal static bool PushesResults()
+    {
+        return GlobalJobFilters.Filters.Any(static x => x.Instance is ContinuationsSupportAttribute { PushResults: true });
+    }
+
     /// <summary>
     /// What a parent that reaches a final state, fails for good or starts processing decides for a continuation
     /// that waits for it with these options: it starts, it is skipped (deleted, its condition not met), or it keeps

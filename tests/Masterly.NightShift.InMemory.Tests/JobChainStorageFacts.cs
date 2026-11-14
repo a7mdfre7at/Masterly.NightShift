@@ -2675,6 +2675,248 @@ public sealed class JobChainStorageFacts : IDisposable
         }
     }
 
+    [Theory]
+    [InlineData("Succeeded", false, new[] { "Enqueued", "Enqueued", "Deleted", "Deleted", "Enqueued" })]
+    [InlineData("Succeeded", true, new[] { "Enqueued", "Enqueued", "Deleted", "Deleted", "Enqueued" })]
+    [InlineData("Deleted", false, new[] { "Deleted", "Enqueued", "Deleted", "Enqueued", "Enqueued" })]
+    [InlineData("Deleted", true, new[] { "Deleted", "Enqueued", "Deleted", "Enqueued", "Enqueued" })]
+    [InlineData("Failed", false, new[] { "Awaiting", "Enqueued", "Enqueued", "Enqueued", "Enqueued" })]
+    [InlineData("Failed", true, new[] { "Awaiting", "Enqueued", "Enqueued", "Enqueued", "Enqueued" })]
+    public void RetryChainFrom_ABranch_DecidesTheJoinsByWhatTheOtherBranchFinishedAs_AlsoOnceItsJobExpired(string otherOutcome, bool expired, string[] joins)
+    {
+        List<object> before = [.. GlobalJobFilters.Filters.Select(static x => x.Instance)];
+        GlobalConfiguration.Configuration.UseFailedJobRetention(TimeSpan.FromDays(1));
+
+        try
+        {
+            JobChainResult chain = JobChain.StartWith(() => Step("a"))
+                .ThenMany(branches => branches.Branch(() => Step("b")).Branch(() => Step("c")))
+                .ThenAfterAll(() => Step("all"))
+                .ThenAfterAny(() => Step("any"))
+                .ThenAfterAnyFailed(() => Step("failed"))
+                .ThenAfterAnyFailedOrCanceled(() => Step("canceled"))
+                .ThenAfterAllCompleted(() => Step("completed"))
+                .Enqueue(_client)!;
+            string b = chain.Steps["1.0"];
+            string c = chain.Steps["1.1"];
+
+            // The other branch finishes; days later its job may have expired. Then the first branch fails.
+            Succeed(chain.RootId);
+            FinishAs(c, otherOutcome);
+            MoveClock(TimeSpan.FromDays(2));
+            if (expired)
+            {
+                _storage.Database.RemoveExpired();
+                Assert.Null(StateOf(c));
+            }
+
+            Fail(b);
+            SucceedTheStartedSteps(chain, level: 2);
+            Assert.True(_storage.GetChain(chain.ChainId)?.IsSettled);
+
+            // The failed branch is retried and succeeds: each join is decided as if the other branch's job were there
+            JobChainResult retried = _storage.RetryChainFrom(b);
+            Succeed(b);
+
+            Assert.Equal(joins, Enumerable.Range(0, 5).Select(i => StateOf(retried.Steps[$"2.{i}"])));
+            Assert.Equal(c, retried.Steps["1.1"]);
+        }
+        finally
+        {
+            foreach (object filter in GlobalJobFilters.Filters.Select(static x => x.Instance).Except(before).ToList())
+            {
+                GlobalJobFilters.Filters.Remove(filter);
+            }
+        }
+    }
+
+    [Fact]
+    public void RetryChainFrom_IsRefused_AndChangesNothing_WhenWhatAnExpiredBranchFinishedAsIsNotKnown()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a"))
+            .ThenMany(branches => branches.Branch(() => Step("b")).Branch(() => Step("c")))
+            .ThenAfterAll(() => Step("all"))
+            .Enqueue(_client)!;
+        string b = chain.Steps["1.0"];
+        string c = chain.Steps["1.1"];
+        Succeed(chain.RootId);
+        Succeed(c);
+        MoveClock(TimeSpan.FromDays(2));
+        _storage.Database.RemoveExpired();
+        Fail(b);
+
+        // As for a chain whose steps finished before the chain kept what they finished as
+        RemoveHash(StepOutcomesKey(chain.ChainId));
+        int created = _filter.Created.Count;
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => _storage.RetryChainFrom(b));
+
+        Assert.Contains("'1.1'", exception.Message, StringComparison.Ordinal);
+        Assert.Contains($"'{c}'", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(created, _filter.Created.Count);
+        Assert.Equal(1, _storage.GetChain(chain.ChainId)?.Generation);
+        Assert.Equal(FailedState.StateName, StateOf(b));
+        Assert.Equal(AwaitingState.StateName, StateOf(chain.Steps["2.0"]));
+        Assert.DoesNotContain(History(b), static x => x.StateName == ScheduledState.StateName);
+    }
+
+    [Fact]
+    public void GetChain_SaysWhatTheStepsWhoseJobsExpiredFinishedAs()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a"))
+            .ThenMany(branches => branches.Branch(() => Step("b")).Branch(() => Step("c")))
+            .ThenAfterAll(() => Step("all"))
+            .Enqueue(_client)!;
+        Succeed(chain.RootId);
+        Assert.True(_client.ChangeState(chain.Steps["1.1"], new DeletedState(), null));
+        MoveClock(TimeSpan.FromDays(2));
+        _storage.Database.RemoveExpired();
+        Fail(chain.Steps["1.0"]);
+
+        Dictionary<string, JobChainStepInfo> steps = _storage.GetChain(chain.ChainId)!.Steps.ToDictionary(static x => x.Key);
+
+        Assert.Null(steps["0.0"].State);
+        Assert.Equal(SucceededState.StateName, steps["0.0"].FinishedAs);
+        Assert.Null(steps["1.1"].State);
+        Assert.Equal(DeletedState.StateName, steps["1.1"].FinishedAs);
+        Assert.Equal(FailedState.StateName, steps["1.0"].State);
+        Assert.Null(steps["1.0"].FinishedAs);
+
+        // The step after the group was skipped when a branch was deleted, and its job expired too
+        Assert.Null(steps["2.0"].State);
+        Assert.Equal(DeletedState.StateName, steps["2.0"].FinishedAs);
+    }
+
+    [Fact]
+    public void StepOutcomes_AreKeptForAsLongAsTheRecord_AndGoWithTheChain()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client)!;
+        Succeed(chain.RootId);
+        Fail(chain.Steps["1.0"]);
+
+        Assert.Equal(
+            new Dictionary<string, string> { [chain.RootId] = SucceededState.StateName, [chain.Steps["1.0"]] = FailedState.StateName },
+            HashOf(StepOutcomesKey(chain.ChainId)));
+        Assert.True(HashTimeToLive(StepOutcomesKey(chain.ChainId)) >= RecordTimeToLive(chain.ChainId));
+
+        // A server keeps the record of the failed chain longer, and what its steps finished as with it
+        MoveClock(TimeSpan.FromDays(25));
+        using (CreateServer())
+        {
+            WaitUntil(() => RecordTimeToLive(chain.ChainId) > TimeSpan.FromDays(29.9), "the record of the failed chain to be kept longer");
+        }
+
+        Assert.True(HashTimeToLive(StepOutcomesKey(chain.ChainId)) >= RecordTimeToLive(chain.ChainId));
+
+        _storage.DeleteChain(chain.ChainId);
+
+        Assert.Empty(HashOf(StepOutcomesKey(chain.ChainId)));
+    }
+
+    [Fact]
+    public void StepOutcomes_LeaveWithAChainThatLeavesTheList_EvenAnEntryThatNeverExpires()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("x")).Then(() => Step("y")).Enqueue(_client)!;
+        Succeed(chain.RootId);
+        Succeed(chain.Steps["1.0"]);
+
+        MoveClock(TimeSpan.FromMinutes(6));
+        using (CreateServer())
+        {
+            WaitUntil(() => SetItems(ExpirySet).Contains(chain.ChainId), "the chain that finished to be left to expire");
+        }
+
+        // An entry whose time to live was never set: its process stopped before it set it
+        using (IStorageConnection connection = _storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            transaction.SetRangeInHash(StepOutcomesKey(chain.ChainId), new Dictionary<string, string> { ["0"] = SucceededState.StateName });
+            transaction.Commit();
+        }
+
+        MoveClock(TimeSpan.FromDays(31));
+        using (CreateServer())
+        {
+            WaitUntil(() => !SetItems(JobChains.SetKey).Contains(chain.ChainId), "the chain whose record expired to leave the list");
+        }
+
+        Assert.Empty(HashOf(StepOutcomesKey(chain.ChainId)));
+    }
+
+    [Fact]
+    public void Server_StartsAStepThatWasNeverToldToStart_ByWhatTheStepBeforeItFinishedAs_OnceItsJobExpired()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a")).Then(() => Run("b")).Enqueue(_client)!;
+
+        // The first step succeeds, by a process that stops once that is stored: with what it finished as, which
+        // the chain keeps in the same transaction
+        SucceedWithoutTellingTheNextStep(chain.RootId, null);
+        using (IStorageConnection connection = _storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            transaction.SetRangeInHash(StepOutcomesKey(chain.ChainId), new Dictionary<string, string> { [chain.RootId] = SucceededState.StateName });
+            transaction.ExpireJob(chain.RootId, TimeSpan.FromDays(1));
+            transaction.Commit();
+        }
+
+        Assert.Equal(SucceededState.StateName, StateOf(chain.RootId));
+        Assert.Equal(AwaitingState.StateName, StateOf(chain.Steps["1.0"]));
+
+        // No server runs for days, and the first step's job expires
+        MoveClock(TimeSpan.FromDays(2));
+        _storage.Database.RemoveExpired();
+        Assert.Null(StateOf(chain.RootId));
+
+        using (CreateServer())
+        {
+            WaitUntil(() => Ran.Contains("b"), "the second step to run");
+            WaitUntilSettled(chain.ChainId);
+        }
+
+        Assert.Equal(["b"], Ran);
+    }
+
+    private void FinishAs(string jobId, string outcome)
+    {
+        IState state = outcome switch
+        {
+            "Succeeded" => new SucceededState(null, 0, 0),
+            "Deleted" => new DeletedState(),
+            _ => new FailedState(new InvalidOperationException("failed")),
+        };
+
+        Assert.True(_client.ChangeState(jobId, state, null));
+        Assert.Equal(outcome, StateOf(jobId));
+    }
+
+    // The steps of a level that started are taken to have succeeded
+    private void SucceedTheStartedSteps(JobChainResult chain, int level)
+    {
+        foreach (KeyValuePair<string, string> step in chain.Steps.Where(x => x.Key.StartsWith($"{level}.", StringComparison.Ordinal)))
+        {
+            if (StateOf(step.Value) == EnqueuedState.StateName)
+            {
+                Succeed(step.Value);
+            }
+        }
+    }
+
+    private static string StepOutcomesKey(string chainId) => "chain-outcomes:" + chainId;
+
+    private TimeSpan HashTimeToLive(string key)
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+        return ((JobStorageConnection)connection).GetHashTtl(key);
+    }
+
+    private void RemoveHash(string key)
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+        transaction.RemoveHash(key);
+        transaction.Commit();
+    }
+
     [Fact]
     public void DeleteChain_DeletesEveryStep_AndTheRecord()
     {

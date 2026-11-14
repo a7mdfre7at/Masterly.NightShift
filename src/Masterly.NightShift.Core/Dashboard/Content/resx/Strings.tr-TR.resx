@@ -1852,6 +1852,12 @@
   <data name="ChainFlow_Counts" xml:space="preserve">
     <value>{0} başarılı · {1} başarısız</value>
   </data>
+  <data name="ChainFlow_FinishedAsExpired" xml:space="preserve">
+    <value>{0} (işin süresi doldu)</value>
+  </data>
+  <data name="ChainDetailsPage_JobExpired" xml:space="preserve">
+    <value>(işin süresi doldu)</value>
+  </data>
   <data name="ChainFlow_Summary" xml:space="preserve">
     <value>İş: {0} · Grup: {1}</value>
   </data>

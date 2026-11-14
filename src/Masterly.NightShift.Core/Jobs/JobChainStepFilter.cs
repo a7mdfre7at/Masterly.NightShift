@@ -374,6 +374,9 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             return;
         }
 
+        // A step that finishes keeps what it finished as for its chain, for when its job is gone
+        JobChains.KeepOutcomeOfStep(context, transaction);
+
         // A step put back into a state in which its job expires goes on expiring when it was to: the retention
         // filters, which ran before, would keep it for a whole retention from now, as a job that just finished
         if (context.NewState is JobChains.RestoredState { ExpireAt: { } expireAt } && context.JobExpires)

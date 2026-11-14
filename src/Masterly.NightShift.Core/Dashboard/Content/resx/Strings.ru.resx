@@ -1868,6 +1868,12 @@
   <data name="ChainFlow_Counts" xml:space="preserve">
     <value>{0} успешно · {1} с ошибкой</value>
   </data>
+  <data name="ChainFlow_FinishedAsExpired" xml:space="preserve">
+    <value>{0} (срок задания истёк)</value>
+  </data>
+  <data name="ChainDetailsPage_JobExpired" xml:space="preserve">
+    <value>(срок задания истёк)</value>
+  </data>
   <data name="ChainFlow_Summary" xml:space="preserve">
     <value>Задач: {0} · Групп: {1}</value>
   </data>

@@ -108,6 +108,7 @@ public static partial class JobChains
             }
 
             storageTransaction.ExpireHash(key, desired - now);
+            storageTransaction.ExpireHash(GetStepOutcomesKey(chainId), StepOutcomesExpiry(desired - now));
             transaction.Commit();
 
             RememberExpiry(chainId, desired);

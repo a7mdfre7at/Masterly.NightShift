@@ -230,6 +230,10 @@ public static partial class JobChains
                 levels[next] = record.Definition.ReadLevel(next, chainId);
             }
 
+            // The steps beside it keep their outcome, and the new steps after their group wait for them again: one
+            // whose job expired counts as what it finished as, which the chain kept. Checked before anything changes.
+            Dictionary<string, string>? outcomesBeside = ReadOutcomesBeside(connection, record, stepKey, retried);
+
             // Read again: the step may have been requeued since the chain was read as settled. The hold expects the
             // state read here, under the job's lock, so a requeue from here on makes the hold fail instead.
             StateData? stepState = connection.GetStateData(stepJobId);
@@ -284,7 +288,8 @@ public static partial class JobChains
                     retried.Contains,
                     created,
                     lease,
-                    () => EnsureRetryCanGoOn(connection, chainId, held, marker, created));
+                    () => EnsureRetryCanGoOn(connection, chainId, held, marker, created),
+                    outcomesBeside);
 
                 // The old steps after it wait for it too: the record stops listing them, so they can't run
                 // beside the new ones, and they are deleted, the deepest first. Written with the record, so a
@@ -602,6 +607,7 @@ public static partial class JobChains
             using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
             {
                 transaction.RemoveHash(GetKey(chainId));
+                transaction.RemoveHash(GetStepOutcomesKey(chainId));
                 transaction.RemoveFromSet(SetKey, chainId);
                 transaction.RemoveFromSet(DueSetKey, chainId);
                 transaction.RemoveFromSet(ExpirySetKey, chainId);
@@ -911,8 +917,9 @@ public static partial class JobChains
         return parents;
     }
 
-    // A step after a single step is an ordinary continuation; after a group, a fan-in continuation of the group
-    internal static IState StateFor(ChainStep step, IReadOnlyList<string> parents)
+    // A step after a single step is an ordinary continuation; after a group, a fan-in continuation of the group,
+    // which counts a parent whose job is gone as what 'knownOutcomes' says it finished as
+    internal static IState StateFor(ChainStep step, IReadOnlyList<string> parents, IReadOnlyDictionary<string, string>? knownOutcomes = null)
     {
         if (parents.Count == 1)
         {
@@ -920,7 +927,7 @@ public static partial class JobChains
         }
 
         (FanInMode mode, JobContinuationOptions fanInOptions) = ConditionAfterGroup(step.Link, step.Options, nameof(step));
-        return new AwaitingJobsState(parents, new EnqueuedState(), fanInOptions, mode);
+        return new AwaitingJobsState(parents, new EnqueuedState(), fanInOptions, mode) { KnownOutcomes = knownOutcomes };
     }
 
     /// <summary>
@@ -939,7 +946,11 @@ public static partial class JobChains
 
         if (parents.Count == 1)
         {
-            return ContinuationsSupportAttribute.Decide(parents[0].State, OptionsAfterOneStep(step.Link, step.Options), finalStates);
+            // A step whose job is gone counts as what the chain kept it finished as. Not where results are passed
+            // to continuations: a step can't be started without the result, which went with the job.
+            JobChainStepInfo parent = parents[0];
+            string? state = parent.State ?? (ContinuationsSupportAttribute.PushesResults() ? null : parent.FinishedAs);
+            return ContinuationsSupportAttribute.Decide(state, OptionsAfterOneStep(step.Link, step.Options), finalStates);
         }
 
         // A group can't be waited for to start, and no chain is created that way
@@ -949,11 +960,11 @@ public static partial class JobChains
         }
 
         // A step whose job is gone counts as what it wrote on the waiting step when it finished, as for the
-        // filter; and as not finished when it wrote nothing, which nobody can tell any more
+        // filter, or else as what the chain kept it finished as; and as not finished when nothing was kept
         Dictionary<string, string?> states = new(StringComparer.Ordinal);
         foreach (JobChainStepInfo parent in parents)
         {
-            states[parent.JobId] = parent.State ?? step.Outcomes?.GetValueOrDefault(parent.JobId);
+            states[parent.JobId] = parent.State ?? step.Outcomes?.GetValueOrDefault(parent.JobId) ?? parent.FinishedAs;
         }
 
         (FanInMode mode, JobContinuationOptions fanInOptions) = ConditionAfterGroup(step.Link, step.Options, nameof(step));

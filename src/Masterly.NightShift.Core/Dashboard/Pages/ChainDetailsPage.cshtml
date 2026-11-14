@@ -75,7 +75,7 @@
                                 <tr class="hover">
                                     <td class="min-width"><code>@step.Key</code></td>
                                     <td class="min-width">@Html.JobIdLink(step.JobId)</td>
-                                    <td class="min-width">@(step.State != null ? Html.StateLabel(step.State) : new NonEscapedString("<em>" + Html.HtmlEncode(Strings.Common_JobExpired) + "</em>"))</td>
+                                    <td class="min-width">@(step.State != null ? Html.StateLabel(step.State) : step.FinishedAs != null ? new NonEscapedString(Html.StateLabel(step.FinishedAs) + " <em>" + Html.HtmlEncode(Strings.ChainDetailsPage_JobExpired) + "</em>") : new NonEscapedString("<em>" + Html.HtmlEncode(Strings.Common_JobExpired) + "</em>"))</td>
                                     <td class="word-break">@ChainFlowchartRenderer.StepName(this, step) <span class="text-muted">@ChainFlowchartRenderer.FormatArguments(step.Job)</span></td>
                                 </tr>
                             }

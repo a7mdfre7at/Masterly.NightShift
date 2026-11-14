@@ -12,6 +12,15 @@ namespace Masterly.NightShift;
 /// </param>
 public sealed record JobChainStepInfo(string Key, string JobId, string? State, int Level, int ParentLevel, Job? Job = null)
 {
+    /// <summary>
+    /// What the step finished as (Succeeded, Deleted or Failed) once its job is gone (expired), as the chain kept it,
+    /// or <c>null</c> while the job exists (<see cref="State"/> says) or when that isn't known.
+    /// </summary>
+    public string? FinishedAs { get; init; }
+
+    /// <summary>The state the step is in, or, once its job is gone, the state it finished in when that is known.</summary>
+    internal string? StateOrOutcome => State ?? FinishedAs;
+
     /// <summary>How the step waits for its level's parent, for the dashboard's flowchart.</summary>
     internal ChainLink Link { get; init; }
 
@@ -289,8 +298,8 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
         return last;
     }
 
-    /// <summary>The number of steps that failed for good.</summary>
-    public int FailedCount => Steps.Count(static x => IsFailed(x.State));
+    /// <summary>The number of steps that failed for good, also those whose job is gone since (<see cref="JobChainStepInfo.FinishedAs"/>).</summary>
+    public int FailedCount => Steps.Count(static x => IsFailed(x.StateOrOutcome));
 
     /// <summary>
     /// The levels whose waiting steps can't start by themselves: the level they wait for has a step that failed for
@@ -307,7 +316,8 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
         foreach (JobChainStepInfo step in Steps)
         {
             parents.TryAdd(step.Level, step.ParentLevel);
-            if (IsFailed(step.State) || step.State == null)
+            // A step whose job is gone blocks unless it is known to have finished otherwise
+            if (IsFailed(step.StateOrOutcome) || step.StateOrOutcome == null)
             {
                 failed.Add(step.Level);
             }

@@ -1819,6 +1819,12 @@
   <data name="ChainFlow_Counts" xml:space="preserve">
     <value>{0} amb èxit · {1} fallides</value>
   </data>
+  <data name="ChainFlow_FinishedAsExpired" xml:space="preserve">
+    <value>{0} (tasca expirada)</value>
+  </data>
+  <data name="ChainDetailsPage_JobExpired" xml:space="preserve">
+    <value>(tasca expirada)</value>
+  </data>
   <data name="ChainFlow_Summary" xml:space="preserve">
     <value>Tasques: {0} · Grups: {1}</value>
   </data>

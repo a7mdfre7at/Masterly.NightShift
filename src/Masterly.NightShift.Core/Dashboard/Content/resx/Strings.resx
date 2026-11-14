@@ -1946,6 +1946,12 @@
   <data name="ChainFlow_Counts" xml:space="preserve">
     <value>{0} succeeded · {1} failed</value>
   </data>
+  <data name="ChainFlow_FinishedAsExpired" xml:space="preserve">
+    <value>{0} (job expired)</value>
+  </data>
+  <data name="ChainDetailsPage_JobExpired" xml:space="preserve">
+    <value>(job expired)</value>
+  </data>
   <data name="ChainFlow_Summary" xml:space="preserve">
     <value>Jobs: {0} · Groups: {1}</value>
   </data>
