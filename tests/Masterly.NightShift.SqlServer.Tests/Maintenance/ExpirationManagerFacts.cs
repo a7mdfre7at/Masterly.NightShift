@@ -152,6 +152,32 @@ values ('', '', getutcdate(), @expireAt)";
         Assert.Equal("current-state", states[1]);
     }
 
+    [Fact, CleanDatabase]
+    public void Execute_KeepsStatesYoungerThanTheTimeout_WhenItIsUnderAMinute()
+    {
+        using DbConnection connection = CreateConnection();
+        long jobId = CreateJobWithStates(connection, TimeSpan.FromMinutes(2), TimeSpan.FromSeconds(5), TimeSpan.Zero);
+        ExpirationManager manager = CreateManager(TimeSpan.FromSeconds(30));
+
+        manager.Execute(_cts.Token);
+
+        Assert.Equal(new[] { "state-1", "state-2" }, GetStateNames(connection, jobId));
+    }
+
+    [Fact, CleanDatabase]
+    public void Execute_KeepsTheHistory_WithoutAnError_WhenTheTimeoutIsLongerThanDateAddTakes()
+    {
+        using DbConnection connection = CreateConnection();
+        long jobId = CreateJobWithStateHistory(connection);
+        ExpirationManager manager = CreateManager(TimeSpan.MaxValue);
+        using RecordingLogs logs = RecordingLogs.Use();
+
+        manager.Execute(_cts.Token);
+
+        Assert.Equal(new[] { "old-state-1", "old-state-2", "current-state" }, GetStateNames(connection, jobId));
+        Assert.DoesNotContain(logs.Messages, static x => x.Level >= LogLevel.Warn);
+    }
+
     // Before schema 9 there's no [State].[CreatedAt] index, and the cleanup query, which seeks on it, fails with
     // error 8622 at every check interval
     [Fact, CleanDatabase]
@@ -283,6 +309,23 @@ select @JobId as Id;";
         return connection
             .Query<long>(createSql, new { createdAt1 = now.AddDays(-1), createdAt2 = now.AddMonths(-1), createdAt3 = now.AddMonths(-1) })
             .Single();
+    }
+
+    // A job with one state per age, oldest first, named state-0, state-1...; the last one is the current state
+    private static long CreateJobWithStates(DbConnection connection, params TimeSpan[] ages)
+    {
+        long jobId = connection.ExecuteScalar<long>(
+            $"insert into [{Constants.DefaultSchema}].Job (InvocationData, Arguments, StateName, CreatedAt) values (N'', N'', N'', getutcdate()); select scope_identity();");
+        long stateId = 0;
+        for (int i = 0; i < ages.Length; i++)
+        {
+            stateId = connection.ExecuteScalar<long>(
+                $"insert into [{Constants.DefaultSchema}].State (JobId, Name, CreatedAt) values (@jobId, @name, @createdAt); select scope_identity();",
+                new { jobId, name = $"state-{i}", createdAt = DateTime.UtcNow - ages[i] });
+        }
+
+        connection.Execute($"update [{Constants.DefaultSchema}].Job set StateId = @stateId where Id = @jobId", new { stateId, jobId });
+        return jobId;
     }
 
     private static string[] GetStateNames(DbConnection connection, long jobId)

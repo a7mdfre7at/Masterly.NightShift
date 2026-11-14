@@ -97,11 +97,13 @@ internal sealed class ExpirationManager : IBackgroundProcess
 
         if (_stateExpirationTimeout > TimeSpan.Zero && CanCleanUpStates(storage))
         {
+            int expireSeconds = -GetStateExpirationSeconds(_stateExpirationTimeout);
+
             try
             {
                 CleanupTable(storage, GetStateCleanupQuery(storage), "State", numberOfRecordsInSinglePass,
                     cancellationToken,
-                    command => command.AddParameter("@expireMin", (long)_stateExpirationTimeout.Negate().TotalMinutes, DbType.Int64));
+                    command => command.AddParameter("@expireSeconds", expireSeconds, DbType.Int32));
             }
             catch (DbException ex)
             {
@@ -220,6 +222,13 @@ internal sealed class ExpirationManager : IBackgroundProcess
             """;
     }
 
+    // In whole seconds, which dateadd takes as an int: a part of a second counts as one, and anything longer
+    // than int.MaxValue seconds (68 years) as that
+    private static int GetStateExpirationSeconds(TimeSpan timeout)
+    {
+        return (int)Math.Ceiling(Math.Min(timeout.TotalSeconds, int.MaxValue));
+    }
+
     private static string GetStateCleanupQuery(SqlServerStorage storage)
     {
         // TODO: Make expiration condition configurable
@@ -232,7 +241,7 @@ internal sealed class ExpirationManager : IBackgroundProcess
             ;with cte as (
             	select s.[JobId], s.[Id]
             	from [{schemaName}].[State] s with (forceseek)
-            	where s.[CreatedAt] < dateadd(minute, @expireMin, @now)
+            	where s.[CreatedAt] < dateadd(second, @expireSeconds, @now)
             	and exists (
             		select * from [{schemaName}].[Job] j with (forceseek)
             		where j.[Id] = s.[JobId] and j.[StateId] != s.[Id]))
