@@ -51,7 +51,9 @@ public static partial class JobChains
 
     /// <summary>
     /// The set of the chains whose record the storage lost before its time (an eviction, a cap on expiry times),
-    /// scored by the time they leave the list of chains: for as long as a record is kept, from the last look. Their
+    /// scored by the time they leave the list of chains: for the longest time any process keeps records
+    /// (<see cref="LostRetention"/>), from the last look, since a step counts on its record for the time it was
+    /// written with. Their
     /// steps still run while they are listed (<see cref="JobChainStepFilter"/>), so a look asked for by one of
     /// them keeps them listed; only a chain left to expire (<see cref="ExpirySetKey"/>) leaves the list when such a
     /// look finds its record gone. Only on a storage that expires records.
@@ -739,7 +741,8 @@ public static partial class JobChains
 
             looks.Lost++;
             looks.FirstLost ??= chainId;
-            return new ChainPlacement(LostSetKey, now + JobChain.RecordRetention);
+            // As long as any process keeps records: a step may count on its record for that long
+            return new ChainPlacement(LostSetKey, now + LostRetention(connection));
         }
 
         int redriven = RedriveLostDecisions(client, connection, info, out int failed);

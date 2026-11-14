@@ -996,7 +996,8 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     [Fact]
     public void Maintain_KeepsAChainListed_WhoseRecordTheStorageLost_ForAsLongAsARecordIsKept()
     {
-        // Its steps still run because it is listed (JobChainStepFilter)
+        // Its steps still run because it is listed (JobChainStepFilter). Every process keeps records 30 days.
+        _hashes["chains:retentions"] = new Dictionary<string, string> { ["2592000"] = "x" };
         Set(JobChains.SetKey).Add((JobHelper.ToTimestamp(DateTime.UtcNow.AddDays(-3)), "lost-early"));
         Set(DueSet).Add((1, "lost-early"));
 
@@ -1018,6 +1019,7 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     public void Maintain_KeepsAChainListed_WhoseRecordTheStorageLost_WhenALookIsAskedFor()
     {
         // Found without record before, and kept listed; a step of it is requeued, which asks for a look
+        _hashes["chains:retentions"] = new Dictionary<string, string> { ["2592000"] = "x" };
         Set(JobChains.SetKey).Add((JobHelper.ToTimestamp(DateTime.UtcNow.AddDays(-3)), "lost-early"));
         Set(LostSet).Add((After(TimeSpan.FromDays(29)), "lost-early"));
         Set(SoonSet).Add((1, "lost-early|asked"));
@@ -1030,6 +1032,29 @@ public sealed class JobChainMaintenanceFacts : IDisposable
         Assert.Empty(Set(ExpirySet));
         Assert.Empty(Set(DueSet));
         Assert.InRange(Assert.Single(Set(LostSet)).Score, After(TimeSpan.FromDays(29.9)), After(TimeSpan.FromDays(30.1)));
+    }
+
+    [Theory]
+    [InlineData("2592000", 30)]
+    [InlineData("2592000,7776000", 90)]
+    [InlineData("86400", 30)]
+    [InlineData("true", 30)]
+    [InlineData("", 36500)]
+    public void Maintain_KeepsAChainWhoseRecordTheStorageLost_ListedForTheLongestTimeAnyProcessKeepsRecords(string written, int days)
+    {
+        // What the processes that wrote records were set to keep them for (none: nothing can be told); this
+        // process keeps them 30 days
+        if (written.Length > 0)
+        {
+            _hashes["chains:retentions"] = written.Split(',').ToDictionary(static x => x, static _ => "x");
+        }
+
+        Set(JobChains.SetKey).Add((JobHelper.ToTimestamp(DateTime.UtcNow.AddDays(-3)), "lost-early"));
+        Set(DueSet).Add((1, "lost-early"));
+
+        Maintain();
+
+        Assert.InRange(Assert.Single(Set(LostSet)).Score, After(TimeSpan.FromDays(days - 0.1)), After(TimeSpan.FromDays(days + 0.1)));
     }
 
     [Fact]

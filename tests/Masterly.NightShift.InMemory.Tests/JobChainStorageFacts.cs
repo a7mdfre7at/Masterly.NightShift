@@ -2618,6 +2618,63 @@ public sealed class JobChainStorageFacts : IDisposable
         Assert.Equal(AwaitingState.StateName, StateOf(all));
     }
 
+    [Theory]
+    [InlineData(90)]
+    [InlineData(30)]
+    public void Steps_OfAChainWhoseRecordWasLost_StillRun_WithinTheTimeTheirRecordWasToBeKept_HoweverLongTheServersKeepRecords(int writerDays)
+    {
+        TimeSpan before = JobChain.RecordRetention;
+        try
+        {
+            // The client that creates the chain keeps records that long; the servers keep them 30 days
+            GlobalConfiguration.Configuration.UseChainRetention(TimeSpan.FromDays(writerDays));
+            JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Once("b")).Enqueue(_client)!;
+            string a = chain.RootId;
+            GlobalConfiguration.Configuration.UseChainRetention(TimeSpan.FromDays(30));
+
+            Fail(a);
+            using (IStorageConnection connection = _storage.GetConnection())
+            using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+            {
+                transaction.RemoveHash(JobChains.GetKey(chain.ChainId));
+                transaction.Commit();
+            }
+
+            // Requeued and failed again: a server looks at the chain, finds no record, and keeps it listed
+            Assert.True(_client.ChangeState(a, new EnqueuedState(), FailedState.StateName));
+            Assert.True(_client.ChangeState(a, new FailedState(new InvalidOperationException("again")), EnqueuedState.StateName));
+            MoveClock(TimeSpan.FromMinutes(6));
+            using (MaintenanceOnly())
+            {
+                WaitUntil(() => SetItems(SoonSet).Count == 0, "the look asked for");
+            }
+
+            Assert.Contains(chain.ChainId, SetItems("chains:lost"));
+
+            // A month later servers run again: the chain leaves the list only once the writer's time is over
+            MoveClock(TimeSpan.FromDays(31));
+            using (MaintenanceOnly())
+            {
+                Thread.Sleep(300);
+            }
+
+            Assert.Equal(writerDays > 31, SetItems(JobChains.SetKey).Contains(chain.ChainId));
+
+            // The failed step is requeued: listed or older than its record was to be kept, it runs
+            Assert.True(_client.ChangeState(a, new EnqueuedState(), FailedState.StateName));
+            using (CreateServer())
+            {
+                WaitUntil(() => StateOf(a) != EnqueuedState.StateName && StateOf(a) != ProcessingState.StateName, "the requeued step to be taken");
+            }
+
+            Assert.True(SucceededState.StateName == StateOf(a), $"{StateOf(a)}: {ReasonOf(a)}");
+        }
+        finally
+        {
+            GlobalConfiguration.Configuration.UseChainRetention(before);
+        }
+    }
+
     [Fact]
     public void DeleteChain_DeletesEveryStep_AndTheRecord()
     {
