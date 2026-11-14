@@ -46,7 +46,21 @@ public sealed class EfStorageFacts : IDisposable
     [Fact]
     public void ExpirationManager_DeletesExpiredJobs_WithTheirStatesParametersAndQueueEntries_AndExpiredKeys()
     {
-        EntityFrameworkCoreStorage storage = _database.CreateStorage();
+        ExpirationManager_DeletesExpiredJobs_WithTheirStatesParametersAndQueueEntries(foreignKeys: true);
+    }
+
+    [Fact]
+    public void ExpirationManager_DeletesTheStatesAndParametersOfExpiredJobs_WhereTheDatabaseDoesNotEnforceForeignKeys()
+    {
+        ExpirationManager_DeletesExpiredJobs_WithTheirStatesParametersAndQueueEntries(foreignKeys: false);
+    }
+
+    private void ExpirationManager_DeletesExpiredJobs_WithTheirStatesParametersAndQueueEntries(bool foreignKeys)
+    {
+        _ = _database.CreateStorage();
+        EntityFrameworkCoreStorage storage = new(
+            o => o.UseSqlite($"{_database.ConnectionString};Foreign Keys={foreignKeys}"),
+            new EntityFrameworkCoreStorageOptions { Schema = null });
         string expired;
         string kept;
         using (IStorageConnection connection = storage.GetConnection())
@@ -69,6 +83,42 @@ public sealed class EfStorageFacts : IDisposable
         Assert.NotNull(reader.GetJobData(kept));
         Assert.Equal(0, storage.GetMonitoringApi().EnqueuedCount("default"));
         Assert.Empty(reader.GetAllItemsFromSet("old"));
+        using DbContext context = storage.CreateContext();
+        Assert.Empty(context.Set<StateRow>());
+        Assert.Empty(context.Set<JobParameterRow>());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ExpirationManager_KeepsAJob_RequeuedAfterItWasFoundExpired(bool sqlServer)
+    {
+        EntityFrameworkCoreStorage storage = sqlServer ? SqlServerDatabase.CreateStorage() : _database.CreateStorage();
+        string id = CreateJob(storage);
+        Commit(storage, x =>
+        {
+            x.SetJobState(id, new SucceededState(null, 1, 1));
+            x.ExpireJob(id, TimeSpan.FromSeconds(-1));
+        });
+
+        // A requeue from the dashboard, between the read of the expired ids and the deletes
+        BeforeFirstDelete requeue = new(() => Commit(storage, x =>
+        {
+            x.SetJobState(id, new EnqueuedState());
+            x.PersistJob(id);
+            x.AddToQueue("default", id);
+        }));
+        EntityFrameworkCoreStorage expiring = sqlServer
+            ? new(o => o.UseSqlServer(SqlServerDatabase.ConnectionString("Storage")).AddInterceptors(requeue))
+            : new(o => o.UseSqlite(_database.ConnectionString).AddInterceptors(requeue), new EntityFrameworkCoreStorageOptions { Schema = null });
+
+        new EfExpirationManager(expiring).RemoveExpired(CancellationToken.None);
+
+        Assert.True(requeue.Ran);
+        using IStorageConnection reader = storage.GetConnection();
+        Assert.Equal(EnqueuedState.StateName, reader.GetStateData(id)?.Name);
+        Assert.Equal(1, storage.GetMonitoringApi().EnqueuedCount("default"));
+        Assert.Equal(2, storage.GetMonitoringApi().JobDetails(id)?.History.Count);
     }
 
     [Fact]
@@ -642,6 +692,23 @@ public sealed class EfStorageFacts : IDisposable
             {
                 Lost++;
                 throw new TransientException();
+            }
+
+            return result;
+        }
+    }
+
+    /// <summary>Runs an action before the first DELETE statement, once.</summary>
+    private sealed class BeforeFirstDelete(Action action) : DbCommandInterceptor
+    {
+        public bool Ran { get; private set; }
+
+        public override InterceptionResult<int> NonQueryExecuting(DbCommand command, CommandEventData eventData, InterceptionResult<int> result)
+        {
+            if (!Ran && command.CommandText.StartsWith("DELETE", StringComparison.OrdinalIgnoreCase))
+            {
+                Ran = true;
+                action();
             }
 
             return result;
