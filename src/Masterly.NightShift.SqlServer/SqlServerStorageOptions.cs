@@ -164,6 +164,7 @@ public class SqlServerStorageOptions
     /// <summary>
     /// Gets or sets the age after which the expiration manager deletes rows of a job's state history that
     /// aren't the job's current state. <see cref="TimeSpan.Zero"/> (the default) keeps the whole history.
+    /// Counted in whole seconds: a part of a second counts as one, and more than 68 years as 68 years.
     /// Needs schema version 9. Negative values throw when a server starts.
     /// </summary>
     public TimeSpan InactiveStateExpirationTimeout { get; set; }

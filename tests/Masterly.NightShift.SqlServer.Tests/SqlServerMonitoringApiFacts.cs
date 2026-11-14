@@ -913,6 +913,65 @@ public class SqlServerMonitoringApiFacts
     }
 
     [Fact, CleanDatabase]
+    public void SucceededJobs_ListsTheJobs_WhenTheSchemaNameContainsBraces()
+    {
+        SqlServerStorage storage = new(ConnectionUtils.CreateConnection, new SqlServerStorageOptions { SchemaName = "Bk{x}" });
+        using DbConnection connection = ConnectionUtils.CreateConnection();
+        connection.Execute("delete from [Bk{x}].Job");
+        string jobId;
+        using (IStorageConnection storageConnection = storage.GetConnection())
+        {
+            jobId = storageConnection.CreateExpiredJob(
+                Job.FromExpression(() => Empty()), new Dictionary<string, string?>(), DateTime.UtcNow, TimeSpan.FromHours(1));
+            using IWriteOnlyTransaction transaction = storageConnection.CreateWriteTransaction();
+            transaction.SetJobState(jobId, new SucceededState(null, 1, 1));
+            transaction.Commit();
+        }
+
+        JobList<SucceededJobDto?> result = storage.GetMonitoringApi().SucceededJobs(0, 10);
+
+        Assert.Equal(jobId, result.Single().Key);
+    }
+
+    // State data can come from another writer or version: one row that can't be read must not take down the list
+    [Fact, CleanDatabase]
+    public void SucceededJobs_ListsARowWithoutItsDuration_WhenItsDurationCantBeRead()
+    {
+        string jobId = SimpleJob(state: new RawState("Succeeded", new Dictionary<string, string> { { "PerformanceDuration", "abc" }, { "Latency", "1" } }));
+
+        JobList<SucceededJobDto?> result = CreateMonitoringApi().SucceededJobs(0, 10);
+
+        Assert.Equal(jobId, result.Single().Key);
+        Assert.Null(result.Single().Value.TotalDuration);
+    }
+
+    [Fact, CleanDatabase]
+    public void ScheduledJobs_ListsARowWithoutItsTime_WhenItsEnqueueAtCantBeRead()
+    {
+        string jobId = SimpleJob(
+            state: new RawState("Scheduled", new Dictionary<string, string> { { "EnqueueAt", "nonsense" } }),
+            transactionAction: static (transaction, assignedJobId, _) => transaction.AddToSet("schedule", assignedJobId, 0));
+
+        JobList<ScheduledJobDto?> result = CreateMonitoringApi().ScheduledJobs(0, 10);
+
+        Assert.Equal(jobId, result.Single().Key);
+        Assert.Equal(DateTime.MinValue, result.Single().Value.EnqueueAt);
+    }
+
+    [Fact, CleanDatabase]
+    public void AwaitingJobs_ListsARowWithoutAParent_WhenItsParentIdCantBeRead()
+    {
+        string parentId = SimpleEnqueueJob("default");
+        string goodChild = SimpleAwaitingJob(parentId);
+        string badChild = SimpleJob(state: new RawState("Awaiting", new Dictionary<string, string> { { "ParentId", "x" } }));
+
+        JobList<AwaitingJobDto?> result = CreateMonitoringApi().AwaitingJobs(0, 10);
+
+        Assert.Equal(EnqueuedState.StateName, result.Single(x => x.Key == goodChild).Value.ParentStateName);
+        Assert.Null(result.Single(x => x.Key == badChild).Value.ParentStateName);
+    }
+
+    [Fact, CleanDatabase]
     public void SucceededJobs_ReturnsCorrectJobs_InTheSucceededState()
     {
         // Arrange
@@ -1691,6 +1750,20 @@ public class SqlServerMonitoringApiFacts
         });
 
         return createdId;
+    }
+
+    /// <summary>A state written as another writer would: any name, any data.</summary>
+    private sealed class RawState(string name, Dictionary<string, string> data) : IState
+    {
+        public string Name { get; } = name;
+
+        public string Reason => null;
+
+        public bool IsFinal => false;
+
+        public bool IgnoreJobLoadException => false;
+
+        public Dictionary<string, string> SerializeData() => data;
     }
 
     private SqlServerMonitoringApi CreateMonitoringApi()

@@ -54,8 +54,9 @@ public class SqlServerStorage : JobStorage
     private volatile bool _schemaVersionRetryPending;
     private long _nextSchemaVersionRetryTicks;
 
-    // Likewise, when the startup install failed, it is tried again when the storage is used: after
-    // SchemaVersionRetryInterval at first, then twice as long after each failure, up to MaxSchemaInstallRetryInterval
+    // Likewise, when the startup install failed, it is tried again when the storage is used: every
+    // SchemaVersionRetryInterval while the database can't be reached (it may be still starting, or not created
+    // yet), and twice as long after each failure of a database that answered, up to MaxSchemaInstallRetryInterval
     private static readonly TimeSpan MaxSchemaInstallRetryInterval = TimeSpan.FromMinutes(30);
     private volatile bool _schemaInstallRetryPending;
     private long _nextSchemaInstallRetryTicks;
@@ -622,7 +623,7 @@ public class SqlServerStorage : JobStorage
         }
 
         InitializeQueueProviders();
-        HeartbeatProcess = new SqlServerHeartbeatProcess();
+        HeartbeatProcess = new SqlServerHeartbeatProcess(this);
 
         // Normally read right after the schema version, when the database is known to be reachable
         if (!Options.TryAutoDetectSchemaDependentOptions && Options.AllowDelayedDurability)
@@ -751,8 +752,11 @@ public class SqlServerStorage : JobStorage
 
     private void InstallSchemaOnce(bool clearPoolOnOpenFailure)
     {
-        DbConnection connection = CreateAndOpenConnection(clearPoolOnOpenFailure);
+        InstallSchema(CreateAndOpenConnection(clearPoolOnOpenFailure));
+    }
 
+    private void InstallSchema(DbConnection connection)
+    {
         try
         {
             // SchemaName can't contain the characters that would need escaping in the script
@@ -765,19 +769,30 @@ public class SqlServerStorage : JobStorage
     }
 
     // One more attempt of the install that failed at startup, without waiting between attempts. Returns the error,
-    // or null when it succeeded.
-    private Exception? RetryInstallSchema()
+    // or null when it succeeded, and whether a connection was opened.
+    private (Exception? Error, bool Connected) RetryInstallSchema()
     {
+        DbConnection connection;
+
         try
         {
-            InstallSchemaOnce(clearPoolOnOpenFailure: false);
-
-            LogProvider.GetLogger(typeof(SqlServerObjectsInstaller)).Info("Masterly.NightShift SQL objects installed, after the install at startup had failed.");
-            return null;
+            connection = CreateAndOpenConnection(clearPoolOnOpenFailure: false);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
-            return ex;
+            return (ex, false);
+        }
+
+        try
+        {
+            InstallSchema(connection);
+
+            LogProvider.GetLogger(typeof(SqlServerObjectsInstaller)).Info("Masterly.NightShift SQL objects installed, after the install at startup had failed.");
+            return (null, true);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            return (ex, true);
         }
     }
 
@@ -863,7 +878,7 @@ public class SqlServerStorage : JobStorage
         {
             if (_schemaInstallRetryPending && now >= Interlocked.Read(ref _nextSchemaInstallRetryTicks))
             {
-                Exception? error = RetryInstallSchema();
+                (Exception? error, bool connected) = RetryInstallSchema();
 
                 if (error == null)
                 {
@@ -877,8 +892,12 @@ public class SqlServerStorage : JobStorage
                 }
                 else
                 {
-                    // A database that refuses for longer (missing permissions, for example) isn't asked as often
-                    long interval = Math.Min(Interlocked.Read(ref _schemaInstallRetryIntervalTicks) * 2, MaxSchemaInstallRetryInterval.Ticks);
+                    // A database that answers but refuses the install (missing permissions, for example) isn't asked
+                    // as often. One that can't be reached yet is asked again at the first interval, so the install
+                    // follows soon after it comes up.
+                    long interval = connected
+                        ? Math.Min(Interlocked.Read(ref _schemaInstallRetryIntervalTicks) * 2, MaxSchemaInstallRetryInterval.Ticks)
+                        : SchemaVersionRetryInterval.Ticks;
                     Interlocked.Exchange(ref _schemaInstallRetryIntervalTicks, interval);
                     Interlocked.Exchange(ref _nextSchemaInstallRetryTicks, JobClock.UtcNow.Ticks + interval);
 

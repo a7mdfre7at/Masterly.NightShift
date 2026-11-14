@@ -157,52 +157,73 @@ internal sealed class SqlServerTimeoutJob : IFetchedJob
 
     internal void ExecuteKeepAliveQueryIfRequired()
     {
-        long now = TimestampHelper.GetTimestamp();
+        _storage.HeartbeatProcess.KeepAlive([this]);
+    }
 
-        if (TimestampHelper.Elapsed(now, Interlocked.Read(ref _lastHeartbeat)) >= _interval)
+    /// <summary>
+    /// Takes the job's lock for a keep-alive when one is due and may be sent, without waiting: a job whose lock is
+    /// held (it is being removed from its queue or put back, or a transaction that removes it is committing) is
+    /// left for the next pass, so it delays no other job. On <c>true</c> the caller sends the keep-alive with
+    /// <paramref name="fetchedAt"/>, reports what it found, and calls <see cref="EndKeepAlive"/> on the same thread.
+    /// </summary>
+    internal bool TryBeginKeepAlive(long now, out DateTime fetchedAt)
+    {
+        fetchedAt = default;
+
+        if (TimestampHelper.Elapsed(now, Interlocked.Read(ref _lastHeartbeat)) < _interval)
         {
-            lock (_syncRoot)
-            {
-                if (!FetchedAt.HasValue)
-                {
-                    return;
-                }
-
-                if (_requeued || _removedFromQueue)
-                {
-                    return;
-                }
-
-                if (_transaction != null && _transaction.Committed)
-                {
-                    return;
-                }
-
-                try
-                {
-                    FetchedAt = _storage.UseConnection(
-                        null,
-                        static (storage, connection, ctx) => connection.ExecuteScalar<DateTime?>(
-                            storage.GetQueryFromTemplate(static schemaName =>
-                                $@"update JQ set FetchedAt = getutcdate() output INSERTED.FetchedAt from [{schemaName}].JobQueue JQ with (forceseek, rowlock) where Queue = @queue and Id = @id and FetchedAt = @fetchedAt"),
-                            new { queue = ctx.Queue, id = ctx.Id, fetchedAt = ctx.FetchedAt },
-                            commandTimeout: storage.CommandTimeout),
-                        this);
-
-                    if (!FetchedAt.HasValue)
-                    {
-                        _logger.Warn(
-                            $"Background job identifier '{JobId}' was fetched by another worker, will not execute keep alive.");
-                    }
-
-                    _logger.Trace($"Keep-alive query for message {Id} sent");
-                    Interlocked.Exchange(ref _lastHeartbeat, now);
-                }
-                catch (Exception ex) when (ex.IsCatchableExceptionType())
-                {
-                    _logger.DebugException($"Unable to execute keep-alive query for message {Id}", ex);
-                }
-            }
+            return false;
         }
+
+        if (!NightShiftLocks.TryEnter(_syncRoot))
+        {
+            return false;
+        }
+
+        if (FetchedAt is not { } current || _requeued || _removedFromQueue || _transaction is { Committed: true })
+        {
+            NightShiftLocks.Exit(_syncRoot);
+            return false;
+        }
+
+        fetchedAt = current;
+        return true;
+    }
+
+    /// <summary>The keep-alive renewed the row: it is now fetched at <paramref name="fetchedAt"/>.</summary>
+    internal void KeepAliveRenewed(long now, DateTime fetchedAt)
+    {
+        FetchedAt = fetchedAt;
+        Interlocked.Exchange(ref _lastHeartbeat, now);
+        _logger.Trace($"Keep-alive query for message {Id} sent");
+    }
+
+    /// <summary>The row was fetched again since this worker fetched it: no more keep-alives.</summary>
+    internal void KeepAliveFoundTakenOver(long now)
+    {
+        FetchedAt = null;
+        Interlocked.Exchange(ref _lastHeartbeat, now);
+        _logger.Warn($"Background job identifier '{JobId}' was fetched by another worker, will not execute keep alive.");
+    }
+
+    /// <summary>Releases the lock <see cref="TryBeginKeepAlive"/> took.</summary>
+    internal void EndKeepAlive()
+    {
+        NightShiftLocks.Exit(_syncRoot);
+    }
+
+    /// <summary>
+    /// Holds off keep-alives while a transaction that removes the job from its queue commits: its delete matches
+    /// the row by the <see cref="FetchedAt"/> read when the command is built, which a keep-alive would change.
+    /// </summary>
+    internal void EnterCommit()
+    {
+        NightShiftLocks.Enter(_syncRoot);
+    }
+
+    /// <summary>Lets keep-alives run again after <see cref="EnterCommit"/>, on the same thread.</summary>
+    internal void ExitCommit()
+    {
+        NightShiftLocks.Exit(_syncRoot);
     }
 }

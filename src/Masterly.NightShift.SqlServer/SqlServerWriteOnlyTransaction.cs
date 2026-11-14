@@ -47,6 +47,9 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
 
     private readonly SortedSet<string> _lockedResources = [];
 
+    // The fetched jobs it removes from their queues, in the order of their row
+    private readonly SortedDictionary<long, SqlServerTimeoutJob> _removedJobs = [];
+
     // A transaction that only moves jobs to Processing doesn't have to wait for the disk: if it is lost, the
     // jobs are fetched and run again, as after any failure before their final state is stored. A job parameter
     // is not written again that way, so a transaction that writes one waits, as the write outside a transaction does
@@ -71,6 +74,33 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
 
     public override void Commit()
     {
+        // The delete of a job this removes from its queue matches the FetchedAt read when its command is built:
+        // no keep-alive may change it before the commit is done (SqlServerTimeoutJob.EnterCommit)
+        List<SqlServerTimeoutJob> heldJobs = [];
+
+        try
+        {
+            foreach (SqlServerTimeoutJob job in _removedJobs.Values)
+            {
+                job.EnterCommit();
+                heldJobs.Add(job);
+            }
+
+            CommitAndReleaseLocks();
+        }
+        finally
+        {
+            foreach (SqlServerTimeoutJob job in heldJobs)
+            {
+                job.ExitCommit();
+            }
+        }
+
+        TrySignalListeningWorkers();
+    }
+
+    private void CommitAndReleaseLocks()
+    {
         try
         {
             if (CanCommitTogether())
@@ -93,8 +123,6 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
                 acquiredLock.Dispose();
             }
         }
-
-        TrySignalListeningWorkers();
     }
 
     private void CommitAlone()
@@ -1089,6 +1117,7 @@ $@"delete JQ from [{schemaName}].JobQueue JQ with (forceseek, rowlock) where Que
                 .AddParameter("@fetchedAt", timeoutJob.FetchedAt, DbType.DateTime));
 
             timeoutJob.SetTransaction(this);
+            _removedJobs[timeoutJob.Id] = timeoutJob;
         }
         else
         {

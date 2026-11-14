@@ -15,6 +15,7 @@
 
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Server;
+using Microsoft.Data.SqlClient;
 
 namespace Masterly.NightShift.SqlServer;
 
@@ -27,6 +28,8 @@ internal sealed class ExpirationManager : IBackgroundProcess
 
     // The state cleanup seeks on the [State].[CreatedAt] index, which comes with this schema version
     private const int StateCleanupSchemaVersion = 9;
+
+    private const int LockTimeoutErrorNumber = 1222;
 
     private static readonly string[] ProcessedTables =
     [
@@ -94,11 +97,13 @@ internal sealed class ExpirationManager : IBackgroundProcess
 
         if (_stateExpirationTimeout > TimeSpan.Zero && CanCleanUpStates(storage))
         {
+            int expireSeconds = -GetStateExpirationSeconds(_stateExpirationTimeout);
+
             try
             {
                 CleanupTable(storage, GetStateCleanupQuery(storage), "State", numberOfRecordsInSinglePass,
                     cancellationToken,
-                    command => command.AddParameter("@expireMin", (long)_stateExpirationTimeout.Negate().TotalMinutes, DbType.Int64));
+                    command => command.AddParameter("@expireSeconds", expireSeconds, DbType.Int32));
             }
             catch (DbException ex)
             {
@@ -170,7 +175,16 @@ internal sealed class ExpirationManager : IBackgroundProcess
         {
             return storage.UseConnection(null, static (_, connection, ctx) =>
             {
-                SqlServerDistributedLock.Acquire(connection, ctx.Key, DefaultLockTimeout);
+                // A session lock that may still be held must not go back to the pool with its connection
+                try
+                {
+                    SqlServerDistributedLock.Acquire(connection, ctx.Key, DefaultLockTimeout);
+                }
+                catch (Exception ex) when (ex.IsCatchableExceptionType() && SqlServerDistributedLock.MayHaveBeenGranted(ex))
+                {
+                    ConnectionPools.DiscardWhenClosed(connection);
+                    throw;
+                }
 
                 try
                 {
@@ -178,7 +192,7 @@ internal sealed class ExpirationManager : IBackgroundProcess
                 }
                 finally
                 {
-                    SqlServerDistributedLock.Release(connection, ctx.Key);
+                    ReleaseLock(connection, ctx.Key);
                 }
             }, new KeyValuePair<string, Func<DbConnection, T>>(lockKey, action));
         }
@@ -197,32 +211,44 @@ internal sealed class ExpirationManager : IBackgroundProcess
         }
     }
 
+    private static void ReleaseLock(DbConnection connection, string resource)
+    {
+        try
+        {
+            SqlServerDistributedLock.Release(connection, resource);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            ConnectionPools.DiscardWhenClosed(connection);
+            throw;
+        }
+    }
+
+    // Built by interpolation, never by string.Format: the schema name may contain braces
     private static string GetExpireQuery(SqlServerStorage storage, string table)
     {
-        if (table.Equals("AggregatedCounter", StringComparison.OrdinalIgnoreCase))
-        {
-            // Schema 5, which still should be supported by Masterly.NightShift doesn't have an index that covers
-            // the `ExpireAt` column, making it impossible to run the query.
-            return string.Format(CultureInfo.InvariantCulture, storage.GetQueryFromTemplate(static schemaName => $$"""
-                set deadlock_priority low;
-                set transaction isolation level read committed;
-                set xact_abort on;
-                set lock_timeout 1000;
-                delete top (@count) T from [{{schemaName}}].[{0}] T
-                where ExpireAt < @now
-                option (loop join, optimize for (@count = 20000));
-                """), table);
-        }
+        // Schema 5, which still should be supported by Masterly.NightShift doesn't have an index that covers
+        // the `ExpireAt` column of AggregatedCounter, making it impossible to seek on it.
+        string hint = table.Equals("AggregatedCounter", StringComparison.OrdinalIgnoreCase)
+            ? string.Empty
+            : " with (forceseek)";
 
-        return string.Format(CultureInfo.InvariantCulture, storage.GetQueryFromTemplate(static schemaName => $$"""
+        return $"""
             set deadlock_priority low;
             set transaction isolation level read committed;
             set xact_abort on;
             set lock_timeout 1000;
-            delete top (@count) T from [{{schemaName}}].[{0}] T with (forceseek)
+            delete top (@count) T from [{storage.SchemaName}].[{table}] T{hint}
             where ExpireAt < @now
             option (loop join, optimize for (@count = 20000));
-            """), table);
+            """;
+    }
+
+    // In whole seconds, which dateadd takes as an int: a part of a second counts as one, and anything longer
+    // than int.MaxValue seconds (68 years) as that
+    private static int GetStateExpirationSeconds(TimeSpan timeout)
+    {
+        return (int)Math.Ceiling(Math.Min(timeout.TotalSeconds, int.MaxValue));
     }
 
     private static string GetStateCleanupQuery(SqlServerStorage storage)
@@ -237,7 +263,7 @@ internal sealed class ExpirationManager : IBackgroundProcess
             ;with cte as (
             	select s.[JobId], s.[Id]
             	from [{schemaName}].[State] s with (forceseek)
-            	where s.[CreatedAt] < dateadd(minute, @expireMin, @now)
+            	where s.[CreatedAt] < dateadd(second, @expireSeconds, @now)
             	and exists (
             		select * from [{schemaName}].[Job] j with (forceseek)
             		where j.[Id] = s.[JobId] and j.[StateId] != s.[Id]))
@@ -264,12 +290,32 @@ internal sealed class ExpirationManager : IBackgroundProcess
             {
                 return command.ExecuteNonQuery();
             }
-            catch (DbException ex) when (cancellationToken.IsCancellationRequested || ex.Message.Contains("Lock request time out period exceeded"))
+            catch (DbException ex) when (cancellationToken.IsCancellationRequested || IsLockTimeout(ex))
             {
-                // Exception was triggered due to the Cancel method call, ignoring
+                // Triggered by the Cancel method call, or another session holds a row past "set lock_timeout":
+                // the rest is removed on the next run
                 return 0;
             }
         }
     }
-}
 
+    // Error 1222. Its message is in the session's language, so it is recognised by its number, and by the
+    // English message only for a client other than SqlClient
+    private static bool IsLockTimeout(DbException exception)
+    {
+        if (exception is SqlException sqlException)
+        {
+            foreach (SqlError error in sqlException.Errors)
+            {
+                if (error.Number == LockTimeoutErrorNumber)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return exception.Message.Contains("Lock request time out period exceeded", StringComparison.Ordinal);
+    }
+}

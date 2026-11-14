@@ -469,8 +469,9 @@ public class SqlServerStorageFacts
         Assert.Equal(SqlServerObjectsInstaller.LatestSchemaVersion, storage.DetectedSchemaVersion);
     }
 
+    // A database that comes up long after the application (a first deployment) gets its schema soon after
     [Fact, CleanDatabase]
-    public void SchemaInstall_WaitsLongerAfterEachFailedRetry()
+    public void SchemaInstall_IsTriedAgainAtTheFirstInterval_WhileTheDatabaseCantBeReached()
     {
         _options.PrepareSchemaIfNecessary = true;
         _options.TryAutoDetectSchemaDependentOptions = false;
@@ -484,16 +485,49 @@ public class SqlServerStorageFacts
 
         MakeSchemaRetriesDue(storage);
         storage.GetConnection().Dispose();
+        MakeSchemaRetriesDue(storage);
+        storage.GetConnection().Dispose();
         storage.GetConnection().Dispose();
 
-        // One retry, which failed; the next one waits twice the first interval
+        // Two retries, which failed; the next one waits the first interval again
         Assert.True(storage.SchemaInstallPending);
-        Assert.Equal(4, attempts);
-        Assert.Equal(
-            TimeSpan.FromMinutes(1),
-            TimeSpan.FromTicks((long)typeof(SqlServerStorage)
-                .GetField("_schemaInstallRetryIntervalTicks", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
-                .GetValue(storage)));
+        Assert.Equal(5, attempts);
+        Assert.Equal(TimeSpan.FromSeconds(30), GetSchemaInstallRetryInterval(storage));
+    }
+
+    [Fact, CleanDatabase]
+    public void SchemaInstall_WaitsLongerAfterEachFailedRetry_WhenTheDatabaseAnswers()
+    {
+        _options.PrepareSchemaIfNecessary = true;
+        _options.TryAutoDetectSchemaDependentOptions = false;
+        int attempts = 0;
+        SqlServerStorage storage = new(() =>
+        {
+            Interlocked.Increment(ref attempts);
+
+            // The install can't begin its own transaction on this connection
+            DbConnection connection = ConnectionUtils.CreateConnection();
+            connection.BeginTransaction();
+            return connection;
+        }, _options);
+        Assert.Equal(3, attempts);
+
+        MakeSchemaRetriesDue(storage);
+        storage.GetConnection().Dispose();
+        MakeSchemaRetriesDue(storage);
+        storage.GetConnection().Dispose();
+
+        // Two retries, which failed; the next one waits four times the first interval
+        Assert.True(storage.SchemaInstallPending);
+        Assert.Equal(5, attempts);
+        Assert.Equal(TimeSpan.FromMinutes(2), GetSchemaInstallRetryInterval(storage));
+    }
+
+    private static TimeSpan GetSchemaInstallRetryInterval(SqlServerStorage storage)
+    {
+        return TimeSpan.FromTicks((long)typeof(SqlServerStorage)
+            .GetField("_schemaInstallRetryIntervalTicks", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            .GetValue(storage));
     }
 
     [Fact, CleanDatabase]

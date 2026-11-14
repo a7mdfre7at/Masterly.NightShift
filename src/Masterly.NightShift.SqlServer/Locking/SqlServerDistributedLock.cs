@@ -96,6 +96,16 @@ internal static class SqlServerDistributedLock
         throw new DistributedLockTimeoutException(resource);
     }
 
+    /// <summary>
+    /// Whether the lock may be held although <see cref="Acquire"/> threw <paramref name="exception"/>. An answer of
+    /// the server that refused it (a timeout, an error result) means it wasn't granted; anything else, such as a
+    /// command timeout or a broken connection, may have come after the server granted it.
+    /// </summary>
+    internal static bool MayHaveBeenGranted([NotNull] Exception exception)
+    {
+        return exception is not (DistributedLockTimeoutException or SqlServerDistributedLockException);
+    }
+
     internal static void Release(DbConnection connection, string resource)
     {
         using DbCommand command = CreateReleaseCommand(connection, resource, out DbParameter? resultParameter);
