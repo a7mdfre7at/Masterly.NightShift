@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Masterly.NightShift.Server;
 using LogLevel = Masterly.NightShift.Logging.LogLevel;
 
@@ -22,6 +23,7 @@ public sealed class DeploymentFencingFacts : IDisposable
         DeploymentFencing.DeploymentOrder = null;
         DeploymentFencing.CheckInterval = TimeSpan.FromSeconds(15);
         DeploymentFencing.TakeOverAfter = TimeSpan.FromSeconds(30);
+        DeploymentFencing.LockTimeout = TimeSpan.FromSeconds(15);
         DrainMode.InvalidateCache();
     }
 
@@ -1060,13 +1062,15 @@ public sealed class DeploymentFencingFacts : IDisposable
     {
         DeploymentFencing.CheckInterval = TimeSpan.FromMilliseconds(50);
         DeploymentFencing.TakeOverAfter = TimeSpan.FromMilliseconds(100);
+        DeploymentFencing.LockTimeout = TimeSpan.FromMilliseconds(50);
         DeploymentFencingProcess current = new("v1");
 
         Assert.False(Check(current, "server-1", 0));
         bool openAfterTheCheck = current.Gate.WaitToFetch(Context("server-1", Stopping));
 
-        // Every check fails from now on: after 100 milliseconds the server can't tell whether it is still current
-        Thread.Sleep(TimeSpan.FromMilliseconds(300));
+        // No check succeeds from now on: after 100 milliseconds, and the 50 a check may wait for the lock, the server
+        // can't tell whether it is still current
+        Thread.Sleep(TimeSpan.FromMilliseconds(400));
         Assert.ThrowsAny<OperationCanceledException>(() => current.Gate.WaitToFetch(Context("server-1", Stopping)));
 
         Assert.False(Check(current, "server-1", 0.05));
@@ -1074,6 +1078,126 @@ public sealed class DeploymentFencingFacts : IDisposable
 
         Assert.True(openAfterTheCheck);
         Assert.True(openAgain);
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache and changes the check interval")]
+    public void Gate_StaysOpen_WhileTheLockOfTheChecksCanNotBeTaken_AsNoDeploymentCanTakeOverWithoutIt()
+    {
+        // Another server froze while it held the lock: every check of this one times out on it, for longer than
+        // a decision holds without a check
+        DeploymentFencing.CheckInterval = TimeSpan.FromMilliseconds(100);
+        DeploymentFencing.TakeOverAfter = TimeSpan.FromMilliseconds(200);
+        DeploymentFencing.LockTimeout = TimeSpan.FromMilliseconds(100);
+        DeploymentFencingProcess current = new("v1");
+        Assert.False(Check(current, "server-1", 0));
+        _storage.Connection.Setup(x => x.AcquireDistributedLock($"lock:{DeploymentFencing.HashKey}", It.IsAny<TimeSpan>()))
+            .Returns((string resource, TimeSpan timeout) =>
+            {
+                Thread.Sleep(timeout);
+                throw new DistributedLockTimeoutException(resource);
+            });
+
+        Stopwatch stalled = Stopwatch.StartNew();
+        List<Exception> thrown = [];
+        int checks = 0;
+        while (stalled.Elapsed < TimeSpan.FromSeconds(1))
+        {
+            checks++;
+            Exception exception = Record.Exception(() => current.Execute(Context("server-1", CancellationToken.None)));
+            if (exception != null)
+            {
+                thrown.Add(exception);
+            }
+        }
+
+        // Nothing for the loop that runs the process to retry with a growing delay: the next check comes soon
+        Assert.Empty(thrown);
+        Assert.InRange(checks, 3, 10);
+        Assert.True(current.Gate.WaitToFetch(Context("server-1", Stopping)));
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache and changes the check interval")]
+    public void Gate_Closes_WhenTheChecksFailForAnotherReason_ForLongerThanADecisionHolds()
+    {
+        DeploymentFencing.CheckInterval = TimeSpan.FromMilliseconds(100);
+        DeploymentFencing.TakeOverAfter = TimeSpan.FromMilliseconds(200);
+        DeploymentFencing.LockTimeout = TimeSpan.FromMilliseconds(100);
+        DeploymentFencingProcess current = new("v1");
+        Assert.False(Check(current, "server-1", 0));
+        _storage.Connection.Setup(x => x.AcquireDistributedLock($"lock:{DeploymentFencing.HashKey}", It.IsAny<TimeSpan>()))
+            .Throws(new InvalidOperationException("storage down"));
+
+        Stopwatch failing = Stopwatch.StartNew();
+        while (failing.Elapsed < TimeSpan.FromSeconds(1))
+        {
+            Assert.Throws<InvalidOperationException>(() => current.Execute(Context("server-1", CancellationToken.None)));
+            Thread.Sleep(TimeSpan.FromMilliseconds(50));
+        }
+
+        Assert.ThrowsAny<OperationCanceledException>(() => current.Gate.WaitToFetch(Context("server-1", Stopping)));
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache and changes the check interval")]
+    public async Task Gate_StaysOpen_DuringACheckThatWaitsForTheLockForAsLongAsItMay()
+    {
+        // A decision holds for 200 milliseconds without a check, and a check may wait a second for the lock
+        DeploymentFencing.CheckInterval = TimeSpan.FromMilliseconds(100);
+        DeploymentFencing.TakeOverAfter = TimeSpan.FromMilliseconds(200);
+        DeploymentFencing.LockTimeout = TimeSpan.FromSeconds(1);
+        DeploymentFencingProcess current = new("v1");
+        Assert.False(Check(current, "server-1", 0));
+        using ManualResetEventSlim waiting = new();
+        _storage.Connection.Setup(x => x.AcquireDistributedLock($"lock:{DeploymentFencing.HashKey}", It.IsAny<TimeSpan>()))
+            .Returns((string _, TimeSpan timeout) =>
+            {
+                waiting.Set();
+                Thread.Sleep(timeout);
+                return new Mock<IDisposable>().Object;
+            });
+
+        // The next check gets the lock at the last moment
+        Task<bool> next = Task.Run(() => Check(current, "server-1", 1), TestContext.Current.CancellationToken);
+        Assert.True(waiting.Wait(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken));
+        Thread.Sleep(TimeSpan.FromMilliseconds(500));
+        bool openWhileItWaits = current.Gate.WaitToFetch(Context("server-1", Stopping));
+
+        Assert.False(await next.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken));
+        Assert.True(openWhileItWaits);
+        Assert.True(current.Gate.WaitToFetch(Context("server-1", Stopping)));
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache and the log provider")]
+    public void Execute_SaysOnce_ThatTheLockOfTheChecksCanNotBeTaken_UntilACheckGetsItAgain()
+    {
+        DeploymentFencing.LockTimeout = TimeSpan.FromMilliseconds(1);
+        DeploymentFencing.CheckInterval = TimeSpan.FromMilliseconds(10);
+        RecordingLogProvider recording = new();
+        DeploymentFencingProcess current = new("v1");
+        Assert.False(Check(current, "server-1", 0));
+        bool lockTaken = true;
+        _storage.Connection.When(() => lockTaken).Setup(x => x.AcquireDistributedLock($"lock:{DeploymentFencing.HashKey}", It.IsAny<TimeSpan>()))
+            .Throws(new DistributedLockTimeoutException($"lock:{DeploymentFencing.HashKey}"));
+
+        using (recording.Use())
+        {
+            current.Execute(Context("server-1", CancellationToken.None));
+            current.Execute(Context("server-1", CancellationToken.None));
+            lockTaken = false;
+            _storage.Connection.Setup(x => x.AcquireDistributedLock($"lock:{DeploymentFencing.HashKey}", It.IsAny<TimeSpan>()))
+                .Returns(new Mock<IDisposable>().Object);
+            current.Execute(Context("server-1", CancellationToken.None));
+            lockTaken = true;
+            _storage.Connection.Setup(x => x.AcquireDistributedLock($"lock:{DeploymentFencing.HashKey}", It.IsAny<TimeSpan>()))
+                .Throws(new DistributedLockTimeoutException($"lock:{DeploymentFencing.HashKey}"));
+            current.Execute(Context("server-1", CancellationToken.None));
+        }
+
+        RecordingLogProvider.LogEntry[] warnings = [.. recording.Entries.Where(static x => x.Level == LogLevel.Warn)];
+        Assert.Equal(2, warnings.Length);
+        Assert.All(warnings, static x => Assert.StartsWith(
+            "The deployment check of server 'server-1' couldn't take the lock 'lock:nightshift:deployment' within 00:00:00.0010000: another server holds it.",
+            x.Message,
+            StringComparison.Ordinal));
     }
 
     [Fact, GlobalLock(Reason = "Uses the drain mode cache")]

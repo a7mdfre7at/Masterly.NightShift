@@ -216,21 +216,33 @@ public class DrainModeServerFacts : IDisposable
         ElectStateContextMock again = Elect("2", "web-1");
         again.ApplyContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string> { [DrainModeFilter.ServerHoldParameter] = Hold($"{Ms(now, -60)}-{Ms(now, -30)}") };
 
-        // A hold whose end wasn't written ends where the new one begins
+        // A hold whose end wasn't written ends where the new one begins, but not after it was due and the scheduler
+        // had time to see it: 20 seconds ago for this one, held 70 seconds ago
         ElectStateContextMock open = Elect("3", "web-1");
-        open.ApplyContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string> { [DrainModeFilter.ServerHoldParameter] = Hold($"{Ms(now, -60)}-") };
+        open.ApplyContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string> { [DrainModeFilter.ServerHoldParameter] = Hold($"{Ms(now, -70)}~{Ms(now, -25)}") };
+        ElectStateContextMock recent = Elect("4", "web-1");
+        recent.ApplyContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string> { [DrainModeFilter.ServerHoldParameter] = Hold($"{Ms(now, -10)}~{Ms(now, 35)}") };
+
+        // Written by an earlier build, without its due time: the hold interval is taken for it
+        ElectStateContextMock earlier = Elect("5", "web-1");
+        earlier.ApplyContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string> { [DrainModeFilter.ServerHoldParameter] = Hold($"{Ms(now, -60)}-") };
 
         WithClock(now, () =>
         {
             new DrainModeFilter().OnStateElection(first.Object);
             new DrainModeFilter().OnStateElection(again.Object);
             new DrainModeFilter().OnStateElection(open.Object);
+            new DrainModeFilter().OnStateElection(recent.Object);
+            new DrainModeFilter().OnStateElection(earlier.Object);
         });
 
-        Assert.IsType<ScheduledState>(first.Object.CandidateState);
-        _connection.Verify(x => x.SetJobParameter("1", DrainModeFilter.ServerHoldParameter, Hold($"{Ms(now)}-")), Times.Once);
-        _connection.Verify(x => x.SetJobParameter("2", DrainModeFilter.ServerHoldParameter, Hold($"{Ms(now, -60)}-{Ms(now, -30)};{Ms(now)}-")), Times.Once);
-        _connection.Verify(x => x.SetJobParameter("3", DrainModeFilter.ServerHoldParameter, Hold($"{Ms(now, -60)}-{Ms(now)};{Ms(now)}-")), Times.Once);
+        // Due after the hold interval, 30 seconds, and counted 15 more at most: the scheduler's polling allowance
+        Assert.Equal(now.AddSeconds(30), Assert.IsType<ScheduledState>(first.Object.CandidateState).EnqueueAt);
+        _connection.Verify(x => x.SetJobParameter("1", DrainModeFilter.ServerHoldParameter, Hold($"{Ms(now)}~{Ms(now, 45)}")), Times.Once);
+        _connection.Verify(x => x.SetJobParameter("2", DrainModeFilter.ServerHoldParameter, Hold($"{Ms(now, -60)}-{Ms(now, -30)};{Ms(now)}~{Ms(now, 45)}")), Times.Once);
+        _connection.Verify(x => x.SetJobParameter("3", DrainModeFilter.ServerHoldParameter, Hold($"{Ms(now, -70)}-{Ms(now, -25)};{Ms(now)}~{Ms(now, 45)}")), Times.Once);
+        _connection.Verify(x => x.SetJobParameter("4", DrainModeFilter.ServerHoldParameter, Hold($"{Ms(now, -10)}-{Ms(now)};{Ms(now)}~{Ms(now, 45)}")), Times.Once);
+        _connection.Verify(x => x.SetJobParameter("5", DrainModeFilter.ServerHoldParameter, Hold($"{Ms(now, -60)}-{Ms(now, -15)};{Ms(now)}~{Ms(now, 45)}")), Times.Once);
     }
 
     [Fact, GlobalLock(Reason = "Changes the clock and uses the drain mode cache")]
@@ -245,7 +257,7 @@ public class DrainModeServerFacts : IDisposable
 
         WithClock(now, () => new DrainModeFilter().OnStateElection(context.Object));
 
-        _connection.Verify(x => x.SetJobParameter("1", DrainModeFilter.ServerHoldParameter, Hold($"{string.Join(';', holds.Skip(1))};{Ms(now)}-")), Times.Once);
+        _connection.Verify(x => x.SetJobParameter("1", DrainModeFilter.ServerHoldParameter, Hold($"{string.Join(';', holds.Skip(1))};{Ms(now)}~{Ms(now, 45)}")), Times.Once);
     }
 
     [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
@@ -285,13 +297,26 @@ public class DrainModeServerFacts : IDisposable
             "Deleted" => new DeletedState(),
             _ => new ProcessingState("web-2", "worker"),
         };
-        ElectStateContextMock context = Leave("1", ScheduledState.StateName, Hold($"{Ms(heldAt, -100)}-{Ms(heldAt, -90)};{Ms(heldAt)}-"), candidate);
+        ElectStateContextMock context = Leave("1", ScheduledState.StateName, Hold($"{Ms(heldAt, -100)}-{Ms(heldAt, -90)};{Ms(heldAt)}~{Ms(heldAt, 45)}"), candidate);
 
         // The hold was for 30 seconds, and the job left it a second after that
         WithClock(heldAt.AddSeconds(31), () => new DrainModeFilter().OnStateElection(context.Object));
 
         Assert.Same(candidate, context.Object.CandidateState);
         _connection.Verify(x => x.SetJobParameter("1", DrainModeFilter.ServerHoldParameter, Hold($"{Ms(heldAt, -100)}-{Ms(heldAt, -90)};{Ms(heldAt)}-{Ms(heldAt, 31)}")), Times.Once);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock and uses the drain mode cache")]
+    public void Filter_EndsAHold_NoLaterThanItWasDueAndTheSchedulerCouldSeeIt()
+    {
+        // A job with a queue of its own was put back in its queue without a state change when the hold was due, and
+        // a server that may work takes it two hours later: the hold ended 45 seconds after it began
+        DateTime heldAt = new(2026, 11, 20, 9, 0, 0, DateTimeKind.Utc);
+        ElectStateContextMock context = Leave("1", ScheduledState.StateName, Hold($"{Ms(heldAt)}~{Ms(heldAt, 45)}"), new ProcessingState("web-2", "worker"));
+
+        WithClock(heldAt.AddHours(2), () => new DrainModeFilter().OnStateElection(context.Object));
+
+        _connection.Verify(x => x.SetJobParameter("1", DrainModeFilter.ServerHoldParameter, Hold($"{Ms(heldAt)}-{Ms(heldAt, 45)}")), Times.Once);
     }
 
     [Theory]
@@ -320,7 +345,7 @@ public class DrainModeServerFacts : IDisposable
 
         new DrainModeFilter().OnStateElection(context.Object);
 
-        transaction.Verify(x => x.SetJobParameter("1", DrainModeFilter.ServerHoldParameter, It.Is<string>(value => value.EndsWith("-\"", StringComparison.Ordinal))), Times.Once);
+        transaction.Verify(x => x.SetJobParameter("1", DrainModeFilter.ServerHoldParameter, It.Is<string>(value => value.Contains('~', StringComparison.Ordinal))), Times.Once);
         _connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), DrainModeFilter.ServerHoldParameter, It.IsAny<string>()), Times.Never);
     }
 

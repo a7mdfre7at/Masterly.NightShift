@@ -39,9 +39,11 @@ public sealed class DrainModeFilter : JobFilterAttribute, IElectStateFilter
     /// <summary>
     /// The job parameter with the times a job was held because the server that fetched it was paused on its own or
     /// fenced: the holds, oldest first and separated by <c>;</c>, each the Unix time in milliseconds at which it
-    /// began, a <c>-</c>, and the time it ended, missing while it lasts. A hold ends when the job leaves the
-    /// Scheduled state it was held in, whatever state follows. <see cref="PerformContext.Lateness"/> leaves out the
-    /// part of the holds after the moment the job was meant to run, so <see cref="SkipIfLateAttribute"/> and
+    /// began, a <c>-</c> and the time it ended, or, while it lasts, a <c>~</c> and the latest time it can count until:
+    /// when the held state was due and the delayed job scheduler's polling allowance after it. A hold ends when the
+    /// job leaves the Scheduled state it was held in, whatever state follows, and never after that latest time.
+    /// <see cref="PerformContext.Lateness"/> leaves out the part of the holds after the moment the job was meant to
+    /// run, so <see cref="SkipIfLateAttribute"/> and
     /// <c>SkipAfter</c> don't skip a job for it. The holds of the cluster-wide switch and of a paused queue aren't
     /// kept: they count as lateness.
     /// </summary>
@@ -65,27 +67,29 @@ public sealed class DrainModeFilter : JobFilterAttribute, IElectStateFilter
             reason = GetHoldReason(context, processingState, out queue, out byPausedServer);
         }
 
+        ScheduledState? hold = reason != null ? new ScheduledState(DrainMode.HoldInterval) { Reason = reason } : null;
+
         // Only this server is in the way: the others could have run the job, so it isn't late for the hold. In
         // every other case the job leaves the Scheduled state a paused server may have held it in, whatever
         // follows: enqueued again, moved by its schedule policy (which runs before this filter), deleted, taken by
         // a server, or held by the cluster-wide switch
         if (byPausedServer)
         {
-            ServerHold.Begin(context);
+            ServerHold.Begin(context, hold!.EnqueueAt); // A paused server is a reason to hold
         }
         else
         {
             ServerHold.End(context);
         }
 
-        if (reason == null)
+        if (hold == null)
         {
             return;
         }
 
         HeldQueue.Remember(context, queue);
 
-        context.CandidateState = new ScheduledState(DrainMode.HoldInterval) { Reason = reason };
+        context.CandidateState = hold;
     }
 
     private static string? GetHoldReason(ElectStateContext context, ProcessingState processingState, out string? queue, out bool byPausedServer)

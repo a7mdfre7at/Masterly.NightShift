@@ -120,6 +120,9 @@ public static class DeploymentFencing
             : throw new ArgumentOutOfRangeException(nameof(value), value, "TakeOverAfter must be greater than zero.");
     } = TimeSpan.FromSeconds(30);
 
+    /// <summary>How long a check waits for the lock of <see cref="HashKey"/>. 15 seconds. Replaceable for tests.</summary>
+    internal static TimeSpan LockTimeout { get; set; } = TimeSpan.FromSeconds(15);
+
     /// <summary><see cref="TakeOverAfter"/>, or twice <see cref="CheckInterval"/> when that is longer.</summary>
     internal static TimeSpan EffectiveTakeOverAfter
     {
@@ -258,8 +261,10 @@ public static class DeploymentFencing
 /// <summary>The server process of <see cref="DeploymentFencing"/>.</summary>
 internal sealed class DeploymentFencingProcess(string deploymentId, long? deploymentOrder) : IBackgroundProcess
 {
-    private static readonly TimeSpan LockTimeout = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan RetryForgettingAfter = TimeSpan.FromHours(1);
+
+    // How soon a check that couldn't take the lock is tried again, at most: it has waited LockTimeout for it already
+    private static readonly TimeSpan LockRetryDelay = TimeSpan.FromSeconds(1);
 
     // Checks further apart than this many check intervals leave a gap in which this server saw nothing
     private const double LongestGapInCheckIntervals = 1.5;
@@ -295,6 +300,9 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
     // Held by each check, see Check
     private readonly NightShiftLock _checkLock = new();
 
+    // Whether the warning that the lock of the checks can't be taken was logged since a check last took it
+    private bool _warnedOfLock;
+
     // What the warnings about the configuration were last logged for, so each is logged once
     private (long? Given, long? Stored)? _warnedOrders;
     private (TimeSpan TakeOverAfter, TimeSpan CheckInterval)? _warnedTimes;
@@ -328,6 +336,11 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
             using IStorageConnection connection = context.Storage.GetConnection();
             Check(connection, context.ServerId, JobClock.UtcNow, Stopwatch.GetElapsedTime(Started), context.StoppingToken);
         }
+        catch (DistributedLockTimeoutException ex) when (!context.IsStopping)
+        {
+            WaitForTheLock(context, ex);
+            return;
+        }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
             WarnOnceThatTheServerTakesNoJobs(context);
@@ -335,6 +348,29 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
         }
 
         context.Wait(DeploymentFencing.CheckInterval);
+    }
+
+    // Another server held the lock of the checks all the time this one waited for it: it froze inside it, or its
+    // storage is slow. No deployment can take over without that lock, so nothing this server decided last can have
+    // changed meanwhile: its workers go on as they were (WorkerGate.Confirm), and it checks again soon, not after
+    // the growing delay of a process that failed. A holder that is gone for good loses the lock: SQL Server
+    // releases it with the holder's session, the other storages when its lease runs out. A real storage error
+    // isn't this exception, and closes the gate once a decision is too old
+    private void WaitForTheLock(BackgroundProcessContext context, DistributedLockTimeoutException exception)
+    {
+        Gate.Confirm(context.ServerId);
+        WarnOnceThatTheServerTakesNoJobs(context);
+
+        TimeSpan retryIn = DeploymentFencing.CheckInterval < LockRetryDelay ? DeploymentFencing.CheckInterval : LockRetryDelay;
+        if (!_warnedOfLock)
+        {
+            _warnedOfLock = true;
+            Logger.WarnException(
+                $"The deployment check of server '{context.ServerId}' couldn't take the lock '{exception.Resource}' within {DeploymentFencing.LockTimeout}: another server holds it. No deployment can take over while nobody can take that lock, so the server goes on as its last check decided, and checks again every {retryIn} until it gets the lock.",
+                exception);
+        }
+
+        context.Wait(retryIn);
     }
 
     // The error itself is logged by the loop that runs this process and tries it again. This says what it means
@@ -381,8 +417,16 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
         bool older = false;
         TimeSpan? gap;
 
-        using (connection.AcquireDistributedLock($"lock:{DeploymentFencing.HashKey}", LockTimeout))
+        using (connection.AcquireDistributedLock($"lock:{DeploymentFencing.HashKey}", DeploymentFencing.LockTimeout))
         {
+            // No deployment can take over while this check holds the lock, and before it, whoever held it couldn't
+            // either: what the last check decided still stands, for as long as this check takes
+            _warnedOfLock = false;
+            if (!givenUp.IsCancellationRequested)
+            {
+                Gate.Confirm(serverId);
+            }
+
             Dictionary<string, string> hash = connection.GetAllEntriesFromHash(DeploymentFencing.HashKey) ?? [];
             current = hash.GetValueOrDefault(DeploymentFencing.CurrentField) is { Length: > 0 } stored ? stored : null;
             gap = WatchAfreshAfterAGap(uptime);

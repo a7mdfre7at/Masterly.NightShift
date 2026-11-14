@@ -114,6 +114,68 @@ public sealed class ServerHoldFacts : IDisposable
         Assert.Equal(TimeSpan.FromSeconds(120 - 62), context.Lateness);
     }
 
+    [Fact]
+    public void Lateness_OfAJobWithAQueueOfItsOwn_CountsTheWaitInItsQueueAfterTheHold()
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+
+        // 17:59:45: created with a queue of its own, and taken at once by a worker of a paused server
+        string id = new BackgroundJobClient(_storage).Enqueue(() => Report(), new ScheduleOptions { Queue = "critical" })!;
+        DrainMode.PauseServer(connection, "paused-server");
+        using (IFetchedJob fetched = connection.FetchNextJob(["critical"], CancellationToken.None))
+        {
+            Assert.Equal(ScheduledState.StateName, ChangeState(connection, id, Processing("paused-server"), EnqueuedState.StateName)?.Name);
+            fetched.RemoveFromQueue();
+        }
+
+        // 18:00:16: the hold is over; the delayed job scheduler puts the job into its queue, leaving it Scheduled,
+        // and no filter sees it
+        _clock.Advance(TimeSpan.FromSeconds(31));
+        RunDelayedJobScheduler();
+        Assert.Equal(1L, _storage.GetMonitoringApi().EnqueuedCount("critical"));
+        Assert.Equal(ScheduledState.StateName, connection.GetStateData(id)!.Name);
+
+        // The queue is busy: a server that may work takes the job two hours later
+        _clock.Advance(TimeSpan.FromHours(2));
+        Assert.Equal(ProcessingState.StateName, ChangeState(connection, id, Processing("working-server"), ScheduledState.StateName)?.Name);
+        PerformContext context = Start(connection, id);
+
+        // The hold counts up to the time it was due, 18:00:15, and the scheduler's polling allowance after it: the
+        // two hours in the queue are the job's own lateness
+        Assert.Equal(TimeSpan.FromHours(2) + TimeSpan.FromSeconds(31) - HeldAtMost, context.Lateness);
+    }
+
+    [Fact]
+    public void Lateness_OfAJobWithAQueueOfItsOwn_ThatAPausedServerTakesAgainFromItsQueue_CountsTheWaitBetweenTheHolds()
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+
+        // Held at 17:59:45, put into its queue by the scheduler at 18:00:16, and taken from it two hours later by a
+        // worker of the paused server, which holds it again
+        string id = new BackgroundJobClient(_storage).Enqueue(() => Report(), new ScheduleOptions { Queue = "critical" })!;
+        DrainMode.PauseServer(connection, "paused-server");
+        Assert.Equal(ScheduledState.StateName, ChangeState(connection, id, Processing("paused-server"), EnqueuedState.StateName)?.Name);
+        _clock.Advance(TimeSpan.FromSeconds(31));
+        RunDelayedJobScheduler();
+        _clock.Advance(TimeSpan.FromHours(2));
+        Assert.Equal(ScheduledState.StateName, ChangeState(connection, id, Processing("paused-server"), ScheduledState.StateName)?.Name);
+
+        // The second hold is over at once for the test: a server that may work takes the job
+        Assert.Equal(ProcessingState.StateName, ChangeState(connection, id, Processing("working-server"), ScheduledState.StateName)?.Name);
+        PerformContext context = Start(connection, id);
+
+        Assert.Equal(TimeSpan.FromHours(2) + TimeSpan.FromSeconds(31) - HeldAtMost, context.Lateness);
+    }
+
+    // The longest a hold counts: the hold interval and the scheduler's polling allowance
+    private static TimeSpan HeldAtMost => DrainMode.HoldInterval + TimeSpan.FromSeconds(15);
+
+    private void RunDelayedJobScheduler()
+    {
+        new DelayedJobScheduler(TimeSpan.FromMilliseconds(1)).Execute(new BackgroundProcessContext(
+            "scheduler", _storage, new Dictionary<string, object>(), Guid.NewGuid(), CancellationToken.None, CancellationToken.None, CancellationToken.None));
+    }
+
     private IState? ChangeState(IStorageConnection connection, string id, IState state, string expectedState)
     {
         return _stateChanger.ChangeState(new StateChangeContext(_storage, connection, id, state, expectedState));
