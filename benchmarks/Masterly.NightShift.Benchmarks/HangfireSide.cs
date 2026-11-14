@@ -108,7 +108,7 @@ internal sealed class HangfireSide : ILibrary
         return new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = workerCount }, _storage!); // Set by OpenDatabase
     }
 
-    public long SucceededCount() => _storage!.GetMonitoringApi().SucceededListCount(); // Set by OpenDatabase
+    public bool HasFinished(int jobCount) => _storage!.GetMonitoringApi().SucceededListCount() >= jobCount; // Set by OpenDatabase
 
     private PerformContext NewContext(Job job)
     {

@@ -147,7 +147,7 @@ internal sealed class NightShiftSide(bool bulk = false) : ILibrary
         return new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = workerCount }, _storage!); // Set by OpenDatabase
     }
 
-    public long SucceededCount() => _storage!.GetMonitoringApi().SucceededListCount(); // Set by OpenDatabase
+    public bool HasFinished(int jobCount) => _storage!.GetMonitoringApi().SucceededListCount() >= jobCount; // Set by OpenDatabase
 
     // The lambda reaches Job.FromExpression through a variable, so the source generator doesn't see it
     private static Job FromVariable<T>(Expression<Action<T>> call) => Job.FromExpression(call);

@@ -11,10 +11,6 @@ internal interface ILibrary
 
     void Reset();
 
-    string? Enqueue();
-
-    string? EnqueueCounted();
-
     /// <summary>Enqueues the given number of counted jobs, in the fastest way the library offers.</summary>
     void EnqueueAllCounted(int count);
 
@@ -23,7 +19,35 @@ internal interface ILibrary
 
     IDisposable StartServer(int workerCount);
 
-    long SucceededCount();
+    /// <summary>Whether the storage shows all of the given number of jobs as finished.</summary>
+    bool HasFinished(int jobCount);
+}
+
+/// <summary>Runs an action a number of times, spread over several threads.</summary>
+internal static class Callers
+{
+    public static void Run(int count, int threads, Action action)
+    {
+        int next = 0;
+        Thread[] workers = new Thread[threads];
+
+        for (int i = 0; i < threads; i++)
+        {
+            workers[i] = new Thread(() =>
+            {
+                while (Interlocked.Increment(ref next) <= count)
+                {
+                    action();
+                }
+            });
+            workers[i].Start();
+        }
+
+        foreach (Thread worker in workers)
+        {
+            worker.Join();
+        }
+    }
 }
 
 internal static class Samples
