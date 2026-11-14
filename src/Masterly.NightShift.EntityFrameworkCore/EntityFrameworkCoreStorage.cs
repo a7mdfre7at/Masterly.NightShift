@@ -157,7 +157,9 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
     private const string PomeloMySqlProvider = "Pomelo.EntityFrameworkCore.MySql";
     private const string OracleMySqlProvider = "MySql.EntityFrameworkCore";
 
-    private static readonly TimeSpan CommitMarkerLifetime = TimeSpan.FromHours(1);
+    // A marker is looked for by the retry after its commit failed, within the strategy's retry delays: at most a
+    // minute or two with the providers' defaults. Every transaction writes one, so they mustn't pile up.
+    private static readonly TimeSpan CommitMarkerLifetime = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan SchemaCompletionPoll = TimeSpan.FromMilliseconds(250);
 
     private readonly Dictionary<string, bool> _features = StorageRules.Features(typeof(EfFetchedJob));
@@ -400,7 +402,8 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
     /// Runs <paramref name="write"/> in a database transaction, through the provider's execution strategy. With
     /// a strategy that retries, the transaction also writes a marker of its own, a field of the hash
     /// <see cref="CommitMarkersKey"/>: a commit that succeeded but reported a failure (its reply was lost) is
-    /// then recognized by its marker instead of being applied a second time. Markers expire after an hour.
+    /// then recognized by its marker instead of being applied a second time. Markers expire after 5 minutes, and
+    /// <see cref="EfExpirationManager"/> deletes expired ones every minute.
     /// </summary>
     internal void InTransaction(Action<DbContext> write)
     {

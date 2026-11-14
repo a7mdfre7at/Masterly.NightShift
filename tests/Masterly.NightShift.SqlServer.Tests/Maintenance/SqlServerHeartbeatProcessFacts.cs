@@ -1,5 +1,7 @@
 ﻿extern alias ReferencedDapper;
+using System.Data;
 using System.Data.Common;
+using System.Diagnostics;
 using System.Globalization;
 using ReferencedDapper::Dapper;
 
@@ -105,6 +107,127 @@ public class SqlServerHeartbeatProcessFacts
 
         Assert.Null(fetchedJob.FetchedAt);
         Assert.Equal(renewedByTheOther, GetFetchedAt(1));
+    }
+
+    [Fact, CleanDatabase]
+    public void KeepAlive_WaitingForAPooledConnection_DoesNotHoldUpTheCommitsOfTheDueJobs()
+    {
+        string connectionString = $"{ConnectionUtils.GetConnectionString()};Max Pool Size=2;Connect Timeout=4;Application Name=keep-alive-pool";
+        SqlServerStorage storage = new(connectionString, new SqlServerStorageOptions { SlidingInvisibilityTimeout = TimeSpan.FromSeconds(5) });
+        InsertQueueEntry(1);
+        InsertQueueEntry(2);
+        SqlServerTimeoutJob first;
+        SqlServerTimeoutJob second;
+        using (IStorageConnection fetcher = storage.GetConnection())
+        {
+            first = (SqlServerTimeoutJob)fetcher.FetchNextJob(Queues, CancellationToken.None);
+            second = (SqlServerTimeoutJob)fetcher.FetchNextJob(Queues, CancellationToken.None);
+        }
+
+        Thread.Sleep(TimeSpan.FromSeconds(1.2)); // Both keep-alives are due
+        Thread heartbeat;
+        TimeSpan[] commits = new TimeSpan[2];
+        using (IStorageConnection worker1 = storage.GetConnection())
+        using (IStorageConnection worker2 = storage.GetConnection())
+        {
+            // Each worker holds a pooled connection, as a state change does with the job's lock: the pool is used up
+            using IDisposable lock1 = worker1.AcquireDistributedLock("worker1", TimeSpan.FromSeconds(1));
+            using IDisposable lock2 = worker2.AcquireDistributedLock("worker2", TimeSpan.FromSeconds(1));
+
+            heartbeat = new Thread(() => storage.HeartbeatProcess.KeepAlive([first, second]));
+            heartbeat.Start();
+            Thread.Sleep(TimeSpan.FromMilliseconds(300));
+
+            commits[0] = TimeCommit(worker1, first);
+            commits[1] = TimeCommit(worker2, second);
+        }
+
+        heartbeat.Join();
+        first.Dispose();
+        second.Dispose();
+        Assert.All(commits, static x => Assert.True(x < TimeSpan.FromSeconds(2), $"A commit waited {x}."));
+    }
+
+    [Fact, CleanDatabase]
+    public void KeepAlive_BlockedByATableLock_GivesUpSoon_AndReleasesTheJob()
+    {
+        SqlServerStorage storage = CreateStorage();
+        InsertQueueEntry(1);
+        using IStorageConnection connection = storage.GetConnection();
+        using SqlServerTimeoutJob fetchedJob = (SqlServerTimeoutJob)connection.FetchNextJob(Queues, CancellationToken.None);
+        Thread.Sleep(TimeSpan.FromSeconds(1.2));
+
+        Stopwatch elapsed;
+        using (DbConnection blocker = ConnectionUtils.CreateConnection())
+        using (DbTransaction blocking = blocker.BeginTransaction())
+        {
+            blocker.Execute(
+                $"select top (0) Id from [{Constants.DefaultSchema}].JobQueue with (tablockx, holdlock)",
+                transaction: blocking);
+
+            elapsed = Stopwatch.StartNew();
+            storage.HeartbeatProcess.KeepAlive([fetchedJob]);
+            elapsed.Stop();
+            blocking.Rollback();
+        }
+
+        Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(10), $"The keep-alive waited {elapsed.Elapsed}.");
+        storage.HeartbeatProcess.KeepAlive([fetchedJob]);
+        Assert.Equal(fetchedJob.FetchedAt, GetFetchedAt(1));
+    }
+
+    [Fact, CleanDatabase]
+    public void KeepAliveCommands_HaveTheSameText_ForThreeAndForSevenJobs()
+    {
+        SqlServerStorage storage = CreateStorage();
+        using DbConnection sql = ConnectionUtils.CreateConnection();
+        List<SqlServerTimeoutJob> jobs = [.. Enumerable.Range(1, 7).Select(i => new SqlServerTimeoutJob(storage, i, i.ToString(CultureInfo.InvariantCulture), i % 2 == 0 ? "default" : "a-much-longer-queue-name", DateTime.UtcNow))];
+        List<KeyValuePair<SqlServerTimeoutJob, DateTime>> renewed = [.. jobs.Select(static x => new KeyValuePair<SqlServerTimeoutJob, DateTime>(x, x.FetchedAt!.Value))]; // Just created with one
+
+        using DbCommand renewThree = SqlServerHeartbeatProcess.CreateRenewCommand(storage, sql, renewed.GetRange(0, 3));
+        using DbCommand renewSeven = SqlServerHeartbeatProcess.CreateRenewCommand(storage, sql, renewed);
+        using DbCommand readThree = SqlServerHeartbeatProcess.CreateReadCommand(storage, sql, renewed.GetRange(0, 3));
+        using DbCommand readSeven = SqlServerHeartbeatProcess.CreateReadCommand(storage, sql, renewed);
+
+        Assert.Equal(renewThree.CommandText, renewSeven.CommandText);
+        Assert.Equal(readThree.CommandText, readSeven.CommandText);
+        Assert.All(
+            renewSeven.Parameters.Cast<DbParameter>().Concat(readSeven.Parameters.Cast<DbParameter>()).Where(static x => x.DbType == DbType.String),
+            static x => Assert.Equal(50, x.Size));
+        jobs.ForEach(static x => x.DisposeTimer());
+    }
+
+    [Fact, CleanDatabase]
+    public void KeepAlive_RenewsEveryDueJob_OfABatchThatIsPadded()
+    {
+        SqlServerStorage storage = CreateStorage();
+        for (int i = 1; i <= 7; i++)
+        {
+            InsertQueueEntry(i);
+        }
+
+        using IStorageConnection connection = storage.GetConnection();
+        List<SqlServerTimeoutJob> jobs = [.. Enumerable.Range(0, 7).Select(_ => (SqlServerTimeoutJob)connection.FetchNextJob(Queues, CancellationToken.None))];
+        List<DateTime?> fetched = [.. jobs.Select(static x => x.FetchedAt)];
+        Thread.Sleep(TimeSpan.FromSeconds(1.2));
+
+        storage.HeartbeatProcess.KeepAlive(jobs);
+
+        Assert.All(Enumerable.Range(0, 7), i =>
+        {
+            Assert.NotEqual(fetched[i], jobs[i].FetchedAt);
+            Assert.Equal(jobs[i].FetchedAt, GetFetchedAt(long.Parse(jobs[i].JobId, CultureInfo.InvariantCulture)));
+        });
+        jobs.ForEach(static x => x.Dispose());
+    }
+
+    private static TimeSpan TimeCommit(IStorageConnection connection, SqlServerTimeoutJob job)
+    {
+        Stopwatch elapsed = Stopwatch.StartNew();
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+        ((JobStorageTransaction)transaction).RemoveFromQueue(job);
+        transaction.Commit();
+        return elapsed.Elapsed;
     }
 
     private static DateTime? GetFetchedAt(long jobId)

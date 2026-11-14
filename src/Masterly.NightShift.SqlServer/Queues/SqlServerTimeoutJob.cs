@@ -160,6 +160,12 @@ internal sealed class SqlServerTimeoutJob : IFetchedJob
         _storage.HeartbeatProcess.KeepAlive([this]);
     }
 
+    /// <summary>Whether the interval since the last keep-alive has passed, read without taking the job's lock.</summary>
+    internal bool IsKeepAliveDue(long now)
+    {
+        return TimestampHelper.Elapsed(now, Interlocked.Read(ref _lastHeartbeat)) >= _interval;
+    }
+
     /// <summary>
     /// Takes the job's lock for a keep-alive when one is due and may be sent, without waiting: a job whose lock is
     /// held (it is being removed from its queue or put back, or a transaction that removes it is committing) is
@@ -170,7 +176,7 @@ internal sealed class SqlServerTimeoutJob : IFetchedJob
     {
         fetchedAt = default;
 
-        if (TimestampHelper.Elapsed(now, Interlocked.Read(ref _lastHeartbeat)) < _interval)
+        if (!IsKeepAliveDue(now))
         {
             return false;
         }
@@ -214,7 +220,8 @@ internal sealed class SqlServerTimeoutJob : IFetchedJob
 
     /// <summary>
     /// Holds off keep-alives while a transaction that removes the job from its queue commits: its delete matches
-    /// the row by the <see cref="FetchedAt"/> read when the command is built, which a keep-alive would change.
+    /// the row by the <see cref="FetchedAt"/> read when the command is built, which a keep-alive would change. A
+    /// keep-alive holds the lock only while its commands run, each within a few seconds, so this waits no longer.
     /// </summary>
     internal void EnterCommit()
     {
