@@ -76,20 +76,34 @@ internal sealed class ScheduleForecast
         List<RecurringJobDto> recurringJobs = connection.GetRecurringJobs();
         ITimeZoneResolver resolver = timeZoneResolver ?? GlobalTimeZoneResolver.Current;
 
-        return Build(recurringJobs, fromUtc, window, key =>
-        {
-            JobInsight? insight = connection is JobStorageConnection storageConnection ? JobInsightsAttribute.Read(storageConnection, key) : null;
-            return insight != null && insight.Durations.Length >= 3 ? TimeSpan.FromMilliseconds(insight.MedianMs) : (TimeSpan?)null;
-        }, resolver);
+        // Each policy is read once per forecast, however many jobs follow it
+        SchedulePolicyCalendars calendars = new(connection);
+
+        return Build(
+            recurringJobs,
+            fromUtc,
+            window,
+            key =>
+            {
+                JobInsight? insight = connection is JobStorageConnection storageConnection ? JobInsightsAttribute.Read(storageConnection, key) : null;
+                return insight != null && insight.Durations.Length >= 3 ? TimeSpan.FromMilliseconds(insight.MedianMs) : (TimeSpan?)null;
+            },
+            resolver,
+            name => calendars.Get(name, resolver));
     }
 
-    /// <summary>Builds the forecast from recurring job definitions; <paramref name="expectedDuration"/> maps an insights key to a duration.</summary>
+    /// <summary>
+    /// Builds the forecast from recurring job definitions; <paramref name="expectedDuration"/> maps an insights key to
+    /// a duration, and <paramref name="policies"/> a policy name to its calendar (<c>null</c> for a policy that isn't
+    /// stored, which no longer applies). Without <paramref name="policies"/> no policy is applied.
+    /// </summary>
     public static ScheduleForecast Build(
         [NotNull] IEnumerable<RecurringJobDto> recurringJobs,
         DateTime fromUtc,
         TimeSpan window,
         [NotNull] Func<string, TimeSpan?> expectedDuration,
-        [CanBeNull] ITimeZoneResolver? timeZoneResolver = null)
+        [CanBeNull] ITimeZoneResolver? timeZoneResolver = null,
+        [CanBeNull] Func<string, SchedulePolicyCalendar?>? policies = null)
     {
         ArgumentNullException.ThrowIfNull(recurringJobs);
         ArgumentNullException.ThrowIfNull(expectedDuration);
@@ -121,14 +135,20 @@ internal sealed class ScheduleForecast
                     CronExpression expression = RecurringJobEntity.ParseCronExpression(dto.Cron);
                     TimeZoneInfo timeZone = string.IsNullOrEmpty(dto.TimeZoneId) ? TimeZoneInfo.Utc : resolver.GetTimeZoneById(dto.TimeZoneId);
 
+                    // Without a next execution the scheduler doesn't run the job: it ended, or its policy allows
+                    // none of its occurrences
+                    PolicySkipper policy = dto.NextExecution.HasValue
+                        ? new(expression, timeZone, dto.Policy != null ? policies?.Invoke(dto.Policy) : null, to)
+                        : PolicySkipper.Never;
+
                     // Like the scheduler: nothing before the job's start (an occurrence at the start runs),
                     // and nothing after its end (an occurrence at the end runs)
                     DateTime? startAt = ToUtc(dto.StartAt);
                     DateTime? endAt = ToUtc(dto.EndAt);
 
-                    DateTime? next = startAt.HasValue && startAt.Value > from
+                    DateTime? next = policy.SkipBlocked(startAt.HasValue && startAt.Value > from
                         ? expression.GetNextOccurrence(startAt.Value, timeZone, inclusive: true)
-                        : expression.GetNextOccurrence(from, timeZone, inclusive: false);
+                        : expression.GetNextOccurrence(from, timeZone, inclusive: false));
 
                     while (occurrences.Count < MaxOccurrencesPerJob &&
                            next.HasValue &&
@@ -136,7 +156,7 @@ internal sealed class ScheduleForecast
                            !(endAt.HasValue && next.Value > endAt.Value))
                     {
                         occurrences.Add(next.Value);
-                        next = expression.GetNextOccurrence(next.Value, timeZone, inclusive: false);
+                        next = policy.SkipBlocked(expression.GetNextOccurrence(next.Value, timeZone, inclusive: false));
                     }
 
                     // Stopped by the cap with runs still to come: the job keeps running until its end or the
@@ -211,6 +231,49 @@ internal sealed class ScheduleForecast
             .OrderByDescending(static x => x.JobIds.Count)
             .ThenBy(static x => x.Slot)
             .Take(10)];
+    }
+
+    // Leaves out the occurrences a policy blocks, as the scheduler does: a blocked stretch is skipped whole, to the
+    // next instant the policy allows. An occurrence the policy can't evaluate isn't shown, nor the ones after it,
+    // since the scheduler doesn't run them while it waits for the policy
+    private sealed class PolicySkipper(CronExpression? cron, TimeZoneInfo timeZone, SchedulePolicyCalendar? calendar, DateTime to)
+    {
+        // Enough for any policy over the longest window the page shows, without an endless walk
+        private const int MaxJumps = 1000;
+
+        /// <summary>Allows no occurrence.</summary>
+        public static PolicySkipper Never { get; } = new(null, TimeZoneInfo.Utc, null, DateTime.MinValue);
+
+        public DateTime? SkipBlocked(DateTime? occurrence)
+        {
+            if (cron == null)
+            {
+                return null;
+            }
+
+            if (calendar == null)
+            {
+                return occurrence;
+            }
+
+            for (int jump = 0; jump < MaxJumps && occurrence.HasValue && occurrence.Value < to; jump++)
+            {
+                SchedulePolicySearchResult found = calendar.Search(occurrence.Value);
+                if (found.Failure != null || !found.Allowed.HasValue)
+                {
+                    return null;
+                }
+
+                if (found.Allowed.Value == occurrence.Value)
+                {
+                    return occurrence;
+                }
+
+                occurrence = cron.GetNextOccurrence(found.Allowed.Value, timeZone, inclusive: true);
+            }
+
+            return occurrence.HasValue && occurrence.Value < to ? null : occurrence;
+        }
     }
 
     /// <summary>The forecast of one recurring job.</summary>
