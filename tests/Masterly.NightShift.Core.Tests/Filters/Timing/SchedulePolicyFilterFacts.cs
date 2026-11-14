@@ -332,7 +332,7 @@ public sealed class SchedulePolicyFilterFacts : IDisposable
         Mock<JobStorageConnection> connection = new() { CallBase = true };
         connection.Setup(x => x.GetUtcDateTime()).Returns(Now);
         connection.Setup(x => x.GetAllEntriesFromHash(It.IsAny<string>()))
-            .Returns<string>(key => _storage.Connection.Object.GetAllEntriesFromHash(key));
+            .Returns<string>(_storage.Connection.Object.GetAllEntriesFromHash);
         _storage.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Connection.GetUtcDateTime)).Returns(true);
         ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "weekdays", WhenBlocked.Skip);
         context.ApplyContext.Connection = connection.As<IStorageConnection>();
