@@ -21,6 +21,9 @@ public class ConcurrentJobCreationFacts
     private const int JobsPerCaller = 25;
     private const int Rounds = 10;
 
+    // How many times a command is compiled again for an empty table when its plan is gone before it is read
+    private const int CompileAttempts = 5;
+
     private static readonly XNamespace Showplan = "http://schemas.microsoft.com/sqlserver/2004/07/showplan";
 
     [Theory, CleanDatabase]
@@ -98,25 +101,19 @@ public class ConcurrentJobCreationFacts
 
         foreach (Action create in creations)
         {
-            EmptyTheJobTableAndForgetThePlans();
-            create();
+            // The plan is read from the cache, which SQL Server sweeps when the machine runs low on memory: a
+            // plan gone before it is read is compiled again, still for an empty table, so every command's plan
+            // is checked
+            List<(string Text, string Plan)> compiled = [];
+            for (int attempt = 1; compiled.Count == 0; attempt++)
+            {
+                Assert.True(attempt <= CompileAttempts, $"The plan of a command was gone from the cache {CompileAttempts} times before it could be read.");
+                EmptyTheJobTableAndForgetThePlans();
+                create();
+                compiled = ReadCachedPlans();
+            }
 
-            try
-            {
-                using DbConnection sql = ConnectionUtils.CreateConnection();
-                plans.AddRange(sql.Query<(string, string)>(
-                    """
-                    select st.text, cast(qp.query_plan as nvarchar(max))
-                    from sys.dm_exec_cached_plans cp
-                    cross apply sys.dm_exec_sql_text(cp.plan_handle) st
-                    cross apply sys.dm_exec_query_plan(cp.plan_handle) qp
-                    where qp.dbid = db_id() and st.text like N'%JobParameter (JobId, Name, Value)%' and st.text not like N'%dm_exec_cached_plans%'
-                    """));
-            }
-            catch (SqlException ex) when (ex.Number is 300 or 297 or 229)
-            {
-                Assert.Skip("The login can't read the plan cache (VIEW SERVER STATE).");
-            }
+            plans.AddRange(compiled);
         }
 
         // The command of each of the nine creations was compiled, and its plan kept
@@ -142,6 +139,28 @@ public class ConcurrentJobCreationFacts
 
     public static void Run()
     {
+    }
+
+    /// <summary>The plans cached for this database of the commands that insert job parameters.</summary>
+    private static List<(string Text, string Plan)> ReadCachedPlans()
+    {
+        try
+        {
+            using DbConnection sql = ConnectionUtils.CreateConnection();
+            return [.. sql.Query<(string, string)>(
+                """
+                select st.text, cast(qp.query_plan as nvarchar(max))
+                from sys.dm_exec_cached_plans cp
+                cross apply sys.dm_exec_sql_text(cp.plan_handle) st
+                cross apply sys.dm_exec_query_plan(cp.plan_handle) qp
+                where qp.dbid = db_id() and st.text like N'%JobParameter (JobId, Name, Value)%' and st.text not like N'%dm_exec_cached_plans%'
+                """)];
+        }
+        catch (SqlException ex) when (ex.Number is 300 or 297 or 229)
+        {
+            Assert.Skip("The login can't read the plan cache (VIEW SERVER STATE).");
+            return [];
+        }
     }
 
     private static Dictionary<string, string> Parameters(int count)
