@@ -961,6 +961,21 @@ public abstract class StorageConformanceFacts : IDisposable
     }
 
     [Fact]
+    public void DistributedLock_WhoseHandleWasNotDisposed_IsReleased_WhenItsConnectionIs()
+    {
+        // As SQL Server lets go of a session's application locks when its connection closes: Core's filters rely on it
+        IStorageConnection first = Storage.GetConnection();
+        _ = first.AcquireDistributedLock("forgotten", TimeSpan.FromSeconds(5));
+
+        first.Dispose();
+
+        using IStorageConnection second = Storage.GetConnection();
+        using (second.AcquireDistributedLock("forgotten", TimeSpan.FromSeconds(5)))
+        {
+        }
+    }
+
+    [Fact]
     public void DistributedLock_TakenInATransaction_IsHeldWhileTheTransactionIsOpen()
     {
         Assert.SkipUnless(Storage.HasFeature(JobStorageFeatures.Transaction.AcquireDistributedLock), "The storage doesn't lock in transactions.");
