@@ -4,6 +4,8 @@ using Masterly.NightShift.Common;
 using Masterly.NightShift.Server;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using LogExtensions = Masterly.NightShift.Logging.LogExtensions;
+using LogProvider = Masterly.NightShift.Logging.LogProvider;
 
 namespace Masterly.NightShift;
 
@@ -110,13 +112,34 @@ internal static class JobLogCapture
             ArgumentNullException.ThrowIfNull(context);
 
             CaptureState state = new(context, Options);
-            CurrentState.Value = state;
             context.Items[StartedItem] = Stopwatch.GetTimestamp();
 
             if (Options.LifecycleLines)
             {
-                int attempt = context.GetJobParameter<int>("RetryCount", allowStale: true) + 1;
+                int attempt = ReadAttempt(context);
                 state.WriteLifecycle(JobConsoleLevel.Info, attempt > 1 ? $"Started, attempt {attempt}" : "Started");
+            }
+
+            // Last: OnPerformed, which clears it, isn't called when this throws
+            CurrentState.Value = state;
+        }
+
+        // Read from the storage when the worker loaded no parameters with the job: a bookkeeping filter must never
+        // fail the job, so a failed read counts as the first attempt
+        private static int ReadAttempt(PerformingContext context)
+        {
+            try
+            {
+                return context.GetJobParameter<int>("RetryCount", allowStale: true) + 1;
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                // Called as a static method: importing the namespace makes LogLevel ambiguous
+                LogExtensions.DebugException(
+                    LogProvider.GetLogger(typeof(JobLogCapture)),
+                    $"Could not read the retry count of job '{context.BackgroundJob.Id}' for its console.",
+                    ex);
+                return 1;
             }
         }
 

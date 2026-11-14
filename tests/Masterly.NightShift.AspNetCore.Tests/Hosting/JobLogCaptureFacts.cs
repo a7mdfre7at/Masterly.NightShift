@@ -80,6 +80,27 @@ public class JobLogCaptureFacts
     }
 
     [Fact]
+    public void OnPerforming_DoesNotFailTheJob_WhenTheRetryCountCanNotBeRead()
+    {
+        // The worker loaded no parameters with the job, so the retry count is read from the storage
+        _connection.Setup(x => x.GetJobParameter("1", "RetryCount")).Throws(new TimeoutException("storage down"));
+        using ServiceProvider provider = BuildProvider(static _ => { });
+        ILogger orders = provider.GetRequiredService<ILoggerFactory>().CreateLogger("MyApp.Orders");
+        IServerFilter? capture = null;
+        PerformContext? context = null;
+
+        Exception? exception = Record.Exception(() => (capture, context) = StartCapture(provider));
+
+        Assert.Null(exception);
+        capture!.OnPerformed(new PerformedContext(context!, null, false, null)); // Set by StartCapture, which didn't throw
+        orders.LogInformation("After the run");
+        Assert.Collection(
+            _console,
+            x => Assert.Contains("[nightshift] Started", x, StringComparison.Ordinal),
+            x => Assert.Contains("[nightshift] Finished in", x, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Options_RefuseLimitsOutOfRange()
     {
         NightShiftJobLogOptions options = new();
