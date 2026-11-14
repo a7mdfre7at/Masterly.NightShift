@@ -232,6 +232,146 @@ public sealed class MongoStorageFacts : IDisposable
     }
 
     [Fact]
+    public void Writes_WaitForAMajority_AndReadsGoToThePrimary_WhateverTheDatabasesSettings()
+    {
+        // Writes a primary may lose in a failover, and reads from a secondary that may lag
+        IMongoDatabase careless = MongoTestServer.Database
+            .WithWriteConcern(WriteConcern.Unacknowledged)
+            .WithReadPreference(ReadPreference.SecondaryPreferred)
+            .WithReadConcern(ReadConcern.Local);
+        _storage = new MongoStorage(careless, new MongoStorageOptions { CollectionPrefix = $"t{Guid.NewGuid():N}." });
+
+        using IStorageConnection connection = _storage.GetConnection();
+        using (connection.AcquireDistributedLock("resource", TimeSpan.FromSeconds(5)))
+        {
+        }
+
+        string id = CreateJob(_storage);
+        connection.SetJobParameter(id, "Name", "value");
+        Assert.Equal("value", connection.GetJobParameter(id, "Name"));
+        Assert.All(
+            [_storage.Collections.Jobs, _storage.Collections.JobQueue, _storage.Collections.Locks, _storage.Collections.Sequences, _storage.Collections.Servers],
+            static x =>
+            {
+                Assert.Equal(WriteConcern.WMajority, x.Settings.WriteConcern);
+                Assert.Equal(ReadPreference.Primary, x.Settings.ReadPreference);
+                Assert.Equal(ReadConcern.Majority, x.Settings.ReadConcern);
+            });
+    }
+
+    [Fact]
+    public void Options_AreCopied_SoLaterChangesChangeNothing()
+    {
+        MongoStorageOptions options = new() { QueuePollInterval = TimeSpan.FromSeconds(2), CollectionPrefix = $"t{Guid.NewGuid():N}." };
+        _storage = new MongoStorage(MongoTestServer.Database, options);
+
+        options.QueuePollInterval = TimeSpan.Zero;
+        options.InvisibilityTimeout = TimeSpan.Zero;
+        _storage.Options.QueuePollInterval = TimeSpan.FromMinutes(2);
+
+        Assert.Equal(TimeSpan.FromSeconds(2), _storage.Options.QueuePollInterval);
+        Assert.Equal(TimeSpan.FromSeconds(2), _storage.Settings.QueuePollInterval);
+        Assert.Equal(TimeSpan.FromMinutes(30), _storage.Settings.InvisibilityTimeout);
+    }
+
+    [Fact]
+    public void Lock_WhoseHandleWasNotDisposed_IsReleased_WithItsConnection()
+    {
+        _storage = MongoTestServer.CreateStorage(new MongoStorageOptions { DistributedLockLifetime = TimeSpan.FromSeconds(1) });
+        IStorageConnection first = _storage.GetConnection();
+        IDisposable forgotten = first.AcquireDistributedLock("resource", TimeSpan.Zero);
+
+        first.Dispose();
+
+        using IStorageConnection second = _storage.GetConnection();
+        IDisposable taken = second.AcquireDistributedLock("resource", TimeSpan.FromSeconds(5));
+
+        // The forgotten handle no longer holds anything, so it releases nothing
+        forgotten.Dispose();
+        using IStorageConnection third = _storage.GetConnection();
+        Assert.Throws<DistributedLockTimeoutException>(() => third.AcquireDistributedLock("resource", TimeSpan.Zero));
+        taken.Dispose();
+    }
+
+    [Fact]
+    public async Task Fetch_CanceledWhileItsClaimRuns_StillTakesTheJob_SoItIsNotHiddenForTheInvisibilityTimeout()
+    {
+        _storage = MongoTestServer.CreateStorage();
+        string id = CreateJob(_storage);
+        Commit(_storage, x => x.AddToQueue("default", id));
+
+        // An open transaction that wrote the entry makes the claim wait on the server until it ends
+        using IClientSessionHandle blocker = await _storage.Database.Client.StartSessionAsync(cancellationToken: TestContext.Current.CancellationToken);
+        blocker.StartTransaction();
+        await _storage.Collections.JobQueue.UpdateOneAsync(
+            blocker,
+            Builders<BsonDocument>.Filter.Eq("JobId", long.Parse(id, CultureInfo.InvariantCulture)),
+            Builders<BsonDocument>.Update.Set("Blocked", true),
+            cancellationToken: TestContext.Current.CancellationToken);
+        using CancellationTokenSource stopping = new();
+        using IStorageConnection worker = _storage.GetConnection();
+        Task<IFetchedJob> fetch = Task.Factory.StartNew(
+            () => worker.FetchNextJob(["default"], stopping.Token),
+            TestContext.Current.CancellationToken,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
+
+        await Task.Delay(500, TestContext.Current.CancellationToken);
+        await stopping.CancelAsync();
+        await Task.Delay(200, TestContext.Current.CancellationToken);
+        await blocker.CommitTransactionAsync(TestContext.Current.CancellationToken);
+
+        using IFetchedJob fetched = await fetch.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        Assert.Equal(id, fetched.JobId);
+        fetched.RemoveFromQueue();
+    }
+
+    [Fact]
+    public async Task Enqueue_AndRequeue_WakeTheWorkerWaitingOnThatQueue_AtOnce()
+    {
+        _storage = MongoTestServer.CreateStorage(new MongoStorageOptions { QueuePollInterval = TimeSpan.FromMinutes(1) });
+        using IStorageConnection worker = _storage.GetConnection();
+        string id = CreateJob(_storage);
+
+        Task<IFetchedJob> first = Fetch(worker);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
+        Commit(_storage, x => x.AddToQueue("wake", id));
+        IFetchedJob fetched = await first.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        Assert.Equal(id, fetched.JobId);
+
+        using IStorageConnection other = _storage.GetConnection();
+        Task<IFetchedJob> second = Fetch(other);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
+        fetched.Requeue();
+        fetched.Dispose();
+        using IFetchedJob again = await second.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        Assert.Equal(id, again.JobId);
+        again.RemoveFromQueue();
+
+        static Task<IFetchedJob> Fetch(IStorageConnection connection)
+        {
+            return Task.Factory.StartNew(
+                () => connection.FetchNextJob(["other", "wake"], TestContext.Current.CancellationToken),
+                TestContext.Current.CancellationToken,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
+        }
+    }
+
+    [Fact]
+    public void Fetch_OfAStoppingWorker_ClaimsNothing()
+    {
+        _storage = MongoTestServer.CreateStorage();
+        string id = CreateJob(_storage);
+        Commit(_storage, x => x.AddToQueue("default", id));
+        using IStorageConnection worker = _storage.GetConnection();
+
+        Assert.ThrowsAny<OperationCanceledException>(() => worker.FetchNextJob(["default"], new CancellationToken(canceled: true)));
+
+        Assert.Equal(1, _storage.GetMonitoringApi().EnqueuedCount("default"));
+    }
+
+    [Fact]
     public void UseMongoStorage_MakesItTheCurrentStorage()
     {
         Mock<IGlobalConfiguration> configuration = new();

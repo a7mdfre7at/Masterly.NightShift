@@ -39,7 +39,7 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
 
     // The owner of each lease, and when it was taken or last renewed, by the monotonic clock
     private readonly Dictionary<string, (string Owner, long RenewedAt)> _leases = new(StringComparer.Ordinal);
-    private TaskCompletionSource _enqueued = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly QueueSignals _signals = new();
     private long _nextJobId;
     private long _nextQueueEntryId;
     private DateTime _nextSweep = DateTime.MinValue;
@@ -349,13 +349,16 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
     /// </summary>
     public (long EntryId, long JobId, string Queue, string Token) Fetch(string[] queues, CancellationToken cancellationToken)
     {
+        using QueueSignals.Listener listener = _signals.Listen(queues);
+
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Task enqueued;
 
             lock (_lock)
             {
+                // Signals are sent under this lock, so none is lost between the look and the wait
+                listener.Reset();
                 SweepIfDue();
 
                 foreach (string queue in queues)
@@ -375,12 +378,9 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
                         }
                     }
                 }
-
-                enqueued = _enqueued.Task;
             }
 
-            // The task only ever completes successfully, so this returns or throws OperationCanceledException
-            enqueued.Wait((int)options.QueuePollInterval.TotalMilliseconds, cancellationToken);
+            listener.Wait(options.QueuePollInterval, cancellationToken);
         }
     }
 
@@ -404,7 +404,7 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
                 case FetchedAction.Requeue:
                     entry.FetchedAt = null;
                     entry.Token = null;
-                    Signal();
+                    _signals.Signal(queue);
                     break;
                 case FetchedAction.KeepAlive:
                     entry.FetchedAt = Stopwatch.GetTimestamp();
@@ -494,17 +494,15 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
         lock (_lock)
         {
             SweepIfDue();
-            bool enqueued = false;
 
             foreach (StorageOperation operation in operations)
             {
-                enqueued |= operation is AddToQueueOperation;
                 ApplyOne(operation);
             }
 
-            if (enqueued)
+            foreach (AddToQueueOperation enqueued in operations.OfType<AddToQueueOperation>())
             {
-                Signal();
+                _signals.Signal(enqueued.Queue);
             }
         }
     }
@@ -905,11 +903,6 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
         {
             _jobsByState.Remove(stateName);
         }
-    }
-
-    private void Signal()
-    {
-        Interlocked.Exchange(ref _enqueued, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult();
     }
 
     private void SweepIfDue()

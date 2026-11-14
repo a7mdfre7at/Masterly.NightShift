@@ -318,12 +318,38 @@ internal static class RedisScripts
         }
         """;
 
+    /// <summary>Reads the queues that have an entry, visible or fetched. Returns their names.</summary>
+    public const string ReadQueues = """
+        local p = KEYS[1]
+        local result = {}
+        for _, q in ipairs(redis.call('SMEMBERS', p .. 'queues')) do
+          local queueKey = p .. 'queue:' .. q
+          if redis.call('LLEN', queueKey) > 0 or redis.call('ZCARD', queueKey .. ':fetched') > 0 then
+            result[#result + 1] = q
+          end
+        end
+        return result
+        """;
+
+    /// <summary>Counts a queue's entries: ARGV = queue. Returns { visible, fetched }.</summary>
+    public const string CountQueue = """
+        local queueKey = KEYS[1] .. 'queue:' .. ARGV[1]
+        return { redis.call('LLEN', queueKey), redis.call('ZCARD', queueKey .. ':fetched') }
+        """;
+
     /// <summary>
-    /// Removes jobs whose time has come, with their parameters, history and state index entries.
-    /// ARGV = batch size. Returns the number removed.
+    /// Removes jobs whose time has come, with their parameters, history and state index entries, and forgets
+    /// the queues that have no entry left (enqueuing to one lists it again). ARGV = batch size. Returns the
+    /// number of jobs removed.
     /// </summary>
     public const string RemoveExpiredJobs = Now + """
         local p = KEYS[1]
+        for _, q in ipairs(redis.call('SMEMBERS', p .. 'queues')) do
+          local queueKey = p .. 'queue:' .. q
+          if redis.call('LLEN', queueKey) == 0 and redis.call('ZCARD', queueKey .. ':fetched') == 0 then
+            redis.call('SREM', p .. 'queues', q)
+          end
+        end
         local ids = redis.call('ZRANGEBYSCORE', p .. 'jobs:expiring', '-inf', now, 'LIMIT', 0, ARGV[1])
         local states = redis.call('SMEMBERS', p .. 'states')
         for _, id in ipairs(ids) do

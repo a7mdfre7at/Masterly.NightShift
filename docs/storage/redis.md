@@ -1,6 +1,6 @@
 # Redis storage
 
-`Masterly.NightShift.Redis` keeps jobs in Redis 5.0 or later (standalone, Sentinel or cluster) through StackExchange.Redis. Every transaction runs as one Lua script, so it is atomic and takes one round trip, and workers are woken through pub/sub as soon as a job is enqueued.
+`Masterly.NightShift.Redis` keeps jobs in Redis 5.0 or later (standalone, Sentinel or cluster) through StackExchange.Redis. Every transaction runs as one Lua script, so it is atomic and takes one round trip, and the workers of a queue are woken through pub/sub as soon as a job is enqueued to it.
 
 ## Quick example
 
@@ -38,18 +38,18 @@ Every key starts with `Prefix`, `{nightshift}:` by default. The braces make it a
 |---|---|
 | Jobs | hash `job:{id}` (payload, arguments, current state), hash `job:{id}:params`, list `job:{id}:history`; ids from `job-id` |
 | Jobs by state | sorted set `state:{name}`, scored by id, for the dashboard's lists and counts |
-| Queues | list `queue:{name}` (entries `entry:job`), sorted set `queue:{name}:fetched` (fetch time), hash `queue:{name}:tokens` |
+| Queues | list `queue:{name}` (entries `entry:job`), sorted set `queue:{name}:fetched` (fetch time), hash `queue:{name}:tokens`; set `queues` of the queues in use, ids of entries from `queue-entry-id` |
 | Sets, lists, hashes, counters | sorted set `set:{key}`, list `list:{key}`, hash `hash:{key}`, string `counter:{key}` |
 | Servers | hash `servers`, sorted set `servers:heartbeat` |
 | Locks | string `lock:{resource}` holding its owner, with a time to live |
 
-Fetching runs a script that first puts back the entries whose workers stopped keeping them alive for longer than `InvisibilityTimeout`, then takes the oldest entry of the first queue that has one. Expiration uses Redis's own key expiry; a storage-wide process removes expired jobs from the state lists every `ExpirationCheckInterval`. A lock is a key set only if absent, with a time to live that its holder renews every third of `DistributedLockLifetime`, so a process that dies loses its locks once they run out.
+Fetching runs a script that first puts back the entries whose workers stopped keeping them alive for longer than `InvisibilityTimeout`, then takes the oldest entry of the first queue that has one. A worker with nothing to do waits for a message on the channel `{prefix}enqueued`, which carries the name of the queue a job was enqueued to: only the workers of that queue look again. Expiration uses Redis's own key expiry; a storage-wide process removes expired jobs from the state lists every `ExpirationCheckInterval`, and takes the queues left without entries out of `queues` (enqueuing to one lists it again). A lock is a key set only if absent, with a time to live that its holder renews every third of `DistributedLockLifetime`, so a process that dies loses its locks once they run out. Disposing a storage connection releases the locks taken through it whose handles weren't disposed, as SQL Server does when a connection closes.
 
 ## Options / API
 
 | `RedisStorageOptions` | Default | What it does |
 |---|---|---|
-| `Prefix` | `{nightshift}:` | The prefix of every key. It must hold a hash tag, a non-empty name in braces, or the constructor throws `ArgumentException`. Use another prefix to keep applications apart in one database. |
+| `Prefix` | `{nightshift}:` | The prefix of every key. It must hold a hash tag, a non-empty name in braces, or the constructor throws `ArgumentException`. Use another prefix to keep applications apart in one database (see purging, below). |
 | `AllowPrefixWithoutHashTag` | `false` | Accepts a `Prefix` without a hash tag. Only a standalone server or Sentinel works with one: on a cluster, a transaction's keys would land in different slots. |
 | `Database` | -1 | The database number, -1 for the connection's default. |
 | `InvisibilityTimeout` | 30 minutes | How long a fetched job stays invisible after its worker stopped keeping it alive. |
@@ -70,6 +70,7 @@ Fetching runs a script that first puts back the entries whose workers stopped ke
 - **Memory.** Finished jobs stay for `JobStorage.JobExpirationTimeout` (one day by default). Don't set an eviction policy that evicts keys without a time to live (`allkeys-*`): it would drop queues and recurring jobs.
 - **Clock.** The times that decide something (when a fetched job goes back to its queue, when a job expires, server heartbeats and when a server timed out) are read from the Redis server's clock (`TIME`) inside the scripts, and clients pass durations only, so client clocks don't need to agree with each other or with the server. `GetUtcDateTime` returns the server's time too.
 - **One hash slot.** On a cluster, all of the storage's keys live on one node. Run several prefixes to spread several applications.
+- **Purging** (`Purge`) deletes only the keys the storage writes (those in the table above), matched by its prefix taken literally (glob characters such as `*`, `?` and `[` in it match themselves). Another storage whose prefix starts with this one, such as `{app}:` and `{app}:other:`, keeps its keys, unless its prefix goes on with one of those key names (`{app}:set:`): don't nest prefixes that way.
 
 ## See also
 

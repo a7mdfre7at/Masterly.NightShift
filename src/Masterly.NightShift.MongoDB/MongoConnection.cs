@@ -127,7 +127,7 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
     public override IDisposable AcquireDistributedLock(string resource, TimeSpan timeout)
     {
         ArgumentNullException.ThrowIfNull(resource);
-        return _locks.Acquire(resource, () => LeaseLock.Acquire(this, resource, timeout, storage.Options.DistributedLockLifetime));
+        return _locks.Acquire(resource, () => LeaseLock.Acquire(this, resource, timeout, storage.Settings.DistributedLockLifetime));
     }
 
     public override string? CreateExpiredJob(Job job, IDictionary<string, string?> parameters, DateTime createdAt, TimeSpan expireIn)
@@ -171,27 +171,24 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
             throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
         }
 
+        using QueueSignals.Listener listener = storage.Signals.Listen(queues);
+
         while (true)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            Task enqueued = storage.Enqueued;
+            // Before the look, so a job enqueued while the claims run wakes the wait that follows
+            listener.Reset();
 
             foreach (string queue in queues)
             {
-                if (TryClaim(queue, cancellationToken) is { } fetched)
+                // Checked between claims, never during one: see TryClaim
+                cancellationToken.ThrowIfCancellationRequested();
+                if (TryClaim(queue) is { } fetched)
                 {
                     return fetched;
                 }
             }
 
-            try
-            {
-                enqueued.Wait((int)storage.Options.QueuePollInterval.TotalMilliseconds, cancellationToken);
-            }
-            catch (AggregateException)
-            {
-                // The task only ever completes successfully; nothing to report
-            }
+            listener.Wait(storage.Settings.QueuePollInterval, cancellationToken);
         }
     }
 
@@ -448,6 +445,13 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
         return hello["localTime"].ToUniversalTime();
     }
 
+    /// <summary>Releases the locks whose handles weren't disposed, as SQL Server does when a connection closes.</summary>
+    public override void Dispose()
+    {
+        _locks.ReleaseAll();
+        base.Dispose();
+    }
+
     // Leases run out by the server's clock: the time to live asked for is added to it, and a lease is taken over
     // once the server's clock passed it, so holders whose clocks differ never take a live lease from each other.
     // An upsert can't filter with $expr, so the update itself keeps a live lease unchanged: nothing is modified.
@@ -503,9 +507,12 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
     /// ago. Each claim is one atomic findAndModify, so an entry goes to one worker only. They are two, because
     /// one query matching both kinds sorted by <c>_id</c> can't walk the (Queue, FetchedAt, _id) index for the
     /// stale ones; the second runs only when the queue has no visible entry, so it reads the fetched ones only.
-    /// Times are the server's, so workers whose clocks differ agree on what is stale.
+    /// Times are the server's, so workers whose clocks differ agree on what is stale. A claim isn't canceled: one
+    /// canceled while the server runs it could stamp the entry with a token the worker never learns, and the job
+    /// would stay hidden for the whole invisibility timeout. A claim the driver retries after a network error is
+    /// applied once (retryable writes).
     /// </summary>
-    private MongoFetchedJob? TryClaim(string queue, CancellationToken cancellationToken)
+    private MongoFetchedJob? TryClaim(string queue)
     {
         string token = Guid.NewGuid().ToString("N");
         UpdateDefinition<BsonDocument> claim = MongoDocuments.SetFields(new BsonDocument
@@ -517,17 +524,15 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
         BsonDocument? entry = _collections.JobQueue.FindOneAndUpdate(
             Filter.And(Filter.Eq("Queue", queue), Filter.Eq("FetchedAt", BsonNull.Value)),
             claim,
-            new FindOneAndUpdateOptions<BsonDocument> { Sort = Builders<BsonDocument>.Sort.Ascending("_id") },
-            cancellationToken);
+            new FindOneAndUpdateOptions<BsonDocument> { Sort = Builders<BsonDocument>.Sort.Ascending("_id") });
 
         entry ??= _collections.JobQueue.FindOneAndUpdate(
             Filter.And(
                 Filter.Eq("Queue", queue),
                 Filter.Type("FetchedAt", BsonType.DateTime),
-                MongoDocuments.OlderThan("FetchedAt", storage.Options.InvisibilityTimeout)),
+                MongoDocuments.OlderThan("FetchedAt", storage.Settings.InvisibilityTimeout)),
             claim,
-            new FindOneAndUpdateOptions<BsonDocument> { Sort = Builders<BsonDocument>.Sort.Ascending("FetchedAt").Ascending("_id") },
-            cancellationToken);
+            new FindOneAndUpdateOptions<BsonDocument> { Sort = Builders<BsonDocument>.Sort.Ascending("FetchedAt").Ascending("_id") });
 
         return entry != null ? new MongoFetchedJob(storage, entry["_id"].AsObjectId, entry["JobId"].ToInt64(), queue, token) : null;
     }
@@ -595,9 +600,9 @@ internal sealed class MongoTransaction(MongoStorage storage, MongoConnection con
 
     protected override void Committed()
     {
-        if (QueuesWritten().Any())
+        foreach (string queue in QueuesWritten())
         {
-            storage.Signal();
+            storage.Signals.Signal(queue);
         }
     }
 
@@ -759,7 +764,7 @@ internal sealed class MongoTransaction(MongoStorage storage, MongoConnection con
 }
 
 internal sealed class MongoFetchedJob(MongoStorage storage, ObjectId entryId, long jobId, string queue, string token)
-    : FetchedJobBase(StorageValues.FormatJobId(jobId), queue, storage.Options.InvisibilityTimeout / 5)
+    : FetchedJobBase(StorageValues.FormatJobId(jobId), queue, storage.Settings.InvisibilityTimeout / 5)
 {
     public ObjectId EntryId { get; } = entryId;
 
@@ -772,7 +777,7 @@ internal sealed class MongoFetchedJob(MongoStorage storage, ObjectId entryId, lo
     protected override void ReturnToQueue()
     {
         storage.Collections.JobQueue.UpdateOne(Owned, MongoDocuments.Update.Set("FetchedAt", BsonNull.Value).Unset("Token"));
-        storage.Signal();
+        storage.Signals.Signal(Queue);
     }
 
     protected override void KeepAlive()
@@ -930,7 +935,7 @@ internal sealed class MongoCountersAggregator(MongoStorage storage) : IBackgroun
             Logger.ErrorException("Couldn't merge the counters of the MongoDB storage.", ex);
         }
 
-        context.Wait(storage.Options.CountersAggregateInterval);
+        context.Wait(storage.Settings.CountersAggregateInterval);
     }
 
     public override string ToString() => "MongoDB counters aggregator";

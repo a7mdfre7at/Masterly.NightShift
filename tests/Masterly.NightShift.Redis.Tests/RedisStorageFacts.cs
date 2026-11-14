@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using Masterly.NightShift.Server;
 using Masterly.NightShift.Storage.Conformance;
+using Masterly.NightShift.Storage.Monitoring;
 using Masterly.NightShift.Storage.Shared;
 using StackExchange.Redis;
+using StackExchange.Redis.Profiling;
 
 namespace Masterly.NightShift.Redis.Tests;
 
@@ -97,10 +99,11 @@ public sealed class RedisStorageFacts : IDisposable
         RedisStorage kept = Track(new RedisStorage(RedisTestServer.Connection, new RedisStorageOptions { Prefix = prefix }));
 
         disposed.Dispose();
-        Task woken = kept.Enqueued;
+        using QueueSignals.Listener listener = kept.Signals.Listen(["default"]);
+        listener.Reset();
         await RedisTestServer.Connection.GetSubscriber().PublishAsync(RedisChannel.Literal(prefix + "enqueued"), "default");
 
-        await woken.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        Assert.True(listener.Wait(Deadline, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -309,6 +312,169 @@ public sealed class RedisStorageFacts : IDisposable
         connection.SetJobParameter(id, "Added", "later");
 
         Assert.NotNull(storage.Database.KeyTimeToLive(storage.Key($"job:{id}:params")));
+    }
+
+    [Fact]
+    public void Lock_WhoseHandleWasNotDisposed_IsReleased_WithItsConnection()
+    {
+        RedisStorage storage = Track(RedisTestServer.CreateStorage(new RedisStorageOptions { DistributedLockLifetime = TimeSpan.FromSeconds(1) }));
+        IStorageConnection first = storage.GetConnection();
+        IDisposable forgotten = first.AcquireDistributedLock("resource", TimeSpan.Zero);
+
+        first.Dispose();
+
+        using IStorageConnection second = storage.GetConnection();
+        IDisposable taken = second.AcquireDistributedLock("resource", TimeSpan.FromSeconds(5));
+
+        // The forgotten handle no longer holds anything, so it releases nothing
+        forgotten.Dispose();
+        using IStorageConnection third = storage.GetConnection();
+        Assert.Throws<DistributedLockTimeoutException>(() => third.AcquireDistributedLock("resource", TimeSpan.Zero));
+        taken.Dispose();
+    }
+
+    [Theory]
+    [InlineData("", "app2:")]
+    [InlineData("[1]", "1")]
+    [InlineData("*", "x")]
+    [InlineData("?", "x")]
+    [InlineData("\\", "*")]
+    public void Purge_LeavesTheKeysOfAnotherStorage_WhosePrefixItsOwnWouldMatch(string purgedTail, string keptTail)
+    {
+        // Both share a hash tag, so on a cluster they are on the same node, as their keys would be
+        string tag = $"nightshift-tests-{Guid.NewGuid():N}";
+        RedisStorage purged = Track(new RedisStorage(RedisTestServer.Connection, new RedisStorageOptions { Prefix = $"{{{tag}}}:{purgedTail}" }));
+        RedisStorage kept = Track(new RedisStorage(RedisTestServer.Connection, new RedisStorageOptions { Prefix = $"{{{tag}}}:{keptTail}" }));
+        string keptJob = Enqueue(kept, "default");
+        string purgedJob = Enqueue(purged, "default");
+        using IStorageConnection keptConnection = kept.GetConnection();
+        using IDisposable keptLock = keptConnection.AcquireDistributedLock("resource", TimeSpan.Zero);
+
+        purged.Purge(new StoragePurgeOptions());
+
+        Assert.NotNull(keptConnection.GetJobData(keptJob));
+        Assert.Equal(1, kept.GetMonitoringApi().EnqueuedCount("default"));
+        Assert.True(kept.Database.KeyExists(kept.Key("lock:resource")));
+        using IStorageConnection purgedConnection = purged.GetConnection();
+        Assert.Null(purgedConnection.GetJobData(purgedJob));
+        Assert.Equal(0, purged.GetMonitoringApi().EnqueuedCount("default"));
+    }
+
+    [Fact]
+    public void Purge_KeepsTheKeysOfItsPrefix_ThatAreNotItsOwn()
+    {
+        RedisStorage storage = Track(RedisTestServer.CreateStorage());
+        storage.Database.StringSet(storage.Key("someone-else"), "kept");
+        storage.Database.StringSet(storage.Key("job:not-a-number"), "kept");
+        string id = Enqueue(storage, "default");
+
+        storage.Purge(new StoragePurgeOptions());
+
+        Assert.True(storage.Database.KeyExists(storage.Key("someone-else")));
+        Assert.True(storage.Database.KeyExists(storage.Key("job:not-a-number")));
+        Assert.False(storage.Database.KeyExists(storage.Key($"job:{id}")));
+        Assert.False(storage.Database.KeyExists(storage.Key("queue:default")));
+    }
+
+    [Fact]
+    public async Task Enqueue_WakesTheWorkersOfThatQueue_NotTheWorkersOfTheOthers()
+    {
+        const int Workers = 20;
+        const int Jobs = 100;
+        using ConnectionMultiplexer connection = RedisTestServer.Connect();
+        ProfilingSession profiling = new();
+        connection.RegisterProfiler(() => profiling);
+        RedisStorage storage = RedisTestServer.CreateStorage(connection, new RedisStorageOptions { FetchPollInterval = TimeSpan.FromMinutes(1) });
+        using CancellationTokenSource stop = new();
+        int waiting = 0;
+        Task[] idle = [.. Enumerable.Range(0, Workers).Select(_ => Task.Factory.StartNew(
+            () =>
+            {
+                using IStorageConnection worker = storage.GetConnection();
+                Interlocked.Increment(ref waiting);
+                Assert.ThrowsAny<OperationCanceledException>(() => worker.FetchNextJob(["idle"], stop.Token));
+            },
+            TestContext.Current.CancellationToken,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default))];
+        int scripts;
+
+        try
+        {
+            WaitUntil(() => Volatile.Read(ref waiting) == Workers);
+            Thread.Sleep(500);
+
+            for (int i = 0; i < Jobs; i++)
+            {
+                Enqueue(storage, "busy");
+            }
+
+            // Time for the messages to reach the workers they would wake
+            Thread.Sleep(1000);
+            stop.Cancel();
+            await Task.WhenAll(idle).WaitAsync(Deadline, TestContext.Current.CancellationToken);
+            scripts = profiling.FinishProfiling().Count(static x => x.Command is "EVAL" or "EVALSHA");
+        }
+        finally
+        {
+            stop.Cancel();
+            RedisTestServer.Delete(storage);
+        }
+
+        // Each job is created by one script and enqueued by another, and each worker looked at its queue once:
+        // about 220. Waking every worker for every job would make it about 2,200.
+        Assert.InRange(scripts, 2 * Jobs, (2 * Jobs) + (2 * Workers));
+    }
+
+    [Fact]
+    public void Statistics_CountTheQueuesThatHaveEntries_WithOneScript()
+    {
+        using ConnectionMultiplexer connection = RedisTestServer.Connect();
+        ProfilingSession profiling = new();
+        RedisStorage storage = RedisTestServer.CreateStorage(connection);
+        StatisticsDto statistics;
+
+        try
+        {
+            foreach (string queue in new[] { "a", "b", "c", "d", "e" })
+            {
+                Enqueue(storage, queue);
+            }
+
+            using (IStorageConnection worker = storage.GetConnection())
+            {
+                using IFetchedJob fetched = worker.FetchNextJob(["e"], CancellationToken.None);
+                fetched.RemoveFromQueue();
+            }
+
+            connection.RegisterProfiler(() => profiling);
+            statistics = storage.GetMonitoringApi().GetStatistics();
+        }
+        finally
+        {
+            RedisTestServer.Delete(storage);
+        }
+
+        Assert.Equal(4, statistics.Queues);
+        Assert.DoesNotContain(profiling.FinishProfiling(), static x => x.Command is "SMEMBERS" or "LLEN");
+    }
+
+    [Fact]
+    public void ExpirationManager_ForgetsTheQueuesThatHaveNoEntries()
+    {
+        RedisStorage storage = Track(RedisTestServer.CreateStorage());
+        string id = Enqueue(storage, "emptied");
+        Enqueue(storage, "kept");
+        using (IStorageConnection connection = storage.GetConnection())
+        {
+            using IFetchedJob fetched = connection.FetchNextJob(["emptied"], CancellationToken.None);
+            Assert.Equal(id, fetched.JobId);
+            fetched.RemoveFromQueue();
+        }
+
+        storage.Evaluate(RedisScripts.RemoveExpiredJobs, 100);
+
+        Assert.Equal(["kept"], storage.Database.SetMembers(storage.Key("queues")).Select(static x => x.ToString()));
     }
 
     [Fact]
