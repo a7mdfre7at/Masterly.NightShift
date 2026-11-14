@@ -104,7 +104,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
                 LoadException = loadException,
                 InvocationData = invocationData,
                 InScheduledState = ScheduledState.StateName.Equals(sqlJob.StateName, StringComparison.OrdinalIgnoreCase),
-                EnqueueAt = JobHelper.DeserializeNullableDateTime(stateData["EnqueueAt"]) ?? DateTime.MinValue,
+                EnqueueAt = ReadDateTime(stateData["EnqueueAt"]) ?? DateTime.MinValue,
                 ScheduledAt = sqlJob.StateChanged,
                 StateData = stateData
             }));
@@ -201,9 +201,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
                 InvocationData = invocationData,
                 InSucceededState = SucceededState.StateName.Equals(sqlJob.StateName, StringComparison.OrdinalIgnoreCase),
                 Result = stateData["Result"],
-                TotalDuration = stateData.TryGetValue("PerformanceDuration", out string? duration) && stateData.TryGetValue("Latency", out string? latency)
-                    ? (long?)long.Parse(duration, CultureInfo.InvariantCulture) + (long?)long.Parse(latency, CultureInfo.InvariantCulture)
-                    : null,
+                TotalDuration = ReadLong(stateData["PerformanceDuration"]) + ReadLong(stateData["Latency"]),
                 SucceededAt = sqlJob.StateChanged,
                 StateData = stateData
             }));
@@ -246,9 +244,14 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
                 StateData = stateData
             }));
 
-        long[] parentIds = [.. awaitingJobs
-            .Where(static x => x.Value != null && x.Value.InAwaitingState && x.Value.StateData!.ContainsKey("ParentId")) // A job in the Awaiting state has its data
-            .Select(static x => long.Parse(x.Value!.StateData!["ParentId"]!, CultureInfo.InvariantCulture))]; // Filtered above
+        List<long> parentIds = [];
+        foreach (KeyValuePair<string, AwaitingJobDto?> awaitingJob in awaitingJobs)
+        {
+            if (TryGetParentId(awaitingJob.Value, out long parentId))
+            {
+                parentIds.Add(parentId);
+            }
+        }
 
         Dictionary<long, string?> parentStates = UseConnection(connection =>
         {
@@ -262,13 +265,9 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
 
         foreach (KeyValuePair<string, AwaitingJobDto?> awaitingJob in awaitingJobs)
         {
-            if (awaitingJob.Value != null && awaitingJob.Value.InAwaitingState && awaitingJob.Value.StateData!.TryGetValue("ParentId", out string? parentIdString)) // A job in the Awaiting state has its data
+            if (TryGetParentId(awaitingJob.Value, out long parentId) && parentStates.TryGetValue(parentId, out string? parentStateName))
             {
-                long parentId = long.Parse(parentIdString, CultureInfo.InvariantCulture);
-                if (parentStates.TryGetValue(parentId, out string? parentStateName))
-                {
-                    awaitingJob.Value.ParentStateName = parentStateName;
-                }
+                awaitingJob.Value!.ParentStateName = parentStateName; // TryGetParentId returns false for null
             }
         }
 
@@ -674,6 +673,35 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
                     commandTimeout: _storage.CommandTimeout)];
 
         return DeserializeJobs(jobs, selector);
+    }
+
+    // State data can come from another writer or version: a value that can't be read is left out of its row,
+    // so that one bad row doesn't take down the whole list
+    private static DateTime? ReadDateTime(string? value)
+    {
+        try
+        {
+            return JobHelper.DeserializeNullableDateTime(value);
+        }
+        catch (Exception ex) when (ex is FormatException or ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+    }
+
+    private static long? ReadLong(string? value)
+    {
+        return long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long number) ? number : null;
+    }
+
+    private static bool TryGetParentId(AwaitingJobDto? job, out long parentId)
+    {
+        parentId = 0;
+        return job != null
+            && job.InAwaitingState
+            && job.StateData != null
+            && job.StateData.TryGetValue("ParentId", out string? value)
+            && SqlServerConnection.TryParseJobId(value, out parentId);
     }
 
     private static string GetJobsQuery(string schemaName, string order)
