@@ -33,7 +33,7 @@ string? id = client.Enqueue(() => Console.WriteLine("Hello"));
 
 ## How it works
 
-Everything is behind one lock. A transaction is applied as a whole under the lock, and reads return copies, so a reader never sees half a transaction and every read sees every commit (`LinearizableReads` is `true`). Enqueuing a job wakes the waiting workers at once. Expired jobs and keys are removed every `ExpirationCheckInterval`, when the storage is next used.
+Everything is behind one lock. A transaction is applied as a whole under the lock, and reads return copies, so a reader never sees half a transaction and every read sees every commit (`LinearizableReads` is `true`). Enqueuing a job wakes the workers waiting on its queue at once. Disposing a storage connection releases the locks taken through it whose handles weren't disposed, as SQL Server does when a connection closes. Expired jobs and keys are removed every `ExpirationCheckInterval`, when the storage is next used.
 
 The storage supports every optional feature: the extended API, transactional acknowledgement, job parameters and locks in transactions, awaiting jobs on the dashboard and purging.
 

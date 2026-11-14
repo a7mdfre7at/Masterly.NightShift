@@ -166,6 +166,91 @@ public class SharedStorageFacts
     }
 
     [Fact]
+    public void ReentrantLocks_ReleaseAll_ReleasesEveryLockOnce_AndLaterHandlesChangeNothing()
+    {
+        FakeLeaseStore store = new();
+        ReentrantLocks locks = new();
+        IDisposable first = locks.Acquire("first", () => LeaseLock.Acquire(store, "first", TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1)));
+        IDisposable again = locks.Acquire("first", () => throw new InvalidOperationException("Taken again from the store."));
+        IDisposable second = locks.Acquire("second", () => LeaseLock.Acquire(store, "second", TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1)));
+
+        locks.ReleaseAll();
+        first.Dispose();
+        again.Dispose();
+        second.Dispose();
+        locks.ReleaseAll();
+
+        Assert.Equal(2, store.ReleaseCalls);
+    }
+
+    [Fact]
+    public void ReentrantLocks_HandleFromBeforeReleaseAll_DoesNotReleaseTheLockTakenAgainAfter()
+    {
+        FakeLeaseStore store = new();
+        ReentrantLocks locks = new();
+        IDisposable stale = locks.Acquire("resource", () => LeaseLock.Acquire(store, "resource", TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1)));
+        locks.ReleaseAll();
+        using IDisposable current = locks.Acquire("resource", () => LeaseLock.Acquire(store, "resource", TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1)));
+
+        stale.Dispose();
+
+        Assert.Equal(1, store.ReleaseCalls);
+    }
+
+    [Fact]
+    public void QueueSignals_WakeTheListenersOfTheSignaledQueue_Only()
+    {
+        QueueSignals signals = new();
+        using QueueSignals.Listener idle = signals.Listen(["idle"]);
+        using QueueSignals.Listener busy = signals.Listen(["other", "busy"]);
+        idle.Reset();
+        busy.Reset();
+
+        signals.Signal("busy");
+
+        Assert.True(busy.Wait(Deadline, TestContext.Current.CancellationToken));
+        Assert.False(idle.Wait(TimeSpan.FromMilliseconds(50), TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public void QueueSignals_SignalAfterReset_AndBeforeWait_IsNotMissed()
+    {
+        QueueSignals signals = new();
+        using QueueSignals.Listener listener = signals.Listen(["default"]);
+
+        listener.Reset();
+        signals.Signal("default");
+
+        Assert.True(listener.Wait(TimeSpan.Zero, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public void QueueSignals_Reset_ForgetsTheSignalsBeforeIt_AndDisposedListenersAreNotWoken()
+    {
+        QueueSignals signals = new();
+        QueueSignals.Listener listener = signals.Listen(["default"]);
+        signals.Signal("default");
+
+        listener.Reset();
+        Assert.False(listener.Wait(TimeSpan.Zero, TestContext.Current.CancellationToken));
+
+        listener.Dispose();
+        signals.Signal("default");
+        Assert.False(listener.Wait(TimeSpan.Zero, TestContext.Current.CancellationToken));
+        Assert.Equal(0, signals.ListenedQueueCount);
+    }
+
+    [Fact]
+    public void QueueSignals_Wait_ThrowsWhenCanceled()
+    {
+        QueueSignals signals = new();
+        using QueueSignals.Listener listener = signals.Listen(["default"]);
+        using CancellationTokenSource cancellation = new(TimeSpan.FromMilliseconds(50));
+
+        Assert.ThrowsAny<OperationCanceledException>(() => listener.Wait(Deadline, cancellation.Token));
+    }
+
+    [Fact]
     public void Transaction_Dispose_ReleasesEveryLock_EvenWhenOneFails()
     {
         CountingTransaction transaction = new();

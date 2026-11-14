@@ -4,8 +4,8 @@ namespace Masterly.NightShift.Storage.Shared;
 
 /// <summary>
 /// Makes a connection's distributed locks re-entrant: a connection that already holds a resource takes it again
-/// at once, and the lock is released when the last of its handles is disposed. That is how SQL Server's
-/// application locks behave on one connection.
+/// at once, and the lock is released when the last of its handles is disposed, or when the connection is
+/// (<see cref="ReleaseAll"/>). That is how SQL Server's application locks behave on one connection.
 /// </summary>
 internal sealed class ReentrantLocks
 {
@@ -19,27 +19,51 @@ internal sealed class ReentrantLocks
             if (_held.TryGetValue(resource, out Entry? entry))
             {
                 entry.Count++;
-                return new Handle(this, resource);
+                return new Handle(this, resource, entry);
             }
         }
 
-        IDisposable taken = acquire();
+        Entry taken = new(acquire());
 
         lock (_syncRoot)
         {
-            _held[resource] = new Entry(taken);
+            _held[resource] = taken;
         }
 
-        return new Handle(this, resource);
+        return new Handle(this, resource, taken);
     }
 
-    private void Release(string resource)
+    /// <summary>
+    /// Releases every lock still held, whatever handles are left undisposed. A connection calls it when it is
+    /// disposed, as SQL Server releases a session's application locks when its connection closes: without it, a
+    /// forgotten handle would keep its lease renewed for as long as the process lives. Disposing a handle
+    /// afterwards changes nothing.
+    /// </summary>
+    public void ReleaseAll()
+    {
+        List<IDisposable> released;
+
+        lock (_syncRoot)
+        {
+            released = [.. _held.Values.Select(static x => x.Lock)];
+            _held.Clear();
+        }
+
+        // A lease lock never throws for a storage error: its lease runs out by itself
+        foreach (IDisposable taken in released)
+        {
+            taken.Dispose();
+        }
+    }
+
+    private void Release(string resource, Entry released)
     {
         IDisposable? toRelease = null;
 
         lock (_syncRoot)
         {
-            if (_held.TryGetValue(resource, out Entry? entry) && --entry.Count == 0)
+            // Only the entry the handle was given: after ReleaseAll, the resource may be held again under another
+            if (_held.TryGetValue(resource, out Entry? entry) && entry == released && --entry.Count == 0)
             {
                 _held.Remove(resource);
                 toRelease = entry.Lock;
@@ -56,7 +80,7 @@ internal sealed class ReentrantLocks
         public int Count { get; set; } = 1;
     }
 
-    private sealed class Handle(ReentrantLocks owner, string resource) : IDisposable
+    private sealed class Handle(ReentrantLocks owner, string resource, Entry entry) : IDisposable
     {
         private int _disposed;
 
@@ -64,7 +88,7 @@ internal sealed class ReentrantLocks
         {
             if (Interlocked.Exchange(ref _disposed, 1) == 0)
             {
-                owner.Release(resource);
+                owner.Release(resource, entry);
             }
         }
     }

@@ -240,6 +240,46 @@ public class InMemoryStorageFacts
     }
 
     [Fact]
+    public void Lock_WhoseHandleWasNotDisposed_IsReleased_WithItsConnection()
+    {
+        InMemoryStorage storage = new(new InMemoryStorageOptions { DistributedLockLifetime = TimeSpan.FromSeconds(1) });
+        IStorageConnection first = storage.GetConnection();
+        IDisposable forgotten = first.AcquireDistributedLock("resource", TimeSpan.Zero);
+
+        first.Dispose();
+
+        using IStorageConnection second = storage.GetConnection();
+        IDisposable taken = second.AcquireDistributedLock("resource", TimeSpan.FromSeconds(5));
+
+        // The forgotten handle no longer holds anything, so it releases nothing
+        forgotten.Dispose();
+        using IStorageConnection third = storage.GetConnection();
+        Assert.Throws<DistributedLockTimeoutException>(() => third.AcquireDistributedLock("resource", TimeSpan.Zero));
+        taken.Dispose();
+    }
+
+    [Fact]
+    public async Task Enqueue_WakesTheWorkerWaitingOnThatQueue_AtOnce()
+    {
+        InMemoryStorage storage = new(new InMemoryStorageOptions { QueuePollInterval = TimeSpan.FromMinutes(1) });
+        using IStorageConnection worker = storage.GetConnection();
+        using CancellationTokenSource cancellation = new(TimeSpan.FromSeconds(10));
+        Task<IFetchedJob> fetch = Task.Factory.StartNew(
+            () => worker.FetchNextJob(["other", "wake"], cancellation.Token),
+            TestContext.Current.CancellationToken,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
+
+        string id = CreateJob(storage, TimeSpan.FromHours(1));
+        Write(storage, x => x.AddToQueue("wake", id));
+
+        using IFetchedJob fetched = await fetch.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        Assert.Equal(id, fetched.JobId);
+        Assert.Equal("wake", ((InMemoryFetchedJob)fetched).Queue);
+    }
+
+    [Fact]
     public void UseInMemoryStorage_MakesItTheCurrentStorage()
     {
         Mock<IGlobalConfiguration> configuration = new();

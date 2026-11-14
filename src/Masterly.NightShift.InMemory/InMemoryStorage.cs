@@ -357,6 +357,13 @@ internal sealed class InMemoryConnection(InMemoryStorage storage) : JobStorageCo
     }
 
     public override DateTime GetUtcDateTime() => JobClock.UtcNow;
+
+    /// <summary>Releases the locks whose handles weren't disposed, as SQL Server does when a connection closes.</summary>
+    public override void Dispose()
+    {
+        _locks.ReleaseAll();
+        base.Dispose();
+    }
 }
 
 internal sealed class InMemoryTransaction(InMemoryDatabase database, InMemoryConnection connection) : RecordingTransaction
