@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using Masterly.NightShift.Client;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Profiling;
+using Masterly.NightShift.Server;
 
 namespace Masterly.NightShift;
 
@@ -571,7 +572,16 @@ public sealed class RecurringJobSet
                 continue;
             }
 
-            BackgroundJob? backgroundJob = factory.Create(new CreateContext(storage, connection, once.Job, null));
+            // Created without a state, which is applied with the key below; the moment a delayed one is meant to
+            // run is written with it, as the factory does for a job created Scheduled (PerformContext.ScheduledFor)
+            IState state = StateOf(once);
+            CreateContext creating = new(storage, connection, once.Job, null);
+            if (state is ScheduledState scheduled)
+            {
+                creating.Parameters[PerformContext.ScheduledForParameter] = JobHelper.ToMillisecondTimestamp(scheduled.EnqueueAt);
+            }
+
+            BackgroundJob? backgroundJob = factory.Create(creating);
 
             if (string.IsNullOrEmpty(backgroundJob?.Id))
             {
@@ -579,19 +589,22 @@ public sealed class RecurringJobSet
                 continue;
             }
 
-            Start(storage, connection, factory.StateMachine, backgroundJob, once);
+            Start(storage, connection, factory.StateMachine, backgroundJob, once.Key, state);
             created.Add(once.Key);
         }
 
         return created;
     }
 
-    private static void Start(JobStorage storage, IStorageConnection connection, IStateMachine stateMachine, BackgroundJob backgroundJob, OnceDeclaration once)
+    private static IState StateOf(OnceDeclaration once)
     {
-        IState state = once.Delay.HasValue && once.Delay.Value > TimeSpan.Zero
+        return once.Delay.HasValue && once.Delay.Value > TimeSpan.Zero
             ? new ScheduledState(once.Delay.Value)
             : new EnqueuedState();
+    }
 
+    private static void Start(JobStorage storage, IStorageConnection connection, IStateMachine stateMachine, BackgroundJob backgroundJob, string key, IState state)
+    {
         PostCommitActions afterCommit = new();
 
         try
@@ -601,7 +614,7 @@ public sealed class RecurringJobSet
             {
                 AfterCommit = afterCommit,
             });
-            transaction.SetRangeInHash(OnceHashKey, [new KeyValuePair<string, string>(once.Key, backgroundJob.Id)]);
+            transaction.SetRangeInHash(OnceHashKey, [new KeyValuePair<string, string>(key, backgroundJob.Id)]);
             transaction.Commit();
         }
         catch

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Diagnostics.CodeAnalysis;
 using Masterly.NightShift.Server;
 
@@ -470,6 +471,27 @@ public sealed class RecurringJobSetFacts : IDisposable
         jobs.Apply(_manager.Object, _storage.Object);
 
         _transaction.Verify(x => x.SetJobState("42", It.Is<IState>(state => state is ScheduledState)));
+    }
+
+    [Fact]
+    public void Apply_CreatesAOnceJobWithADelay_WithTheMomentItIsScheduledFor()
+    {
+        // Read by PerformContext.ScheduledFor: without it, the lateness of the job would include the whole delay
+        SetupJobCreation();
+        IDictionary<string, string>? parameters = null;
+        _connection.Setup(x => x.CreateExpiredJob(It.IsAny<Job>(), It.IsAny<IDictionary<string, string>>(), It.IsAny<DateTime>(), It.IsAny<TimeSpan>()))
+            .Callback<Job, IDictionary<string, string>, DateTime, TimeSpan>((_, p, _, _) => parameters = p)
+            .Returns("42");
+        ScheduledState? scheduled = null;
+        _transaction.Setup(x => x.SetJobState("42", It.IsAny<IState>())).Callback<string, IState>((_, state) => scheduled = state as ScheduledState);
+
+        new RecurringJobSet().Once<RecurringJobSetFacts>("warm-cache", x => x.Instance(), TimeSpan.FromMinutes(5)).Apply(_manager.Object, _storage.Object);
+
+        Assert.NotNull(parameters);
+        Assert.NotNull(scheduled);
+        Assert.Equal(
+            JobHelper.ToMillisecondTimestamp(scheduled.EnqueueAt).ToString(CultureInfo.InvariantCulture),
+            parameters[PerformContext.ScheduledForParameter]);
     }
 
     [Fact]
