@@ -38,9 +38,9 @@ public sealed class EntityFrameworkCoreStorageOptions
     /// <summary>
     /// Whether a dedicated context creates its database and tables when they are missing, and checks the schema
     /// version of tables that exist; they are never changed. Several processes may start at once: one creates the
-    /// tables and the others wait for them. Tables still missing 30 seconds after their creation began (their
-    /// creator stopped half-way, on a database whose DDL isn't transactional) are created by the next process that
-    /// starts. <c>true</c> by default; an application's own context creates them with its migrations.
+    /// tables and the others wait for them. A process that finds them incomplete (on a database whose DDL isn't
+    /// transactional, their creator may have stopped half-way) waits up to 30 seconds, then creates those still
+    /// missing itself. <c>true</c> by default; an application's own context creates them with its migrations.
     /// </summary>
     public bool PrepareSchemaIfNecessary { get; set; } = true;
 
