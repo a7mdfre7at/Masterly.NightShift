@@ -16,9 +16,14 @@ namespace Masterly.NightShift.Server;
 /// <para>The decision of the deployment check is kept for one server id. A server that gets a new id (its heartbeat
 /// found it removed, or failed for the server timeout) is undecided again, although its processes are the same
 /// objects: the pause of a fenced server is on the old id. A check closes the gate as soon as it finds the server
-/// fenced, before it writes anything. A decision that the server may work holds for
-/// <see cref="DeploymentFencing.TakeOverAfter"/> (at least two check intervals): when no check has gone all the
-/// way for that long, another deployment may have taken over meanwhile, so the gate closes until a check does.</para>
+/// fenced, before it writes anything.</para>
+/// <para>A decision that the server may work holds for <see cref="DeploymentFencing.TakeOverAfter"/> (at least two
+/// check intervals) and the time a check may wait for the lock of the checks, counted from the last moment the
+/// server knew that no deployment could have taken over: when a check took that lock, or found that another
+/// server held it all the time it waited (<see cref="Confirm"/>), and when a check decided. A takeover is written
+/// under that lock, so a server whose checks can't take it doesn't stop because of it, and a check that is slow
+/// but gets the lock doesn't close the gate. When the checks fail for any other reason (the storage is down) for
+/// that long, another deployment may have taken over meanwhile, so the gate closes until a check succeeds.</para>
 /// <para>A pause set by hand is read through the cache of <see cref="DrainMode"/>, so it costs no storage read for
 /// each fetch: the storage is asked when the cached answer is older than <see cref="DrainMode.CacheDuration"/>, as
 /// <see cref="DrainModeFilter"/> does for each job anyway. A worker that waits inside a fetch when its server is
@@ -76,6 +81,20 @@ internal sealed class WorkerGate
         // Written again by every check, which also renews how long a decision that the server may work holds
         Volatile.Write(ref _decision, new Decision(serverId, fenced, Stopwatch.GetTimestamp()));
         Interlocked.Exchange(ref _changed, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult();
+    }
+
+    /// <summary>
+    /// Records that the last decision for <paramref name="serverId"/> still stands, as no deployment could have taken
+    /// over since: a check took the lock of the checks, or another server held it all the time a check waited. Does
+    /// nothing when no check has decided for that id.
+    /// </summary>
+    public void Confirm(string serverId)
+    {
+        Decision? decision = Volatile.Read(ref _decision);
+        if (decision != null && decision.ServerId == serverId)
+        {
+            Interlocked.CompareExchange(ref _decision, decision with { At = Stopwatch.GetTimestamp() }, decision);
+        }
     }
 
     /// <summary>Whether a deployment check has decided for this server id, or none is needed.</summary>
@@ -142,12 +161,12 @@ internal sealed class WorkerGate
             }
 
             TimeSpan since = Stopwatch.GetElapsedTime(decision.At);
-            TimeSpan holds = DeploymentFencing.EffectiveTakeOverAfter;
+            TimeSpan holds = DeploymentFencing.EffectiveTakeOverAfter + DeploymentFencing.LockTimeout;
             if (since > holds)
             {
                 return new Reason(
                     // No elapsed time in the text: the text decides whether it is logged again, once per change
-                    $"Server '{serverId}' takes no jobs: no deployment check of deployment '{_deploymentId}' has succeeded for longer than the {holds} after which another deployment may take over, so it can't tell whether it is still the current one. It takes jobs again once a check succeeds.",
+                    $"Server '{serverId}' takes no jobs: no deployment check of deployment '{_deploymentId}' has succeeded, or found the lock of the checks held by another server, for longer than {holds}, after which another deployment may have taken over, so it can't tell whether it is still the current one. It takes jobs again once a check succeeds.",
                     Warn: true);
             }
         }
@@ -179,7 +198,7 @@ internal sealed class WorkerGate
         }
     }
 
-    // At: when it was decided, as a Stopwatch timestamp
+    // At: when it was decided or last confirmed, as a Stopwatch timestamp
     private sealed record Decision(string ServerId, bool Fenced, long At);
 
     private sealed record Reason(string Text, bool Warn = false);
