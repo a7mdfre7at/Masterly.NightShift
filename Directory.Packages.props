@@ -12,7 +12,7 @@
     </PropertyGroup>
 
     <ItemGroup Label="Build tooling">
-        <PackageVersion Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.403" />
+        <PackageVersion Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.404" />
     </ItemGroup>
 
     <ItemGroup Label="Masterly.NightShift.Core">
@@ -25,17 +25,17 @@
 
     <ItemGroup Label="Masterly.NightShift.SqlServer">
         <PackageVersion Include="Dapper" Version="2.1.89" />
-        <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.1.1" />
+        <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.1.2" />
         <!-- Patched version of a transitive dependency of Microsoft.Data.SqlClient (GHSA-846f-f764-76mx) -->
-        <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
+        <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.15" />
     </ItemGroup>
 
     <ItemGroup Label="Masterly.NightShift.Redis">
-        <PackageVersion Include="StackExchange.Redis" Version="3.4.31" />
+        <PackageVersion Include="StackExchange.Redis" Version="3.4.35" />
     </ItemGroup>
 
     <ItemGroup Label="Masterly.NightShift.MongoDB">
-        <PackageVersion Include="MongoDB.Driver" Version="3.13.0" />
+        <PackageVersion Include="MongoDB.Driver" Version="3.14.0" />
     </ItemGroup>
 
     <!-- Masterly.NightShift.EntityFrameworkCore: EF Core per target framework, as for the Microsoft.Extensions packages
@@ -64,9 +64,9 @@
     </ItemGroup>
 
     <ItemGroup Label="Masterly.NightShift.NetCore (net10.0)" Condition="'$(TargetFramework)' == 'net10.0'">
-        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
-        <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.14" />
-        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.15" />
+        <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.15" />
+        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.15" />
     </ItemGroup>
 
     <ItemGroup Label="Build-time dashboard page generator (never shipped)">
@@ -77,16 +77,16 @@
     </ItemGroup>
 
     <ItemGroup Label="Tests">
-        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
+        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.12.0" />
         <PackageVersion Include="Moq" Version="4.21.0" />
         <PackageVersion Include="Moq.Sequences" Version="2.2.1" />
         <!-- mtp-off: the classic VSTest runner, so `dotnet test` and its filters work as before -->
-        <PackageVersion Include="xunit.v3.mtp-off" Version="4.0.2" />
+        <PackageVersion Include="xunit.v3.mtp-off" Version="4.0.3" />
         <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
     </ItemGroup>
 
     <ItemGroup Label="Samples">
-        <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.14" />
-        <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.14" />
+        <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.15" />
+        <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.15" />
     </ItemGroup>
 </Project>
