@@ -1,5 +1,6 @@
 ﻿extern alias ReferencedDapper;
 using System.Data.Common;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using Masterly.NightShift.Server;
@@ -143,6 +144,101 @@ public class SqlServerConnectionFacts
 
         releaseLock.Set();
         thread.Join();
+    }
+
+    // A pooled connection goes back to its pool with its session, and SQL Server resets the session only when the
+    // pool hands the connection out again: a session lock still held stayed held until then
+    [Fact, CleanDatabase]
+    public void Dispose_LetsGoOfTheSessionLocks_WhenTheConnectionIsDisposedWhileHoldingThem()
+    {
+        SqlServerStorage storage = new(ConnectionUtils.GetConnectionString());
+        SqlServerConnection connection = (SqlServerConnection)storage.GetConnection();
+        connection.AcquireDistributedLock("bk:pooled", TimeSpan.FromSeconds(1));
+
+        connection.Dispose();
+
+        Assert.True(CanTakeLockElsewhere($"{Constants.DefaultSchema}:bk:pooled"));
+    }
+
+    [Fact, CleanDatabase]
+    public void AcquireDistributedLock_LetsGoOfTheLock_WhenItsReleaseFails()
+    {
+        SqlServerStorage storage = new(ConnectionUtils.GetConnectionString());
+        using SqlServerConnection connection = (SqlServerConnection)storage.GetConnection();
+        IDisposable distributedLock = connection.AcquireDistributedLock("bk:release", TimeSpan.FromSeconds(1));
+
+        // The release command can't run on a connection with a transaction it doesn't take part in
+        using DbTransaction pending = connection.DedicatedConnection!.BeginTransaction(); // Set by the lock
+        distributedLock.Dispose();
+
+        Assert.True(CanTakeLockElsewhere($"{Constants.DefaultSchema}:bk:release"));
+    }
+
+    [Fact, CleanDatabase]
+    public void AcquireDistributedLock_ClosesTheSession_WhenTheAcquireFailsOtherwiseThanByATimeout()
+    {
+        (int SessionId, DateTime ConnectTime) session = default;
+        SqlServerStorage storage = new(() =>
+        {
+            DbConnection opened = ConnectionUtils.CreateConnection();
+            session = opened.QuerySingle<(int, DateTime)>("select session_id, connect_time from sys.dm_exec_connections where session_id = @@spid");
+
+            // sp_getapplock can't run on a connection with a transaction it doesn't take part in
+            opened.BeginTransaction();
+            return opened;
+        }, new SqlServerStorageOptions { PrepareSchemaIfNecessary = false, TryAutoDetectSchemaDependentOptions = false });
+        using SqlServerConnection connection = (SqlServerConnection)storage.GetConnection();
+
+        Assert.Throws<InvalidOperationException>(() => connection.AcquireDistributedLock("bk:acquire", TimeSpan.FromSeconds(1)));
+
+        Assert.True(PhysicalConnectionCloses(session.SessionId, session.ConnectTime));
+    }
+
+    // Logging out takes the server a moment. A new connection may get the same session id, and a pooled one keeps
+    // its connection when it is reused, so it is asked from another pool.
+    private static bool PhysicalConnectionCloses(int sessionId, DateTime connectTime)
+    {
+        using DbConnection sql = OpenInAnotherPool();
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        while (sql.ExecuteScalar<int>(
+            "select count(*) from sys.dm_exec_connections where session_id = @sessionId and connect_time = @connectTime",
+            new { sessionId, connectTime }) > 0)
+        {
+            if (stopwatch.Elapsed > TimeSpan.FromSeconds(5))
+            {
+                return false;
+            }
+
+            Thread.Sleep(50);
+        }
+
+        return true;
+    }
+
+    // From a connection of another pool, without waiting
+    private static bool CanTakeLockElsewhere(string resource)
+    {
+        using DbConnection other = OpenInAnotherPool();
+
+        try
+        {
+            SqlServerDistributedLock.Acquire(other, resource, TimeSpan.Zero);
+            SqlServerDistributedLock.Release(other, resource);
+            return true;
+        }
+        catch (DistributedLockTimeoutException)
+        {
+            return false;
+        }
+    }
+
+    private static DbConnection OpenInAnotherPool()
+    {
+        DbConnectionStringBuilder connectionString = new() { ConnectionString = ConnectionUtils.GetConnectionString() };
+        connectionString["Application Name"] = "NightShift tests, another pool";
+        Microsoft.Data.SqlClient.SqlConnection other = new(connectionString.ConnectionString);
+        other.Open();
+        return other;
     }
 
     [Fact, CleanDatabase]

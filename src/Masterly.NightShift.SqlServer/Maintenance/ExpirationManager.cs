@@ -175,7 +175,16 @@ internal sealed class ExpirationManager : IBackgroundProcess
         {
             return storage.UseConnection(null, static (_, connection, ctx) =>
             {
-                SqlServerDistributedLock.Acquire(connection, ctx.Key, DefaultLockTimeout);
+                // A session lock that may still be held must not go back to the pool with its connection
+                try
+                {
+                    SqlServerDistributedLock.Acquire(connection, ctx.Key, DefaultLockTimeout);
+                }
+                catch (Exception ex) when (ex.IsCatchableExceptionType() && SqlServerDistributedLock.MayHaveBeenGranted(ex))
+                {
+                    ConnectionPools.DiscardWhenClosed(connection);
+                    throw;
+                }
 
                 try
                 {
@@ -183,7 +192,7 @@ internal sealed class ExpirationManager : IBackgroundProcess
                 }
                 finally
                 {
-                    SqlServerDistributedLock.Release(connection, ctx.Key);
+                    ReleaseLock(connection, ctx.Key);
                 }
             }, new KeyValuePair<string, Func<DbConnection, T>>(lockKey, action));
         }
@@ -199,6 +208,19 @@ internal sealed class ExpirationManager : IBackgroundProcess
                     """,
                 e);
             return default;
+        }
+    }
+
+    private static void ReleaseLock(DbConnection connection, string resource)
+    {
+        try
+        {
+            SqlServerDistributedLock.Release(connection, resource);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            ConnectionPools.DiscardWhenClosed(connection);
+            throw;
         }
     }
 

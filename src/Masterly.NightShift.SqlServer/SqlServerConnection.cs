@@ -25,6 +25,11 @@ internal sealed class SqlServerConnection : JobStorageConnection
 {
     private readonly Dictionary<string, HashSet<Guid>> _lockedResources = [];
 
+    // Whether the session of the dedicated connection may hold a lock nobody will release: a release that failed,
+    // or an acquire that failed after the server may have granted the lock. Such a connection is closed for good
+    // rather than returned to the pool, where SQL Server would keep the lock until the connection is used again.
+    private bool _mayHoldStrayLocks;
+
     public SqlServerConnection([NotNull] SqlServerStorage storage)
     {
         ArgumentNullException.ThrowIfNull(storage);
@@ -36,8 +41,18 @@ internal sealed class SqlServerConnection : JobStorageConnection
 
     public override void Dispose()
     {
-        DedicatedConnection?.Dispose();
-        DedicatedConnection = null;
+        if (DedicatedConnection != null)
+        {
+            // Locks still held when the connection is disposed go with its session
+            if (_lockedResources.Count > 0)
+            {
+                _mayHoldStrayLocks = true;
+            }
+
+            DiscardIfItMayHoldStrayLocks(DedicatedConnection);
+            DedicatedConnection.Dispose();
+            DedicatedConnection = null;
+        }
 
         base.Dispose();
     }
@@ -1132,6 +1147,11 @@ $@"select min([ExpireAt]) from [{schemaName}].Hash with (forceseek) where [Key] 
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
+                if (SqlServerDistributedLock.MayHaveBeenGranted(ex))
+                {
+                    _mayHoldStrayLocks = true;
+                }
+
                 ReleaseLock(resource, lockId, true, false);
                 throw;
             }
@@ -1170,6 +1190,8 @@ $@"select min([ExpireAt]) from [{schemaName}].Hash with (forceseek) where [Key] 
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
+            _mayHoldStrayLocks = true;
+
             if (!onDisposing)
             {
                 throw;
@@ -1179,10 +1201,26 @@ $@"select min([ExpireAt]) from [{schemaName}].Hash with (forceseek) where [Key] 
         {
             if (_lockedResources.Count == 0)
             {
+                if (DedicatedConnection != null)
+                {
+                    DiscardIfItMayHoldStrayLocks(DedicatedConnection);
+                }
+
                 Storage.ReleaseConnection(DedicatedConnection);
                 DedicatedConnection = null;
             }
         }
+    }
+
+    private void DiscardIfItMayHoldStrayLocks(DbConnection connection)
+    {
+        // A connection the application handed in is its own to manage
+        if (_mayHoldStrayLocks && !Storage.IsExistingConnection(connection))
+        {
+            ConnectionPools.DiscardWhenClosed(connection);
+        }
+
+        _mayHoldStrayLocks = false;
     }
 
     internal sealed class DisposableLock(SqlServerConnection connection, string resource, Guid lockId, bool ownLock) : IDisposable

@@ -77,7 +77,8 @@ public class DisableConcurrentExecutionAttribute : JobFilterAttribute, IServerFi
         IDisposable distributedLock = (IDisposable)value;
 
         // The job has run: a failure to release doesn't change its outcome. A storage lets go of a lock whose
-        // connection is closed (SQL Server does), so the lock isn't held forever.
+        // release failed: SQL Server closes the connection that holds it instead of returning it to the pool,
+        // where the session, and its lock, would live on until the pooled connection is used again.
         try
         {
             distributedLock.Dispose();
