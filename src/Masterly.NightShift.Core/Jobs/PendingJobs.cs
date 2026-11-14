@@ -61,8 +61,14 @@ public static class PendingJobs
             for (int from = 0; ; from += PageSize)
             {
                 JobList<ScheduledJobDto?> page = monitoring.ScheduledJobs(from, PageSize);
+                // DateTime.MinValue: the monitoring API couldn't read when the job is due
                 jobs.AddRange(page.Where(static x => x.Value is { InScheduledState: true })
-                    .Select(static x => new PendingJob(x.Key, ScheduledState.StateName, x.Value!.Job, null, x.Value.EnqueueAt))); // Filtered above
+                    .Select(static x => new PendingJob(
+                        x.Key,
+                        ScheduledState.StateName,
+                        x.Value!.Job, // Filtered above
+                        null,
+                        x.Value.EnqueueAt == DateTime.MinValue ? null : x.Value.EnqueueAt)));
                 if (page.Count < PageSize)
                 {
                     break;
