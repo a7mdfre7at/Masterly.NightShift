@@ -96,7 +96,7 @@ They are shared by every dashboard in the process (all paths, all storages). Reg
 | `WriteLiteral(string)` | Writes text as is (HTML). |
 | `Write(object)` | Writes a value HTML-encoded, unless it is a `NonEscapedString` (what `Html.*` helpers return). |
 | `Layout` | Set to `new LayoutPage(title)` (namespace `Masterly.NightShift.Dashboard.Pages`) to get the dashboard chrome. |
-| `Url.To(path)`, `Url.JobDetails(id)`, `Url.Queue(name)`, `Url.LinkToQueues()`, `Url.Home()` | Links that include the dashboard path and `PrefixPath`. |
+| `Url.To(path)`, `Url.JobDetails(id)`, `Url.Queue(name)`, `Url.LinkToQueues()`, `Url.Home()` | Links that include the dashboard path and `PrefixPath`. `JobDetails` and `Queue` write the id or name as one path segment, as the built-in pages do (`~25`, `~2F`, `~7E`, then URL encoding); `To` takes the path as it is. |
 | `Html` | Helpers: `HtmlEncode`, `Raw`, `JobId` (a short id), `JobIdLink`, `JobNameLink`, `JobName`, `StateLabel`, `QueueLabel`, `ServerId`, `StackTrace`, `RelativeTime`, `LocalTime`, `ToHumanDuration`, `Breadcrumbs`, `Paginator`, `PerPageSelector`, `BlockMetric`, `InlineMetric`, `RenderPartial`. |
 | `Statistics` | The storage's `StatisticsDto` (counts by state, servers, queues, recurring jobs), read once per request. |
 | `Storage`, `Context`, `DashboardOptions`, `IsReadOnly`, `RequestPath`, `Query(key)` | The request's context. |

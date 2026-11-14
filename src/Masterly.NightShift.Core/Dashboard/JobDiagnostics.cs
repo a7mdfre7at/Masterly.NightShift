@@ -124,7 +124,7 @@ internal static partial class JobDiagnostics
         {
             findings.Add(new JobDiagnostic("waiting", JobDiagnosticSeverity.Warning, Format(page, Strings.Diagnostics_Waiting,
                 page.Html.QueueLabel(queue), Encode(page, page.Html.ToHumanDuration(waiting, false)), length.HasValue ? length.Value.ToString(CultureInfo.CurrentCulture) : "?"),
-                page.Url.To("/jobs/enqueued/" + queue), Strings.QueuesPage_Table_Queue));
+                page.Url.Queue(queue), Strings.QueuesPage_Table_Queue));
         }
         else
         {

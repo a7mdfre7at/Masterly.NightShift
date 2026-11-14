@@ -38,9 +38,10 @@ public class UrlHelper
         return To("/");
     }
 
+    /// <summary>The link to a job's page; the id is written as one path segment, with <c>%</c>, <c>/</c> and <c>~</c> as <c>~25</c>, <c>~2F</c> and <c>~7E</c>.</summary>
     public string JobDetails(string jobId)
     {
-        return To("/jobs/details/" + jobId);
+        return To("/jobs/details/" + RouteValues.Encode(jobId));
     }
 
     public string LinkToQueues()
@@ -48,8 +49,9 @@ public class UrlHelper
         return To("/jobs/enqueued");
     }
 
+    /// <summary>The link to a queue's page; the name is written as one path segment, like a job id.</summary>
     public string Queue(string queue)
     {
-        return To("/jobs/enqueued/" + queue);
+        return To("/jobs/enqueued/" + RouteValues.Encode(queue));
     }
 }

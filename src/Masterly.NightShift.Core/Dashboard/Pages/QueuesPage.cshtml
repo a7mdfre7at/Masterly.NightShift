@@ -75,7 +75,7 @@
                                 <td>
                                     @if (queue.Fetched.HasValue)
                                     {
-                                        <a href="@Url.To("/jobs/enqueued/fetched/" + queue.Name)">
+                                        <a href="@Url.To("/jobs/enqueued/fetched/" + RouteValues.Encode(queue.Name))">
                                             @queue.Fetched
                                         </a>
                                     }

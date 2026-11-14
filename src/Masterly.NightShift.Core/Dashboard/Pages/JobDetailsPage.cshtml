@@ -127,7 +127,7 @@
                                 data-text-watch="@Strings.JobDetailsPage_Watch" data-text-watching="@Strings.JobDetailsPage_Watching" title="@Strings.JobDetailsPage_Watch_Hint">
                             <span class="glyphicon glyphicon-eye-open"></span> <span class="js-watch-label">@Strings.JobDetailsPage_Watch</span>
                         </button>
-                        <button type="button" class="btn btn-xs btn-default js-download" data-url="@Url.To("/jobs/export/" + JobId)" data-filename="job-@(JobId).json" title="@Strings.JobDetailsPage_Export">
+                        <button type="button" class="btn btn-xs btn-default js-download" data-url="@Url.To("/jobs/export/" + RouteValues.Encode(JobId))" data-filename="job-@(JobId).json" title="@Strings.JobDetailsPage_Export">
                             <span class="glyphicon glyphicon-save"></span> @Strings.JobDetailsPage_Export
                         </button>
                         @if (!IsReadOnly)
@@ -282,7 +282,7 @@
                 </ul>
                 @if (!IsReadOnly)
                 {
-                    <form class="hf-note-form js-note-form" data-url="@Url.To("/jobs/notes/add/" + JobId)">
+                    <form class="hf-note-form js-note-form" data-url="@Url.To("/jobs/notes/add/" + RouteValues.Encode(JobId))">
                         <textarea class="form-control" name="text" rows="2" maxlength="2000" placeholder="@Strings.JobDetailsPage_Notes_Placeholder"></textarea>
                         <div class="hf-note-actions">
                             <button type="submit" class="btn btn-sm btn-primary" data-loading-text="@Strings.RecurringJobsPage_Saving"><span class="glyphicon glyphicon-plus"></span> @Strings.JobDetailsPage_Notes_Add</button>
@@ -560,7 +560,7 @@
                         @if (!IsReadOnly && job.History[0].StateName != EnqueuedState.StateName)
                         {
                             <button class="btn btn-sm btn-default"
-                                    data-ajax="@Url.To("/jobs/actions/requeue/" + JobId)"
+                                    data-ajax="@Url.To("/jobs/actions/requeue/" + RouteValues.Encode(JobId))"
                                     data-loading-text="@Strings.Common_Enqueueing">
                                 @Strings.JobDetailsPage_Requeue
                             </button>
@@ -568,7 +568,7 @@
                         @if (!IsReadOnly)
                         {
                             <button class="btn btn-sm btn-death"
-                                    data-ajax="@Url.To("/jobs/actions/delete/" + JobId)"
+                                    data-ajax="@Url.To("/jobs/actions/delete/" + RouteValues.Encode(JobId))"
                                     data-loading-text="@Strings.Common_Deleting"
                                     data-confirm="@Strings.JobDetailsPage_DeleteConfirm">
                                 @Strings.Common_Delete
