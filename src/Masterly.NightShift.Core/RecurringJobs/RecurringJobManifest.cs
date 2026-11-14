@@ -465,10 +465,25 @@ public static class RecurringJobManifest
                 Type = invocationData.Type,
                 Method = invocationData.Method,
                 ParameterTypes = invocationData.ParameterTypes,
-                // Plain JSON in the manifest, whether the stored arguments are compressed or not
-                Arguments = maskRedacted && dto.Job == null ? null : ArgumentCompression.Decompress(invocationData.Arguments),
+                Arguments = maskRedacted && dto.Job == null ? null : GetPlainArguments(invocationData.Arguments, dto.Id, logger),
             },
         };
+    }
+
+    // Plain JSON in the manifest, whether the stored arguments are compressed or not. Compressed arguments that
+    // can't be read back (corrupt, or longer than the text they may expand to) are written as stored, like a
+    // method call that can't be loaded, so the rest of the manifest is still exported and pruning keeps the job.
+    private static string? GetPlainArguments(string? arguments, string recurringJobId, ILog logger)
+    {
+        try
+        {
+            return ArgumentCompression.Decompress(arguments);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or FormatException)
+        {
+            logger.Warn($"Recurring job '{recurringJobId}' is exported with its arguments as stored, because they can't be decompressed: {ex.Message}");
+            return arguments;
+        }
     }
 
     private static DateTimeOffset? ToUtcOffset(DateTime? utc)
