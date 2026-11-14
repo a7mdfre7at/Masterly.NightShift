@@ -197,6 +197,7 @@ public static partial class JobChains
             }
 
             int finished = FinishCleanups(storage, client, connection, out bool moreCleanups);
+            bool moreUnconfirmed = ForgetFanInsNeverCreated(storage, connection, stopping);
 
             // The looks that were asked for come first: they give their chains a new place, so a chain isn't
             // looked at twice in a run
@@ -218,7 +219,7 @@ public static partial class JobChains
                 Logger.Info($"Chain maintenance: {looks.Unlisted} chains whose record expired left the list, {finished} interrupted changes of chains were finished, {looks.Started} waiting steps that were never told to start were started or skipped, {placed} chains listed by an earlier build were given a look.");
             }
 
-            return new MaintenanceRun(true, moreToIndex || moreCleanups || moreAsked || moreExpiring || moreDue);
+            return new MaintenanceRun(true, moreToIndex || moreCleanups || moreUnconfirmed || moreAsked || moreExpiring || moreDue);
         }
     }
 
@@ -454,6 +455,45 @@ public static partial class JobChains
         return connection is JobStorageConnection storageConnection && storage.HasFeature(JobStorageFeatures.ExtendedApi)
             ? storageConnection.GetValueFromHash(KeyPrefix + chainId, field)
             : connection.GetAllEntriesFromHash(KeyPrefix + chainId)?.GetValueOrDefault(field);
+    }
+
+    /// <summary>
+    /// Looks at the fan-in continuations whose creation was to be over long ago
+    /// (<see cref="FanInContinuationsSupportAttribute.UnconfirmedSetKey"/>), at most <see cref="MaxLooksPerRun"/>:
+    /// what their parents wrote for one that was never created goes. A step of a chain after a group is one of
+    /// them, and so is the continuation of a batch. One that can't be looked at is looked at again later, so it
+    /// doesn't keep the others from their turn.
+    /// </summary>
+    /// <returns>Whether the run stopped at the limit: more may be due.</returns>
+    private static bool ForgetFanInsNeverCreated(JobStorage storage, IStorageConnection connection, CancellationToken stopping)
+    {
+        DateTime now = JobClock.UtcNow;
+        int taken = 0;
+
+        foreach (string childId in TakeDue(storage, connection, FanInContinuationsSupportAttribute.UnconfirmedSetKey, JobHelper.ToTimestamp(now), MaxLooksPerRun))
+        {
+            if (stopping.IsCancellationRequested)
+            {
+                return false;
+            }
+
+            taken++;
+
+            try
+            {
+                if (FanInContinuationsSupportAttribute.ForgetIfNeverCreated(connection, childId))
+                {
+                    Logger.Info($"Fan-in continuation '{childId}' was never created: what its parents finished as was removed.");
+                }
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                Logger.WarnException($"Whether fan-in continuation '{childId}' was ever created couldn't be told; a later maintenance run looks again.", ex);
+                Rescore(connection, FanInContinuationsSupportAttribute.UnconfirmedSetKey, childId, now + MaxWatchInterval);
+            }
+        }
+
+        return taken >= MaxLooksPerRun;
     }
 
     /// <summary>

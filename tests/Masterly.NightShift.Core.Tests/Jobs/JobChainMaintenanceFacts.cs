@@ -399,6 +399,28 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     }
 
     [Fact]
+    public void Maintain_RemovesWhatTheParentsOfAFanInThatWasNeverCreatedWroteForIt_AndGoesOnWhenOneCanNotBeRead()
+    {
+        // Three continuations whose creation was to be over: one never got a state, one did, one can't be read
+        Set("fan-in:unconfirmed").Add((1, "never"));
+        Set("fan-in:unconfirmed").Add((2, "unreadable"));
+        Set("fan-in:unconfirmed").Add((3, "created"));
+        Set("fan-in:unconfirmed").Add((After(TimeSpan.FromMinutes(20)), "being-created"));
+        _hashes["fan-in:never"] = new Dictionary<string, string> { ["p"] = SucceededState.StateName };
+        _hashes["fan-in:created"] = new Dictionary<string, string> { ["p"] = SucceededState.StateName };
+        _connection.Setup(x => x.GetJobData("never")).Returns(new JobData());
+        _connection.Setup(x => x.GetJobData("created")).Returns(new JobData { State = AwaitingState.StateName });
+        _connection.Setup(x => x.GetJobData("unreadable")).Throws(new InvalidOperationException("Storage is down"));
+
+        Assert.True(Maintain().Ran);
+
+        Assert.False(_hashes.ContainsKey("fan-in:never"));
+        Assert.True(_hashes.ContainsKey("fan-in:created"));
+        Assert.Equal(["being-created", "unreadable"], Set("fan-in:unconfirmed").Select(static x => x.Value).Order(StringComparer.Ordinal));
+        Assert.InRange(Set("fan-in:unconfirmed").Single(static x => x.Value == "unreadable").Score, After(TimeSpan.FromMinutes(14)), After(TimeSpan.FromMinutes(16)));
+    }
+
+    [Fact]
     public void Maintain_LeavesAStepAlone_ThatTheStepsBeforeItDecidedAMomentAgo()
     {
         WatchedChain("c", TimeSpan.FromSeconds(30), SucceededState.StateName, SucceededState.StateName);
