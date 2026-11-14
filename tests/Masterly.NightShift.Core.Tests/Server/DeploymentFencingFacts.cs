@@ -1117,7 +1117,7 @@ public sealed class DeploymentFencingFacts : IDisposable
     }
 
     [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
-    public void Check_ThatCanNotTakeTheLockOfTheDrainModeSwitch_FailsAsAStorageError_AndKeepsTheFencedServerFromFetching()
+    public void Check_ThatCanNotTakeTheLockOfTheDrainModeSwitch_SaysSo_AndKeepsTheFencedServerFromFetching()
     {
         DeploymentFencingProcess old = new("v1");
         Check(old, "old-server", 0);
@@ -1128,9 +1128,33 @@ public sealed class DeploymentFencingFacts : IDisposable
         Exception exception = Record.Exception(() => Check(old, "old-server", 10));
 
         // A timeout on the lock of the checks means that no deployment can take over: this one doesn't
-        InvalidOperationException failure = Assert.IsType<InvalidOperationException>(exception);
+        DeploymentFencingProcess.PauseLockTimeoutException failure = Assert.IsType<DeploymentFencingProcess.PauseLockTimeoutException>(exception);
         Assert.IsType<DistributedLockTimeoutException>(failure.InnerException);
         Assert.ThrowsAny<OperationCanceledException>(() => old.Gate.WaitToFetch(Context("old-server", Stopping)));
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache and changes the check interval")]
+    public void Execute_TriesThePauseAgainSoon_WhileTheDrainModeSwitchIsLocked_AndKeepsTheFencedServerFromFetching()
+    {
+        DeploymentFencing.CheckInterval = TimeSpan.FromMilliseconds(100);
+        DeploymentFencingProcess old = new("v1");
+        Assert.False(Check(old, "old-server", 0));
+        Assert.False(Check(new DeploymentFencingProcess("v2"), "new-server", 1));
+        _storage.Connection.Setup(x => x.AcquireDistributedLock(DrainMode.LockResource, It.IsAny<TimeSpan>()))
+            .Throws(new DistributedLockTimeoutException(DrainMode.LockResource));
+
+        // Nothing for the loop that runs the process to retry with a growing delay: Execute says so and returns
+        Stopwatch watch = Stopwatch.StartNew();
+        Assert.Null(Record.Exception(() => old.Execute(Context("old-server", CancellationToken.None))));
+        Assert.InRange(watch.Elapsed, TimeSpan.Zero, TimeSpan.FromSeconds(5));
+        Assert.ThrowsAny<OperationCanceledException>(() => old.Gate.WaitToFetch(Context("old-server", Stopping)));
+
+        // Once the switch is free, the next check pauses the server
+        _storage.Connection.Setup(x => x.AcquireDistributedLock(DrainMode.LockResource, It.IsAny<TimeSpan>()))
+            .Returns(new Mock<IDisposable>().Object);
+        Assert.True(Check(old, "old-server", 20));
+        DrainMode.InvalidateCache();
+        Assert.True(DrainMode.Read(_storage.Connection.Object).IsServerPaused("old-server"));
     }
 
     [Fact, GlobalLock(Reason = "Uses the drain mode cache and changes the check interval")]

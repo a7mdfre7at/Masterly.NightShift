@@ -302,6 +302,7 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
 
     // Whether the warning that the lock of the checks can't be taken was logged since a check last took it
     private bool _warnedOfLock;
+    private bool _warnedOfPauseLock;
 
     // What the warnings about the configuration were last logged for, so each is logged once
     private (long? Given, long? Stored)? _warnedOrders;
@@ -341,6 +342,11 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
             WaitForTheLock(context, ex);
             return;
         }
+        catch (PauseLockTimeoutException ex) when (!context.IsStopping)
+        {
+            WaitForThePauseLock(context, ex);
+            return;
+        }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
             WarnOnceThatTheServerTakesNoJobs(context);
@@ -372,6 +378,29 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
 
         context.Wait(retryIn);
     }
+
+    // The check went all the way under the lock of the checks, which confirmed the gate's last decision, and a
+    // fenced server closed its gate before it wrote anything; only the pause or resume the check decided waits for
+    // the drain-mode switch, whose writes are short. A server to be resumed stays paused until then, so the check
+    // is tried again soon, not after the growing delay of a process that failed
+    private void WaitForThePauseLock(BackgroundProcessContext context, PauseLockTimeoutException exception)
+    {
+        TimeSpan retryIn = DeploymentFencing.CheckInterval < LockRetryDelay ? DeploymentFencing.CheckInterval : LockRetryDelay;
+        if (!_warnedOfPauseLock)
+        {
+            _warnedOfPauseLock = true;
+            Logger.WarnException($"{exception.Message} It is tried again every {retryIn} until the lock is free.", exception);
+        }
+
+        context.Wait(retryIn);
+    }
+
+    /// <summary>
+    /// A check decided, but couldn't take the drain-mode switch's lock to pause or resume the server. Not the lock
+    /// of the checks: a timeout on that one means no deployment can take over, which this doesn't.
+    /// </summary>
+    internal sealed class PauseLockTimeoutException(string serverId, bool fenced, DistributedLockTimeoutException inner)
+        : InvalidOperationException($"The deployment check of server '{serverId}' couldn't take the lock '{inner.Resource}' to {(fenced ? "pause" : "resume")} the server.", inner);
 
     // The error itself is logged by the loop that runs this process and tries it again. This says what it means
     // while no check has succeeded yet for the id the server has now: the workers wait, so nothing runs on a
@@ -522,12 +551,11 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
         catch (DistributedLockTimeoutException ex)
         {
             // The drain-mode switch's lock, not the lock of the checks: Execute takes a timeout on that one to mean
-            // that no deployment can take over. This is a failure like any storage error
-            throw new InvalidOperationException(
-                $"The deployment check of server '{serverId}' couldn't take the lock '{ex.Resource}' to {(fenced ? "pause" : "resume")} the server.",
-                ex);
+            // that no deployment can take over, and tries this again soon
+            throw new PauseLockTimeoutException(serverId, fenced, ex);
         }
 
+        _warnedOfPauseLock = false;
         WarnWhenGapsKeepItFenced(fenced, gap, current, uptime);
 
         // A fenced server is paused by now. One that isn't may work, once this check went all the way, and for as
