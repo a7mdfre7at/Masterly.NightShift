@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Globalization;
 using Masterly.NightShift.Server;
 using Masterly.NightShift.Storage.Conformance;
@@ -5,6 +6,7 @@ using Masterly.NightShift.Storage.Shared;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Masterly.NightShift.EntityFrameworkCore.Tests;
 
@@ -150,6 +152,49 @@ public sealed class EfStorageFacts : IDisposable
         Assert.Equal(id, reader.GetFirstByLowestScoreFromSet("schedule", 150, 250));
         Assert.Equal(2, ((JobStorageConnection)reader).GetCounter("counter"));
         Assert.Equal(2, Assert.Single(storage.GetMonitoringApi().Servers()).WorkersCount);
+    }
+
+    [Fact]
+    public void Fetch_WhoseClaimSucceeded_ButWhoseReplyWasLost_ClaimsTheEntryWhenRetried()
+    {
+        LostReplies lostReplies = new(static x => x.CommandText.StartsWith("UPDATE", StringComparison.OrdinalIgnoreCase) && x.CommandText.Contains("FetchToken", StringComparison.Ordinal));
+        EntityFrameworkCoreStorage storage = CreateRetryingStorage(lostReplies);
+        string id = CreateJob(storage);
+        Commit(storage, x => x.AddToQueue("default", id));
+        lostReplies.Armed = true;
+
+        using IStorageConnection connection = storage.GetConnection();
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));
+        using IFetchedJob fetched = connection.FetchNextJob(["default"], timeout.Token);
+
+        Assert.Equal(id, fetched.JobId);
+        Assert.Equal(1, lostReplies.Lost);
+        fetched.RemoveFromQueue();
+        Assert.Equal(0, storage.GetMonitoringApi().FetchedCount("default"));
+    }
+
+    [Fact]
+    public void Transaction_WhoseCommitSucceeded_ButReportedAnError_IsNotAppliedTwice()
+    {
+        LostCommits lostCommits = new();
+        EntityFrameworkCoreStorage storage = CreateRetryingStorage(lostCommits);
+        string id = CreateJob(storage);
+        lostCommits.Armed = true;
+
+        Commit(storage, x =>
+        {
+            x.AddToQueue("default", id);
+            x.InsertToList("list", "item");
+            x.IncrementCounter("counter");
+            x.SetJobState(id, new EnqueuedState());
+        });
+
+        Assert.Equal(1, lostCommits.Lost);
+        using IStorageConnection reader = storage.GetConnection();
+        Assert.Equal(1, storage.GetMonitoringApi().EnqueuedCount("default"));
+        Assert.Equal(1, ((JobStorageConnection)reader).GetListCount("list"));
+        Assert.Equal(1, ((JobStorageConnection)reader).GetCounter("counter"));
+        Assert.Equal(1, storage.GetMonitoringApi().JobDetails(id)?.History.Count);
     }
 
     [Fact]
@@ -561,6 +606,63 @@ public sealed class EfStorageFacts : IDisposable
                 x.InsertToList(key, i.ToString(CultureInfo.InvariantCulture));
             }
         });
+    }
+
+    private static string CreateJob(EntityFrameworkCoreStorage storage)
+    {
+        using IStorageConnection connection = storage.GetConnection();
+        return connection.CreateExpiredJob(Job.FromExpression(() => ConformanceJobs.Record("x")), new Dictionary<string, string?>(), JobClock.UtcNow, TimeSpan.FromHours(1))!; // Never canceled: no filter runs here
+    }
+
+    // A storage whose contexts retry what fails with a TransientException, as EnableRetryOnFailure does
+    private EntityFrameworkCoreStorage CreateRetryingStorage(IInterceptor interceptor)
+    {
+        return new EntityFrameworkCoreStorage(
+            o => o.UseSqlite(_database.ConnectionString, static x => x.ExecutionStrategy(static d => new RetryingStrategy(d))).AddInterceptors(interceptor),
+            new EntityFrameworkCoreStorageOptions { Schema = null });
+    }
+
+    private sealed class TransientException() : Exception("The reply was lost.");
+
+    private sealed class RetryingStrategy(ExecutionStrategyDependencies dependencies) : ExecutionStrategy(dependencies, 3, TimeSpan.Zero)
+    {
+        protected override bool ShouldRetryOn(Exception exception) => exception is TransientException;
+    }
+
+    /// <summary>Once armed, the first command that matches runs, then reports a failure, as a lost reply does.</summary>
+    private sealed class LostReplies(Func<DbCommand, bool> matches) : DbCommandInterceptor
+    {
+        public bool Armed { get; set; }
+
+        public int Lost { get; private set; }
+
+        public override int NonQueryExecuted(DbCommand command, CommandExecutedEventData eventData, int result)
+        {
+            if (Armed && Lost == 0 && matches(command))
+            {
+                Lost++;
+                throw new TransientException();
+            }
+
+            return result;
+        }
+    }
+
+    /// <summary>Once armed, the first commit commits, then reports a failure, as a lost reply does.</summary>
+    private sealed class LostCommits : DbTransactionInterceptor
+    {
+        public bool Armed { get; set; }
+
+        public int Lost { get; private set; }
+
+        public override void TransactionCommitted(DbTransaction transaction, TransactionEndEventData eventData)
+        {
+            if (Armed && Lost == 0)
+            {
+                Lost++;
+                throw new TransientException();
+            }
+        }
     }
 
     /// <summary>An application's context, configured as the application likes: the storage must work with it.</summary>

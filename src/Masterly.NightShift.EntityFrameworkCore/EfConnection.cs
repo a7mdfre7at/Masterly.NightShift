@@ -478,9 +478,11 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage, Func<DbCo
                     break;
                 }
 
+                // A retrying execution strategy runs the claim again when its reply was lost: the entry it claimed
+                // then carries its token, and is claimed again rather than left to a token nobody holds
                 string token = Guid.NewGuid().ToString("N");
                 int claimed = context.Set<JobQueueRow>()
-                    .Where(x => x.Id == candidate.Id && (x.FetchedAt == null || x.FetchedAt < staleBefore))
+                    .Where(x => x.Id == candidate.Id && (x.FetchedAt == null || x.FetchedAt < staleBefore || x.FetchToken == token))
                     .ExecuteUpdate(s => s.SetProperty(x => x.FetchedAt, now).SetProperty(x => x.FetchToken, token));
 
                 if (claimed == 1)

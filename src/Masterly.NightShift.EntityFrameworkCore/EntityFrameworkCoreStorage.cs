@@ -127,6 +127,11 @@ public sealed class EntityFrameworkCoreStorageOptions
 /// </remarks>
 public sealed class EntityFrameworkCoreStorage : JobStorage
 {
+    /// <summary>The hash whose fields mark the transactions committed through a retrying execution strategy.</summary>
+    internal const string CommitMarkersKey = "ef-storage:commits";
+
+    private static readonly TimeSpan CommitMarkerLifetime = TimeSpan.FromHours(1);
+
     private readonly Dictionary<string, bool> _features = StorageRules.Features(typeof(EfFetchedJob));
     private readonly Func<DbContext> _contextFactory;
     private TaskCompletionSource _enqueued = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -359,19 +364,42 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
         Interlocked.Exchange(ref _enqueued, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult();
     }
 
-    /// <summary>Runs <paramref name="write"/> in a database transaction, through the provider's execution strategy.</summary>
+    /// <summary>
+    /// Runs <paramref name="write"/> in a database transaction, through the provider's execution strategy. With
+    /// a strategy that retries, the transaction also writes a marker of its own, a field of the hash
+    /// <see cref="CommitMarkersKey"/>: a commit that succeeded but reported a failure (its reply was lost) is
+    /// then recognized by its marker instead of being applied a second time. Markers expire after an hour.
+    /// </summary>
     internal void InTransaction(Action<DbContext> write)
     {
         using TransactionScope? suppressed = SuppressAmbientTransaction();
         using DbContext context = CreateContext();
-        context.Database.CreateExecutionStrategy().Execute(() =>
+        IExecutionStrategy strategy = context.Database.CreateExecutionStrategy();
+
+        if (!strategy.RetriesOnFailure)
         {
-            context.ChangeTracker.Clear();
-            using IDbContextTransaction transaction = context.Database.BeginTransaction();
-            write(context);
-            context.SaveChanges();
-            transaction.Commit();
-        });
+            strategy.Execute(() =>
+            {
+                context.ChangeTracker.Clear();
+                using IDbContextTransaction transaction = context.Database.BeginTransaction();
+                write(context);
+                context.SaveChanges();
+                transaction.Commit();
+            });
+            return;
+        }
+
+        string marker = Guid.NewGuid().ToString("N");
+        strategy.ExecuteInTransaction(
+            context,
+            db =>
+            {
+                db.ChangeTracker.Clear();
+                write(db);
+                db.Add(new HashRow { Key = CommitMarkersKey, Field = marker, ExpireAt = StorageValues.ExpireAt(JobClock.UtcNow, CommitMarkerLifetime) });
+                db.SaveChanges();
+            },
+            db => db.Set<HashRow>().Any(x => x.Key == CommitMarkersKey && x.Field == marker));
     }
 
     internal static void EnsureModel(DbContext context)
