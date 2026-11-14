@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Transactions;
 using Masterly.NightShift.Logging;
@@ -813,11 +814,19 @@ internal sealed class EfMonitoringApi(EntityFrameworkCoreStorage storage) : Shar
     }
 }
 
-/// <summary>Deletes expired rows, jobs with their states and parameters, in batches.</summary>
+/// <summary>
+/// Deletes expired rows, jobs with their states and parameters, in batches, every
+/// <see cref="EntityFrameworkCoreStorageOptions.JobExpirationCheckInterval"/>, and the expired commit markers
+/// (<see cref="EntityFrameworkCoreStorage.CommitMarkersKey"/>) every minute in between, so that a busy storage
+/// keeps only a few minutes of them.
+/// </summary>
 internal sealed class EfExpirationManager(EntityFrameworkCoreStorage storage) : IBackgroundProcess
 {
     private const int BatchSize = 1000;
+    private static readonly TimeSpan CommitMarkerCheckInterval = TimeSpan.FromMinutes(1);
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(EfExpirationManager));
+
+    private long? _lastFullRun;
 
     public void Execute(BackgroundProcessContext context)
     {
@@ -825,17 +834,41 @@ internal sealed class EfExpirationManager(EntityFrameworkCoreStorage storage) : 
 
         try
         {
-            RemoveExpired(context.StoppingToken);
+            RemoveDue(context.StoppingToken);
         }
         catch (Exception ex) when (ex is DbUpdateException or InvalidOperationException or DbException)
         {
             Logger.ErrorException("Couldn't delete the expired rows of the Entity Framework Core storage.", ex);
         }
 
-        context.Wait(storage.Options.JobExpirationCheckInterval);
+        TimeSpan interval = storage.Options.JobExpirationCheckInterval;
+        context.Wait(interval < CommitMarkerCheckInterval ? interval : CommitMarkerCheckInterval);
     }
 
     public override string ToString() => "Entity Framework Core expiration manager";
+
+    /// <summary>Deletes every expired row when a full run is due, and only the expired commit markers otherwise.</summary>
+    internal void RemoveDue(CancellationToken cancellationToken)
+    {
+        if (_lastFullRun is { } last && Stopwatch.GetElapsedTime(last) < storage.Options.JobExpirationCheckInterval)
+        {
+            RemoveExpiredCommitMarkers(cancellationToken);
+            return;
+        }
+
+        _lastFullRun = Stopwatch.GetTimestamp();
+        RemoveExpired(cancellationToken);
+    }
+
+    private void RemoveExpiredCommitMarkers(CancellationToken cancellationToken)
+    {
+        DateTime now = JobClock.UtcNow;
+        using TransactionScope? suppressed = EntityFrameworkCoreStorage.SuppressAmbientTransaction();
+        using DbContext db = storage.CreateContext();
+        RemoveInBatches(
+            db.Set<HashRow>().Where(x => x.Key == EntityFrameworkCoreStorage.CommitMarkersKey && x.ExpireAt < now).OrderBy(static x => x.ExpireAt),
+            cancellationToken);
+    }
 
     internal void RemoveExpired(CancellationToken cancellationToken)
     {

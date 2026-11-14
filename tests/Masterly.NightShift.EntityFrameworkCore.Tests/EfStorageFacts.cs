@@ -268,6 +268,43 @@ public sealed class EfStorageFacts : IDisposable
     }
 
     [Fact]
+    public void Transaction_ThroughARetryingStrategy_WritesAMarkerThatExpiresWithinMinutes()
+    {
+        EntityFrameworkCoreStorage storage = CreateRetryingStorage(new LostCommits());
+
+        Commit(storage, static x => x.InsertToList("list", "item"));
+
+        using DbContext context = storage.CreateContext();
+        HashRow marker = Assert.Single(context.Set<HashRow>().AsNoTracking().Where(static x => x.Key == EntityFrameworkCoreStorage.CommitMarkersKey));
+        Assert.InRange(marker.ExpireAt!.Value, JobClock.UtcNow.AddMinutes(4), JobClock.UtcNow.AddMinutes(6)); // Markers always expire
+    }
+
+    [Fact]
+    public void ExpirationManager_DeletesExpiredCommitMarkers_BetweenItsRuns()
+    {
+        EntityFrameworkCoreStorage storage = _database.CreateStorage(new EntityFrameworkCoreStorageOptions { JobExpirationCheckInterval = TimeSpan.FromHours(1) });
+        EfExpirationManager manager = new(storage);
+        manager.RemoveDue(CancellationToken.None);
+        Commit(storage, static x =>
+        {
+            x.AddToSet("old", "a");
+            ((JobStorageTransaction)x).ExpireSet("old", TimeSpan.FromSeconds(-1));
+        });
+        using (DbContext context = storage.CreateContext())
+        {
+            context.Add(new HashRow { Key = EntityFrameworkCoreStorage.CommitMarkersKey, Field = "expired", ExpireAt = JobClock.UtcNow.AddSeconds(-1) });
+            context.Add(new HashRow { Key = EntityFrameworkCoreStorage.CommitMarkersKey, Field = "live", ExpireAt = JobClock.UtcNow.AddMinutes(5) });
+            context.SaveChanges();
+        }
+
+        manager.RemoveDue(CancellationToken.None);
+
+        using DbContext reader = storage.CreateContext();
+        Assert.Equal(["live"], reader.Set<HashRow>().Where(static x => x.Key == EntityFrameworkCoreStorage.CommitMarkersKey).Select(static x => x.Field));
+        Assert.Single(reader.Set<SetRow>().Where(static x => x.Key == "old")); // The full run isn't due yet
+    }
+
+    [Fact]
     public void Transaction_AddingASetValueAgain_AfterRemovingTheSet_KeepsIt()
     {
         EntityFrameworkCoreStorage storage = _database.CreateStorage();
