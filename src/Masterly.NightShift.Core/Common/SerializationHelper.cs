@@ -307,6 +307,19 @@ public static class SerializationHelper
     }
 
     /// <summary>
+    /// Tells whether the user options read a job argument of <paramref name="value"/>'s type back as its default
+    /// value, whatever was written: the types <see cref="EnsureArgumentReadsBack"/> checks. Data read for such an
+    /// argument lost what it held unless it was written as that default value.
+    /// </summary>
+    internal static bool IsArgumentReadAsDefault([NotNull] object value, [NotNull] Type declaredType)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ArgumentNullException.ThrowIfNull(declaredType);
+
+        return GetUserSerializerOptions().IsReadAsDefault(value, declaredType);
+    }
+
+    /// <summary>
     /// Reads text an operator typed, in the dashboard's job forms, as a value of <paramref name="type"/>. It is
     /// read like user data, except that a value declared as <see cref="object"/> (the argument itself or a member
     /// of it) is read as plain JSON: a <c>"$type"</c> in it is refused instead of resolved, so the text can't make
@@ -676,6 +689,15 @@ public static class SerializationHelper
         // Value types these options write as members they can't read back, with how their default value is
         // written (null for the other types), see EnsureArgumentReadsBack
         private readonly ConcurrentDictionary<Type, string?> _readAsDefault = new();
+
+        public bool IsReadAsDefault(object value, Type declaredType)
+        {
+            Type valueType = value.GetType();
+
+            return valueType.IsValueType &&
+                (declaredType != typeof(object) || KeepsTypeNames) &&
+                _readAsDefault.GetOrAdd(valueType, WriteDefaultIfReadAsDefault) != null;
+        }
 
         public void EnsureReadsBack(object value, Type declaredType)
         {

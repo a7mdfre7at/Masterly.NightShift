@@ -4,6 +4,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Masterly.NightShift.Logging;
+using Masterly.NightShift.Server;
 
 namespace Masterly.NightShift;
 
@@ -283,8 +284,8 @@ public static class RecurringJobManifest
     /// Registers every entry of the manifest, pausing or resuming it when the entry has a <c>paused</c>
     /// field (an entry without one keeps the job's paused state), and, with <paramref name="prune"/>,
     /// removes the recurring jobs the manifest doesn't mention. Entries that fail (unknown type, a method the
-    /// application doesn't use as a job, bad CRON, unknown time zone, unknown misfire handling) are reported
-    /// and don't stop the others.
+    /// application doesn't use as a job, an argument that wouldn't be read back as written, bad CRON, unknown time
+    /// zone, unknown misfire handling) are reported and don't stop the others.
     /// </summary>
     /// <param name="manager">Registers, pauses, resumes and removes the jobs.</param>
     /// <param name="connection">A connection to the manager's storage, used to list the existing jobs.</param>
@@ -362,6 +363,13 @@ public static class RecurringJobManifest
                     errors.Add(new RecurringJobManifestError(id,
                         $"{job.Type.ToGenericTypeString()}.{job.Method.Name} is not a method this application uses as a job: no recurring job, Job Catalog entry or generated job invoker has it. " +
                         "To accept any method, apply the manifest with allowAnyMethod: true (DashboardOptions.AllowAnyMethodInManifestImport for the dashboard's Import)."));
+                    continue;
+                }
+
+                string? lostArgument = FindArgumentThatDoesNotReadBack(id, entry, job);
+                if (lostArgument != null)
+                {
+                    errors.Add(new RecurringJobManifestError(id, lostArgument));
                     continue;
                 }
 
@@ -549,6 +557,45 @@ public static class RecurringJobManifest
 
         string trimmed = queue.Trim();
         return EnqueuedState.DefaultQueue.Equals(trimmed, StringComparison.OrdinalIgnoreCase) ? null : trimmed;
+    }
+
+    // A job read through DeserializeJob counts as read back, so SerializeJob writes its arguments as they are. A
+    // struct the serializer reads as its default value would then be imported silently without the value the
+    // manifest gives it: the value read is written again and compared with the manifest's, as JSON, for the types
+    // SerializeJob refuses when user code passes them (InvocationData.SerializeArguments)
+    private static string? FindArgumentThatDoesNotReadBack(string recurringJobId, RecurringJobManifestEntry entry, Job job)
+    {
+        ParameterInfo[] parameters = job.Method.GetParameters();
+        string[]? written = null;
+
+        for (int i = 0; i < parameters.Length && i < job.Args.Count; i++)
+        {
+            Type parameterType = parameters[i].ParameterType;
+            object? value = job.Args[i];
+
+            if (value == null ||
+                CoreBackgroundJobPerformer.Substitutions.ContainsKey(parameterType) ||
+                !SerializationHelper.IsArgumentReadAsDefault(value, parameterType))
+            {
+                continue;
+            }
+
+            // Read only when a type needs it; ToJob read the same text without error
+            written ??= SerializationHelper.Deserialize<string[]>(ArgumentCompression.Decompress(entry.Job.Arguments)) ?? [];
+
+            string? writtenJson = i < written.Length ? written[i] : null;
+            string? readBack = SerializationHelper.Serialize(value, parameterType, SerializationOption.User);
+
+            if (writtenJson != null && readBack != null && !JsonRoundTrip.AreEquivalent(writtenJson, readBack))
+            {
+                return $"Recurring job '{recurringJobId}': argument {i + 1} of type '{value.GetType()}' can't be stored as a job argument. " +
+                    "The serializer settings write it as its read-only members, which can't be read back, so the job would run with its default value " +
+                    "instead of the value the manifest gives. Add a JsonConverter for the type, mark the constructor that sets its members with " +
+                    "[JsonConstructor], or pass the data in a type that can be read back.";
+            }
+        }
+
+        return null;
     }
 
     internal static Job ToJob(RecurringJobManifestEntry entry, string? queue)
