@@ -85,7 +85,7 @@ The scheduler polls every 15 seconds, so even with healthy servers a run is usua
 
 - `Relaxed` creates the run; its `Time` is the moment it was noticed, a few seconds after the occurrence.
 - `Strict` creates the run with `Time` set to the exact occurrence.
-- `Ignorable` creates the run as long as it is noticed within twice the `SchedulePollingInterval` (30 seconds by default) of the occurrence; later than that, it is dropped as missed. With `SchedulePollingInterval = TimeSpan.Zero` the scheduler wakes up once a minute, so the tolerance is two minutes.
+- `Ignorable` creates the run as long as it is noticed within twice the `SchedulePollingInterval` (30 seconds by default) of the occurrence; later than that, it is dropped as missed. With `SchedulePollingInterval = TimeSpan.Zero` the scheduler wakes up once a minute, so the tolerance is two minutes. Only the occurrences inside that tolerance are looked at, so a job that runs every second doesn't walk through a long outage, nor ask its schedule policy about the occurrences it drops anyway.
 
 ### Downtime
 

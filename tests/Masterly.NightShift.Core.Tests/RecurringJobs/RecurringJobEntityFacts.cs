@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Masterly.NightShift.Core.Tests;
@@ -127,6 +128,41 @@ public class RecurringJobEntityFacts
         List<DateTime> executions = [.. entity.ScheduleNext(_timeZoneResolver.Object, now.AddDays(-400), now, TimeSpan.Zero)];
 
         Assert.Equal([_nowInstant], executions);
+    }
+
+    [Fact]
+    public void ScheduleNext_WithIgnorable_LooksOnlyInsideThePrecision_AfterALongOutage()
+    {
+        // Every second for 400 days is 34 million occurrences: only the last half minute can run, and only it is walked
+        _recurringJob["Cron"] = "* * * * * *";
+        _recurringJob["Misfire"] = "2";
+        RecurringJobEntity entity = CreateEntity();
+        Stopwatch stopwatch = Stopwatch.StartNew();
+
+        List<DateTime> executions = [.. entity.ScheduleNext(_timeZoneResolver.Object, _nowInstant.AddDays(-400), _nowInstant, TimeSpan.FromSeconds(30))];
+
+        stopwatch.Stop();
+        Assert.Equal(31, executions.Count);
+        Assert.Equal(_nowInstant.AddSeconds(-30), executions[0]);
+        Assert.Equal(_nowInstant, executions[^1]);
+        Assert.Equal(_nowInstant.AddSeconds(1), entity.NextExecution);
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(2), $"Took {stopwatch.Elapsed}.");
+    }
+
+    [Theory]
+    [InlineData(-400 * 24 * 60)]
+    [InlineData(-10)]
+    [InlineData(-1)]
+    public void ScheduleNext_WithIgnorable_CreatesTheSameRuns_WhateverTheOutage(int minutes)
+    {
+        _recurringJob["Misfire"] = "2";
+        RecurringJobEntity entity = CreateEntity();
+        DateTime now = _nowInstant.AddSeconds(30);
+
+        List<DateTime> executions = [.. entity.ScheduleNext(_timeZoneResolver.Object, now.AddMinutes(minutes), now, TimeSpan.FromMinutes(2))];
+
+        Assert.Equal(minutes == -1 ? [_nowInstant] : [_nowInstant.AddMinutes(-1), _nowInstant], executions);
+        Assert.Equal(_nowInstant.AddMinutes(1), entity.NextExecution);
     }
 
     [Fact]
