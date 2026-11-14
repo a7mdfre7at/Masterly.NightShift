@@ -107,7 +107,8 @@ public class JobHandlerFacts
 
         try
         {
-            manager.AddOrUpdate("app:stale", Job.FromExpression(() => Nothing()), "0 * * * *", new RecurringJobOptions());
+            // Removed only because a set of the same name declared it before
+            new RecurringJobSet().Add("app:stale", () => Nothing(), "0 * * * *").Apply(manager, storage);
             manager.AddOrUpdate("manual", Job.FromExpression(() => Nothing()), "0 * * * *", new RecurringJobOptions());
 
             RecurringJobSetResult result = new RecurringJobSet()

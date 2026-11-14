@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using Masterly.NightShift.Server;
 
 namespace Masterly.NightShift.Core.Tests;
@@ -7,6 +8,7 @@ namespace Masterly.NightShift.Core.Tests;
 public sealed class RecurringJobSetFacts : IDisposable
 {
     private const string Cron = "0 * * * *";
+    private const string SetName = "app";
 
     private readonly Mock<IRecurringJobManager> _manager = new();
     private readonly Mock<JobStorage> _storage = new();
@@ -131,25 +133,32 @@ public sealed class RecurringJobSetFacts : IDisposable
     }
 
     [Fact]
-    public void Apply_RemovesUndeclaredJobs_WhenAskedTo()
+    public void Apply_RemovesUndeclaredJobs_ThatThisSetDeclared_AndOnlyThem()
     {
-        _stored["report"] = new RecurringJobDto();
-        _stored["old"] = new RecurringJobDto();
-        RecurringJobSet jobs = new RecurringJobSet().Add("report", () => Run(), Cron).RemoveUndeclared();
+        StoreHash("report", SetName);
+        StoreHash("old", SetName);
+        StoreHash("made-on-the-dashboard", declaredBy: null);
+        StoreHash("of-another-set", "worker");
+        StoreHash("of-an-earlier-build", "1");
+        RecurringJobSet jobs = new RecurringJobSet().Named(SetName).Add("report", () => Run(), Cron).RemoveUndeclared();
 
         RecurringJobSetResult result = jobs.Apply(_manager.Object, _storage.Object);
 
         _manager.Verify(x => x.RemoveIfExists("old"));
         _manager.Verify(x => x.RemoveIfExists("report"), Times.Never);
+        _manager.Verify(x => x.RemoveIfExists("made-on-the-dashboard"), Times.Never);
+        _manager.Verify(x => x.RemoveIfExists("of-another-set"), Times.Never);
+        _manager.Verify(x => x.RemoveIfExists("of-an-earlier-build"), Times.Never);
         Assert.Equal(["old"], result.Removed);
     }
 
     [Fact]
     public void Apply_LeavesJobsOutsideTheScope_WhenRemovingUndeclaredOnes()
     {
-        _stored["app:old"] = new RecurringJobDto();
-        _stored["manual"] = new RecurringJobDto();
+        StoreHash("app:old", SetName);
+        StoreHash("manual", SetName);
         RecurringJobSet jobs = new RecurringJobSet()
+            .Named(SetName)
             .Add("app:report", () => Run(), Cron)
             .RemoveUndeclared(static id => id.StartsWith("app:", StringComparison.Ordinal));
 
@@ -162,7 +171,7 @@ public sealed class RecurringJobSetFacts : IDisposable
     [Fact]
     public void Apply_RemovesNothing_WhenNoJobWasDeclared()
     {
-        _stored["old"] = new RecurringJobDto();
+        StoreHash("old", RecurringJobSet.DefaultName);
         RecurringJobSet jobs = new RecurringJobSet().RemoveUndeclared();
 
         RecurringJobSetResult result = jobs.Apply(_manager.Object, _storage.Object);
@@ -174,7 +183,7 @@ public sealed class RecurringJobSetFacts : IDisposable
     [Fact]
     public void Apply_RemovesNothing_WhenApplyingAJobFails()
     {
-        _stored["old"] = new RecurringJobDto();
+        StoreHash("old", RecurringJobSet.DefaultName);
         _manager.Setup(x => x.AddOrUpdate("report", It.IsAny<Job>(), Cron, It.IsAny<RecurringJobOptions>())).Throws<InvalidOperationException>();
         RecurringJobSet jobs = new RecurringJobSet().Add("report", () => Run(), Cron).RemoveUndeclared();
 
@@ -308,34 +317,49 @@ public sealed class RecurringJobSetFacts : IDisposable
     }
 
     [Fact]
-    public void Apply_MarksADeclaredJob_TheFirstTime()
+    public void Apply_MarksADeclaredJob_WithTheNameOfTheSet_TheFirstTime()
     {
-        RecurringJobSet jobs = new RecurringJobSet().Add("report", () => Run(), Cron);
+        RecurringJobSet jobs = new RecurringJobSet().Named(SetName).Add("report", () => Run(), Cron);
 
         jobs.Apply(_manager.Object, _storage.Object);
 
         _transaction.Verify(x => x.SetRangeInHash("recurring-job:report", It.Is<IEnumerable<KeyValuePair<string, string>>>(
-            fields => fields.Contains(new KeyValuePair<string, string>("Declared", "1")))));
+            fields => fields.Contains(new KeyValuePair<string, string>("Declared", SetName)))));
         _transaction.Verify(x => x.Commit());
     }
 
     [Fact]
-    public void Apply_WritesNothingMore_ForAJobAlreadyMarked()
+    public void Apply_WritesNothingMore_ForAJobAlreadyMarkedByThisSet()
     {
-        StoreHash("report", declared: true);
-        RecurringJobSet jobs = new RecurringJobSet().Add("report", () => Run(), Cron);
+        StoreHash("report", SetName);
+        RecurringJobSet jobs = new RecurringJobSet().Named(SetName).Add("report", () => Run(), Cron);
 
         jobs.Apply(_manager.Object, _storage.Object);
 
         _transaction.Verify(x => x.SetRangeInHash(It.IsAny<string>(), It.IsAny<IEnumerable<KeyValuePair<string, string>>>()), Times.Never);
     }
 
+    [Theory]
+    [InlineData("worker")]
+    [InlineData("1")]
+    public void Apply_MarksAJobDeclaredByAnotherSet_OrByAnEarlierBuild_WithTheNameOfThisSet(string declaredBy)
+    {
+        // The last declaration wins: the job moves to this set, which retires or removes it from now on
+        StoreHash("report", declaredBy);
+        RecurringJobSet jobs = new RecurringJobSet().Named("web").Add("report", () => Run(), Cron);
+
+        jobs.Apply(_manager.Object, _storage.Object);
+
+        _transaction.Verify(x => x.SetRangeInHash("recurring-job:report", It.Is<IEnumerable<KeyValuePair<string, string>>>(
+            static fields => fields.Contains(new KeyValuePair<string, string>("Declared", "web")))));
+    }
+
     [Fact]
     public void Apply_ResumesARetiredJob_ThatIsDeclaredAgain()
     {
         Mock<IRecurringJobManagerV3> manager = new();
-        StoreHash("report", declared: true, retired: true);
-        RecurringJobSet jobs = new RecurringJobSet().Add("report", () => Run(), Cron);
+        StoreHash("report", SetName, retired: true);
+        RecurringJobSet jobs = new RecurringJobSet().Named(SetName).Add("report", () => Run(), Cron);
 
         jobs.Apply(manager.Object, _storage.Object);
 
@@ -345,20 +369,24 @@ public sealed class RecurringJobSetFacts : IDisposable
     }
 
     [Fact]
-    public void Apply_RetiresUndeclaredJobs_ThatASetDeclared_AndOnlyThem()
+    public void Apply_RetiresUndeclaredJobs_ThatThisSetDeclared_AndOnlyThem()
     {
         Mock<IRecurringJobManagerV3> manager = new();
-        StoreHash("report", declared: true);
-        StoreHash("old", declared: true);
-        StoreHash("made-on-the-dashboard", declared: false);
-        StoreHash("already-retired", declared: true, retired: true);
-        RecurringJobSet jobs = new RecurringJobSet().Add("report", () => Run(), Cron).RetireUndeclared();
+        StoreHash("report", SetName);
+        StoreHash("old", SetName);
+        StoreHash("made-on-the-dashboard", declaredBy: null);
+        StoreHash("already-retired", SetName, retired: true);
+        StoreHash("of-another-set", "worker");
+        StoreHash("of-an-earlier-build", "1");
+        RecurringJobSet jobs = new RecurringJobSet().Named(SetName).Add("report", () => Run(), Cron).RetireUndeclared();
 
         RecurringJobSetResult result = jobs.Apply(manager.Object, _storage.Object);
 
         Assert.Equal(["old"], result.Retired);
         manager.Verify(x => x.Pause("old"));
         manager.Verify(x => x.Pause("made-on-the-dashboard"), Times.Never);
+        manager.Verify(x => x.Pause("of-another-set"), Times.Never);
+        manager.Verify(x => x.Pause("of-an-earlier-build"), Times.Never);
         manager.Verify(x => x.Pause("report"), Times.Never);
         manager.Verify(x => x.Pause("already-retired"), Times.Never);
         manager.Verify(x => x.RemoveIfExists(It.IsAny<string>()), Times.Never);
@@ -371,12 +399,12 @@ public sealed class RecurringJobSetFacts : IDisposable
     {
         // A failure between the two would leave the job paused but not retired, and declaring it again wouldn't
         // resume it
-        StoreHash("report", declared: true);
-        StoreHash("old", declared: true);
+        StoreHash("report", SetName);
+        StoreHash("old", SetName);
         List<Mock<IWriteOnlyTransaction>> transactions = CaptureTransactions();
         RecurringJobManager manager = new(_storage.Object);
 
-        RecurringJobSetResult result = new RecurringJobSet().Add("report", () => Run(), Cron).RetireUndeclared().Apply(manager, _storage.Object);
+        RecurringJobSetResult result = new RecurringJobSet().Named(SetName).Add("report", () => Run(), Cron).RetireUndeclared().Apply(manager, _storage.Object);
 
         Assert.Equal(["old"], result.Retired);
         Mock<IWriteOnlyTransaction> retired = Assert.Single(transactions, static x => WritesFields(x, "recurring-job:old"));
@@ -390,11 +418,11 @@ public sealed class RecurringJobSetFacts : IDisposable
     [Fact]
     public void Apply_ResumesARetiredJobDeclaredAgain_AndClearsTheMark_InOneTransaction()
     {
-        StoreHash("report", declared: true, retired: true, paused: true);
+        StoreHash("report", SetName, retired: true, paused: true);
         List<Mock<IWriteOnlyTransaction>> transactions = CaptureTransactions();
         RecurringJobManager manager = new(_storage.Object);
 
-        new RecurringJobSet().Add("report", () => Run(), Cron).Apply(manager, _storage.Object);
+        new RecurringJobSet().Named(SetName).Add("report", () => Run(), Cron).Apply(manager, _storage.Object);
 
         Mock<IWriteOnlyTransaction> resumed = Assert.Single(transactions, static x => x.Invocations.Any(static i =>
             i.Method.Name == nameof(IWriteOnlyTransaction.SetRangeInHash) &&
@@ -408,9 +436,10 @@ public sealed class RecurringJobSetFacts : IDisposable
     public void Apply_RetiresOnlyJobsInTheScope()
     {
         Mock<IRecurringJobManagerV3> manager = new();
-        StoreHash("app:old", declared: true);
-        StoreHash("other:old", declared: true);
+        StoreHash("app:old", SetName);
+        StoreHash("other:old", SetName);
         RecurringJobSet jobs = new RecurringJobSet()
+            .Named(SetName)
             .Add("app:report", () => Run(), Cron)
             .RetireUndeclared(static id => id.StartsWith("app:", StringComparison.Ordinal));
 
@@ -422,10 +451,65 @@ public sealed class RecurringJobSetFacts : IDisposable
     [Fact]
     public void Apply_RetiresNothing_WhenNoJobWasDeclared_OrTheManagerCannotPause()
     {
-        StoreHash("old", declared: true);
+        StoreHash("old", RecurringJobSet.DefaultName);
 
         Assert.Empty(new RecurringJobSet().RetireUndeclared().Apply(new Mock<IRecurringJobManagerV3>().Object, _storage.Object).Retired);
         Assert.Empty(new RecurringJobSet().Add("report", () => Run(), Cron).RetireUndeclared().Apply(_manager.Object, _storage.Object).Retired);
+    }
+
+    [Fact]
+    public void Name_IsTheEntryAssemblysName_ByDefault()
+    {
+        string expected = Assembly.GetEntryAssembly()?.GetName().Name ?? "default";
+
+        Assert.Equal(expected, RecurringJobSet.DefaultName);
+        Assert.Equal(expected, new RecurringJobSet().Name);
+    }
+
+    [Fact]
+    public void Named_SetsTheName_AndReturnsTheSet()
+    {
+        RecurringJobSet jobs = new();
+        string longest = new('n', 100);
+
+        Assert.Same(jobs, jobs.Named("web"));
+        Assert.Equal("web", jobs.Name);
+        Assert.Equal(longest, jobs.Named(longest).Name);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    [InlineData("1")]
+    public void Named_RefusesAMissingName_OrTheMarkOfEarlierBuilds(string name)
+    {
+        Assert.ThrowsAny<ArgumentException>(() => new RecurringJobSet().Named(name));
+    }
+
+    [Fact]
+    public void Named_RefusesANameLongerThan100Characters()
+    {
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => new RecurringJobSet().Named(new string('n', 101)));
+
+        Assert.Equal("name", exception.ParamName);
+    }
+
+    [Fact]
+    public void GetRecurringJobs_TellsWhichSetDeclaredAJob()
+    {
+        StoreHash("of-a-set", "web");
+        StoreHash("of-an-earlier-build", "1");
+        StoreHash("made-on-the-dashboard", declaredBy: null);
+
+        Dictionary<string, RecurringJobDto> jobs = _connection.Object.GetRecurringJobs().ToDictionary(static x => x.Id);
+
+        Assert.True(jobs["of-a-set"].Declared);
+        Assert.Equal("web", jobs["of-a-set"].DeclaredBy);
+        Assert.True(jobs["of-an-earlier-build"].Declared);
+        Assert.Null(jobs["of-an-earlier-build"].DeclaredBy);
+        Assert.False(jobs["made-on-the-dashboard"].Declared);
+        Assert.Null(jobs["made-on-the-dashboard"].DeclaredBy);
     }
 
     [Fact]
@@ -574,7 +658,7 @@ public sealed class RecurringJobSetFacts : IDisposable
         return transaction.Invocations.Any(i => i.Method.Name == nameof(IWriteOnlyTransaction.SetRangeInHash) && (string)i.Arguments[0] == key);
     }
 
-    private void StoreHash(string id, bool declared, bool retired = false, bool paused = false)
+    private void StoreHash(string id, string? declaredBy, bool retired = false, bool paused = false)
     {
         _stored[id] = new RecurringJobDto();
         Dictionary<string, string> hash = new()
@@ -583,9 +667,9 @@ public sealed class RecurringJobSetFacts : IDisposable
             ["Job"] = InvocationData.SerializeJob(Job.FromExpression(() => Run())).SerializePayload(),
         };
 
-        if (declared)
+        if (declaredBy != null)
         {
-            hash["Declared"] = "1";
+            hash["Declared"] = declaredBy;
         }
 
         if (retired)

@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Reflection;
 using Masterly.NightShift.Client;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Profiling;
@@ -33,8 +34,24 @@ public sealed class RecurringJobSet
 {
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(RecurringJobSet));
 
-    /// <summary>The recurring job hash field that marks a job registered by a set.</summary>
+    /// <summary>The recurring job hash field that holds the name of the set that registered the job.</summary>
     internal const string DeclaredField = "Declared";
+
+    /// <summary>
+    /// What earlier builds wrote into <see cref="DeclaredField"/>, without the set's name: a job marked so belongs
+    /// to no set, until a set declares it again.
+    /// </summary>
+    internal const string UnnamedMark = "1";
+
+    /// <summary>
+    /// The name a set has unless <see cref="Named"/> gives it another: the simple name of the entry assembly, or
+    /// <c>default</c> when there is none, so instances and new versions of an application are one set, and
+    /// different applications are different sets.
+    /// </summary>
+    public static string DefaultName { get; } = GetDefaultName();
+
+    // SQL Server keeps hash fields in 100 characters; the name is a value, kept as short
+    private const int MaxNameLength = 100;
 
     /// <summary>The recurring job hash field that marks a declared job paused because it is no longer declared.</summary>
     internal const string RetiredField = "Retired";
@@ -57,6 +74,42 @@ public sealed class RecurringJobSet
 
     /// <summary>The identifiers declared so far.</summary>
     public IReadOnlyCollection<string> DeclaredIds => _ids;
+
+    /// <summary>
+    /// The set's name, written into each job it declares: <see cref="RetireUndeclared"/> and
+    /// <see cref="RemoveUndeclared"/> act only on the jobs a set of this name declared. <see cref="DefaultName"/>
+    /// unless <see cref="Named"/> was called; with <c>AddNightShiftRecurringJobs</c>, the host's application name.
+    /// </summary>
+    public string Name { get; private set; } = DefaultName;
+
+    /// <summary>
+    /// Names the set, so applications that share a storage keep their jobs apart. Every instance and every version
+    /// of one application should use the same name: a job a set of that name declared before and this one doesn't
+    /// is what <see cref="RetireUndeclared"/> and <see cref="RemoveUndeclared"/> act on.
+    /// </summary>
+    /// <param name="name">The name, up to 100 characters.</param>
+    /// <returns>This set, to chain calls.</returns>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="name"/> is empty, white space, longer than 100 characters, or <c>1</c>, the mark earlier
+    /// builds wrote for any set.
+    /// </exception>
+    public RecurringJobSet Named([NotNull] string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        if (name.Length > MaxNameLength)
+        {
+            throw new ArgumentException($"The name of a recurring job set can be at most {MaxNameLength} characters long.", nameof(name));
+        }
+
+        if (name == UnnamedMark)
+        {
+            throw new ArgumentException($"'{UnnamedMark}' is the mark earlier builds wrote for a job any set declared, and can't name a set.", nameof(name));
+        }
+
+        Name = name;
+        return this;
+    }
 
     /// <summary>Declares a recurring job from a static method call.</summary>
     /// <param name="recurringJobId">The recurring job's identifier.</param>
@@ -220,10 +273,12 @@ public sealed class RecurringJobSet
     }
 
     /// <summary>
-    /// Also removes, after the declared jobs are applied, the stored recurring jobs that aren't declared. Off
-    /// unless this is called, because it deletes jobs created any other way, and because during a rolling
-    /// deployment the old and new versions each delete what only the other one declares. Pass
-    /// <paramref name="scope"/> to limit it.
+    /// Also removes, after the declared jobs are applied, the stored recurring jobs that a set of this
+    /// <see cref="Name"/> declared before but this one doesn't. Jobs another set declared, and jobs created any
+    /// other way (from code with <c>AddOrUpdate</c>, from the dashboard or a manifest), are never removed, and
+    /// neither are jobs an earlier build's set marked without recording its name, until a set declares them again.
+    /// Off unless this is called, because during a rolling deployment the old and new versions each delete what
+    /// only the other one declares. Pass <paramref name="scope"/> to limit it further.
     /// </summary>
     /// <param name="scope">
     /// Tells which recurring job identifiers may be removed, for example the ones with a given prefix. Every
@@ -243,16 +298,17 @@ public sealed class RecurringJobSet
     }
 
     /// <summary>
-    /// Also pauses, after the declared jobs are applied, the stored recurring jobs that a set declared before but
-    /// this one doesn't, and marks them as retired. A retired job keeps its definition and history, and declaring
-    /// it again resumes it. Jobs created any other way (from code with <c>AddOrUpdate</c>, from the dashboard or a
-    /// manifest) are never touched. Pass <paramref name="scope"/> to limit it further.
+    /// Also pauses, after the declared jobs are applied, the stored recurring jobs that a set of this
+    /// <see cref="Name"/> declared before but this one doesn't, and marks them as retired. A retired job keeps its
+    /// definition and history, and declaring it again resumes it. Jobs another set declared, and jobs created any
+    /// other way (from code with <c>AddOrUpdate</c>, from the dashboard or a manifest), are never touched, and
+    /// neither are jobs an earlier build's set marked without recording its name, until a set declares them again.
+    /// So applications that share a storage, each with a set of its own name, never retire each other's jobs.
+    /// Pass <paramref name="scope"/> to limit it further.
     /// </summary>
     /// <param name="scope">
     /// Tells which recurring job identifiers may be retired, for example the ones with a given prefix. Every
-    /// identifier when omitted. A stored job records only that a set declared it, not which one: when several
-    /// applications declare sets in one storage, give each a scope, or each start of one pauses the jobs of the
-    /// others. A set without a scope that retires jobs logs a warning.
+    /// identifier when omitted.
     /// </param>
     /// <returns>This set, to chain calls.</returns>
     /// <exception cref="InvalidOperationException"><see cref="RemoveUndeclared"/> was called.</exception>
@@ -433,9 +489,10 @@ public sealed class RecurringJobSet
         }
     }
 
-    // Marks the job as declared, and resumes it when it was retired. Writes only what changed, so applying an
-    // unchanged set at every start writes nothing.
-    private static void MarkDeclared(IRecurringJobManager manager, JobStorage storage, string recurringJobId)
+    // Marks the job as declared by this set, and resumes it when it was retired. Writes only what changed, so
+    // applying an unchanged set at every start writes nothing. A job another set declared moves to this one: the last
+    // declaration wins
+    private void MarkDeclared(IRecurringJobManager manager, JobStorage storage, string recurringJobId)
     {
         Dictionary<string, string>? hash;
         using (IStorageConnection connection = storage.GetConnection())
@@ -448,17 +505,22 @@ public sealed class RecurringJobSet
             return;
         }
 
-        bool declared = hash.TryGetValue(DeclaredField, out string? declaredValue) && declaredValue == "1";
+        string? declaredBy = hash.TryGetValue(DeclaredField, out string? declaredValue) ? declaredValue : null;
         bool retired = hash.TryGetValue(RetiredField, out string? retiredValue) && retiredValue == "1";
 
-        if (declared && !retired)
+        if (string.Equals(declaredBy, Name, StringComparison.Ordinal) && !retired)
         {
             return;
         }
 
+        if (!string.IsNullOrEmpty(declaredBy) && declaredBy != UnnamedMark && !string.Equals(declaredBy, Name, StringComparison.Ordinal))
+        {
+            Logger.Debug($"Recurring job '{recurringJobId}' was declared by the set '{declaredBy}' and is now declared by the set '{Name}'.");
+        }
+
         Dictionary<string, string> fields = new()
         {
-            [DeclaredField] = "1",
+            [DeclaredField] = Name,
             [RetiredField] = string.Empty,
         };
 
@@ -502,11 +564,7 @@ public sealed class RecurringJobSet
         List<string> retired;
         using (IStorageConnection connection = storage.GetConnection())
         {
-            retired = [.. connection.GetRecurringJobs()
-                .Where(static job => !job.Removed && job.Declared && !job.Retired)
-                .Select(static job => job.Id)
-                .Where(id => !_ids.Contains(id) && (_removalScope == null || _removalScope(id)))
-                .OrderBy(static id => id, StringComparer.Ordinal)];
+            retired = [.. FindUndeclared(connection, static job => !job.Retired)];
         }
 
         foreach (string id in retired)
@@ -525,17 +583,21 @@ public sealed class RecurringJobSet
                 SetFields(storage, id, fields);
             }
 
-            Logger.Info($"Recurring job '{id}' is no longer declared and was paused.");
-        }
-
-        // Nothing tells whose set declared a job: without a scope, the jobs of another application's set in the
-        // same storage look like jobs this one stopped declaring
-        if (retired.Count > 0 && _removalScope == null)
-        {
-            Logger.Warn($"RetireUndeclared paused {retired.Count} recurring job(s) that a set declared before and this one doesn't: {string.Join(", ", retired)}. When several applications declare sets in one storage, give each set a scope, or each start of one pauses the jobs of the others.");
+            Logger.Info($"Recurring job '{id}' is no longer declared by the set '{Name}' and was paused.");
         }
 
         return retired;
+    }
+
+    // The stored jobs a set of this name declared and this one doesn't, in the scope. A job of another set, or
+    // marked by an earlier build that didn't record the set's name, is never one of them
+    private IEnumerable<string> FindUndeclared(IStorageConnection connection, Func<RecurringJobDto, bool> predicate)
+    {
+        return connection.GetRecurringJobs()
+            .Where(job => !job.Removed && string.Equals(job.DeclaredBy, Name, StringComparison.Ordinal) && predicate(job))
+            .Select(static job => job.Id)
+            .Where(id => !_ids.Contains(id) && (_removalScope == null || _removalScope(id)))
+            .OrderBy(static id => id, StringComparer.Ordinal);
     }
 
     private static void SetFields(JobStorage storage, string recurringJobId, Dictionary<string, string> fields)
@@ -721,16 +783,26 @@ public sealed class RecurringJobSet
             return [];
         }
 
-        using IStorageConnection connection = storage.GetConnection();
+        List<string> removed;
+        using (IStorageConnection connection = storage.GetConnection())
+        {
+            removed = [.. FindUndeclared(connection, static _ => true)];
+        }
 
-        List<string> removed = [.. connection.GetRecurringJobs()
-            .Where(static job => !job.Removed)
-            .Select(static job => job.Id)
-            .Where(id => !_ids.Contains(id) && (_removalScope == null || _removalScope(id)))
-            .OrderBy(static id => id, StringComparer.Ordinal)];
+        foreach (string id in removed)
+        {
+            manager.RemoveIfExists(id);
+            Logger.Info($"Recurring job '{id}' is no longer declared by the set '{Name}' and was removed.");
+        }
 
-        removed.ForEach(manager.RemoveIfExists);
         return removed;
+    }
+
+    private static string GetDefaultName()
+    {
+        string? name = Assembly.GetEntryAssembly()?.GetName().Name;
+
+        return string.IsNullOrWhiteSpace(name) || name.Length > MaxNameLength || name == UnnamedMark ? "default" : name;
     }
 
     private sealed record Declaration(string Id, Job Job, string CronExpression, RecurringJobOptions Options);

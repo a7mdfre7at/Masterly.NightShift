@@ -73,7 +73,15 @@ public class RecurringJobDto
     public bool Declared { get; set; }
 
     /// <summary>
-    /// Gets or sets whether the job was paused because a <see cref="RecurringJobSet"/> no longer declares it
+    /// Gets or sets the name of the <see cref="RecurringJobSet"/> that declared the job last
+    /// (<see cref="RecurringJobSet.Name"/>), or <c>null</c> when no set did, or when an earlier build's set did
+    /// without recording its name (<see cref="Declared"/> is then <c>true</c>).
+    /// </summary>
+    [CanBeNull]
+    public string? DeclaredBy { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the job was paused because the <see cref="RecurringJobSet"/> that declared it no longer does
     /// (<see cref="RecurringJobSet.RetireUndeclared"/>). Declaring it again resumes it.
     /// </summary>
     public bool Retired { get; set; }

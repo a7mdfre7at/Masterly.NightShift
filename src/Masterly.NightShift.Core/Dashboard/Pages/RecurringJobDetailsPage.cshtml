@@ -59,6 +59,10 @@
                         @if (job.Declared)
                         {
                             <span class="label label-info text-uppercase" title="@Strings.RecurringJobDetailsPage_Declared_Tooltip">@Strings.RecurringJobDetailsPage_Declared</span>
+                            if (job.DeclaredBy != null)
+                            {
+                                <code title="@Strings.RecurringJobDetailsPage_Declared_Tooltip">@job.DeclaredBy</code>
+                            }
                         }
                         @if (job.Retired)
                         {
