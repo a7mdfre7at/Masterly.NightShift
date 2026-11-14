@@ -69,6 +69,11 @@ public sealed class DrainModeStatus
 /// jobs that are already running finish normally. Turn it on before a deploy or a database maintenance window,
 /// from the dashboard's Servers page or with <see cref="Enable"/>.
 /// </summary>
+/// <remarks>
+/// Every write takes the distributed lock <c>lock:hangfire:control</c>, waits for it for at most 15 seconds, and
+/// throws a <see cref="DistributedLockTimeoutException"/> when it can't get it: a resume removes its field by
+/// writing the hash again, which must lose nothing another write made meanwhile.
+/// </remarks>
 public static class DrainMode
 {
     /// <summary>The storage hash holding the switch.</summary>
@@ -84,9 +89,9 @@ public static class DrainMode
     /// </summary>
     public const string ServerFieldPrefix = "Server:";
 
-    // What a resumed queue or server field holds, since hash fields can't be removed one by one. Printable, because
-    // some storages refuse a NUL character in text (PostgreSQL does); a reason equal to it is stored with a space
-    // added, so a pause never reads as resumed
+    // What a resumed queue or server field held in earlier builds, before a resume removed the field. Still read as
+    // resumed, and dropped by the next rewrite of the hash; a reason equal to it is stored with a space added, so a
+    // pause never reads as resumed
     private const string ResumedMarker = "[resumed]";
 
     // Written by earlier builds, still read as resumed
@@ -97,6 +102,15 @@ public static class DrainMode
     private const char HashedServerMarker = '#';
     private const char HashedServerIdSeparator = '\n';
     private const int HashedServerFieldLength = 7 + 1 + 64; // "Server:" + "#" + SHA-256 in hex
+
+    /// <summary>
+    /// The distributed lock every write of the hash takes. A storage can't remove one field of a hash, so a resume
+    /// writes the hash again without it; under this lock, no write made meanwhile is lost.
+    /// </summary>
+    internal const string LockResource = "lock:" + HashKey;
+
+    /// <summary>How long a write waits for <see cref="LockResource"/>.</summary>
+    internal static readonly TimeSpan LockTimeout = TimeSpan.FromSeconds(15);
 
     // One cache per storage, so two storages in one process never share an answer
     private static readonly ConditionalWeakTable<JobStorage, CacheSlot> StorageCaches = [];
@@ -124,7 +138,11 @@ public static class DrainMode
     {
         ArgumentNullException.ThrowIfNull(connection);
 
-        Dictionary<string, string>? hash = connection.GetAllEntriesFromHash(HashKey);
+        return Parse(connection.GetAllEntriesFromHash(HashKey));
+    }
+
+    private static DrainModeStatus Parse(Dictionary<string, string>? hash)
+    {
         if (hash == null)
         {
             return DrainModeStatus.Inactive;
@@ -134,7 +152,7 @@ public static class DrainMode
         Dictionary<string, string?> pausedServers = new(StringComparer.OrdinalIgnoreCase);
         foreach (KeyValuePair<string, string> pair in hash)
         {
-            if (pair.Value is ResumedMarker or LegacyResumedMarker)
+            if (IsResumed(pair.Value))
             {
                 continue;
             }
@@ -195,18 +213,12 @@ public static class DrainMode
         // A hashed field doesn't hold the ID, so the value starts with it
         string value = IsHashedServerField(field) ? id + HashedServerIdSeparator + reason : ToStoredReason(reason);
 
-        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
-        {
-            transaction.SetRangeInHash(HashKey, [new KeyValuePair<string, string>(field, value)]);
-            transaction.Commit();
-        }
-
-        InvalidateCache();
+        Write(connection, [new KeyValuePair<string, string>(field, value)]);
     }
 
     /// <summary>
     /// Lets a paused server work again. Also clears the pause left for a server that has stopped: pass the old,
-    /// full server ID.
+    /// full server ID. The pause's field is removed from the hash.
     /// </summary>
     public static void ResumeServer([NotNull] IStorageConnection connection, [NotNull] string serverId)
     {
@@ -216,13 +228,8 @@ public static class DrainMode
             throw new ArgumentException("A server id is required.", nameof(serverId));
         }
 
-        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
-        {
-            transaction.SetRangeInHash(HashKey, [new KeyValuePair<string, string>(GetServerField(serverId.Trim()), ResumedMarker)]);
-            transaction.Commit();
-        }
-
-        InvalidateCache();
+        string field = GetServerField(serverId.Trim());
+        RemoveFields(connection, hash => FieldsNamed(hash, field));
     }
 
     /// <summary>
@@ -238,44 +245,43 @@ public static class DrainMode
         ArgumentNullException.ThrowIfNull(storage);
 
         using IStorageConnection connection = storage.GetConnection();
-        // The pauses are read before the servers: a server paused after this read is never cleared by mistake
-        IReadOnlyDictionary<string, string?> pausedServers = Read(connection).PausedServers;
-        if (pausedServers.Count == 0)
-        {
-            return [];
-        }
-
-        HashSet<string> runningServers = new(StringComparer.OrdinalIgnoreCase);
-        foreach (ServerDto server in storage.GetMonitoringApi().Servers())
-        {
-            runningServers.Add(server.Name);
-        }
-
         List<string> stale = [];
-        List<KeyValuePair<string, string>> fields = [];
-        foreach (string serverId in pausedServers.Keys)
+
+        // The pauses are read before the servers, and under the lock: a server paused meanwhile waits for the
+        // rewrite, and is never cleared by mistake
+        RemoveFields(connection, hash =>
         {
-            if (runningServers.Contains(serverId))
+            List<(string Field, string ServerId)> pauses = [.. ServerPauses(hash)];
+            if (pauses.Count == 0)
             {
-                continue;
+                return [];
             }
 
-            stale.Add(serverId);
-            fields.Add(new KeyValuePair<string, string>(GetServerField(serverId), ResumedMarker));
-        }
+            HashSet<string> runningServers = new(StringComparer.OrdinalIgnoreCase);
+            foreach (ServerDto server in storage.GetMonitoringApi().Servers())
+            {
+                runningServers.Add(server.Name);
+            }
 
-        if (stale.Count == 0)
-        {
-            return stale;
-        }
+            HashSet<string> staleIds = new(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> fields = new(StringComparer.Ordinal);
+            foreach ((string field, string serverId) in pauses)
+            {
+                if (runningServers.Contains(serverId))
+                {
+                    continue;
+                }
 
-        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
-        {
-            transaction.SetRangeInHash(HashKey, fields);
-            transaction.Commit();
-        }
+                fields.Add(field);
+                if (staleIds.Add(serverId))
+                {
+                    stale.Add(serverId);
+                }
+            }
 
-        InvalidateCache();
+            return fields;
+        });
+
         return stale;
     }
 
@@ -351,16 +357,7 @@ public static class DrainMode
             throw new ArgumentException("A queue name is required.", nameof(queue));
         }
 
-        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
-        {
-            transaction.SetRangeInHash(HashKey,
-            [
-                new KeyValuePair<string, string>(QueueFieldPrefix + queue.Trim().ToLowerInvariant(), ToStoredReason(reason)),
-            ]);
-            transaction.Commit();
-        }
-
-        InvalidateCache();
+        Write(connection, [new KeyValuePair<string, string>(QueueFieldPrefix + queue.Trim().ToLowerInvariant(), ToStoredReason(reason))]);
     }
 
     /// <summary>Lets the jobs of a paused queue go again. Held jobs run as soon as their hold interval ends.</summary>
@@ -373,15 +370,7 @@ public static class DrainMode
         }
 
         string field = QueueFieldPrefix + queue.Trim().ToLowerInvariant();
-
-        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
-        {
-            // Hash fields can't be removed one by one, so a resumed queue keeps a marker that reads as "not paused"
-            transaction.SetRangeInHash(HashKey, [new KeyValuePair<string, string>(field, ResumedMarker)]);
-            transaction.Commit();
-        }
-
-        InvalidateCache();
+        RemoveFields(connection, hash => FieldsNamed(hash, field));
     }
 
     /// <summary>
@@ -406,18 +395,12 @@ public static class DrainMode
     {
         ArgumentNullException.ThrowIfNull(connection);
 
-        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
-        {
-            transaction.SetRangeInHash(HashKey,
-            [
-                new KeyValuePair<string, string>("Drain", "1"),
-                new KeyValuePair<string, string>("DrainSince", JobHelper.SerializeDateTime(Clock())),
-                new KeyValuePair<string, string>("DrainReason", reason ?? string.Empty),
-            ]);
-            transaction.Commit();
-        }
-
-        InvalidateCache();
+        Write(connection,
+        [
+            new KeyValuePair<string, string>("Drain", "1"),
+            new KeyValuePair<string, string>("DrainSince", JobHelper.SerializeDateTime(Clock())),
+            new KeyValuePair<string, string>("DrainReason", reason ?? string.Empty),
+        ]);
     }
 
     /// <summary>Turns the switch off. Held jobs run as soon as their hold interval ends.</summary>
@@ -425,17 +408,11 @@ public static class DrainMode
     {
         ArgumentNullException.ThrowIfNull(connection);
 
-        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
-        {
-            transaction.SetRangeInHash(HashKey,
-            [
-                new KeyValuePair<string, string>("Drain", "0"),
-                new KeyValuePair<string, string>("DrainReason", string.Empty),
-            ]);
-            transaction.Commit();
-        }
-
-        InvalidateCache();
+        Write(connection,
+        [
+            new KeyValuePair<string, string>("Drain", "0"),
+            new KeyValuePair<string, string>("DrainReason", string.Empty),
+        ]);
     }
 
     /// <summary>Forgets the cached answers of every storage, so the next check reads the storage.</summary>
@@ -469,6 +446,75 @@ public static class DrainMode
         }
 
         return builder.ToString();
+    }
+
+    private static void Write(IStorageConnection connection, KeyValuePair<string, string>[] fields)
+    {
+        using (connection.AcquireDistributedLock(LockResource, LockTimeout))
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            transaction.SetRangeInHash(HashKey, fields);
+            transaction.Commit();
+        }
+
+        InvalidateCache();
+    }
+
+    // Writes the hash again without the fields chosen from it, and without the resumed markers of earlier builds:
+    // a storage can't remove one field of a hash. The hash is read, and written, under the lock every write takes,
+    // so nothing written meanwhile is lost; one transaction removes the hash and writes it again, so a reader sees
+    // it before or after, never in between
+    private static void RemoveFields(IStorageConnection connection, Func<Dictionary<string, string>, ICollection<string>> choose)
+    {
+        using (connection.AcquireDistributedLock(LockResource, LockTimeout))
+        {
+            Dictionary<string, string>? hash = connection.GetAllEntriesFromHash(HashKey);
+            if (hash == null || hash.Count == 0)
+            {
+                return;
+            }
+
+            ICollection<string> removed = choose(hash);
+            List<KeyValuePair<string, string>> kept = [.. hash.Where(pair => !removed.Contains(pair.Key) && !IsResumed(pair.Value))];
+            if (kept.Count == hash.Count)
+            {
+                return;
+            }
+
+            using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+            transaction.RemoveHash(HashKey);
+            if (kept.Count > 0)
+            {
+                transaction.SetRangeInHash(HashKey, kept);
+            }
+
+            transaction.Commit();
+        }
+
+        InvalidateCache();
+    }
+
+    // The fields of the hash with that name, whatever the case: a server's ID may be given in another case
+    private static HashSet<string> FieldsNamed(Dictionary<string, string> hash, string field)
+    {
+        return [.. hash.Keys.Where(key => string.Equals(key, field, StringComparison.OrdinalIgnoreCase))];
+    }
+
+    // The fields of the servers' pauses, with the server each one pauses
+    private static IEnumerable<(string Field, string ServerId)> ServerPauses(Dictionary<string, string> hash)
+    {
+        foreach (KeyValuePair<string, string> pair in hash)
+        {
+            if (!IsResumed(pair.Value) && pair.Key.StartsWith(ServerFieldPrefix, StringComparison.Ordinal) && pair.Key.Length > ServerFieldPrefix.Length)
+            {
+                yield return (pair.Key, ReadServerPause(pair.Key, pair.Value, out _));
+            }
+        }
+    }
+
+    private static bool IsResumed(string? value)
+    {
+        return value is ResumedMarker or LegacyResumedMarker;
     }
 
     private static string ToStoredReason(string? reason)

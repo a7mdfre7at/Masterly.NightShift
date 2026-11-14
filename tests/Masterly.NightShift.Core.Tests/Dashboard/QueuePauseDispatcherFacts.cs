@@ -27,6 +27,7 @@ public class QueuePauseDispatcherFacts : IDisposable
                     _hash[pair.Key] = pair.Value;
                 }
             });
+        _transaction.Setup(x => x.RemoveHash(DrainMode.HashKey)).Callback(_hash.Clear);
         DrainMode.InvalidateCache();
     }
 

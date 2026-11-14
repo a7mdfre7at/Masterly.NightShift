@@ -15,6 +15,7 @@ public class DrainModeServerFacts : IDisposable
         _connection.Setup(x => x.GetAllEntriesFromHash(DrainMode.HashKey)).Returns(() => _hash);
         _transaction.Setup(x => x.SetRangeInHash(DrainMode.HashKey, It.IsAny<IEnumerable<KeyValuePair<string, string>>>()))
             .Callback<string, IEnumerable<KeyValuePair<string, string>>>((_, pairs) => { foreach (KeyValuePair<string, string> pair in pairs) { _hash[pair.Key] = pair.Value; } });
+        _transaction.Setup(x => x.RemoveHash(DrainMode.HashKey)).Callback(_hash.Clear);
         DrainMode.InvalidateCache();
     }
 
@@ -104,6 +105,64 @@ public class DrainModeServerFacts : IDisposable
         Assert.Same(DrainModeStatus.Inactive, DrainMode.Read(_connection.Object));
     }
 
+    [Fact, StaticLock]
+    public void ResumeServer_RemovesTheField_SoTheHashDoesNotGrowWithEveryServerEverPaused()
+    {
+        for (int i = 0; i < 20; i++)
+        {
+            string serverId = $"web-1:4242:{Guid.NewGuid()}";
+            DrainMode.PauseServer(_connection.Object, serverId, "Fenced: deployment 'a' was replaced by 'b'");
+            DrainMode.ResumeServer(_connection.Object, serverId);
+        }
+
+        Assert.Empty(_hash);
+        Assert.Same(DrainModeStatus.Inactive, DrainMode.Read(_connection.Object));
+    }
+
+    [Fact, StaticLock]
+    public void ResumeServer_KeepsTheSwitch_AndEveryOtherPause_AndDropsTheResumedMarkers()
+    {
+        DrainMode.Enable(_connection.Object, "deploying");
+        DrainMode.PauseQueue(_connection.Object, "emails", "SMTP outage");
+        DrainMode.PauseServer(_connection.Object, LongServerId, "draining the node");
+        DrainMode.PauseServer(_connection.Object, OtherServerId, "patching");
+        DrainMode.PauseServer(_connection.Object, PausedServerId);
+        _hash[DrainMode.ServerFieldPrefix + "web-9:1:old"] = "[resumed]";
+        _hash[DrainMode.QueueFieldPrefix + "reports"] = "\u0000resumed";
+        DrainModeStatus before = DrainMode.Read(_connection.Object);
+
+        DrainMode.ResumeServer(_connection.Object, PausedServerId.ToUpperInvariant());
+
+        DrainModeStatus status = DrainMode.Read(_connection.Object);
+        Assert.True(status.Active);
+        Assert.Equal(before.Since, status.Since);
+        Assert.Equal("deploying", status.Reason);
+        Assert.Equal("SMTP outage", status.PausedQueues["emails"]);
+        Assert.Equal(2, status.PausedServers.Count);
+        Assert.Equal("draining the node", status.PausedServers[LongServerId]);
+        Assert.Equal("patching", status.PausedServers[OtherServerId]);
+        Assert.DoesNotContain(_hash.Values, static x => x is "[resumed]" or "\u0000resumed");
+        Assert.Equal(6, _hash.Count);
+    }
+
+    [Fact, StaticLock]
+    public void EveryWrite_TakesTheLockOfTheHash_SoARewriteLosesNoWrite()
+    {
+        Mock<JobStorage> storage = CreateStorage();
+
+        DrainMode.Enable(_connection.Object);
+        DrainMode.Disable(_connection.Object);
+        DrainMode.PauseQueue(_connection.Object, "emails");
+        DrainMode.ResumeQueue(_connection.Object, "emails");
+        DrainMode.PauseServer(_connection.Object, PausedServerId);
+        DrainMode.ResumeServer(_connection.Object, PausedServerId);
+        DrainMode.PauseServer(_connection.Object, OtherServerId);
+        DrainMode.ClearStaleServerPauses(storage.Object);
+
+        _connection.Verify(x => x.AcquireDistributedLock("lock:" + DrainMode.HashKey, It.IsAny<TimeSpan>()), Times.Exactly(8));
+        Assert.Empty(DrainMode.Read(_connection.Object).PausedServers);
+    }
+
     [Fact]
     public void ClearStaleServerPauses_ThrowsAnException_WhenStorageIsNull()
     {
@@ -188,7 +247,7 @@ public class DrainModeServerFacts : IDisposable
         DrainMode.ResumeServer(_connection.Object, LongServerId.ToUpperInvariant());
 
         Assert.Same(DrainModeStatus.Inactive, DrainMode.Read(_connection.Object));
-        Assert.Single(_hash);
+        Assert.Empty(_hash);
     }
 
     [Fact, StaticLock]
@@ -202,7 +261,7 @@ public class DrainModeServerFacts : IDisposable
 
         Assert.Equal([LongServerId], cleared);
         Assert.Equal([PausedServerId], DrainMode.Read(_connection.Object).PausedServers.Keys);
-        Assert.Equal(2, _hash.Count);
+        Assert.Single(_hash);
     }
 
     // Server ids are "{name}:{process id}:{guid}", see BackgroundServerProcess

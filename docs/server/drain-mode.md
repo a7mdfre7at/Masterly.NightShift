@@ -56,6 +56,10 @@ The holds are kept in the `ServerHold` job parameter (`DrainModeFilter.ServerHol
 
 The global switch and paused queues work as before: workers fetch, and hold what they fetch.
 
+### Writes and the lock
+
+A resume removes the field of the queue or the server from the hash. A storage can't remove one field of a hash, so the hash is written again without it, in one transaction, which also drops the `[resumed]` values that earlier builds wrote instead. So the hash holds only what is paused now, however many servers deployment fencing pauses over time. Every write of the hash (`Enable`, `Disable`, the pauses, the resumes, `ClearStaleServerPauses`) takes the distributed lock `lock:hangfire:control`, so no write made meanwhile is lost to such a rewrite. A write waits for that lock for at most 15 seconds, and throws a `DistributedLockTimeoutException` when it can't get it. Write the hash through these methods only: a write of your own, made without the lock, can be lost.
+
 ### Caching
 
 Each process caches the switch for `DrainMode.CacheDuration` (2 seconds), one cache per storage, so checking it costs one small read every couple of seconds per process and storage, not one per job. A change made in one process is seen by the others within that time.

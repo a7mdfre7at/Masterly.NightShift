@@ -27,6 +27,7 @@ public class ServerPauseDispatcherFacts : IDisposable
                     _hash[pair.Key] = pair.Value;
                 }
             });
+        _transaction.Setup(x => x.RemoveHash(DrainMode.HashKey)).Callback(_hash.Clear);
         DrainMode.InvalidateCache();
     }
 
@@ -116,7 +117,7 @@ public class ServerPauseDispatcherFacts : IDisposable
 
         Assert.Equal(204, context.Response.StatusCode);
         Assert.False(DrainMode.Read(_connection.Object).IsServerPaused("web-1"));
-        Assert.NotEqual("ignored", _hash[DrainMode.ServerFieldPrefix + "web-1"]);
+        Assert.False(_hash.ContainsKey(DrainMode.ServerFieldPrefix + "web-1"));
     }
 
     [Fact, StaticLock]

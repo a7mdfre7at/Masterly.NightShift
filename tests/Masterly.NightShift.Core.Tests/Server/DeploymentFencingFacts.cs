@@ -1116,6 +1116,23 @@ public sealed class DeploymentFencingFacts : IDisposable
         Assert.True(current.Gate.WaitToFetch(Context("server-1", Stopping)));
     }
 
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
+    public void Check_ThatCanNotTakeTheLockOfTheDrainModeSwitch_FailsAsAStorageError_AndKeepsTheFencedServerFromFetching()
+    {
+        DeploymentFencingProcess old = new("v1");
+        Check(old, "old-server", 0);
+        Check(new DeploymentFencingProcess("v2"), "new-server", 5);
+        _storage.Connection.Setup(x => x.AcquireDistributedLock(DrainMode.LockResource, It.IsAny<TimeSpan>()))
+            .Throws(new DistributedLockTimeoutException(DrainMode.LockResource));
+
+        Exception exception = Record.Exception(() => Check(old, "old-server", 10));
+
+        // A timeout on the lock of the checks means that no deployment can take over: this one doesn't
+        InvalidOperationException failure = Assert.IsType<InvalidOperationException>(exception);
+        Assert.IsType<DistributedLockTimeoutException>(failure.InnerException);
+        Assert.ThrowsAny<OperationCanceledException>(() => old.Gate.WaitToFetch(Context("old-server", Stopping)));
+    }
+
     [Fact, GlobalLock(Reason = "Uses the drain mode cache and changes the check interval")]
     public void Gate_Closes_WhenTheChecksFailForAnotherReason_ForLongerThanADecisionHolds()
     {
