@@ -13,7 +13,6 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Profiling;
@@ -34,8 +33,6 @@ namespace Masterly.NightShift.Server;
 /// <seealso cref="EnqueuedState"/>
 public class Worker : IBackgroundProcess
 {
-
-    private static readonly ConcurrentDictionary<Guid, string> WorkerGuidCache = new();
     private static readonly string[] EligibleWorkerStates = [EnqueuedState.StateName, ScheduledState.StateName, ProcessingState.StateName];
     private static readonly string[] ProcessingStateArray = [ProcessingState.StateName];
 
@@ -442,10 +439,13 @@ public class Worker : IBackgroundProcess
         }
     }
 
-    /// <summary>The id of the worker running in <paramref name="context"/>, the same string on every call.</summary>
+    /// <summary>
+    /// The id of the worker running in <paramref name="context"/>. Not cached: every run of the worker's loop has a
+    /// new execution id, so a cache would grow with every restart.
+    /// </summary>
     private static string GetWorkerId(BackgroundProcessContext context)
     {
-        return WorkerGuidCache.GetOrAdd(context.ExecutionId, static guid => guid.ToString());
+        return context.ExecutionId.ToString();
     }
 
     private void DisposeAfterStateChange(List<IDisposable> disposables)

@@ -1,5 +1,7 @@
-﻿using System.Diagnostics;
+﻿using System.Collections;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using Masterly.NightShift.Server;
 using Moq.Sequences;
 
@@ -81,6 +83,31 @@ public class WorkerFacts
 
         _context.Storage.Verify(x => x.GetConnection(), Times.Once);
         _connection.Verify(x => x.Dispose(), Times.Once);
+    }
+
+    [Fact]
+    public void Execute_KeepsNothingInStaticState_ForEachRunOfTheWorker()
+    {
+        // Each run of a worker's loop (a restart of the server, or of the loop after an error) has a new execution id
+        Worker worker = CreateWorker();
+        int before = CountStaticItems();
+
+        for (int i = 0; i < 50; i++)
+        {
+            BackgroundProcessContextMock context = new() { ExecutionId = Guid.NewGuid() };
+            context.Storage.Setup(x => x.GetConnection()).Returns(_connection.Object);
+            worker.Execute(context.Object);
+        }
+
+        Assert.Equal(before, CountStaticItems());
+    }
+
+    private static int CountStaticItems()
+    {
+        return typeof(Worker).GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+            .Select(static x => x.GetValue(null))
+            .OfType<ICollection>()
+            .Sum(static x => x.Count);
     }
 
     [Fact]
