@@ -164,6 +164,38 @@ public class RetryInProcessAttributeFacts
         Assert.Equal(1, _calls);
     }
 
+    [Fact, StaticLock]
+    public void TerminateJobException_IsNeverRetried()
+    {
+        _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.Skips());
+
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(() => Perform());
+
+        Assert.IsType<TerminateJobException>(exception.InnerException);
+        Assert.Equal(1, _calls);
+    }
+
+    [Fact, StaticLock]
+    public void TerminateJobException_IsNeverRetried_EvenWhenABaseTypeIsListed()
+    {
+        _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.SkipsWithExceptionListed());
+
+        Assert.Throws<JobPerformanceException>(() => Perform());
+
+        Assert.Equal(1, _calls);
+    }
+
+    [Fact, StaticLock]
+    public void JobThatTimesOut_IsNotRetried_WhenTheTimeoutCancelsIt()
+    {
+        _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.TimesOut(CancellationToken.None));
+
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(() => Perform());
+
+        Assert.IsType<TerminateJobException>(exception.InnerException);
+        Assert.Equal(1, _calls);
+    }
+
     private object Perform()
     {
         CoreBackgroundJobPerformer performer = new(new JobActivator(), null);
@@ -244,6 +276,28 @@ public class RetryInProcessAttributeFacts
         {
             _calls++;
             throw new ConcurrencyLimitException("resource", "busy");
+        }
+
+        [RetryInProcess(3, DelayMilliseconds = 1)]
+        public void Skips()
+        {
+            _calls++;
+            throw new TerminateJobException("nothing to do");
+        }
+
+        [RetryInProcess(3, DelayMilliseconds = 1, ExceptionTypes = new[] { typeof(Exception) })]
+        public void SkipsWithExceptionListed()
+        {
+            _calls++;
+            throw new TerminateJobException("nothing to do");
+        }
+
+        [RetryInProcess(2, DelayMilliseconds = 1, Order = 0)]
+        [JobTimeout(1, OnTimeout = JobTimeoutAction.Cancel, Order = 1)]
+        public async Task TimesOut(CancellationToken token)
+        {
+            _calls++;
+            await Task.Delay(TimeSpan.FromSeconds(30), token);
         }
 
         [RetryInProcess(2, DelayMilliseconds = 1, ExceptionTypes = new[] { typeof(RetryLaterException) })]
