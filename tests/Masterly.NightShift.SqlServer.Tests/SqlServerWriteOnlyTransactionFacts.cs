@@ -2579,6 +2579,46 @@ values (@jobId, '', '', getutcdate())";
         }, useBatching);
     }
 
+    [Theory, CleanDatabase]
+    [MemberData(nameof(GetConfiguration))]
+    public void RemoveFromQueue_DeletesTheRow_WhenAKeepAliveIsDueWhileTheCommitRuns(bool useBatching)
+    {
+        SqlServerStorageOptions options = CreateOptions(useBatching);
+        options.SlidingInvisibilityTimeout = TimeSpan.FromSeconds(5);
+        SqlServerStorage storage = new(ConnectionUtils.GetConnectionString(), options);
+        UseConnection(sql => sql.Execute(
+            $"insert into [{Constants.DefaultSchema}].JobQueue (JobId, Queue) values (1, N'default')"));
+
+        using IStorageConnection connection = storage.GetConnection();
+        using SqlServerTimeoutJob fetchedJob = (SqlServerTimeoutJob)connection.FetchNextJob(["default"], CancellationToken.None);
+        fetchedJob.DisposeTimer();
+
+        // Another session holds the row the transaction's set command writes, so the commit waits after its
+        // commands were built, with the FetchedAt their delete matches
+        using DbConnection blocker = ConnectionUtils.CreateConnection();
+        using DbTransaction blocking = blocker.BeginTransaction();
+        blocker.Execute(
+            $"insert into [{Constants.DefaultSchema}].[Set] ([Key], Value, Score) values (N'bk:commit', N'x', 0)",
+            transaction: blocking);
+
+        using JobStorageTransaction transaction = (JobStorageTransaction)connection.CreateWriteTransaction();
+        transaction.AddToSet("bk:commit", "x");
+        transaction.RemoveFromQueue(fetchedJob);
+        Thread committing = new(transaction.Commit);
+        committing.Start();
+        LockWaits.WaitForSessionsThatWait(1);
+
+        // The keep-alive interval is a fifth of the invisibility timeout
+        Thread.Sleep(TimeSpan.FromSeconds(1.5));
+        fetchedJob.ExecuteKeepAliveQueryIfRequired();
+
+        blocking.Rollback();
+        committing.Join();
+        UseConnection(sql => Assert.Equal(
+            0,
+            sql.ExecuteScalar<int>($"select count(*) from [{Constants.DefaultSchema}].JobQueue")));
+    }
+
     private static void UseConnection(Action<DbConnection> action)
     {
         using DbConnection connection = ConnectionUtils.CreateConnection();
