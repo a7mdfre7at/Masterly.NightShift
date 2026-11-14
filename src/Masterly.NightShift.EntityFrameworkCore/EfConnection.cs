@@ -478,9 +478,11 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage, Func<DbCo
                     break;
                 }
 
+                // A retrying execution strategy runs the claim again when its reply was lost: the entry it claimed
+                // then carries its token, and is claimed again rather than left to a token nobody holds
                 string token = Guid.NewGuid().ToString("N");
                 int claimed = context.Set<JobQueueRow>()
-                    .Where(x => x.Id == candidate.Id && (x.FetchedAt == null || x.FetchedAt < staleBefore))
+                    .Where(x => x.Id == candidate.Id && (x.FetchedAt == null || x.FetchedAt < staleBefore || x.FetchToken == token))
                     .ExecuteUpdate(s => s.SetProperty(x => x.FetchedAt, now).SetProperty(x => x.FetchToken, token));
 
                 if (claimed == 1)
@@ -839,10 +841,15 @@ internal sealed class EfExpirationManager(EntityFrameworkCoreStorage storage) : 
                 break;
             }
 
-            db.Set<JobQueueRow>().Where(x => ids.Contains(x.JobId)).ExecuteDelete();
-            db.Set<StateRow>().Where(x => ids.Contains(x.JobId)).ExecuteDelete();
-            db.Set<JobParameterRow>().Where(x => ids.Contains(x.JobId)).ExecuteDelete();
-            db.Set<JobRow>().Where(x => ids.Contains(x.Id)).ExecuteDelete();
+            // The jobs go first, and only those still expired: a job requeued since it was read (a requeue persists
+            // it) stays, with its history, parameters and new queue entry. The foreign keys of the model delete the
+            // states and parameters of a deleted job with it; where the database doesn't enforce them (SQLite with
+            // foreign keys off), they are deleted next, with the queue entries, which have none: only those of
+            // jobs that are gone.
+            db.Set<JobRow>().Where(x => ids.Contains(x.Id) && x.ExpireAt < now).ExecuteDelete();
+            db.Set<StateRow>().Where(x => ids.Contains(x.JobId) && !db.Set<JobRow>().Any(y => y.Id == x.JobId)).ExecuteDelete();
+            db.Set<JobParameterRow>().Where(x => ids.Contains(x.JobId) && !db.Set<JobRow>().Any(y => y.Id == x.JobId)).ExecuteDelete();
+            db.Set<JobQueueRow>().Where(x => ids.Contains(x.JobId) && !db.Set<JobRow>().Any(y => y.Id == x.JobId)).ExecuteDelete();
         }
 
         RemoveInBatches(db.Set<SetRow>().Where(x => x.ExpireAt < now).OrderBy(static x => x.ExpireAt), cancellationToken);

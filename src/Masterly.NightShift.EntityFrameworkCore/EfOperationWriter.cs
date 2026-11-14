@@ -129,12 +129,17 @@ internal sealed class EfOperationWriter(DbContext context, bool immediate)
         }
     }
 
-    /// <summary>Saves what is tracked so far, when applying at once.</summary>
+    /// <summary>
+    /// Saves what is tracked so far, when applying at once, and forgets the saved rows: a statement that follows
+    /// may delete or change them in the database, and a later write of the transaction must find them as they
+    /// are there, not as the context saved them.
+    /// </summary>
     public void Flush()
     {
         if (immediate)
         {
             context.SaveChanges();
+            context.ChangeTracker.Clear();
         }
     }
 

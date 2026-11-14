@@ -295,6 +295,9 @@ internal sealed class SchemaVersionRow
     /// </summary>
     public const int Current = 1;
 
+    /// <summary>The name of the table.</summary>
+    public const string TableName = "SchemaVersion";
+
     public int Version { get; set; }
 }
 
@@ -310,7 +313,7 @@ internal sealed class NightShiftDbContext(DbContextOptions options, string? sche
         // Only the dedicated context records its version: an application's migrations track its own context
         modelBuilder.Entity<SchemaVersionRow>(version =>
         {
-            version.ToTable("SchemaVersion", Schema).HasKey(static x => x.Version);
+            version.ToTable(SchemaVersionRow.TableName, Schema).HasKey(static x => x.Version);
             version.Property(static x => x.Version).ValueGeneratedNever();
         });
     }

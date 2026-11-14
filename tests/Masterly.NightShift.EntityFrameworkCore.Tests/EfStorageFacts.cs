@@ -1,9 +1,13 @@
+using System.Data.Common;
+using System.Diagnostics;
 using System.Globalization;
+using Masterly.NightShift.Server;
 using Masterly.NightShift.Storage.Conformance;
 using Masterly.NightShift.Storage.Shared;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Masterly.NightShift.EntityFrameworkCore.Tests;
 
@@ -43,7 +47,21 @@ public sealed class EfStorageFacts : IDisposable
     [Fact]
     public void ExpirationManager_DeletesExpiredJobs_WithTheirStatesParametersAndQueueEntries_AndExpiredKeys()
     {
-        EntityFrameworkCoreStorage storage = _database.CreateStorage();
+        ExpirationManager_DeletesExpiredJobs_WithTheirStatesParametersAndQueueEntries(foreignKeys: true);
+    }
+
+    [Fact]
+    public void ExpirationManager_DeletesTheStatesAndParametersOfExpiredJobs_WhereTheDatabaseDoesNotEnforceForeignKeys()
+    {
+        ExpirationManager_DeletesExpiredJobs_WithTheirStatesParametersAndQueueEntries(foreignKeys: false);
+    }
+
+    private void ExpirationManager_DeletesExpiredJobs_WithTheirStatesParametersAndQueueEntries(bool foreignKeys)
+    {
+        _ = _database.CreateStorage();
+        EntityFrameworkCoreStorage storage = new(
+            o => o.UseSqlite($"{_database.ConnectionString};Foreign Keys={foreignKeys}"),
+            new EntityFrameworkCoreStorageOptions { Schema = null });
         string expired;
         string kept;
         using (IStorageConnection connection = storage.GetConnection())
@@ -66,6 +84,42 @@ public sealed class EfStorageFacts : IDisposable
         Assert.NotNull(reader.GetJobData(kept));
         Assert.Equal(0, storage.GetMonitoringApi().EnqueuedCount("default"));
         Assert.Empty(reader.GetAllItemsFromSet("old"));
+        using DbContext context = storage.CreateContext();
+        Assert.Empty(context.Set<StateRow>());
+        Assert.Empty(context.Set<JobParameterRow>());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ExpirationManager_KeepsAJob_RequeuedAfterItWasFoundExpired(bool sqlServer)
+    {
+        EntityFrameworkCoreStorage storage = sqlServer ? SqlServerDatabase.CreateStorage() : _database.CreateStorage();
+        string id = CreateJob(storage);
+        Commit(storage, x =>
+        {
+            x.SetJobState(id, new SucceededState(null, 1, 1));
+            x.ExpireJob(id, TimeSpan.FromSeconds(-1));
+        });
+
+        // A requeue from the dashboard, between the read of the expired ids and the deletes
+        BeforeFirstDelete requeue = new(() => Commit(storage, x =>
+        {
+            x.SetJobState(id, new EnqueuedState());
+            x.PersistJob(id);
+            x.AddToQueue("default", id);
+        }));
+        EntityFrameworkCoreStorage expiring = sqlServer
+            ? new(o => o.UseSqlServer(SqlServerDatabase.ConnectionString("Storage")).AddInterceptors(requeue))
+            : new(o => o.UseSqlite(_database.ConnectionString).AddInterceptors(requeue), new EntityFrameworkCoreStorageOptions { Schema = null });
+
+        new EfExpirationManager(expiring).RemoveExpired(CancellationToken.None);
+
+        Assert.True(requeue.Ran);
+        using IStorageConnection reader = storage.GetConnection();
+        Assert.Equal(EnqueuedState.StateName, reader.GetStateData(id)?.Name);
+        Assert.Equal(1, storage.GetMonitoringApi().EnqueuedCount("default"));
+        Assert.Equal(2, storage.GetMonitoringApi().JobDetails(id)?.History.Count);
     }
 
     [Fact]
@@ -111,6 +165,140 @@ public sealed class EfStorageFacts : IDisposable
 
         using IStorageConnection reader = storage.GetConnection();
         Assert.Equal(["nightly"], reader.GetAllItemsFromSet("recurring-jobs"));
+    }
+
+    [Theory]
+    [InlineData(QueryTrackingBehavior.NoTracking, true)]
+    [InlineData(QueryTrackingBehavior.NoTrackingWithIdentityResolution, true)]
+    [InlineData(QueryTrackingBehavior.TrackAll, false)]
+    public void Writes_ThroughApplicationContexts_ThatDoNotTrackQueriesOrDetectChanges_UpdateExistingRows(QueryTrackingBehavior tracking, bool detectChanges)
+    {
+        _ = _database.CreateStorage();
+        EntityFrameworkCoreStorage storage = new(() => new ApplicationContext(
+            new DbContextOptionsBuilder<ApplicationContext>().UseSqlite(_database.ConnectionString).UseQueryTrackingBehavior(tracking).Options,
+            detectChanges));
+        string id;
+        using (IStorageConnection connection = storage.GetConnection())
+        {
+            id = connection.CreateExpiredJob(Job.FromExpression(() => ConformanceJobs.Record("x")), new Dictionary<string, string?>(), JobClock.UtcNow, TimeSpan.FromHours(1))!;
+            connection.SetRangeInHash("hash", [new("field", "1")]);
+            connection.SetRangeInHash("hash", [new("field", "2")]);
+            connection.SetJobParameter(id, "RetryCount", "1");
+            connection.SetJobParameter(id, "RetryCount", "2");
+            connection.AnnounceServer("server", new ServerContext { Queues = ["default"], WorkerCount = 1 });
+            connection.AnnounceServer("server", new ServerContext { Queues = ["default"], WorkerCount = 2 });
+        }
+
+        Commit(storage, x => x.AddToSet("schedule", id, 100));
+        Commit(storage, x => x.AddToSet("schedule", id, 200));
+        EfCountersAggregator aggregator = new(storage);
+        Commit(storage, static x => x.IncrementCounter("counter"));
+        aggregator.AggregateBatch();
+        Commit(storage, static x => x.IncrementCounter("counter"));
+        aggregator.AggregateBatch();
+
+        using IStorageConnection reader = storage.GetConnection();
+        Assert.Equal("2", ((JobStorageConnection)reader).GetValueFromHash("hash", "field"));
+        Assert.Equal("2", reader.GetJobParameter(id, "RetryCount"));
+        Assert.Equal(id, reader.GetFirstByLowestScoreFromSet("schedule", 150, 250));
+        Assert.Equal(2, ((JobStorageConnection)reader).GetCounter("counter"));
+        Assert.Equal(2, Assert.Single(storage.GetMonitoringApi().Servers()).WorkersCount);
+    }
+
+    [Fact]
+    public void Fetch_WhoseClaimSucceeded_ButWhoseReplyWasLost_ClaimsTheEntryWhenRetried()
+    {
+        LostReplies lostReplies = new(static x => x.CommandText.StartsWith("UPDATE", StringComparison.OrdinalIgnoreCase) && x.CommandText.Contains("FetchToken", StringComparison.Ordinal));
+        EntityFrameworkCoreStorage storage = CreateRetryingStorage(lostReplies);
+        string id = CreateJob(storage);
+        Commit(storage, x => x.AddToQueue("default", id));
+        lostReplies.Armed = true;
+
+        using IStorageConnection connection = storage.GetConnection();
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));
+        using IFetchedJob fetched = connection.FetchNextJob(["default"], timeout.Token);
+
+        Assert.Equal(id, fetched.JobId);
+        Assert.Equal(1, lostReplies.Lost);
+        fetched.RemoveFromQueue();
+        Assert.Equal(0, storage.GetMonitoringApi().FetchedCount("default"));
+    }
+
+    [Fact]
+    public void Transaction_WhoseCommitSucceeded_ButReportedAnError_IsNotAppliedTwice()
+    {
+        LostCommits lostCommits = new();
+        EntityFrameworkCoreStorage storage = CreateRetryingStorage(lostCommits);
+        string id = CreateJob(storage);
+        lostCommits.Armed = true;
+
+        Commit(storage, x =>
+        {
+            x.AddToQueue("default", id);
+            x.InsertToList("list", "item");
+            x.IncrementCounter("counter");
+            x.SetJobState(id, new EnqueuedState());
+        });
+
+        Assert.Equal(1, lostCommits.Lost);
+        using IStorageConnection reader = storage.GetConnection();
+        Assert.Equal(1, storage.GetMonitoringApi().EnqueuedCount("default"));
+        Assert.Equal(1, ((JobStorageConnection)reader).GetListCount("list"));
+        Assert.Equal(1, ((JobStorageConnection)reader).GetCounter("counter"));
+        Assert.Equal(1, storage.GetMonitoringApi().JobDetails(id)?.History.Count);
+    }
+
+    [Fact]
+    public void Transaction_AddingASetValueAgain_AfterRemovingTheSet_KeepsIt()
+    {
+        EntityFrameworkCoreStorage storage = _database.CreateStorage();
+
+        Commit(storage, static x =>
+        {
+            x.AddToSet("set", "value");
+            ((JobStorageTransaction)x).RemoveSet("set");
+            x.AddToSet("set", "value");
+        });
+
+        using IStorageConnection reader = storage.GetConnection();
+        Assert.Equal(["value"], reader.GetAllItemsFromSet("set"));
+    }
+
+    [Fact]
+    public void Transaction_SettingAHashFieldAgain_AfterRemovingTheHash_KeepsTheLastValue()
+    {
+        EntityFrameworkCoreStorage storage = _database.CreateStorage();
+
+        Commit(storage, static x =>
+        {
+            x.SetRangeInHash("hash", [new("field", "1")]);
+            x.RemoveHash("hash");
+            x.SetRangeInHash("hash", [new("field", "2")]);
+        });
+
+        using IStorageConnection reader = storage.GetConnection();
+        Assert.Equal("2", ((JobStorageConnection)reader).GetValueFromHash("hash", "field"));
+    }
+
+    [Fact]
+    public void Transaction_AddingAHashField_AfterPersistingTheHash_DoesNotGiveItTheOldExpiry()
+    {
+        EntityFrameworkCoreStorage storage = _database.CreateStorage();
+        Commit(storage, static x =>
+        {
+            x.SetRangeInHash("hash", [new("field", "1")]);
+            ((JobStorageTransaction)x).ExpireHash("hash", TimeSpan.FromHours(1));
+        });
+
+        Commit(storage, static x =>
+        {
+            x.SetRangeInHash("hash", [new("field", "2")]);
+            ((JobStorageTransaction)x).PersistHash("hash");
+            x.SetRangeInHash("hash", [new("other", "3")]);
+        });
+
+        using IStorageConnection reader = storage.GetConnection();
+        Assert.Equal(TimeSpan.FromSeconds(-1), ((JobStorageConnection)reader).GetHashTtl("hash"));
     }
 
     [Fact]
@@ -365,6 +553,114 @@ public sealed class EfStorageFacts : IDisposable
         Assert.Equal([SchemaVersionRow.Current], context.Set<SchemaVersionRow>().Select(static x => x.Version));
     }
 
+    [Theory]
+    [InlineData("Pomelo.EntityFrameworkCore.MySql", null)]
+    [InlineData("MySql.EntityFrameworkCore", null)]
+    [InlineData("Microsoft.EntityFrameworkCore.SqlServer", NightShiftModelBuilderExtensions.DefaultSchema)]
+    [InlineData("Npgsql.EntityFrameworkCore.PostgreSQL", NightShiftModelBuilderExtensions.DefaultSchema)]
+    [InlineData("Oracle.EntityFrameworkCore", NightShiftModelBuilderExtensions.DefaultSchema)]
+    public void DefaultSchema_IsNone_OnMySqlAndMariaDb(string provider, string? schema)
+    {
+        Assert.Equal(schema, EntityFrameworkCoreStorage.DefaultSchema(provider));
+    }
+
+    [Fact]
+    public void Schema_IsTheDefault_UntilSet()
+    {
+        EntityFrameworkCoreStorageOptions options = new();
+        Assert.Equal(NightShiftModelBuilderExtensions.DefaultSchema, options.Schema);
+        Assert.False(options.SchemaSet);
+
+        // Set to the default, it is kept on every provider
+        options.Schema = NightShiftModelBuilderExtensions.DefaultSchema;
+        Assert.True(options.SchemaSet);
+    }
+
+    [Fact]
+    public void Schema_OfADedicatedContext_IsTheOptionsOne_WhenSet()
+    {
+        Assert.Null(_database.CreateStorage().Schema);
+    }
+
+    [Fact]
+    public void Schema_OfADedicatedContext_OnSqlServer_IsNightShift_ByDefault()
+    {
+        Assert.Equal(NightShiftModelBuilderExtensions.DefaultSchema, SqlServerDatabase.CreateStorage().Schema);
+    }
+
+    [Fact]
+    public void PrepareSchema_CreatesTheVersionsTableFirst()
+    {
+        CreatedTables created = new();
+
+        _ = new EntityFrameworkCoreStorage(o => o.UseSqlite(_database.ConnectionString).AddInterceptors(created), new EntityFrameworkCoreStorageOptions { Schema = null });
+
+        Assert.Equal(12, created.Tables.Count);
+        Assert.Contains("\"SchemaVersion\"", created.Tables[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PrepareSchema_CompletesTheTables_OfACreatorThatStoppedHalfWay()
+    {
+        // As on a database whose DDL isn't transactional, when the process creating the tables stopped
+        LeaveTablesHalfCreated();
+
+        EntityFrameworkCoreStorage storage = _database.CreateStorage(new EntityFrameworkCoreStorageOptions { SchemaCompletionTimeout = TimeSpan.FromMilliseconds(200) });
+
+        using (DbContext context = storage.CreateContext())
+        {
+            Assert.Equal([SchemaVersionRow.Current], context.Set<SchemaVersionRow>().Select(static x => x.Version));
+        }
+
+        string id = CreateJob(storage);
+        Commit(storage, x =>
+        {
+            x.SetJobState(id, new EnqueuedState());
+            x.AddToQueue("default", id);
+            ((JobStorageTransaction)x).SetJobParameter(id, "name", "value");
+            x.AddToSet("set", "value");
+            x.InsertToList("list", "value");
+            x.SetRangeInHash("hash", [new("field", "value")]);
+            x.IncrementCounter("counter");
+        });
+        Assert.Equal(1, new EfCountersAggregator(storage).AggregateBatch());
+        using IStorageConnection connection = storage.GetConnection();
+        connection.AnnounceServer("server", new ServerContext());
+        using (connection.AcquireDistributedLock("lock", TimeSpan.Zero))
+        {
+            Assert.Equal(1, storage.GetMonitoringApi().EnqueuedCount("default"));
+        }
+    }
+
+    [Fact]
+    public async Task PrepareSchema_WaitsForTheTablesAnotherProcessIsCreating()
+    {
+        LeaveTablesHalfCreated();
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        Task<EntityFrameworkCoreStorage> waiting = Task.Run(() => _database.CreateStorage(), TestContext.Current.CancellationToken);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
+        Assert.False(waiting.IsCompleted);
+
+        // The other process completes the tables and records their version
+        _ = _database.CreateStorage(new EntityFrameworkCoreStorageOptions { SchemaCompletionTimeout = TimeSpan.Zero });
+
+        EntityFrameworkCoreStorage storage = await waiting;
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(20), $"The storage waited {stopwatch.Elapsed}.");
+        using DbContext context = storage.CreateContext();
+        Assert.Equal([SchemaVersionRow.Current], context.Set<SchemaVersionRow>().Select(static x => x.Version));
+    }
+
+    [Fact]
+    public void PrepareSchema_RefusesTables_WithoutTheVersionsTable()
+    {
+        _ = _database.CreateStorage();
+        ExecuteSql("drop table \"SchemaVersion\"");
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => _database.CreateStorage());
+
+        Assert.Contains("Couldn't read the schema version", exception.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void PrepareSchema_SurfacesTheDatabasesError_WhenTheTablesCanNotBeCreated()
     {
@@ -469,5 +765,130 @@ public sealed class EfStorageFacts : IDisposable
                 x.InsertToList(key, i.ToString(CultureInfo.InvariantCulture));
             }
         });
+    }
+
+    // The version's table, empty, and the job table: the others are gone
+    private void LeaveTablesHalfCreated()
+    {
+        _ = _database.CreateStorage();
+        ExecuteSql("delete from \"SchemaVersion\"");
+        foreach (string table in new[] { "State", "JobParameter", "JobQueue", "Set", "List", "Hash", "Counter", "AggregatedCounter", "Server", "Lock" })
+        {
+            ExecuteSql($"drop table \"{table}\"");
+        }
+    }
+
+    private void ExecuteSql(string sql)
+    {
+        using SqliteConnection connection = new(_database.ConnectionString);
+        connection.Open();
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.ExecuteNonQuery();
+    }
+
+    private static string CreateJob(EntityFrameworkCoreStorage storage)
+    {
+        using IStorageConnection connection = storage.GetConnection();
+        return connection.CreateExpiredJob(Job.FromExpression(() => ConformanceJobs.Record("x")), new Dictionary<string, string?>(), JobClock.UtcNow, TimeSpan.FromHours(1))!; // Never canceled: no filter runs here
+    }
+
+    // A storage whose contexts retry what fails with a TransientException, as EnableRetryOnFailure does
+    private EntityFrameworkCoreStorage CreateRetryingStorage(IInterceptor interceptor)
+    {
+        return new EntityFrameworkCoreStorage(
+            o => o.UseSqlite(_database.ConnectionString, static x => x.ExecutionStrategy(static d => new RetryingStrategy(d))).AddInterceptors(interceptor),
+            new EntityFrameworkCoreStorageOptions { Schema = null });
+    }
+
+    private sealed class TransientException() : Exception("The reply was lost.");
+
+    private sealed class RetryingStrategy(ExecutionStrategyDependencies dependencies) : ExecutionStrategy(dependencies, 3, TimeSpan.Zero)
+    {
+        protected override bool ShouldRetryOn(Exception exception) => exception is TransientException;
+    }
+
+    /// <summary>Once armed, the first command that matches runs, then reports a failure, as a lost reply does.</summary>
+    private sealed class LostReplies(Func<DbCommand, bool> matches) : DbCommandInterceptor
+    {
+        public bool Armed { get; set; }
+
+        public int Lost { get; private set; }
+
+        public override int NonQueryExecuted(DbCommand command, CommandExecutedEventData eventData, int result)
+        {
+            if (Armed && Lost == 0 && matches(command))
+            {
+                Lost++;
+                throw new TransientException();
+            }
+
+            return result;
+        }
+    }
+
+    /// <summary>The CREATE TABLE statements, in the order they run.</summary>
+    private sealed class CreatedTables : DbCommandInterceptor
+    {
+        public List<string> Tables { get; } = [];
+
+        public override InterceptionResult<int> NonQueryExecuting(DbCommand command, CommandEventData eventData, InterceptionResult<int> result)
+        {
+            if (command.CommandText.StartsWith("CREATE TABLE", StringComparison.OrdinalIgnoreCase))
+            {
+                Tables.Add(command.CommandText);
+            }
+
+            return result;
+        }
+    }
+
+    /// <summary>Runs an action before the first DELETE statement, once.</summary>
+    private sealed class BeforeFirstDelete(Action action) : DbCommandInterceptor
+    {
+        public bool Ran { get; private set; }
+
+        public override InterceptionResult<int> NonQueryExecuting(DbCommand command, CommandEventData eventData, InterceptionResult<int> result)
+        {
+            if (!Ran && command.CommandText.StartsWith("DELETE", StringComparison.OrdinalIgnoreCase))
+            {
+                Ran = true;
+                action();
+            }
+
+            return result;
+        }
+    }
+
+    /// <summary>Once armed, the first commit commits, then reports a failure, as a lost reply does.</summary>
+    private sealed class LostCommits : DbTransactionInterceptor
+    {
+        public bool Armed { get; set; }
+
+        public int Lost { get; private set; }
+
+        public override void TransactionCommitted(DbTransaction transaction, TransactionEndEventData eventData)
+        {
+            if (Armed && Lost == 0)
+            {
+                Lost++;
+                throw new TransientException();
+            }
+        }
+    }
+
+    /// <summary>An application's context, configured as the application likes: the storage must work with it.</summary>
+    private sealed class ApplicationContext : DbContext
+    {
+        public ApplicationContext(DbContextOptions<ApplicationContext> options, bool detectChanges)
+            : base(options)
+        {
+            ChangeTracker.AutoDetectChangesEnabled = detectChanges;
+        }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.ApplyNightShiftModel(schema: null);
+        }
     }
 }
