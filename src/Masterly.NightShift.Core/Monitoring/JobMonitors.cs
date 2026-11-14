@@ -140,12 +140,14 @@ public sealed class DailyDeadlineMonitor : JobMonitor
         return base.IsSuccessFresh(recorded, now) && GetDayOf(recorded) == GetDayOf(now);
     }
 
-    // The local day a success at that instant counts for: its own date, except a success after midnight inside the
-    // grace of the night before, which counts for that night and not for the next
+    // The local day a success at that instant counts for: its own date, except a success in the half day after
+    // the night before's By (inside its grace, or late), which is that night's run and not an early one of the
+    // next: a late run must not also stand for the next night, or a night missed after it would go unnoticed.
+    // By is at least 12:00 here, because the grace is at most 12 hours
     private DateTime GetDayOf(DateTime instant)
     {
-        DateTime date = TimeZoneInfo.ConvertTimeFromUtc(instant, TimeZone).Date;
-        return EndsAfterMidnight && instant < GetDue(date.AddDays(-1)) ? date.AddDays(-1) : date;
+        DateTime local = TimeZoneInfo.ConvertTimeFromUtc(instant, TimeZone);
+        return EndsAfterMidnight && local.TimeOfDay < By - HalfADay ? local.Date.AddDays(-1) : local.Date;
     }
 
     // The grace is a duration, so on the nights clocks change the deadline is that long after By on the clock
@@ -168,6 +170,7 @@ public sealed class DailyDeadlineMonitor : JobMonitor
 
     // Longer than any gap a time zone has had (Samoa skipped a whole day in 2011)
     private const int MaxGapMinutes = 2 * 24 * 60;
+    private static readonly TimeSpan HalfADay = TimeSpan.FromHours(12);
 }
 
 /// <summary>A job of the method must not run longer than a threshold. The time it waited in its queue doesn't count.</summary>

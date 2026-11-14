@@ -386,13 +386,30 @@ public sealed class JobMonitorsFacts : IDisposable
     [Fact]
     public void RecordOutcome_WritesTheFirstSuccessOfTheNextNight_ForADeadlineThatEndsAfterMidnight()
     {
+        // A run in the half day after 23:00 is the night before's (in its grace, or late); one from 11:00 on is the next night's
         JobMonitors.Add(new DailyDeadlineMonitor("nightly", "Reports.Build", TimeSpan.FromHours(23), grace: TimeSpan.FromHours(2)));
-        DateTime beforeDeadline = Utc("2026-11-21 01:00").AddSeconds(-1);
+        DateTime lastOfTheNightBefore = Utc("2026-11-21 11:00").AddSeconds(-1);
 
-        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: true, beforeDeadline);
-        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: true, beforeDeadline.AddSeconds(2));
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: true, lastOfTheNightBefore);
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: true, lastOfTheNightBefore.AddSeconds(2));
 
-        Assert.Equal(JobHelper.SerializeDateTime(beforeDeadline.AddSeconds(2)), _storage.Hashes["monitor:nightly"]["LastSuccessAt"]);
+        Assert.Equal(JobHelper.SerializeDateTime(lastOfTheNightBefore.AddSeconds(2)), _storage.Hashes["monitor:nightly"]["LastSuccessAt"]);
+    }
+
+    [Fact]
+    public void DailyDeadline_ThatEndsAfterMidnight_CountsALateRun_ForTheNightItWasLateFor_NotForTheNext()
+    {
+        // The night of the 20th is missed and its run comes at 01:30, after the grace; the night of the 21st is
+        // missed too: that late run must not stand for it
+        DailyDeadlineMonitor monitor = new("nightly", "Reports.Build", TimeSpan.FromHours(23), grace: TimeSpan.FromHours(2));
+        JobMonitorData lateRun = Data(lastSuccess: Utc("2026-11-21 01:30"));
+
+        (JobMonitorState afterTheLateRun, _) = monitor.Evaluate(lateRun, Utc("2026-11-21 02:00"), _storage.Object);
+        (JobMonitorState afterTheNextNight, string? reason) = monitor.Evaluate(lateRun, Utc("2026-11-22 01:30"), _storage.Object);
+
+        Assert.Equal(JobMonitorState.Healthy, afterTheLateRun);
+        Assert.Equal(JobMonitorState.NeedsAttention, afterTheNextNight);
+        Assert.Contains("2026-11-21", reason, StringComparison.Ordinal);
     }
 
     private static DateTime Utc(string text)
