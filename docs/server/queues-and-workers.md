@@ -85,7 +85,7 @@ All options are described in [Server options](server-options.md).
 | `SendStop()` | Sends the stop signal and returns at once. Workers stop taking new jobs; the stop and shutdown timeouts start counting. |
 | `WaitForShutdown(TimeSpan timeout)` | Blocks until the server has stopped or the timeout passes. Returns `true` when it stopped. |
 | `WaitForShutdownAsync(CancellationToken cancellationToken)` | The same, without blocking a thread. |
-| `Dispose()` | Sends the stop signal if it was not sent yet and, unless you already waited, waits until the server has stopped. |
+| `Dispose()` | Sends the stop signal if it was not sent yet and, unless a wait already saw the server stop, waits until the server has stopped. A wait that timed out or was canceled doesn't count: running jobs still get the stop and shutdown timeouts, which bound how long `Dispose` waits. |
 
 With `AddNightShiftServer` the host does all of this for you.
 

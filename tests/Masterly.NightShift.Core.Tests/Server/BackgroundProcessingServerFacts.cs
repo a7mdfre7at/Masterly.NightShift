@@ -91,6 +91,42 @@ public class BackgroundProcessingServerFacts
         component2.Verify(x => x.Execute(It.IsNotNull<BackgroundProcessContext>()), Times.AtLeast(5));
     }
 
+    [Fact]
+    public async Task Dispose_AfterAWaitThatWasCanceled_StillGivesTheProcessesTheShutdownSignal()
+    {
+        using ManualResetEventSlim entered = new();
+        using ManualResetEventSlim finished = new();
+        bool sawShutdown = false;
+        Mock<IBackgroundProcess> process = CreateProcessMock<IBackgroundProcess>();
+        process.Setup(x => x.Execute(It.IsAny<BackgroundProcessContext>())).Callback<BackgroundProcessContext>(context =>
+        {
+            if (finished.IsSet)
+            {
+                context.Wait(TimeSpan.FromMilliseconds(50));
+                return;
+            }
+
+            entered.Set();
+            sawShutdown = context.ShutdownToken.WaitHandle.WaitOne(TimeSpan.FromSeconds(8));
+            finished.Set();
+        });
+
+        BackgroundProcessingServer server = new(_storage.Object, _processes, _properties, new BackgroundProcessingServerOptions
+        {
+            StopTimeout = TimeSpan.FromSeconds(1),
+            ShutdownTimeout = TimeSpan.FromSeconds(2)
+        });
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+
+        server.SendStop();
+        using CancellationTokenSource cts = new(TimeSpan.FromMilliseconds(300));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => server.WaitForShutdownAsync(cts.Token));
+        server.Dispose();
+
+        Assert.True(finished.IsSet);
+        Assert.True(sawShutdown);
+    }
+
     private BackgroundProcessingServer CreateServer()
     {
         return new BackgroundProcessingServer(_storage.Object, _processes, _properties);
