@@ -233,6 +233,7 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
     {
         yield return new EfExpirationManager(this);
         yield return new EfCountersAggregator(this);
+        yield return new StagedContinuationsProcess(this);
     }
 
     /// <inheritdoc />

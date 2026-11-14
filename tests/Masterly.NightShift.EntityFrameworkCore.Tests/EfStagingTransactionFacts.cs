@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Transactions;
@@ -220,9 +221,8 @@ public sealed class EfStagingTransactionFacts : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Continuation_OfACommittedJob_InsideAnOpenTransaction_IsRegisteredOnItsParentAtOnce(bool snapshot)
+    public void Continuation_OfACommittedJob_IsRegisteredOnItsParent_OnlyOnceTheTransactionCommits(bool snapshot)
     {
-        // As before: the parent is everybody's, so the registration is committed at once, under the parent's lock
         EntityFrameworkCoreStorage storage = CreateStorage(snapshot);
         string? parent = new BackgroundJobClient(storage).Enqueue(() => Run("parent"));
         string? continuation;
@@ -233,11 +233,256 @@ public sealed class EfStagingTransactionFacts : IDisposable
             continuation = app.NightShift(storage).ContinueJobWith(parent!, () => Run("continuation"));
             app.SaveChanges();
 
-            Assert.Contains(continuation!, Parameter(storage, parent!, "Continuations"), StringComparison.Ordinal);
+            // Not before: should the transaction roll back, the parent would wait for a job that never comes
+            Assert.Null(Parameter(storage, parent!, "Continuations"));
+            transaction.Commit();
+        }
+
+        Assert.Equal(AwaitingState.StateName, State(storage, continuation));
+        Assert.Contains(continuation!, Parameter(storage, parent!, "Continuations"), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Continuation_OfACommittedJob_InATransactionThatRollsBack_IsNeverRegistered(bool snapshot)
+    {
+        EntityFrameworkCoreStorage storage = CreateStorage(snapshot);
+        string? parent = new BackgroundJobClient(storage).Enqueue(() => Run("parent"));
+        string? continuation;
+
+        using (AppContext app = CreateContext(snapshot))
+        using (IDbContextTransaction transaction = app.Database.BeginTransaction())
+        {
+            continuation = app.NightShift(storage).ContinueJobWith(parent!, () => Run("continuation"));
+            app.SaveChanges();
             transaction.Rollback();
         }
 
         Assert.Null(State(storage, continuation));
+        Assert.Null(Parameter(storage, parent!, "Continuations"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Continuation_OfACommittedJob_ThatFinishedBeforeTheCommit_StartsOnceTheTransactionCommits(bool snapshot)
+    {
+        EntityFrameworkCoreStorage storage = CreateStorage(snapshot);
+        BackgroundJobClient plain = new(storage);
+        string parent = plain.Enqueue(() => Run("parent"))!;
+        TimeProvider original = JobClock.TimeProvider;
+        ShiftedClock clock = new();
+        JobClock.TimeProvider = clock;
+
+        try
+        {
+            string continuation;
+            using (AppContext app = CreateContext(snapshot))
+            using (IDbContextTransaction transaction = app.Database.BeginTransaction())
+            {
+                continuation = app.NightShift(storage).ContinueJobWith(parent, () => Run("continuation"))!;
+                app.SaveChanges();
+
+                // The parent finishes while the application's transaction holds the continuation, 16 minutes later:
+                // its state change doesn't wait for the continuation, which it doesn't know of yet
+                clock.Offset = TimeSpan.FromMinutes(16);
+                Stopwatch watch = Stopwatch.StartNew();
+                Assert.True(RunOnAnotherThread(() => plain.ChangeState(parent, new SucceededState(null, 1, 1), EnqueuedState.StateName)));
+                Assert.True(watch.Elapsed < NoWait, $"The parent's state change took {watch.Elapsed}.");
+
+                transaction.Commit();
+            }
+
+            Assert.Equal(EnqueuedState.StateName, State(storage, continuation));
+        }
+        finally
+        {
+            JobClock.TimeProvider = original;
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Continuation_OfAJobStagedBeforeTheTransactionAndSavedInIt_IsStagedAtOnce(bool snapshot)
+    {
+        EntityFrameworkCoreStorage storage = CreateStorage(snapshot);
+        string? parent;
+        string? continuation;
+
+        using (AppContext app = CreateContext(snapshot))
+        {
+            parent = app.NightShift(storage).Enqueue(() => Run("parent"));
+
+            using IDbContextTransaction transaction = app.Database.BeginTransaction();
+            app.SaveChanges();
+
+            Stopwatch watch = Stopwatch.StartNew();
+            continuation = app.NightShift(storage).ContinueJobWith(parent!, () => Run("continuation"));
+            app.SaveChanges();
+            Assert.True(watch.Elapsed < NoWait, $"Staging the continuation took {watch.Elapsed}.");
+
+            transaction.Commit();
+        }
+
+        Assert.Equal(EnqueuedState.StateName, State(storage, parent));
+        Assert.Equal(AwaitingState.StateName, State(storage, continuation));
+        Assert.Contains(continuation!, Parameter(storage, parent!, "Continuations"), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Continuation_StagedInASecondContextOfTheSameTransaction_IsStagedAtOnce(bool snapshot)
+    {
+        EntityFrameworkCoreStorage storage = CreateStorage(snapshot);
+        string? parent;
+        string? continuation;
+
+        using (AppContext first = CreateContext(snapshot))
+        {
+            using IDbContextTransaction transaction = first.Database.BeginTransaction();
+            parent = first.NightShift(storage).Enqueue(() => Run("parent"));
+            first.SaveChanges();
+
+            // The documented way to share a transaction: a second context on the same connection
+            DbConnection shared = first.Database.GetDbConnection();
+            using AppContext second = new(new DbContextOptionsBuilder<AppContext>()
+                .UseSqlServer(shared, static o => o.CommandTimeout(CommandTimeoutSeconds)).Options);
+            second.Database.UseTransaction(transaction.GetDbTransaction());
+
+            Stopwatch watch = Stopwatch.StartNew();
+            continuation = second.NightShift(storage).ContinueJobWith(parent!, () => Run("continuation"));
+            second.SaveChanges();
+            Assert.True(watch.Elapsed < NoWait, $"Staging the continuation took {watch.Elapsed}.");
+
+            transaction.Commit();
+        }
+
+        Assert.Equal(AwaitingState.StateName, State(storage, continuation));
+        Assert.Contains(continuation!, Parameter(storage, parent!, "Continuations"), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task Continuation_InATransactionScope_WhateverWhenTheConnectionOpened_IsStagedAtOnce(int variant)
+    {
+        EntityFrameworkCoreStorage storage = CreateStorage(snapshot: false);
+        string? parent;
+        string? continuation;
+
+        using (AppContext app = CreateContext(snapshot: false))
+        {
+            if (variant == 1)
+            {
+                app.Database.OpenConnection();
+            }
+
+            using (TransactionScope scope = new(
+                TransactionScopeOption.Required,
+                new TransactionOptions { IsolationLevel = IsolationLevel.ReadCommitted, Timeout = TimeSpan.FromSeconds(30) },
+                TransactionScopeAsyncFlowOption.Enabled))
+            {
+                if (variant == 0)
+                {
+                    app.Database.OpenConnection();
+                }
+
+                parent = app.NightShift(storage).Enqueue(() => Run("parent"));
+                await app.SaveChangesAsync(TestContext.Current.CancellationToken);
+                await Task.Yield();
+
+                Stopwatch watch = Stopwatch.StartNew();
+                continuation = app.NightShift(storage).ContinueJobWith(parent!, () => Run("continuation"));
+                await app.SaveChangesAsync(TestContext.Current.CancellationToken);
+                Assert.True(watch.Elapsed < NoWait, $"Staging the continuation took {watch.Elapsed}.");
+                scope.Complete();
+            }
+
+            app.Database.CloseConnection();
+        }
+
+        Assert.Equal(EnqueuedState.StateName, State(storage, parent));
+        Assert.Equal(AwaitingState.StateName, State(storage, continuation));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Duplicates_StagedBeforeTheSameSaveChanges_InAnOpenTransaction_OnlyOneIsCreated(bool snapshot)
+    {
+        EntityFrameworkCoreStorage storage = CreateStorage(snapshot);
+        string name = Guid.NewGuid().ToString("N");
+        string? first;
+        string? second;
+        string? third;
+
+        using (AppContext app = CreateContext(snapshot))
+        using (IDbContextTransaction transaction = app.Database.BeginTransaction())
+        {
+            first = app.NightShift(storage).Enqueue(() => Once(name));
+            second = app.NightShift(storage).Enqueue(() => Once(name));
+
+            // Another process, outside the application's transaction, before it commits
+            third = RunOnAnotherThread(() => new BackgroundJobClient(storage).Enqueue(() => Once(name)));
+
+            app.SaveChanges();
+            transaction.Commit();
+        }
+
+        Assert.NotNull(first);
+        Assert.Null(second);
+        Assert.Null(third);
+        Assert.Equal(1, storage.GetMonitoringApi().EnqueuedCount("default"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Continuation_InAnOpenTransaction_WithAStorageThatRetries_IsStaged(bool scope)
+    {
+        CreateStorage(snapshot: true);
+        EntityFrameworkCoreStorage storage = new(() => new AppContext(new DbContextOptionsBuilder<AppContext>()
+            .UseSqlServer(SqlServerDatabase.ConnectionString(Name(true)), static o => o.CommandTimeout(CommandTimeoutSeconds).EnableRetryOnFailure())
+            .Options));
+        string? parent;
+        string? continuation;
+
+        using (TransactionScope? ambient = scope ? new TransactionScope(TransactionScopeOption.Required, TimeSpan.FromSeconds(30)) : null)
+        using (AppContext app = CreateContext(snapshot: true))
+        {
+            using IDbContextTransaction? transaction = scope ? null : app.Database.BeginTransaction();
+            parent = app.NightShift(storage).Enqueue(() => Run("parent"));
+            app.SaveChanges();
+            continuation = app.NightShift(storage).ContinueJobWith(parent!, () => Run("continuation"));
+            app.SaveChanges();
+            transaction?.Commit();
+            ambient?.Complete();
+        }
+
+        Assert.Equal(AwaitingState.StateName, State(storage, continuation));
+        Assert.Contains(continuation!, Parameter(storage, parent!, "Continuations"), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Requeue_StagedInTheContextThatStagedTheJob_AfterItSucceeded_EnqueuesIt(bool snapshot)
+    {
+        EntityFrameworkCoreStorage storage = CreateStorage(snapshot);
+        using AppContext app = CreateContext(snapshot);
+        string id = app.NightShift(storage).Enqueue(() => Run("a"))!;
+        app.SaveChanges();
+
+        Assert.True(new BackgroundJobClient(storage).ChangeState(id, new SucceededState(null, 1, 1), EnqueuedState.StateName));
+        Assert.True(app.NightShift(storage).Requeue(id));
+        app.SaveChanges();
+
+        Assert.Equal(EnqueuedState.StateName, State(storage, id));
+        Assert.Null(storage.GetMonitoringApi().JobDetails(id)?.ExpireAt);
     }
 
     [Theory]
@@ -378,6 +623,32 @@ public sealed class EfStagingTransactionFacts : IDisposable
         Assert.False(beforeRollback.IsCompleted);
     }
 
+    // As another process would: on a thread of its own, outside the application's transaction
+    private static T RunOnAnotherThread<T>(Func<T> run)
+    {
+        T result = default!; // Set by the thread, or the failure rethrown
+        Exception? failure = null;
+        Thread thread = new(() =>
+        {
+            try
+            {
+                result = run();
+            }
+            catch (Exception ex)
+            {
+                failure = ex;
+            }
+        });
+        thread.Start();
+        thread.Join();
+        if (failure != null)
+        {
+            throw new InvalidOperationException("The other thread failed.", failure);
+        }
+
+        return result;
+    }
+
     private static string? State(EntityFrameworkCoreStorage storage, string? jobId)
     {
         Assert.NotNull(jobId);
@@ -443,6 +714,14 @@ public sealed class EfStagingTransactionFacts : IDisposable
         }
 
         return current;
+    }
+
+    /// <summary>The system clock, moved by a time the test sets.</summary>
+    private sealed class ShiftedClock : TimeProvider
+    {
+        public TimeSpan Offset { get; set; }
+
+        public override DateTimeOffset GetUtcNow() => System.GetUtcNow() + Offset;
     }
 
     /// <summary>An application's context, whose model includes the storage's tables.</summary>
