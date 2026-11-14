@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using Masterly.NightShift.Server;
 using Masterly.NightShift.Storage.Conformance;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -6,6 +8,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 namespace Masterly.NightShift.EntityFrameworkCore.Tests;
 
 /// <summary>Jobs staged in an application's context commit or roll back with it.</summary>
+[SuppressMessage("Usage", "xUnit1013:Public method should be marked as test", Justification = "Job methods must be public")]
 public sealed class StagingFacts : IDisposable
 {
     private readonly SqliteDatabase _database = new();
@@ -201,6 +204,219 @@ public sealed class StagingFacts : IDisposable
         Assert.Throws<InvalidOperationException>(() => new EntityFrameworkCoreStorage(() => new EmptyContext(new DbContextOptionsBuilder<EmptyContext>().UseSqlite(_database.ConnectionString).Options)));
     }
 
+    [AutomaticRetry(Attempts = 0)]
+    [PreventDuplicates]
+    public static void Once(string name) => _ = name;
+
+    [Fact]
+    public void Requeue_StagedInTheContextThatStagedTheJob_AfterItSucceeded_EnqueuesIt()
+    {
+        // The context still tracks the job's row from the save before; a worker ran the job since
+        using ShopContext context = CreateContext();
+        string id = context.NightShift(_storage).Enqueue(() => ConformanceJobs.Record("a"))!;
+        context.SaveChanges();
+        Assert.True(new BackgroundJobClient(_storage).ChangeState(id, new SucceededState(null, 1, 1), EnqueuedState.StateName));
+
+        Assert.True(context.NightShift(_storage).Requeue(id));
+        context.SaveChanges();
+
+        Assert.Equal(EnqueuedState.StateName, State(id));
+        Assert.Null(_storage.GetMonitoringApi().JobDetails(id)?.ExpireAt);
+    }
+
+    [Fact]
+    public void SetValue_StagedInTheContextThatStagedIt_AfterAnotherProcessRemovedIt_IsAddedAgain()
+    {
+        using ShopContext context = CreateContext();
+        using (IStorageConnection connection = context.NightShift(_storage) is IBackgroundJobClientV2 client ? client.Storage.GetConnection() : throw new InvalidOperationException())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            transaction.AddToSet("set", "a");
+            transaction.SetRangeInHash("hash", [new("field", "1")]);
+            transaction.Commit();
+        }
+
+        context.SaveChanges();
+        using (IStorageConnection other = _storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = other.CreateWriteTransaction())
+        {
+            transaction.RemoveFromSet("set", "a");
+            transaction.RemoveHash("hash");
+            transaction.Commit();
+        }
+
+        using (IStorageConnection connection = ((IBackgroundJobClientV2)context.NightShift(_storage)).Storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            transaction.AddToSet("set", "a", 2);
+            transaction.SetRangeInHash("hash", [new("field", "2")]);
+            transaction.Commit();
+        }
+
+        context.SaveChanges();
+
+        using IStorageConnection reader = _storage.GetConnection();
+        Assert.Equal(["a"], reader.GetAllItemsFromSet("set"));
+        Assert.Equal("2", ((JobStorageConnection)reader).GetValueFromHash("hash", "field"));
+    }
+
+    [Fact]
+    public void Duplicates_StagedBeforeTheSameSaveChanges_OnlyOneIsCreated()
+    {
+        string name = Guid.NewGuid().ToString("N");
+        using ShopContext context = CreateContext();
+        IBackgroundJobClient client = context.NightShift(_storage);
+
+        string? first = client.Enqueue(() => Once(name));
+        string? second = client.Enqueue(() => Once(name));
+        context.SaveChanges();
+
+        Assert.NotNull(first);
+        Assert.Null(second);
+        Assert.Equal(1, _storage.GetMonitoringApi().EnqueuedCount("default"));
+    }
+
+    [Fact]
+    public void Duplicate_OfAJobStagedButNeverSaved_IsCreated_OnceTheReservationTimedOut()
+    {
+        string name = Guid.NewGuid().ToString("N");
+        TimeProvider original = JobClock.TimeProvider;
+        ShiftedClock clock = new();
+        JobClock.TimeProvider = clock;
+
+        try
+        {
+            using (ShopContext context = CreateContext())
+            {
+                Assert.NotNull(context.NightShift(_storage).Enqueue(() => Once(name)));
+
+                // Never saved
+            }
+
+            Assert.Null(new BackgroundJobClient(_storage).Enqueue(() => Once(name)));
+
+            clock.Offset = TimeSpan.FromMinutes(3);
+            Assert.NotNull(new BackgroundJobClient(_storage).Enqueue(() => Once(name)));
+        }
+        finally
+        {
+            JobClock.TimeProvider = original;
+        }
+    }
+
+    [Fact]
+    public void Continuation_OfACommittedJob_SavedAfterTheParentFinished_StartsWhenSaved()
+    {
+        TimeProvider original = JobClock.TimeProvider;
+        ShiftedClock clock = new();
+        JobClock.TimeProvider = clock;
+
+        try
+        {
+            BackgroundJobClient plain = new(_storage);
+            string parent = plain.Enqueue(() => ConformanceJobs.Record("parent"))!;
+
+            using ShopContext context = CreateContext();
+            string continuation = context.NightShift(_storage).ContinueJobWith(parent, () => ConformanceJobs.Record("continuation"))!;
+
+            // The application saves 16 minutes later (the reservation lasts at least a day); meanwhile the parent ran
+            clock.Offset = TimeSpan.FromMinutes(16);
+            Stopwatch watch = Stopwatch.StartNew();
+            Assert.True(plain.ChangeState(parent, new SucceededState(null, 1, 1), EnqueuedState.StateName));
+            Assert.True(watch.Elapsed < TimeSpan.FromSeconds(4), $"The parent's state change took {watch.Elapsed}.");
+            context.SaveChanges();
+
+            Assert.Equal(SucceededState.StateName, State(parent));
+            Assert.Equal(EnqueuedState.StateName, State(continuation));
+        }
+        finally
+        {
+            JobClock.TimeProvider = original;
+        }
+    }
+
+    [Fact]
+    public void Continuation_OfACommittedJob_IsRegisteredWhenTheContextSaves()
+    {
+        string parent = new BackgroundJobClient(_storage).Enqueue(() => ConformanceJobs.Record("parent"))!;
+        using ShopContext context = CreateContext();
+
+        string continuation = context.NightShift(_storage).ContinueJobWith(parent, () => ConformanceJobs.Record("continuation"))!;
+        using (IStorageConnection connection = _storage.GetConnection())
+        {
+            Assert.Null(connection.GetJobParameter(parent, "Continuations"));
+        }
+
+        context.SaveChanges();
+
+        Assert.Equal(AwaitingState.StateName, State(continuation));
+        using IStorageConnection reader = _storage.GetConnection();
+        Assert.Contains(continuation, reader.GetJobParameter(parent, "Continuations"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parent_OfAStagedContinuationNeverSaved_FinishesWithoutWaiting()
+    {
+        BackgroundJobClient plain = new(_storage);
+        string parent = plain.Enqueue(() => ConformanceJobs.Record("parent"))!;
+        using (ShopContext context = CreateContext())
+        {
+            context.NightShift(_storage).ContinueJobWith(parent, () => ConformanceJobs.Record("continuation"));
+        }
+
+        Stopwatch watch = Stopwatch.StartNew();
+        Assert.True(plain.ChangeState(parent, new SucceededState(null, 1, 1), EnqueuedState.StateName));
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(4), $"The parent's state change took {watch.Elapsed}.");
+    }
+
+    [Fact]
+    public void Continuation_CommittedButNotRegistered_WhenItsProcessStopped_IsRegisteredByAServer()
+    {
+        // What a process that stopped between the commit and the registration leaves: the continuation waits,
+        // its parent doesn't know of it, and the set says it is to be registered
+        BackgroundJobClient plain = new(_storage);
+        string parent = plain.Enqueue(() => ConformanceJobs.Record("parent"))!;
+        string continuation = plain.ContinueJobWith(parent, () => ConformanceJobs.Record("continuation"))!;
+        using (IStorageConnection connection = _storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            connection.SetJobParameter(parent, "Continuations", null);
+            transaction.AddToSet(StagedContinuations.Key, continuation, JobHelper.ToTimestamp(JobClock.UtcNow.AddMinutes(-5)));
+            transaction.Commit();
+        }
+
+        Assert.True(plain.ChangeState(parent, new SucceededState(null, 1, 1), EnqueuedState.StateName));
+        Assert.Equal(AwaitingState.StateName, State(continuation));
+
+        using CancellationTokenSource stopped = new();
+        stopped.Cancel();
+        BackgroundProcessContext context = new("server", _storage, new Dictionary<string, object>(), Guid.NewGuid(), stopped.Token, CancellationToken.None, CancellationToken.None);
+
+        // It does its work, then its wait ends at once: the server is stopping
+        Assert.ThrowsAny<OperationCanceledException>(() => new StagedContinuationsProcess(_storage).Execute(context));
+
+        Assert.Equal(EnqueuedState.StateName, State(continuation));
+        using IStorageConnection reader = _storage.GetConnection();
+        Assert.Empty(reader.GetAllItemsFromSet(StagedContinuations.Key));
+    }
+
+    [Fact]
+    public void Join_OfCommittedJobs_IsRegisteredWhenTheContextSaves_AndStartsIfTheyFinished()
+    {
+        BackgroundJobClient plain = new(_storage);
+        string first = plain.Enqueue(() => ConformanceJobs.Record("first"))!;
+        string second = plain.Enqueue(() => ConformanceJobs.Record("second"))!;
+
+        using ShopContext context = CreateContext();
+        string join = context.NightShift(_storage).ContinueJobWithJoin([first, second], FanInMode.All, () => ConformanceJobs.Record("join"))!;
+
+        Assert.True(plain.ChangeState(first, new SucceededState(null, 1, 1), EnqueuedState.StateName));
+        Assert.True(plain.ChangeState(second, new SucceededState(null, 1, 1), EnqueuedState.StateName));
+        context.SaveChanges();
+
+        Assert.Equal(EnqueuedState.StateName, State(join));
+    }
+
     private string? State(string id)
     {
         using IStorageConnection connection = _storage.GetConnection();
@@ -225,6 +441,14 @@ public sealed class StagingFacts : IDisposable
     }
 
     private sealed class EmptyContext(DbContextOptions<EmptyContext> options) : DbContext(options);
+
+    /// <summary>The system clock, moved by a time the test sets.</summary>
+    private sealed class ShiftedClock : TimeProvider
+    {
+        public TimeSpan Offset { get; set; }
+
+        public override DateTimeOffset GetUtcNow() => System.GetUtcNow() + Offset;
+    }
 
     private sealed class Order
     {

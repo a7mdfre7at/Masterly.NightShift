@@ -1,8 +1,13 @@
+using System.Collections.Concurrent;
+using System.Data.Common;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Transactions;
+using Masterly.NightShift.Logging;
+using Masterly.NightShift.States;
 using Masterly.NightShift.Storage.Shared;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -32,18 +37,31 @@ public static class NightShiftDbContextExtensions
         /// <para>
         /// The id is reserved on a connection of its own, outside the context's transaction, and the reservation
         /// lasts at least a day (30 days for jobs created by the client), so a context may be saved long after the
-        /// job is staged. SQLite has one writer at a time: while the context's transaction is open, the
-        /// reservation would wait for it until the busy timeout, so staging a job then throws at once. Stage it
-        /// before <c>BeginTransaction</c>, or enqueue it through the storage once the transaction committed.
+        /// job is staged. SQLite has one writer at a time: while the context's transaction is open, anything the
+        /// storage writes outside it would wait for it until the busy timeout, so staging then throws at once.
+        /// Stage and save before <c>BeginTransaction</c>, or enqueue through the storage once the transaction
+        /// committed.
         /// </para>
         /// <para>
         /// Staging takes part in the context's transaction. While the context has an open transaction
         /// (<c>BeginTransaction</c>, <c>UseTransaction</c>) or is inside a <see cref="TransactionScope"/>, what the
-        /// client and its filters read or write about the jobs, sets, hashes, lists and counters staged through
-        /// the context in that transaction runs in it, on the context's connection: a continuation of a job
-        /// staged and saved earlier in the same transaction is registered on it there, and commits or rolls back
-        /// with it. Everything else the filters read or write, the locks they take, and the reservation of the id
-        /// run on connections of the storage, outside the transaction, as without one.
+        /// client and its filters read or write about the jobs, sets, hashes, lists and counters saved in that
+        /// transaction runs in it, on the context's connection, by whichever context of the application saved
+        /// them. Everything else the filters read or write, the locks they take and the reservation of the id run
+        /// on connections of the storage, outside the transaction.
+        /// </para>
+        /// <para>
+        /// A continuation or a join of jobs that the context didn't stage is registered on its parents once the
+        /// staged continuation is committed: when the context saves it without a transaction, or when the
+        /// transaction or scope commits. It then starts at once if its parents already finished. A continuation
+        /// rolled back, or never saved, is never registered, and its parents never wait for it. Should the
+        /// process stop between the commit and the registration, a server registers it within a minute or two.
+        /// </para>
+        /// <para>
+        /// A job with <see cref="PreventDuplicatesAttribute"/> reserves its fingerprint at once, outside the
+        /// context's transaction, as a job created through the storage does: a second copy staged before the
+        /// first is saved, or created by any process meanwhile, is refused. Should the context never be saved, or
+        /// its transaction roll back, the reservation lapses as one whose creation stopped does (2 minutes).
         /// </para>
         /// <para>
         /// Work that runs once a job's creation is committed (alerts, activity feed entries and other
@@ -52,7 +70,7 @@ public static class NightShiftDbContextExtensions
         /// process's waiting workers: at once without a transaction, and once the transaction commits with one
         /// (a transaction the context began, or a <see cref="TransactionScope"/>; with a database transaction the
         /// application commits itself, at the workers' next poll). Other processes see the jobs at their next
-        /// poll.
+        /// poll. A job chain can't be staged.
         /// </para>
         /// </remarks>
         /// <param name="storage">The storage, whose tables are in the context's model.</param>
@@ -68,7 +86,6 @@ public static class NightShiftDbContextExtensions
             ArgumentNullException.ThrowIfNull(storage);
             EntityFrameworkCoreStorage.EnsureModel(context);
 
-            // Saving staged queue entries wakes this process's workers, as enqueuing through the storage does
             if (!Subscribed.TryGetValue(context, out StagingSubscription? subscription))
             {
                 subscription = new StagingSubscription(storage);
@@ -78,15 +95,14 @@ public static class NightShiftDbContextExtensions
                 {
                     if (sender is DbContext saving && Subscribed.TryGetValue(saving, out StagingSubscription? saved))
                     {
-                        saved.QueuesSaving = saving.ChangeTracker.Entries<JobQueueRow>().Any(static x => x.State == EntityState.Added);
+                        saved.Saving(saving);
                     }
                 };
                 context.SavedChanges += static (sender, _) =>
                 {
-                    if (sender is DbContext saved && Subscribed.TryGetValue(saved, out StagingSubscription? subscription) && subscription.QueuesSaving)
+                    if (sender is DbContext saved && Subscribed.TryGetValue(saved, out StagingSubscription? subscription))
                     {
-                        subscription.QueuesSaving = false;
-                        subscription.SignalOnceCommitted(saved);
+                        subscription.Saved(saved);
                     }
                 };
                 context.SaveChangesFailed += static (sender, _) =>
@@ -114,36 +130,82 @@ public static class NightShiftDbContextExtensions
                 ?? throw new InvalidOperationException("The current job storage isn't an EntityFrameworkCoreStorage."));
         }
     }
-
-    /// <summary>The subscription of a context that stages jobs, if any.</summary>
-    internal static StagingSubscription? SubscriptionOf(DbContext context) => Subscribed.TryGetValue(context, out StagingSubscription? subscription) ? subscription : null;
 }
 
 /// <summary>
 /// What a context that stages jobs needs between its calls: the storage, whether the save in progress writes
-/// queue entries, the transactions whose commit is to wake the workers, and what was staged in the context's
-/// current transaction. A context is used by one thread at a time, but a transaction may end on another.
+/// queue entries, and the continuations it staged that wait for their commit to be registered. A context is used
+/// by one thread at a time.
 /// </summary>
 internal sealed class StagingSubscription(EntityFrameworkCoreStorage storage)
 {
-    private const string SqliteProvider = "Microsoft.EntityFrameworkCore.Sqlite";
-
-    private readonly NightShiftLock _syncRoot = new();
-    private readonly HashSet<Guid> _pendingCommits = [];
-    private readonly HashSet<string> _pendingScopes = new(StringComparer.Ordinal);
-    private readonly HashSet<string> _staged = new(StringComparer.Ordinal);
-    private string? _stagedIn;
+    private readonly List<string> _continuations = [];
 
     public EntityFrameworkCoreStorage Storage { get; } = storage;
 
     public bool QueuesSaving { get; set; }
 
+    /// <summary>A continuation staged whose registration on its parents waits for its commit.</summary>
+    public void Defer(string continuationId) => _continuations.Add(continuationId);
+
+    /// <summary>Before a save: what it writes to the storage's tables is recorded for the transaction it is in.</summary>
+    public void Saving(DbContext context)
+    {
+        QueuesSaving = context.ChangeTracker.Entries<JobQueueRow>().Any(static x => x.State == EntityState.Added);
+
+        if (ApplicationTransaction.Of(context) is { } transaction)
+        {
+            transaction.Record(StorageRows.Written(context));
+        }
+    }
+
     /// <summary>
-    /// The transaction the context takes part in, as a text that tells one from another: one it began or was
-    /// given, or the ambient one. <c>null</c> without one, and on SQLite, which can't take part in an ambient
-    /// transaction and refuses staging while the context's own is open.
+    /// After a save: the storage's rows are forgotten (the database now has them, and a later staged write must
+    /// read what it has then, not what was saved here), and what waits for the commit is handed to it.
     /// </summary>
-    public static string? TransactionOf(DbContext context)
+    public void Saved(DbContext context)
+    {
+        StorageRows.Forget(context, everyState: true);
+
+        if (QueuesSaving)
+        {
+            QueuesSaving = false;
+            ApplicationTransaction.OnceCommitted(context, Storage.Signal);
+        }
+
+        if (_continuations.Count > 0)
+        {
+            string[] continuations = [.. _continuations];
+            _continuations.Clear();
+            EntityFrameworkCoreStorage storage = Storage;
+            ApplicationTransaction.OnceCommitted(context, () => StagedContinuations.Register(storage, continuations));
+        }
+    }
+}
+
+/// <summary>
+/// The transaction an application's context takes part in, and what was saved in it to the storage's tables, by
+/// any context: one transaction of the database (<see cref="DbTransaction"/>, shared by every context that uses
+/// it), or an ambient <see cref="TransactionScope"/>. SQLite is never in one here: it can't take part in an
+/// ambient transaction, and staging refuses its own open transaction.
+/// </summary>
+internal sealed class ApplicationTransaction
+{
+    private const string SqliteProvider = "Microsoft.EntityFrameworkCore.Sqlite";
+
+    private static readonly ConditionalWeakTable<DbTransaction, ApplicationTransaction> Database = [];
+    private static readonly ConcurrentDictionary<string, ApplicationTransaction> Scopes = new(StringComparer.Ordinal);
+
+    private readonly NightShiftLock _syncRoot = new();
+    private readonly HashSet<string> _saved = new(StringComparer.Ordinal);
+    private readonly List<Action> _onceCommitted = [];
+
+    private ApplicationTransaction()
+    {
+    }
+
+    /// <summary>The transaction the context is in, or <c>null</c>.</summary>
+    public static ApplicationTransaction? Of(DbContext context)
     {
         if (context.Database.ProviderName == SqliteProvider)
         {
@@ -152,104 +214,109 @@ internal sealed class StagingSubscription(EntityFrameworkCoreStorage storage)
 
         if (context.Database.CurrentTransaction is { } transaction)
         {
-            return $"database:{transaction.TransactionId:N}";
+            return Database.GetValue(transaction.GetDbTransaction(), static _ => new ApplicationTransaction());
         }
 
-        return Transaction.Current is { } ambient ? $"scope:{ambient.TransactionInformation.LocalIdentifier}" : null;
-    }
-
-    /// <summary>Whether a resource was staged through the context in <paramref name="transaction"/>.</summary>
-    public bool Staged(string transaction, string resource)
-    {
-        lock (_syncRoot)
+        if (Transaction.Current is not { } ambient)
         {
-            return _stagedIn == transaction && _staged.Contains(resource);
+            return null;
         }
-    }
 
-    /// <summary>Records resources staged through the context in <paramref name="transaction"/>, forgetting those of an earlier one.</summary>
-    public void Stage(string transaction, IEnumerable<string> resources)
-    {
-        lock (_syncRoot)
+        string id = ambient.TransactionInformation.LocalIdentifier;
+        if (Scopes.TryGetValue(id, out ApplicationTransaction? known))
         {
-            if (_stagedIn != transaction)
-            {
-                _staged.Clear();
-                _stagedIn = transaction;
-            }
-
-            _staged.UnionWith(resources);
+            return known;
         }
+
+        ApplicationTransaction created = new();
+        if (!Scopes.TryAdd(id, created))
+        {
+            return Scopes[id];
+        }
+
+        ambient.TransactionCompleted += (_, e) =>
+        {
+            Scopes.TryRemove(id, out ApplicationTransaction? _);
+            created.End(e.Transaction?.TransactionInformation.Status == TransactionStatus.Committed);
+        };
+        return created;
     }
 
     /// <summary>
-    /// Wakes the workers once the queue entries just saved are committed: at once without a transaction; when
-    /// a transaction the context began commits (told by EF Core's diagnostics, see <see cref="TransactionEnds"/>);
-    /// when a <see cref="TransactionScope"/> commits. A transaction the application began on the connection
-    /// itself tells nobody: the workers find the jobs at their next poll.
+    /// Runs <paramref name="action"/> once what the context saved is committed: now without a transaction, when
+    /// its transaction or scope commits otherwise, and never if it doesn't. A transaction the application commits
+    /// on the connection itself tells nobody: the action never runs then.
     /// </summary>
-    public void SignalOnceCommitted(DbContext context)
+    public static void OnceCommitted(DbContext context, Action action)
     {
-        if (context.Database.ProviderName != SqliteProvider && context.Database.CurrentTransaction is { } transaction)
+        if (Of(context) is { } transaction)
         {
-            lock (_syncRoot)
+            lock (transaction._syncRoot)
             {
-                _pendingCommits.Add(transaction.TransactionId);
+                transaction._onceCommitted.Add(action);
             }
 
             return;
         }
 
-        if (context.Database.ProviderName != SqliteProvider && Transaction.Current is { } ambient)
-        {
-            string id = ambient.TransactionInformation.LocalIdentifier;
-            lock (_syncRoot)
-            {
-                if (!_pendingScopes.Add(id))
-                {
-                    return;
-                }
-            }
-
-            ambient.TransactionCompleted += (_, e) =>
-            {
-                lock (_syncRoot)
-                {
-                    _pendingScopes.Remove(id);
-                }
-
-                if (e.Transaction?.TransactionInformation.Status == TransactionStatus.Committed)
-                {
-                    Storage.Signal();
-                }
-            };
-            return;
-        }
-
-        Storage.Signal();
+        action();
     }
 
-    /// <summary>A transaction of the context ended: wakes the workers if it committed queue entries.</summary>
-    public void Ended(Guid transactionId, bool committed)
+    /// <summary>The transaction of the database was committed, or ended otherwise.</summary>
+    public static void Ended(DbTransaction transaction, bool committed)
     {
-        bool pending;
+        if (Database.TryGetValue(transaction, out ApplicationTransaction? known))
+        {
+            Database.Remove(transaction);
+            known.End(committed);
+        }
+    }
+
+    /// <summary>Records resources saved in the transaction.</summary>
+    public void Record(IEnumerable<string> resources)
+    {
         lock (_syncRoot)
         {
-            pending = _pendingCommits.Remove(transactionId);
+            _saved.UnionWith(resources);
+        }
+    }
+
+    /// <summary>Whether a resource was saved in the transaction: its rows are there, and maybe locked by it.</summary>
+    public bool Saved(string resource)
+    {
+        lock (_syncRoot)
+        {
+            return _saved.Contains(resource);
+        }
+    }
+
+    private void End(bool committed)
+    {
+        Action[] actions;
+        lock (_syncRoot)
+        {
+            actions = [.. _onceCommitted];
+            _onceCommitted.Clear();
+            _saved.Clear();
         }
 
-        if (pending && committed)
+        if (!committed)
         {
-            Storage.Signal();
+            return;
+        }
+
+        foreach (Action action in actions)
+        {
+            action();
         }
     }
 }
 
 /// <summary>
-/// Tells the subscriptions when a transaction of their context commits or ends otherwise, from EF Core's
-/// diagnostics (<see cref="DiagnosticListener"/>), which every context reports to whatever its options: a
-/// context's events can't be subscribed to otherwise without an interceptor in its options, which belong to the
-/// application. Only the three events of a transaction's end are asked for.
+/// Tells when a transaction of the database ends, from EF Core's diagnostics (<see cref="DiagnosticListener"/>),
+/// which every context reports to whatever its options: a context's events can't be subscribed to otherwise
+/// without an interceptor in its options, which belong to the application. Only the three events of a
+/// transaction's end are asked for.
 /// </summary>
 internal sealed class TransactionEnds : IObserver<DiagnosticListener>, IObserver<KeyValuePair<string, object?>>
 {
@@ -275,9 +342,9 @@ internal sealed class TransactionEnds : IObserver<DiagnosticListener>, IObserver
 
     public void OnNext(KeyValuePair<string, object?> value)
     {
-        if (value.Value is TransactionEventData { Context: { } context } data && NightShiftDbContextExtensions.SubscriptionOf(context) is { } subscription)
+        if (value.Value is TransactionEventData data)
         {
-            subscription.Ended(data.TransactionId, committed: value.Key == Committed);
+            ApplicationTransaction.Ended(data.Transaction, committed: value.Key == Committed);
         }
     }
 
@@ -287,6 +354,72 @@ internal sealed class TransactionEnds : IObserver<DiagnosticListener>, IObserver
 
     public void OnError(Exception error)
     {
+    }
+}
+
+/// <summary>The storage's rows in an application's context.</summary>
+internal static class StorageRows
+{
+    private static readonly HashSet<Type> Types =
+    [
+        typeof(JobRow), typeof(StateRow), typeof(JobParameterRow), typeof(JobQueueRow), typeof(SetRow), typeof(ListRow),
+        typeof(HashRow), typeof(CounterRow), typeof(AggregatedCounterRow), typeof(LockRow), typeof(ServerRow), typeof(SchemaVersionRow),
+    ];
+
+    /// <summary>
+    /// Stops tracking the storage's rows the context holds unchanged (or, after a save, every one of them): a
+    /// staged write then reads what the database has, never a row the context loaded or saved earlier, which
+    /// another process may have changed or deleted since, and which EF Core would compare the write with.
+    /// </summary>
+    public static void Forget(DbContext context, bool everyState)
+    {
+        foreach (EntityEntry entry in context.ChangeTracker.Entries().ToList())
+        {
+            if (Types.Contains(entry.Metadata.ClrType) && (everyState || entry.State == EntityState.Unchanged))
+            {
+                entry.State = EntityState.Detached;
+            }
+        }
+    }
+
+    /// <summary>What the context is about to write to the storage's tables.</summary>
+    public static List<string> Written(DbContext context)
+    {
+        List<string> written = [];
+        foreach (EntityEntry entry in context.ChangeTracker.Entries())
+        {
+            if (entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted && Resource(entry.Entity) is { } resource)
+            {
+                written.Add(resource);
+            }
+        }
+
+        return written;
+    }
+
+    /// <summary>Whether the context holds writes of the job that it hasn't saved yet.</summary>
+    public static bool Pending(DbContext context, long jobId)
+    {
+        string job = StagedResources.Job(jobId);
+        return context.ChangeTracker.Entries().Any(x =>
+            x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted && Resource(x.Entity) == job);
+    }
+
+    private static string? Resource(object row)
+    {
+        return row switch
+        {
+            JobRow job => StagedResources.Job(job.Id),
+            StateRow state => StagedResources.Job(state.JobId),
+            JobQueueRow queue => StagedResources.Job(queue.JobId),
+            JobParameterRow parameter => StagedResources.Job(parameter.JobId),
+            SetRow set => StagedResources.Set(set.Key),
+            ListRow list => StagedResources.List(list.Key),
+            HashRow hash => StagedResources.Hash(hash.Key),
+            CounterRow counter => StagedResources.Counter(counter.Key),
+            AggregatedCounterRow counter => StagedResources.Counter(counter.Key),
+            _ => null,
+        };
     }
 }
 
@@ -304,7 +437,7 @@ internal sealed class StagingStorage(EntityFrameworkCoreStorage storage, DbConte
 
 /// <summary>
 /// A connection that locks through the storage, stages its transactions in the context, and reads and writes
-/// at once either through the storage, or, for what was staged in the context's open transaction, in that
+/// at once either through the storage, or, for what was saved in the context's open transaction, in that
 /// transaction (see <see cref="NightShiftDbContextExtensions"/>).
 /// </summary>
 internal sealed class StagingConnection(EntityFrameworkCoreStorage storage, EfConnection connection, DbContext context, StagingSubscription subscription) : JobStorageConnection
@@ -315,6 +448,9 @@ internal sealed class StagingConnection(EntityFrameworkCoreStorage storage, EfCo
     /// </summary>
     internal static readonly TimeSpan MinimumReservation = TimeSpan.FromDays(1);
 
+    // The parameters a continuation and a join write on their parents to register (ContinuationsSupportAttribute,
+    // FanInContinuationsSupportAttribute)
+    private const string ContinuationsParameter = "Continuations";
     private const string SqliteProvider = "Microsoft.EntityFrameworkCore.Sqlite";
 
     private readonly EntityFrameworkCoreStorage _storage = storage;
@@ -323,7 +459,7 @@ internal sealed class StagingConnection(EntityFrameworkCoreStorage storage, EfCo
     private readonly StagingSubscription _subscription = subscription;
 
     // The application's transaction when the client was asked for a connection: a client's call is one unit
-    private readonly string? _transaction = StagingSubscription.TransactionOf(context);
+    private readonly ApplicationTransaction? _transaction = ApplicationTransaction.Of(context);
     private EfConnection? _within;
 
     public override void Dispose()
@@ -333,21 +469,32 @@ internal sealed class StagingConnection(EntityFrameworkCoreStorage storage, EfCo
         base.Dispose();
     }
 
-    public override IWriteOnlyTransaction CreateWriteTransaction() => new StagingTransaction(_connection, _context, _subscription, _transaction);
+    public override IWriteOnlyTransaction CreateWriteTransaction() => new StagingTransaction(_storage, _connection, _context, _subscription, this);
 
-    public override IDisposable AcquireDistributedLock(string resource, TimeSpan timeout) => _connection.AcquireDistributedLock(resource, timeout);
+    public override IDisposable AcquireDistributedLock(string resource, TimeSpan timeout)
+    {
+        EnsureCanWriteOutside();
+        return _connection.AcquireDistributedLock(resource, timeout);
+    }
 
     public override string? CreateExpiredJob(Job job, IDictionary<string, string?> parameters, DateTime createdAt, TimeSpan expireIn)
     {
-        // The reservation writes on another connection: SQLite would make it wait for the context's own write
-        // lock until the busy timeout, then fail
+        EnsureCanWriteOutside();
+        return _connection.CreateExpiredJob(job, parameters, createdAt, expireIn < MinimumReservation ? MinimumReservation : expireIn);
+    }
+
+    /// <summary>
+    /// Refuses at once what the storage would write outside the context's open transaction on SQLite: SQLite
+    /// has one writer at a time, so it would wait for that transaction until the busy timeout, then fail.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The context is on SQLite and its transaction is open.</exception>
+    internal void EnsureCanWriteOutside()
+    {
         if (_context.Database.CurrentTransaction != null && _context.Database.ProviderName == SqliteProvider)
         {
             throw new InvalidOperationException(
-                "A job can't be staged on SQLite while the context's transaction is open: SQLite has one writer at a time, and the job's id is reserved outside that transaction. Stage the job before BeginTransaction, or enqueue it through the storage once the transaction committed.");
+                "A job can't be staged on SQLite while the context's transaction is open: SQLite has one writer at a time, and the storage writes the job's id, its locks and its reservations outside that transaction. Stage and save the job before BeginTransaction, or enqueue it through the storage once the transaction committed.");
         }
-
-        return _connection.CreateExpiredJob(job, parameters, createdAt, expireIn < MinimumReservation ? MinimumReservation : expireIn);
     }
 
     public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
@@ -355,16 +502,28 @@ internal sealed class StagingConnection(EntityFrameworkCoreStorage storage, EfCo
         throw new NotSupportedException("Staged clients create jobs; servers fetch them through the storage.");
     }
 
-    // The staging storage reports the storage's features
-    public override string? GetQueueEntryId(IFetchedJob fetchedJob) => _connection.GetQueueEntryId(fetchedJob);
+    public override void SetJobParameter(string id, string name, string? value)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        ArgumentNullException.ThrowIfNull(name);
 
-    public override void SetJobParameter(string id, string name, string? value) => ForJob(id).SetJobParameter(id, name, value);
+        // A continuation or a join registers on a parent the application didn't stage once it is committed
+        // itself (StagedContinuations): registered now, a parent that finishes first would wait for a
+        // continuation that may never be saved, or start nothing when it is saved later
+        if (name is ContinuationsParameter or FanInContinuationsSupportAttribute.ParameterName && !IsTheApplications(id))
+        {
+            return;
+        }
 
-    public override string? GetJobParameter(string id, string name) => ForJob(id).GetJobParameter(id, name);
+        EnsureCanWriteOutside();
+        RouteJob(id, x => x.SetJobParameter(id, name, value));
+    }
 
-    public override JobData? GetJobData(string jobId) => ForJob(jobId).GetJobData(jobId);
+    public override string? GetJobParameter(string id, string name) => RouteJob(id, x => x.GetJobParameter(id, name));
 
-    public override StateData? GetStateData(string jobId) => ForJob(jobId).GetStateData(jobId);
+    public override JobData? GetJobData(string jobId) => RouteJob(jobId, x => x.GetJobData(jobId));
+
+    public override StateData? GetStateData(string jobId) => RouteJob(jobId, x => x.GetStateData(jobId));
 
     public override void AnnounceServer(string serverId, ServerContext context) => _connection.AnnounceServer(serverId, context);
 
@@ -374,62 +533,99 @@ internal sealed class StagingConnection(EntityFrameworkCoreStorage storage, EfCo
 
     public override int RemoveTimedOutServers(TimeSpan timeOut) => _connection.RemoveTimedOutServers(timeOut);
 
-    public override HashSet<string> GetAllItemsFromSet(string key) => For(StagedResources.Set(key)).GetAllItemsFromSet(key);
+    public override HashSet<string> GetAllItemsFromSet(string key) => Route(StagedResources.Set(key), x => x.GetAllItemsFromSet(key));
 
-    public override string? GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore) => For(StagedResources.Set(key)).GetFirstByLowestScoreFromSet(key, fromScore, toScore);
+    public override string? GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore) => Route(StagedResources.Set(key), x => x.GetFirstByLowestScoreFromSet(key, fromScore, toScore));
 
-    public override List<string> GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore, int count) => For(StagedResources.Set(key)).GetFirstByLowestScoreFromSet(key, fromScore, toScore, count);
+    public override List<string> GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore, int count) => Route(StagedResources.Set(key), x => x.GetFirstByLowestScoreFromSet(key, fromScore, toScore, count));
 
-    public override long GetSetCount(string key) => For(StagedResources.Set(key)).GetSetCount(key);
+    public override long GetSetCount(string key) => Route(StagedResources.Set(key), x => x.GetSetCount(key));
 
     public override long GetSetCount(IEnumerable<string> keys, int limit)
     {
         ArgumentNullException.ThrowIfNull(keys);
         string[] names = [.. keys];
-        return For(names.Select(StagedResources.Set)).GetSetCount(names, limit);
+        return Route(names.Select(StagedResources.Set), x => x.GetSetCount(names, limit));
     }
 
-    public override bool GetSetContains(string key, string value) => For(StagedResources.Set(key)).GetSetContains(key, value);
+    public override bool GetSetContains(string key, string value) => Route(StagedResources.Set(key), x => x.GetSetContains(key, value));
 
-    public override List<string> GetRangeFromSet(string key, int startingFrom, int endingAt) => For(StagedResources.Set(key)).GetRangeFromSet(key, startingFrom, endingAt);
+    public override List<string> GetRangeFromSet(string key, int startingFrom, int endingAt) => Route(StagedResources.Set(key), x => x.GetRangeFromSet(key, startingFrom, endingAt));
 
-    public override TimeSpan GetSetTtl(string key) => For(StagedResources.Set(key)).GetSetTtl(key);
+    public override TimeSpan GetSetTtl(string key) => Route(StagedResources.Set(key), x => x.GetSetTtl(key));
 
-    public override void SetRangeInHash(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs) => For(StagedResources.Hash(key)).SetRangeInHash(key, keyValuePairs);
+    public override void SetRangeInHash(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs)
+    {
+        EnsureCanWriteOutside();
+        Route(StagedResources.Hash(key), x => x.SetRangeInHash(key, keyValuePairs));
+    }
 
-    public override Dictionary<string, string>? GetAllEntriesFromHash(string key) => For(StagedResources.Hash(key)).GetAllEntriesFromHash(key);
+    public override Dictionary<string, string>? GetAllEntriesFromHash(string key) => Route(StagedResources.Hash(key), x => x.GetAllEntriesFromHash(key));
 
-    public override string? GetValueFromHash(string key, string name) => For(StagedResources.Hash(key)).GetValueFromHash(key, name);
+    public override string? GetValueFromHash(string key, string name) => Route(StagedResources.Hash(key), x => x.GetValueFromHash(key, name));
 
-    public override long GetHashCount(string key) => For(StagedResources.Hash(key)).GetHashCount(key);
+    public override long GetHashCount(string key) => Route(StagedResources.Hash(key), x => x.GetHashCount(key));
 
-    public override TimeSpan GetHashTtl(string key) => For(StagedResources.Hash(key)).GetHashTtl(key);
+    public override TimeSpan GetHashTtl(string key) => Route(StagedResources.Hash(key), x => x.GetHashTtl(key));
 
-    public override long GetListCount(string key) => For(StagedResources.List(key)).GetListCount(key);
+    public override long GetListCount(string key) => Route(StagedResources.List(key), x => x.GetListCount(key));
 
-    public override List<string> GetAllItemsFromList(string key) => For(StagedResources.List(key)).GetAllItemsFromList(key);
+    public override List<string> GetAllItemsFromList(string key) => Route(StagedResources.List(key), x => x.GetAllItemsFromList(key));
 
-    public override List<string> GetRangeFromList(string key, int startingFrom, int endingAt) => For(StagedResources.List(key)).GetRangeFromList(key, startingFrom, endingAt);
+    public override List<string> GetRangeFromList(string key, int startingFrom, int endingAt) => Route(StagedResources.List(key), x => x.GetRangeFromList(key, startingFrom, endingAt));
 
-    public override TimeSpan GetListTtl(string key) => For(StagedResources.List(key)).GetListTtl(key);
+    public override TimeSpan GetListTtl(string key) => Route(StagedResources.List(key), x => x.GetListTtl(key));
 
-    public override long GetCounter(string key) => For(StagedResources.Counter(key)).GetCounter(key);
+    public override long GetCounter(string key) => Route(StagedResources.Counter(key), x => x.GetCounter(key));
 
     // The database's clock, or the process's: the same for every connection, and never in a transaction
     public override DateTime GetUtcDateTime() => _connection.GetUtcDateTime();
 
-    private EfConnection ForJob(string jobId)
+    /// <summary>
+    /// Whether a job is the application's: saved in its transaction, or staged in the context and not saved
+    /// yet. What is written about it then goes with the application's rows, not ahead of them.
+    /// </summary>
+    internal bool IsTheApplications(string jobId)
     {
-        ArgumentNullException.ThrowIfNull(jobId);
-        return StorageValues.TryParseJobId(jobId, out long id) ? For(StagedResources.Job(id)) : _connection;
+        return StorageValues.TryParseJobId(jobId, out long id)
+            && ((_transaction != null && _transaction.Saved(StagedResources.Job(id))) || StorageRows.Pending(_context, id));
     }
 
-    private EfConnection For(string resource) => _transaction != null && _subscription.Staged(_transaction, resource) ? Within() : _connection;
+    private T RouteJob<T>(string jobId, Func<EfConnection, T> call)
+    {
+        ArgumentNullException.ThrowIfNull(jobId);
+        return StorageValues.TryParseJobId(jobId, out long id) ? Route(StagedResources.Job(id), call) : call(_connection);
+    }
 
-    private EfConnection For(IEnumerable<string> resources) => _transaction != null && resources.Any(x => _subscription.Staged(_transaction, x)) ? Within() : _connection;
+    private void RouteJob(string jobId, Action<EfConnection> call) => RouteJob(jobId, x =>
+    {
+        call(x);
+        return true;
+    });
 
-    // The storage's reads and writes, on contexts that share the application's connection and transaction
-    private EfConnection Within() => _within ??= new EfConnection(_storage, Borrow);
+    private T Route<T>(string resource, Func<EfConnection, T> call)
+    {
+        return _transaction != null && _transaction.Saved(resource) ? InTheTransaction(call) : call(_connection);
+    }
+
+    private T Route<T>(IEnumerable<string> resources, Func<EfConnection, T> call)
+    {
+        return _transaction != null && resources.Any(_transaction.Saved) ? InTheTransaction(call) : call(_connection);
+    }
+
+    private void Route(string resource, Action<EfConnection> call) => Route(resource, x =>
+    {
+        call(x);
+        return true;
+    });
+
+    // The storage's reads and writes, on contexts that share the application's connection and transaction. A
+    // retrying execution strategy can't run in a transaction it didn't begin: these run as one call nested in it.
+    private T InTheTransaction<T>(Func<EfConnection, T> call)
+    {
+        using IDisposable direct = NestedExecution.Enter(_context);
+        return call(_within ??= new EfConnection(_storage, Borrow));
+    }
 
     /// <summary>
     /// A context of the storage on the application's connection, in its open transaction: one the context
@@ -457,14 +653,46 @@ internal sealed class StagingConnection(EntityFrameworkCoreStorage storage, EfCo
     }
 }
 
-/// <summary>A transaction whose writes become tracked changes of the context, saved by the application.</summary>
-internal sealed class StagingTransaction(EfConnection connection, DbContext context, StagingSubscription subscription, string? transaction) : RecordingTransaction
+/// <summary>
+/// Runs what EF Core executes meanwhile as nested in a call of an execution strategy, so a retrying strategy of
+/// the storage's contexts executes it once, without retries, as it does the calls nested in its own: it refuses
+/// otherwise to run in a transaction that the application began. A failure there belongs to the application.
+/// </summary>
+internal sealed class NestedExecution : ExecutionStrategy
 {
-    protected override IDisposable AcquireLock(string resource, TimeSpan timeout) => connection.AcquireDistributedLock(resource, timeout);
+    private NestedExecution(DbContext context)
+        : base(context, 0, TimeSpan.Zero)
+    {
+    }
 
+    /// <summary>Until the result is disposed, on this thread and its async flow.</summary>
+    public static IDisposable Enter(DbContext context)
+    {
+        ExecutionStrategy? outer = Current;
+        Current = new NestedExecution(context);
+        return new Leave(outer);
+    }
+
+    protected override bool ShouldRetryOn(Exception exception) => false;
+
+    private sealed class Leave(ExecutionStrategy? outer) : IDisposable
+    {
+        public void Dispose() => Current = outer;
+    }
+}
+
+/// <summary>A transaction whose writes become tracked changes of the context, saved by the application.</summary>
+internal sealed class StagingTransaction(EntityFrameworkCoreStorage storage, EfConnection connection, DbContext context, StagingSubscription subscription, StagingConnection staging) : RecordingTransaction
+{
     // The record of a chain, which a client writes before the first step of a chain it creates, retries or replaces
     private const string ChainRecordPrefix = "chain:";
     private const string ChainJobsField = "Jobs";
+
+    // A duplicate's fingerprint, reserved and released by PreventDuplicatesAttribute in transactions of their own
+    private const string FingerprintPrefix = "fingerprint:";
+    private const string ReservationField = "Reservation";
+
+    protected override IDisposable AcquireLock(string resource, TimeSpan timeout) => connection.AcquireDistributedLock(resource, timeout);
 
     protected override void Apply(IReadOnlyList<StorageOperation> operations)
     {
@@ -478,18 +706,174 @@ internal sealed class StagingTransaction(EfConnection connection, DbContext cont
                 "A job chain can't be staged in a context: the client checks the steps it has created, which the context only writes when it is saved. Create the chain with a client of the storage (new BackgroundJobClient(storage)) once the context is saved and its transaction committed.");
         }
 
+        if (IsDuplicateReservation(operations))
+        {
+            staging.EnsureCanWriteOutside();
+            // Committed at once, outside the application's transaction, as for a job created through the storage:
+            // seen by every copy staged after it and by every process. Not saved or rolled back, the job never
+            // names it, and it lapses as the reservation of a creation that stopped does.
+            EfTransaction.Apply(storage, operations);
+            return;
+        }
+
+        // A row the context loaded or saved earlier may have changed since: the writer reads it again
+        StorageRows.Forget(context, everyState: false);
+
         EfOperationWriter writer = new(context, immediate: false);
         foreach (StorageOperation operation in operations)
         {
             writer.Write(operation);
         }
 
-        // What was staged in the context's transaction is read and written in it from here on
-        if (transaction != null)
+        foreach (string continuation in ContinuationsOfOthers(operations))
         {
-            subscription.Stage(transaction, operations.SelectMany(StagedResources.Of));
+            // Committed with the continuation, so a server registers it should the process stop before it does
+            writer.Write(new AddToSetOperation(StagedContinuations.Key, continuation, JobHelper.ToTimestamp(JobClock.UtcNow)));
+            subscription.Defer(continuation);
         }
     }
+
+    // The reservation of a fingerprint, its release, or its return to the job it was to replace: transactions
+    // that write nothing else. The record that names the new job goes with the job, staged.
+    private static bool IsDuplicateReservation(IReadOnlyList<StorageOperation> operations)
+    {
+        return operations.Count > 0
+            && operations.All(static x => x switch
+            {
+                SetRangeInHashOperation hash => hash.Key.StartsWith(FingerprintPrefix, StringComparison.Ordinal),
+                RemoveHashOperation remove => remove.Key.StartsWith(FingerprintPrefix, StringComparison.Ordinal),
+                ExpireKeyOperation expire => expire.Kind == KeyKind.Hash && expire.Key.StartsWith(FingerprintPrefix, StringComparison.Ordinal),
+                _ => false,
+            })
+            && operations.Any(static x => x is RemoveHashOperation || (x is SetRangeInHashOperation hash && hash.Fields.Any(static y => y.Key == ReservationField)));
+    }
+
+    // The continuations and joins staged waiting for a parent that isn't the application's
+    private IEnumerable<string> ContinuationsOfOthers(IReadOnlyList<StorageOperation> operations)
+    {
+        foreach (StorageOperation operation in operations)
+        {
+            if (operation is not AddJobStateOperation { SetCurrent: true } added
+                || !AwaitingState.StateName.Equals(added.State.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            Dictionary<string, string>? data = SerializationHelper.Deserialize<Dictionary<string, string>>(added.State.Data);
+            string? parents = data == null ? null : data.TryGetValue("ParentIds", out string? all) ? all : data.GetValueOrDefault("ParentId");
+            if (parents != null && parents.Split(',', StringSplitOptions.RemoveEmptyEntries).Any(x => !staging.IsTheApplications(x)))
+            {
+                yield return StorageValues.FormatJobId(added.JobId);
+            }
+        }
+    }
+}
+
+/// <summary>
+/// Registers staged continuations and joins on parents that the application didn't stage, once they are
+/// committed, by electing their waiting state again through the storage: the filters that register them do it
+/// as for any continuation, under each parent's lock, and start the continuation at once when its parents
+/// already finished. Each such continuation is kept in a set, committed with it, until it is registered; a
+/// server registers what is left there (<see cref="StagedContinuationsProcess"/>).
+/// </summary>
+internal static class StagedContinuations
+{
+    /// <summary>The set of continuations committed and not registered yet, scored by when they were staged.</summary>
+    public const string Key = "staging:continuations";
+
+    private static readonly ILog Logger = LogProvider.GetLogger(typeof(StagedContinuations));
+
+    public static void Register(EntityFrameworkCoreStorage storage, IEnumerable<string> continuations)
+    {
+        foreach (string continuation in continuations)
+        {
+            try
+            {
+                Register(storage, continuation);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                // A server registers it later; meanwhile its parents don't know of it
+                Logger.WarnException($"Continuation '{continuation}', committed from an application's context, couldn't be registered on its parents yet; a server tries again within minutes.", ex);
+            }
+        }
+    }
+
+    private static void Register(EntityFrameworkCoreStorage storage, string continuation)
+    {
+        using IStorageConnection connection = storage.GetConnection();
+        StateData? state = connection.GetStateData(continuation);
+
+        if (state != null && AwaitingState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase) && WaitingState(state.Data) is { } waiting)
+        {
+            new BackgroundJobClient(storage).ChangeState(continuation, waiting, AwaitingState.StateName);
+        }
+
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+        transaction.RemoveFromSet(Key, continuation);
+        transaction.Commit();
+    }
+
+    // The state the continuation waits in, as it was stored
+    private static IState? WaitingState(IDictionary<string, string> data)
+    {
+        if (AwaitingJobsState.FromStateData(data) is { } join)
+        {
+            return join;
+        }
+
+        if (!data.TryGetValue("ParentId", out string? parent) || !data.TryGetValue("NextState", out string? next)
+            || SerializationHelper.Deserialize<IState>(next, SerializationOption.TypedInternal) is not { } nextState)
+        {
+            return null;
+        }
+
+        JobContinuationOptions options = data.TryGetValue("Options", out string? text) && Enum.TryParse(text, out JobContinuationOptions parsed)
+            ? parsed
+            : JobContinuationOptions.OnlyOnSucceededState;
+
+        return data.TryGetValue("Expiration", out string? expiration) && TimeSpan.TryParse(expiration, CultureInfo.InvariantCulture, out TimeSpan lasts)
+            ? new AwaitingState(parent, nextState, options, lasts)
+            : new AwaitingState(parent, nextState, options);
+    }
+}
+
+/// <summary>
+/// Registers the staged continuations whose process stopped between their commit and their registration, a
+/// minute after they were staged at the earliest, one server at a time.
+/// </summary>
+internal sealed class StagedContinuationsProcess(EntityFrameworkCoreStorage storage) : IBackgroundProcess
+{
+    private const int BatchSize = 100;
+    private static readonly TimeSpan Interval = TimeSpan.FromMinutes(1);
+    private static readonly ILog Logger = LogProvider.GetLogger(typeof(StagedContinuationsProcess));
+
+    public void Execute(BackgroundProcessContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        try
+        {
+            using IStorageConnection connection = storage.GetConnection();
+            using (connection.AcquireDistributedLock(StagedContinuations.Key, TimeSpan.Zero))
+            {
+                long before = JobHelper.ToTimestamp(JobClock.UtcNow - Interval);
+                StagedContinuations.Register(storage, ((JobStorageConnection)connection).GetFirstByLowestScoreFromSet(StagedContinuations.Key, 0, before, BatchSize));
+            }
+        }
+        catch (DistributedLockTimeoutException)
+        {
+            // Another server is at it
+        }
+        catch (Exception ex) when (ex is DbUpdateException or InvalidOperationException or DbException)
+        {
+            Logger.ErrorException("Couldn't register the staged continuations left over.", ex);
+        }
+
+        context.Wait(Interval);
+    }
+
+    public override string ToString() => "Entity Framework Core staged continuations";
 }
 
 /// <summary>Names what a staged operation writes, so reads and writes of it can be told apart from others.</summary>
@@ -504,37 +888,4 @@ internal static class StagedResources
     public static string List(string key) => $"list:{key}";
 
     public static string Counter(string key) => $"counter:{key}";
-
-    public static IEnumerable<string> Of(StorageOperation operation)
-    {
-        return operation switch
-        {
-            ExpireJobOperation expire => [Job(expire.JobId)],
-            AddJobStateOperation state => [Job(state.JobId)],
-            AddToQueueOperation queue => [Job(queue.JobId)],
-            SetJobParameterOperation parameter => [Job(parameter.JobId)],
-            CounterOperation counter => [Counter(counter.Key)],
-            AddToSetOperation add => [Set(add.Key)],
-            AddRangeToSetOperation range => [Set(range.Key)],
-            RemoveFromSetOperation remove => [Set(remove.Key)],
-            RemoveSetOperation remove => [Set(remove.Key)],
-            InsertToListOperation insert => [List(insert.Key)],
-            RemoveFromListOperation remove => [List(remove.Key)],
-            TrimListOperation trim => [List(trim.Key)],
-            SetRangeInHashOperation hash => [Hash(hash.Key)],
-            RemoveHashOperation remove => [Hash(remove.Key)],
-            ExpireKeyOperation expire => [Of(expire.Kind, expire.Key)],
-            _ => [],
-        };
-    }
-
-    private static string Of(KeyKind kind, string key)
-    {
-        return kind switch
-        {
-            KeyKind.Set => Set(key),
-            KeyKind.List => List(key),
-            _ => Hash(key),
-        };
-    }
 }
