@@ -15,7 +15,10 @@ namespace Masterly.NightShift;
 /// </summary>
 /// <remarks>
 /// <para>The policy is checked when the job is created, for the moment it is to run, and again when the delayed job
-/// scheduler enqueues it, because the policy may have changed meanwhile. A blocked job is moved forward to the next
+/// scheduler enqueues it, because the policy may have changed meanwhile; a job with a queue of its own
+/// (<see cref="ScheduleOptions.Queue"/>), which the scheduler puts in its queue without a state change, is checked
+/// when a worker takes it. That check judges by the storage's clock where the storage has one, the clock the
+/// scheduler finds jobs due by. A blocked job is moved forward to the next
 /// instant the policy allows, deleted as skipped, or, at creation, not created, as
 /// <see cref="ScheduleOptions.WhenBlocked"/> says; a job already created whose due time is blocked is skipped
 /// instead of rejected. A job enqueued by hand (the dashboard's Enqueue now, <c>Requeue</c>) isn't checked, nor a
@@ -142,8 +145,8 @@ public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IAp
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        // Only the delayed job scheduler's enqueue of a due job; a job enqueued by hand runs
-        if (context.CandidateState is not EnqueuedState { IsDue: true })
+        // Only a due job; a job enqueued by hand runs
+        if (!IsDue(context))
         {
             return;
         }
@@ -162,7 +165,9 @@ public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IAp
             return;
         }
 
-        DateTime now = JobClock.UtcNow;
+        // The clock that found the job due: a time chosen by another clock may be due already, and the scheduler
+        // would take the job again at once
+        DateTime now = StorageTime.UtcNow(context.Storage, context.Connection);
         SchedulePolicyDecision decision = calendar.Evaluate(now, out SchedulePolicyFailure? failure);
         int? failedChecks = ReadFailedChecks(context);
 
@@ -186,7 +191,7 @@ public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IAp
         // The job exists already, so a policy that rejects it now skips it
         if (ReadWhenBlocked(ReadParameter(context, ScheduleOptions.WhenBlockedParameter)) != WhenBlocked.MoveForward)
         {
-            context.CandidateState = new DeletedState { Reason = TerminateJobFilter.FormatReason(SkippedPrefix, decision.Reason!) }; // Not allowed, so explained
+            Elect(context, new DeletedState { Reason = TerminateJobFilter.FormatReason(SkippedPrefix, decision.Reason!) }); // Not allowed, so explained
             return;
         }
 
@@ -194,10 +199,10 @@ public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IAp
         if (!search.Allowed.HasValue && search.Failure == null)
         {
             // A whole search found nothing allowed: checked again tomorrow, as the policy may change
-            context.CandidateState = new ScheduledState(now.AddDays(1))
+            Elect(context, new ScheduledState(now.AddDays(1))
             {
                 Reason = TerminateJobFilter.FormatReason(MovedPrefix, $"'{name}' allows no time in the next ten years"),
-            };
+            });
             return;
         }
 
@@ -205,7 +210,7 @@ public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IAp
         // instant before it is blocked
         DateTime next = search.Allowed ?? search.Failure!.Instant; // One of the two, as checked above
         ScheduledState moved = new(next) { Reason = TerminateJobFilter.FormatReason(MovedPrefix, decision.Reason!) }; // Not allowed, so explained
-        context.CandidateState = moved;
+        Elect(context, moved);
 
         // The run's intended time is the new one, so its lateness counts from there. Written when this state is the
         // one applied: a later filter may still elect another
@@ -237,6 +242,33 @@ public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IAp
     internal static TimeSpan GetCheckDelay(int failedChecks)
     {
         return CheckDelays[Math.Clamp(failedChecks, 0, CheckDelays.Length - 1)];
+    }
+
+    // The delayed job scheduler enqueues a due job with a state change, except a job with a queue of its own
+    // (ScheduleOptions.Queue, Job.Queue): that one goes from the schedule straight into its queue without one, and
+    // is still Scheduled when a worker takes it. Its check comes then; moved or skipped there, it never runs, and
+    // the worker drops its queue entry
+    private static bool IsDue(ElectStateContext context)
+    {
+        return context.CandidateState switch
+        {
+            EnqueuedState { IsDue: true } => true,
+            ProcessingState => ScheduledState.StateName.Equals(context.CurrentState, StringComparison.OrdinalIgnoreCase),
+            _ => false,
+        };
+    }
+
+    // A job checked as a worker takes it never was Processing, so its history doesn't say it was
+    private static void Elect(ElectStateContext context, IState state)
+    {
+        if (context.CandidateState is ProcessingState)
+        {
+            context.ReplaceCandidateState(state);
+        }
+        else
+        {
+            context.CandidateState = state;
+        }
     }
 
     // A job created while its policy can't be evaluated is created all the same, to be checked when it is due: a
@@ -272,7 +304,7 @@ public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IAp
         Logger.Debug($"Background job '{context.BackgroundJob.Id}' waits {delay} for its schedule policy, which can't be evaluated: {failure.Reason}");
 
         ScheduledState waiting = new(now + delay) { Reason = FormatWaitingReason(delay, failure) };
-        context.CandidateState = waiting;
+        Elect(context, waiting);
 
         // Counted when this state is the one applied: a later filter may still elect another
         ElectedStates.AddOrUpdate(waiting, new ParameterWrite(

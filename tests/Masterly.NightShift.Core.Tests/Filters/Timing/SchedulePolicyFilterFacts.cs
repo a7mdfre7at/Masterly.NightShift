@@ -285,6 +285,64 @@ public sealed class SchedulePolicyFilterFacts : IDisposable
     }
 
     [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateElection_MovesABlockedJobForward_WhenAWorkerTakesItFromTheScheduledState()
+    {
+        // A job with a queue of its own goes from the schedule into its queue without a state change
+        JobClock.TimeProvider = new FixedClock(new DateTimeOffset(Saturday));
+        ElectStateContextMock context = Electing(new ProcessingState("server", "worker"), "weekdays", WhenBlocked.MoveForward);
+
+        _filter.OnStateElection(context.Object);
+
+        ScheduledState state = Assert.IsType<ScheduledState>(context.Object.CandidateState);
+        Assert.Equal(NextMonday, state.EnqueueAt);
+
+        // It never was Processing, so its history doesn't say it was
+        Assert.Empty(context.Object.TraversedStates);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateElection_SkipsABlockedJob_WhenAWorkerTakesItFromTheScheduledState()
+    {
+        JobClock.TimeProvider = new FixedClock(new DateTimeOffset(Saturday));
+        ElectStateContextMock context = Electing(new ProcessingState("server", "worker"), "weekdays", WhenBlocked.Skip);
+
+        _filter.OnStateElection(context.Object);
+
+        Assert.IsType<DeletedState>(context.Object.CandidateState);
+        Assert.Empty(context.Object.TraversedStates);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateElection_IgnoresAJobAWorkerTakesFromTheEnqueuedState()
+    {
+        JobClock.TimeProvider = new FixedClock(new DateTimeOffset(Saturday));
+        ElectStateContextMock context = Electing(new ProcessingState("server", "worker"), "weekdays", WhenBlocked.Skip);
+        context.ApplyContext.OldStateName = EnqueuedState.StateName;
+
+        _filter.OnStateElection(context.Object);
+
+        Assert.IsType<ProcessingState>(context.Object.CandidateState);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateElection_JudgesByTheStorageClock_WhenTheStorageHasOne()
+    {
+        // The process's clock says Saturday; the storage's, which found the job due, says Wednesday
+        JobClock.TimeProvider = new FixedClock(new DateTimeOffset(Saturday));
+        Mock<JobStorageConnection> connection = new() { CallBase = true };
+        connection.Setup(x => x.GetUtcDateTime()).Returns(Now);
+        connection.Setup(x => x.GetAllEntriesFromHash(It.IsAny<string>()))
+            .Returns<string>(key => _storage.Connection.Object.GetAllEntriesFromHash(key));
+        _storage.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Connection.GetUtcDateTime)).Returns(true);
+        ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "weekdays", WhenBlocked.Skip);
+        context.ApplyContext.Connection = connection.As<IStorageConnection>();
+
+        _filter.OnStateElection(context.Object);
+
+        Assert.IsType<EnqueuedState>(context.Object.CandidateState);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
     public void OnStateElection_ReadsThePolicyAfresh_EvenWhenCreationCachedIt()
     {
         _filter.OnCreating(Creating(new ScheduledState(NextMonday), "weekdays", WhenBlocked.Skip));
