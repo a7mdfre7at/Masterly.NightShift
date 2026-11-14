@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using Masterly.NightShift.Server;
 using Masterly.NightShift.Storage.Conformance;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -366,6 +367,37 @@ public sealed class StagingFacts : IDisposable
         Stopwatch watch = Stopwatch.StartNew();
         Assert.True(plain.ChangeState(parent, new SucceededState(null, 1, 1), EnqueuedState.StateName));
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(4), $"The parent's state change took {watch.Elapsed}.");
+    }
+
+    [Fact]
+    public void Continuation_CommittedButNotRegistered_WhenItsProcessStopped_IsRegisteredByAServer()
+    {
+        // What a process that stopped between the commit and the registration leaves: the continuation waits,
+        // its parent doesn't know of it, and the set says it is to be registered
+        BackgroundJobClient plain = new(_storage);
+        string parent = plain.Enqueue(() => ConformanceJobs.Record("parent"))!;
+        string continuation = plain.ContinueJobWith(parent, () => ConformanceJobs.Record("continuation"))!;
+        using (IStorageConnection connection = _storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            connection.SetJobParameter(parent, "Continuations", null);
+            transaction.AddToSet(StagedContinuations.Key, continuation, JobHelper.ToTimestamp(JobClock.UtcNow.AddMinutes(-5)));
+            transaction.Commit();
+        }
+
+        Assert.True(plain.ChangeState(parent, new SucceededState(null, 1, 1), EnqueuedState.StateName));
+        Assert.Equal(AwaitingState.StateName, State(continuation));
+
+        using CancellationTokenSource stopped = new();
+        stopped.Cancel();
+        BackgroundProcessContext context = new("server", _storage, new Dictionary<string, object>(), Guid.NewGuid(), stopped.Token, CancellationToken.None, CancellationToken.None);
+
+        // It does its work, then its wait ends at once: the server is stopping
+        Assert.ThrowsAny<OperationCanceledException>(() => new StagedContinuationsProcess(_storage).Execute(context));
+
+        Assert.Equal(EnqueuedState.StateName, State(continuation));
+        using IStorageConnection reader = _storage.GetConnection();
+        Assert.Empty(reader.GetAllItemsFromSet(StagedContinuations.Key));
     }
 
     [Fact]
