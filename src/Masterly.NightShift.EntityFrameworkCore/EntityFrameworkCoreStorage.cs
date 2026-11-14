@@ -17,10 +17,23 @@ public sealed class EntityFrameworkCoreStorageOptions
 {
     /// <summary>
     /// The schema of the tables of a dedicated database context, or <c>null</c> for the database's default
-    /// schema (SQLite has no schemas). <c>nightshift</c> by default. An application's own context sets the
-    /// schema in <c>ApplyNightShiftModel</c> instead.
+    /// schema (SQLite has no schemas). <c>nightshift</c> by default, except on MySQL and MariaDB (Pomelo and
+    /// Oracle's MySQL provider), which have no schemas apart from databases: there the tables are in the
+    /// connection's database unless a schema is set. An application's own context sets the schema in
+    /// <c>ApplyNightShiftModel</c> instead.
     /// </summary>
-    public string? Schema { get; set; } = NightShiftModelBuilderExtensions.DefaultSchema;
+    public string? Schema
+    {
+        get;
+        set
+        {
+            field = value;
+            SchemaSet = true;
+        }
+    } = NightShiftModelBuilderExtensions.DefaultSchema;
+
+    /// <summary>Whether <see cref="Schema"/> was set, rather than left to its default.</summary>
+    internal bool SchemaSet { get; private set; }
 
     /// <summary>
     /// Whether a dedicated context creates its database and tables when they are missing, and checks the schema
@@ -141,6 +154,9 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
     /// <summary>The hash whose fields mark the transactions committed through a retrying execution strategy.</summary>
     internal const string CommitMarkersKey = "ef-storage:commits";
 
+    private const string PomeloMySqlProvider = "Pomelo.EntityFrameworkCore.MySql";
+    private const string OracleMySqlProvider = "MySql.EntityFrameworkCore";
+
     private static readonly TimeSpan CommitMarkerLifetime = TimeSpan.FromHours(1);
     private static readonly TimeSpan SchemaCompletionPoll = TimeSpan.FromMilliseconds(250);
 
@@ -219,6 +235,7 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
         using (DbContext context = CreateContext())
         {
             ProviderName = context.Database.ProviderName;
+            Schema = context is NightShiftDbContext dedicatedContext ? dedicatedContext.Schema : options.Schema;
             Clock = new EfDatabaseClock(this, ProviderName);
         }
 
@@ -235,6 +252,9 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
 
     /// <summary>The name the provider of the storage's contexts gives itself (<c>DbContext.Database.ProviderName</c>).</summary>
     internal string? ProviderName { get; }
+
+    /// <summary>The schema of a dedicated context's tables, or the option's schema for an application's context.</summary>
+    internal string? Schema { get; }
 
     /// <summary>The clock the storage tells the database's time with. Replaceable for tests.</summary>
     internal EfDatabaseClock Clock { get; set; }
@@ -314,7 +334,7 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
     {
         ArgumentNullException.ThrowIfNull(logger);
         logger.Info("Using the following options for the Entity Framework Core job storage:");
-        logger.Info($"    Schema: {Options.Schema ?? "(default)"}, prepare schema: {Options.PrepareSchemaIfNecessary}.");
+        logger.Info($"    Schema: {Schema ?? "(default)"}, prepare schema: {Options.PrepareSchemaIfNecessary}.");
         logger.Info($"    Queue poll interval: {Options.QueuePollInterval}.");
         logger.Info($"    Invisibility timeout: {Options.InvisibilityTimeout}.");
         logger.Info($"    Expiration check interval: {Options.JobExpirationCheckInterval}.");
@@ -642,7 +662,23 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
         builder.ReplaceService<IModelCacheKeyFactory, SchemaModelCacheKeyFactory>();
         DbContextOptions<NightShiftDbContext> contextOptions = builder.Options;
         string? schema = options.Schema;
+        if (!options.SchemaSet)
+        {
+            // The provider is told by the options, without connecting
+            using NightShiftDbContext probe = new(contextOptions, schema);
+            schema = DefaultSchema(probe.Database.ProviderName);
+        }
 
         return () => new NightShiftDbContext(contextOptions, schema);
+    }
+
+    /// <summary>
+    /// The schema of a dedicated context's tables when the options don't set one: none on MySQL and MariaDB,
+    /// whose schemas are databases (Pomelo refuses a schema unless told what to do with it), <c>nightshift</c>
+    /// elsewhere.
+    /// </summary>
+    internal static string? DefaultSchema(string? providerName)
+    {
+        return providerName is PomeloMySqlProvider or OracleMySqlProvider ? null : NightShiftModelBuilderExtensions.DefaultSchema;
     }
 }

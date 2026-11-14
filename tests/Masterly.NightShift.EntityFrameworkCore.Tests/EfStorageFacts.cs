@@ -553,6 +553,41 @@ public sealed class EfStorageFacts : IDisposable
         Assert.Equal([SchemaVersionRow.Current], context.Set<SchemaVersionRow>().Select(static x => x.Version));
     }
 
+    [Theory]
+    [InlineData("Pomelo.EntityFrameworkCore.MySql", null)]
+    [InlineData("MySql.EntityFrameworkCore", null)]
+    [InlineData("Microsoft.EntityFrameworkCore.SqlServer", NightShiftModelBuilderExtensions.DefaultSchema)]
+    [InlineData("Npgsql.EntityFrameworkCore.PostgreSQL", NightShiftModelBuilderExtensions.DefaultSchema)]
+    [InlineData("Oracle.EntityFrameworkCore", NightShiftModelBuilderExtensions.DefaultSchema)]
+    public void DefaultSchema_IsNone_OnMySqlAndMariaDb(string provider, string? schema)
+    {
+        Assert.Equal(schema, EntityFrameworkCoreStorage.DefaultSchema(provider));
+    }
+
+    [Fact]
+    public void Schema_IsTheDefault_UntilSet()
+    {
+        EntityFrameworkCoreStorageOptions options = new();
+        Assert.Equal(NightShiftModelBuilderExtensions.DefaultSchema, options.Schema);
+        Assert.False(options.SchemaSet);
+
+        // Set to the default, it is kept on every provider
+        options.Schema = NightShiftModelBuilderExtensions.DefaultSchema;
+        Assert.True(options.SchemaSet);
+    }
+
+    [Fact]
+    public void Schema_OfADedicatedContext_IsTheOptionsOne_WhenSet()
+    {
+        Assert.Null(_database.CreateStorage().Schema);
+    }
+
+    [Fact]
+    public void Schema_OfADedicatedContext_OnSqlServer_IsNightShift_ByDefault()
+    {
+        Assert.Equal(NightShiftModelBuilderExtensions.DefaultSchema, SqlServerDatabase.CreateStorage().Schema);
+    }
+
     [Fact]
     public void PrepareSchema_CreatesTheVersionsTableFirst()
     {
