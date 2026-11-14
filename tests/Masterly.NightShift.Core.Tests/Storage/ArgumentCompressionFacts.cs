@@ -101,6 +101,43 @@ public sealed class ArgumentCompressionFacts : IDisposable
         Assert.Equal([text], stored.DeserializeJob().Args);
     }
 
+    [Fact]
+    public void Decompress_ThrowsInvalidDataException_PastTheLongestText()
+    {
+        string compressed = Compressed(new string('a', 10_001));
+
+        Assert.Equal(new string('a', 10_000), ArgumentCompression.Decompress(Compressed(new string('a', 10_000)), maxLength: 10_000));
+        Assert.Throws<InvalidDataException>(() => ArgumentCompression.Decompress(compressed, maxLength: 10_000));
+        Assert.Equal(64 * 1024 * 1024, ArgumentCompression.MaxDecompressedLength);
+    }
+
+    [Fact]
+    public void InvocationData_ReportsAJobLoadException_ForArgumentsThatExpandTooFar()
+    {
+        InvocationData data = InvocationData.SerializeJob(Job.FromExpression(() => Method("x")));
+        string bomb = CompressedZeros(ArgumentCompression.MaxDecompressedLength + 1);
+
+        InvocationData stored = new(data.Type, data.Method, data.ParameterTypes, bomb, data.Queue);
+
+        JobLoadException exception = Assert.Throws<JobLoadException>(stored.DeserializeJob);
+        Assert.IsType<InvalidDataException>(exception.InnerException);
+    }
+
+    private static string CompressedZeros(int count)
+    {
+        using MemoryStream output = new();
+        using (System.IO.Compression.GZipStream gzip = new(output, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+        {
+            byte[] chunk = new byte[1024 * 1024];
+            for (int written = 0; written < count; written += chunk.Length)
+            {
+                gzip.Write(chunk, 0, Math.Min(chunk.Length, count - written));
+            }
+        }
+
+        return ArgumentCompression.Prefix + Convert.ToBase64String(output.ToArray());
+    }
+
     private static string Compressed(string arguments)
     {
         using MemoryStream output = new();

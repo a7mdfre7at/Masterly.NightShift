@@ -129,6 +129,7 @@ When the method returns a value (or its `Task<T>` / `ValueTask<T>` completes wit
 | Numbers, `bool`, `string`, `char`, enums, `Guid`, `decimal` | `ref`, `out` and `in` parameters (`NotSupportedException`) |
 | `DateTime`, `DateTimeOffset`, `TimeSpan` | Delegates, lambdas and `Expression` parameters (`NotSupportedException`) |
 | Nullable versions of all of these, and `null` | Objects System.Text.Json can't write and read back: streams, `HttpContext`, `DbContext`, open connections, object graphs with cycles |
+| `BigInteger`, `Rune`, `Index`, `Range`, `TimeZoneInfo`, and types whose `TypeConverter` converts them to and from text, such as `System.Drawing.Color` | Structs none of whose members can be set, such as `ConsoleKeyInfo`: creating the job throws `NotSupportedException` (see [Serialization](../configuration/serialization.md#rules-for-argument-types)) |
 | Arrays, `List<T>`, `Dictionary<string, T>` and other collections System.Text.Json handles | Types without a constructor or setters System.Text.Json can use to rebuild them |
 | Records and classes with public properties (and public fields, with the default options) | Non-public methods, explicit interface implementations, methods with open generic parameters, `async void` methods |
 | Parameters declared as an interface or abstract class (the actual type is stored in `"$type"`) | Properties, array elements and collection items declared as an interface or abstract class |

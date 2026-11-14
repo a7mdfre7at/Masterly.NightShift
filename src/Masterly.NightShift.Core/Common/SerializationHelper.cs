@@ -291,6 +291,21 @@ public static class SerializationHelper
     }
 
     /// <summary>
+    /// Throws <see cref="NotSupportedException"/> for a job argument of a value type that the user options would
+    /// write as its read-only members and read back as its default value: none of the members it writes can be set,
+    /// and no constructor takes them. Checked once per type, when a job is created, so a job that would run with
+    /// the wrong value is never stored. A value declared as <see cref="object"/> is checked only when the options
+    /// keep type names, since otherwise it is read back as plain JSON anyway.
+    /// </summary>
+    internal static void EnsureArgumentReadsBack([NotNull] Type valueType, [NotNull] Type declaredType)
+    {
+        ArgumentNullException.ThrowIfNull(valueType);
+        ArgumentNullException.ThrowIfNull(declaredType);
+
+        GetUserSerializerOptions().EnsureReadsBack(valueType, declaredType);
+    }
+
+    /// <summary>
     /// Reads text an operator typed, in the dashboard's job forms, as a value of <paramref name="type"/>. It is
     /// read like user data, except that a value declared as <see cref="object"/> (the argument itself or a member
     /// of it) is read as plain JSON: a <c>"$type"</c> in it is refused instead of resolved, so the text can't make
@@ -357,7 +372,10 @@ public static class SerializationHelper
 
     /// <summary>
     /// Copies user options and adds the converters that keep stored data readable (types, states, cultures, XML,
-    /// arrays with type names, primitives in object values). The user's own converters come first, so they win.
+    /// arrays with type names, primitives in object values) and the ones that read back what System.Text.Json alone
+    /// writes as read-only members (big integers, runes, indexes, ranges, time zones, and types a
+    /// <see cref="System.ComponentModel.TypeConverter"/> converts to and from text, such as colors). The user's own
+    /// converters come first, so they win.
     /// With a <see cref="ReferenceHandler"/>, arrays are left to System.Text.Json: the array converter writes and
     /// reads the items through nested calls, which would each start a new reference scope.
     /// </summary>
@@ -443,6 +461,13 @@ public static class SerializationHelper
             new LegacyTypedArrayConverterFactory(),
             new CultureInfoJsonConverter(),
             new XElementJsonConverter(),
+            new BigIntegerJsonConverter(),
+            new RuneJsonConverter(),
+            new IndexJsonConverter(),
+            new RangeJsonConverter(),
+            new TimeZoneInfoJsonConverter(),
+            // Last: only for the types none of the converters before it handle
+            new StringTypeConverterJsonConverterFactory(),
         ];
     }
 
@@ -513,7 +538,7 @@ public static class SerializationHelper
                 $"A value of the interface or abstract type '{type}' must be a JSON object with a \"{TypeNamedJson.TypeProperty}\" property naming its actual type.");
         }
 
-        return TypeNamedJson.Read(root, TypeNamedJson.ResolveType(typeName, type), options);
+        return TypeNamedJson.Read(root, TypeNamedJson.ResolveType(typeName, type, options), options);
     }
 
     /// <summary>
@@ -624,6 +649,42 @@ public static class SerializationHelper
             StrictReading = ForReading(writing);
             Reading = WithLenientReading(StrictReading);
             Reading.MakeReadOnly(populateMissingResolver: true);
+            KeepsTypeNames = writing.GetConverter(typeof(object)) is InferredObjectJsonConverter { TypeNames: true };
+        }
+
+        // Whether values declared as object are written with their type name, and read back as that type
+        private bool KeepsTypeNames { get; }
+
+        // Value types these options write as members they can't read back, see EnsureArgumentReadsBack
+        private readonly ConcurrentDictionary<Type, bool> _readAsDefault = new();
+
+        public void EnsureReadsBack(Type valueType, Type declaredType)
+        {
+            if (!valueType.IsValueType || (declaredType == typeof(object) && !KeepsTypeNames))
+            {
+                return;
+            }
+
+            if (_readAsDefault.GetOrAdd(valueType, IsReadAsDefault))
+            {
+                throw new NotSupportedException(
+                    $"A job argument of type '{valueType}' can't be stored: the serializer settings write it as its read-only members, " +
+                    "which can't be read back, so the job would run with its default value. Add a JsonConverter for the type, " +
+                    "mark the constructor that sets its members with [JsonConstructor], or pass the data in a type that can be read back.");
+            }
+        }
+
+        private bool IsReadAsDefault(Type type)
+        {
+            try
+            {
+                return JsonRoundTrip.IsReadAsDefault(StrictReading.GetTypeInfo(type));
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                // The options can't describe the type: writing it fails on its own, as before
+                return false;
+            }
         }
 
         public JsonSerializerOptions Writing { get; }

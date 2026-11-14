@@ -244,6 +244,9 @@ public class InvocationData(string type, string method, string? parameterTypes, 
                 }
                 else
                 {
+                    // A value type that would be read back as its default value fails here, not when the job runs
+                    SerializationHelper.EnsureArgumentReadsBack(argument.GetType(), parameter.ParameterType);
+
                     value = SerializationHelper.Serialize(
                         argument,
                         parameter.ParameterType,

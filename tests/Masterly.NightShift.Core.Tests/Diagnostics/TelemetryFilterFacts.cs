@@ -60,6 +60,36 @@ public sealed class TelemetryFilterFacts : IDisposable
     }
 
     [Fact]
+    public void Filter_AllocatesNothing_WhenNobodyListens()
+    {
+        // .NET 8 keeps Instrument.Enabled true after the last MeterListener is disposed (fixed in .NET 9),
+        // so once an earlier test listened, "nobody listens" can't be set up in this process
+        Assert.SkipWhen(
+            NightShiftTelemetry.ActiveJobs.Enabled || NightShiftTelemetry.JobsCompleted.Enabled || NightShiftTelemetry.JobDuration.Enabled ||
+            NightShiftTelemetry.JobLateness.Enabled || NightShiftTelemetry.JobsCreated.Enabled,
+            "The runtime reports the instruments as enabled although no listener is attached (.NET 8 behaviour).");
+        TelemetryFilter filter = new();
+        CreatingContext warmCreating = _createContext.GetCreatingContext();
+        CreatingContext creating = _createContext.GetCreatingContext();
+        CreatedContext created = _createContext.GetCreatedContext("123");
+        PerformingContext performing = _performContext.GetPerformingContext();
+        PerformedContext performed = _performContext.GetPerformedContext(exception: new JobPerformanceException("Job failed", new InvalidOperationException("Boom")));
+        filter.OnCreating(warmCreating);
+        filter.OnCreated(created);
+        filter.OnPerforming(performing);
+        filter.OnPerformed(performed);
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        filter.OnCreating(creating);
+        filter.OnCreated(created);
+        filter.OnPerforming(performing);
+        filter.OnPerformed(performed);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal(0, allocated);
+    }
+
+    [Fact]
     public void OnCreatingAndOnCreated_ProduceAProducerSpan_ThatIsPropagatedToTheJob()
     {
         ListenToActivities();

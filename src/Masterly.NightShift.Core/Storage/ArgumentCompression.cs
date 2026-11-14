@@ -53,9 +53,22 @@ internal static class ArgumentCompression
         return compressed.Length < arguments.Length ? compressed : arguments;
     }
 
+    /// <summary>
+    /// The longest text compressed arguments are read back as: 64 MB of characters. A few kilobytes of
+    /// <c>gz:</c> data can expand much further, and running out of memory can't be caught where the job is loaded,
+    /// so longer arguments throw <see cref="InvalidDataException"/> instead, which fails the job's load.
+    /// </summary>
+    public const int MaxDecompressedLength = 64 * 1024 * 1024;
+
     /// <summary>Reads arguments back, compressed or not.</summary>
+    /// <exception cref="InvalidDataException">The arguments expand past <see cref="MaxDecompressedLength"/> characters.</exception>
     [return: NotNullIfNotNull(nameof(arguments))]
-    public static string? Decompress(string? arguments)
+    public static string? Decompress(string? arguments) => Decompress(arguments, MaxDecompressedLength);
+
+    /// <summary>Reads arguments back, compressed or not, refusing compressed ones longer than <paramref name="maxLength"/> characters.</summary>
+    /// <exception cref="InvalidDataException">The arguments expand past <paramref name="maxLength"/> characters.</exception>
+    [return: NotNullIfNotNull(nameof(arguments))]
+    internal static string? Decompress(string? arguments, int maxLength)
     {
         if (arguments == null || !arguments.StartsWith(Prefix, StringComparison.Ordinal))
         {
@@ -65,6 +78,21 @@ internal static class ArgumentCompression
         byte[] bytes = Convert.FromBase64String(arguments[Prefix.Length..]);
         using GZipStream gzip = new(new MemoryStream(bytes), CompressionMode.Decompress);
         using StreamReader reader = new(gzip, Encoding.UTF8);
-        return reader.ReadToEnd();
+
+        StringBuilder text = new();
+        char[] buffer = new char[16 * 1024];
+        int read;
+        while ((read = reader.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            if (read > maxLength - text.Length)
+            {
+                throw new InvalidDataException(
+                    $"The compressed arguments expand past {maxLength} characters, the longest text they are read back as.");
+            }
+
+            text.Append(buffer, 0, read);
+        }
+
+        return text.ToString();
     }
 }
