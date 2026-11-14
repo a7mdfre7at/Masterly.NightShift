@@ -399,6 +399,28 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     }
 
     [Fact]
+    public void Maintain_RemovesWhatTheParentsOfAFanInThatWasNeverCreatedWroteForIt_AndGoesOnWhenOneCanNotBeRead()
+    {
+        // Three continuations whose creation was to be over: one never got a state, one did, one can't be read
+        Set("fan-in:unconfirmed").Add((1, "never"));
+        Set("fan-in:unconfirmed").Add((2, "unreadable"));
+        Set("fan-in:unconfirmed").Add((3, "created"));
+        Set("fan-in:unconfirmed").Add((After(TimeSpan.FromMinutes(20)), "being-created"));
+        _hashes["fan-in:never"] = new Dictionary<string, string> { ["p"] = SucceededState.StateName };
+        _hashes["fan-in:created"] = new Dictionary<string, string> { ["p"] = SucceededState.StateName };
+        _connection.Setup(x => x.GetJobData("never")).Returns(new JobData());
+        _connection.Setup(x => x.GetJobData("created")).Returns(new JobData { State = AwaitingState.StateName });
+        _connection.Setup(x => x.GetJobData("unreadable")).Throws(new InvalidOperationException("Storage is down"));
+
+        Assert.True(Maintain().Ran);
+
+        Assert.False(_hashes.ContainsKey("fan-in:never"));
+        Assert.True(_hashes.ContainsKey("fan-in:created"));
+        Assert.Equal(["being-created", "unreadable"], Set("fan-in:unconfirmed").Select(static x => x.Value).Order(StringComparer.Ordinal));
+        Assert.InRange(Set("fan-in:unconfirmed").Single(static x => x.Value == "unreadable").Score, After(TimeSpan.FromMinutes(14)), After(TimeSpan.FromMinutes(16)));
+    }
+
+    [Fact]
     public void Maintain_LeavesAStepAlone_ThatTheStepsBeforeItDecidedAMomentAgo()
     {
         WatchedChain("c", TimeSpan.FromSeconds(30), SucceededState.StateName, SucceededState.StateName);
@@ -974,7 +996,8 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     [Fact]
     public void Maintain_KeepsAChainListed_WhoseRecordTheStorageLost_ForAsLongAsARecordIsKept()
     {
-        // Its steps still run because it is listed (JobChainStepFilter)
+        // Its steps still run because it is listed (JobChainStepFilter). Every process keeps records 30 days.
+        _hashes["chains:retentions"] = new Dictionary<string, string> { ["2592000"] = "x" };
         Set(JobChains.SetKey).Add((JobHelper.ToTimestamp(DateTime.UtcNow.AddDays(-3)), "lost-early"));
         Set(DueSet).Add((1, "lost-early"));
 
@@ -996,6 +1019,7 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     public void Maintain_KeepsAChainListed_WhoseRecordTheStorageLost_WhenALookIsAskedFor()
     {
         // Found without record before, and kept listed; a step of it is requeued, which asks for a look
+        _hashes["chains:retentions"] = new Dictionary<string, string> { ["2592000"] = "x" };
         Set(JobChains.SetKey).Add((JobHelper.ToTimestamp(DateTime.UtcNow.AddDays(-3)), "lost-early"));
         Set(LostSet).Add((After(TimeSpan.FromDays(29)), "lost-early"));
         Set(SoonSet).Add((1, "lost-early|asked"));
@@ -1008,6 +1032,29 @@ public sealed class JobChainMaintenanceFacts : IDisposable
         Assert.Empty(Set(ExpirySet));
         Assert.Empty(Set(DueSet));
         Assert.InRange(Assert.Single(Set(LostSet)).Score, After(TimeSpan.FromDays(29.9)), After(TimeSpan.FromDays(30.1)));
+    }
+
+    [Theory]
+    [InlineData("2592000", 30)]
+    [InlineData("2592000,7776000", 90)]
+    [InlineData("86400", 30)]
+    [InlineData("true", 30)]
+    [InlineData("", 36500)]
+    public void Maintain_KeepsAChainWhoseRecordTheStorageLost_ListedForTheLongestTimeAnyProcessKeepsRecords(string written, int days)
+    {
+        // What the processes that wrote records were set to keep them for (none: nothing can be told); this
+        // process keeps them 30 days
+        if (written.Length > 0)
+        {
+            _hashes["chains:retentions"] = written.Split(',').ToDictionary(static x => x, static _ => "x");
+        }
+
+        Set(JobChains.SetKey).Add((JobHelper.ToTimestamp(DateTime.UtcNow.AddDays(-3)), "lost-early"));
+        Set(DueSet).Add((1, "lost-early"));
+
+        Maintain();
+
+        Assert.InRange(Assert.Single(Set(LostSet)).Score, After(TimeSpan.FromDays(days - 0.1)), After(TimeSpan.FromDays(days + 0.1)));
     }
 
     [Fact]

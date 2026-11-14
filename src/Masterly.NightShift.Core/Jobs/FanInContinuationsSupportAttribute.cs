@@ -29,7 +29,10 @@ namespace Masterly.NightShift;
 /// its field when it finishes again. Only a parent of which nothing was written counts as deleted once its job is
 /// gone, so it can't block the child forever. The hash goes with the state change that takes the child out of
 /// the Awaiting state, whoever makes it; a field a parent writes for a child decided meanwhile is removed by that
-/// parent once its state is committed.
+/// parent once its state is committed. A child whose creation stopped once it was registered on its parents (its
+/// state was never stored) is listed in the set <c>fan-in:unconfirmed</c> before it is registered; a server's chain
+/// maintenance looks at it once its creation was to be over long ago, and removes what its parents wrote for it
+/// when it has no state (<see cref="ForgetIfNeverCreated"/>).
 /// </para>
 /// </remarks>
 public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilter, IApplyStateFilter
@@ -44,6 +47,12 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
     public const string OutcomesParameterName = "FanInOutcomes";
 
     private const string OutcomesKeyPrefix = "fan-in:";
+
+    /// <summary>
+    /// The set of the fan-in continuations being created, scored by the time a server makes sure their creation
+    /// was completed: what their parents wrote for one that has no state then is removed.
+    /// </summary>
+    internal const string UnconfirmedSetKey = "fan-in:unconfirmed";
 
     private const int MaxDecideAttempts = 3;
 
@@ -132,6 +141,10 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
         IStorageConnection connection = context.Connection;
         string childId = context.BackgroundJob.Id;
 
+        // Before it is registered anywhere: should its state never be stored, what its parents write for it is
+        // removed later
+        ListUnconfirmed(connection, childId);
+
         // Every parent is checked before the child is registered on any, so a missing parent doesn't leave the
         // child's id on the parents before it, which would then wait for a job that is never created
         foreach (string parentId in awaiting.ParentIds)
@@ -179,6 +192,43 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
             JobStorage storage = context.Storage;
             context.AfterCommit.AddRegardless(() => DecideChildAfterItsCommit(storage, connection, childId));
         }
+    }
+
+    // Best effort: without it, what the parents of a child whose creation stopped write for it stays, as before
+    private void ListUnconfirmed(IStorageConnection connection, string childId)
+    {
+        try
+        {
+            using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+            transaction.AddToSet(UnconfirmedSetKey, childId, JobHelper.ToTimestamp(JobClock.UtcNow + ContinuationInvalidTimeout + ContinuationInvalidTimeout));
+            transaction.Commit();
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            _logger.WarnException($"Fan-in continuation '{childId}' couldn't be listed among the ones being created. Should its creation stop, what its parents finish as is kept for it.", ex);
+        }
+    }
+
+    /// <summary>
+    /// For a fan-in continuation whose creation was to be over long ago (<see cref="UnconfirmedSetKey"/>): when
+    /// it has no state, or no job any more, what its parents wrote for it is removed; it is taken out of the set
+    /// either way. A child that has a state keeps it until the state change that ends its wait.
+    /// </summary>
+    /// <returns>Whether what its parents wrote was removed.</returns>
+    internal static bool ForgetIfNeverCreated(IStorageConnection connection, string childId)
+    {
+        bool neverCreated = string.IsNullOrEmpty(connection.GetJobData(childId)?.State);
+
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+        if (neverCreated)
+        {
+            transaction.RemoveHash(GetOutcomesKey(childId));
+        }
+
+        transaction.RemoveFromSet(UnconfirmedSetKey, childId);
+        transaction.Commit();
+
+        return neverCreated;
     }
 
     /// <summary>The hash that keeps what the parents of a fan-in continuation finished as, by parent.</summary>
@@ -379,7 +429,8 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
         StateData? childState = GetChildState(connection, parentId, childId, round, out bool childGone);
         if (childState == null || !AwaitingJobsState.StateName.Equals(childState.Name, StringComparison.OrdinalIgnoreCase))
         {
-            // Decided meanwhile, or gone: the field this parent wrote for it isn't removed by anything else
+            // Decided meanwhile, gone, or never created: the field this parent wrote for it isn't removed by
+            // anything else (a child that may still be being created is left to its creation)
             if (afterCommit && KeepsOutcomes && (childGone || childState != null))
             {
                 ForgetOutcomes(connection, childId);
@@ -649,7 +700,7 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
         }
     }
 
-    // 'gone' says that the child's job doesn't exist (any more)
+    // 'gone' says that the child's job doesn't exist (any more), or that its creation was given up: no state, long after
     private StateData? GetChildState(IStorageConnection connection, string parentId, string childId, Stopwatch round, out bool gone)
     {
         bool firstAttempt = true;
@@ -673,6 +724,7 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
 
             if (JobClock.UtcNow - childData.CreatedAt > ContinuationInvalidTimeout)
             {
+                gone = true;
                 _logger.Warn($"Fan-in continuation '{childId}' has been ignored: it was deemed to be aborted, because its state is still non-initialized.");
                 return null;
             }

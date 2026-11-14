@@ -51,7 +51,9 @@ public static partial class JobChains
 
     /// <summary>
     /// The set of the chains whose record the storage lost before its time (an eviction, a cap on expiry times),
-    /// scored by the time they leave the list of chains: for as long as a record is kept, from the last look. Their
+    /// scored by the time they leave the list of chains: for the longest time any process keeps records
+    /// (<see cref="LostRetention"/>), from the last look, since a step counts on its record for the time it was
+    /// written with. Their
     /// steps still run while they are listed (<see cref="JobChainStepFilter"/>), so a look asked for by one of
     /// them keeps them listed; only a chain left to expire (<see cref="ExpirySetKey"/>) leaves the list when such a
     /// look finds its record gone. Only on a storage that expires records.
@@ -197,6 +199,7 @@ public static partial class JobChains
             }
 
             int finished = FinishCleanups(storage, client, connection, out bool moreCleanups);
+            bool moreUnconfirmed = ForgetFanInsNeverCreated(storage, connection, stopping);
 
             // The looks that were asked for come first: they give their chains a new place, so a chain isn't
             // looked at twice in a run
@@ -218,7 +221,7 @@ public static partial class JobChains
                 Logger.Info($"Chain maintenance: {looks.Unlisted} chains whose record expired left the list, {finished} interrupted changes of chains were finished, {looks.Started} waiting steps that were never told to start were started or skipped, {placed} chains listed by an earlier build were given a look.");
             }
 
-            return new MaintenanceRun(true, moreToIndex || moreCleanups || moreAsked || moreExpiring || moreDue);
+            return new MaintenanceRun(true, moreToIndex || moreCleanups || moreUnconfirmed || moreAsked || moreExpiring || moreDue);
         }
     }
 
@@ -454,6 +457,45 @@ public static partial class JobChains
         return connection is JobStorageConnection storageConnection && storage.HasFeature(JobStorageFeatures.ExtendedApi)
             ? storageConnection.GetValueFromHash(KeyPrefix + chainId, field)
             : connection.GetAllEntriesFromHash(KeyPrefix + chainId)?.GetValueOrDefault(field);
+    }
+
+    /// <summary>
+    /// Looks at the fan-in continuations whose creation was to be over long ago
+    /// (<see cref="FanInContinuationsSupportAttribute.UnconfirmedSetKey"/>), at most <see cref="MaxLooksPerRun"/>:
+    /// what their parents wrote for one that was never created goes. A step of a chain after a group is one of
+    /// them, and so is the continuation of a batch. One that can't be looked at is looked at again later, so it
+    /// doesn't keep the others from their turn.
+    /// </summary>
+    /// <returns>Whether the run stopped at the limit: more may be due.</returns>
+    private static bool ForgetFanInsNeverCreated(JobStorage storage, IStorageConnection connection, CancellationToken stopping)
+    {
+        DateTime now = JobClock.UtcNow;
+        int taken = 0;
+
+        foreach (string childId in TakeDue(storage, connection, FanInContinuationsSupportAttribute.UnconfirmedSetKey, JobHelper.ToTimestamp(now), MaxLooksPerRun))
+        {
+            if (stopping.IsCancellationRequested)
+            {
+                return false;
+            }
+
+            taken++;
+
+            try
+            {
+                if (FanInContinuationsSupportAttribute.ForgetIfNeverCreated(connection, childId))
+                {
+                    Logger.Info($"Fan-in continuation '{childId}' was never created: what its parents finished as was removed.");
+                }
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                Logger.WarnException($"Whether fan-in continuation '{childId}' was ever created couldn't be told; a later maintenance run looks again.", ex);
+                Rescore(connection, FanInContinuationsSupportAttribute.UnconfirmedSetKey, childId, now + MaxWatchInterval);
+            }
+        }
+
+        return taken >= MaxLooksPerRun;
     }
 
     /// <summary>
@@ -699,7 +741,8 @@ public static partial class JobChains
 
             looks.Lost++;
             looks.FirstLost ??= chainId;
-            return new ChainPlacement(LostSetKey, now + JobChain.RecordRetention);
+            // As long as any process keeps records: a step may count on its record for that long
+            return new ChainPlacement(LostSetKey, now + LostRetention(connection));
         }
 
         int redriven = RedriveLostDecisions(client, connection, info, out int failed);

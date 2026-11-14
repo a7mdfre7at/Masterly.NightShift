@@ -2553,6 +2553,129 @@ public sealed class JobChainStorageFacts : IDisposable
     }
 
     [Fact]
+    public void FanIn_WhoseCreationFailedOnceItWasRegisteredOnItsParents_LeavesNothingOfWhatTheyFinishedAs()
+    {
+        PropertyInfo budget = typeof(FanInContinuationsSupportAttribute).GetProperty("DecisionRoundBudget", BindingFlags.Static | BindingFlags.NonPublic)!;
+        object? before = budget.GetValue(null);
+        budget.SetValue(null, TimeSpan.FromMilliseconds(200));
+        FailingAwaitingState failing = new("child");
+        GlobalJobFilters.Filters.Add(failing);
+
+        try
+        {
+            string first = _client.Create(() => Step("first"), new EnqueuedState())!;
+            string second = _client.Create(() => Step("second"), new EnqueuedState())!;
+
+            // The creation of the continuation fails once it is registered on its parents: its state is never stored
+            Assert.ThrowsAny<Exception>(() => _client.ContinueJobWithAll([first, second], () => Step("child")));
+            GlobalJobFilters.Filters.Remove(failing);
+
+            string child;
+            using (IStorageConnection connection = _storage.GetConnection())
+            {
+                child = FanInContinuationsSupportAttribute.ReadChildren(connection, first).Single();
+            }
+
+            Assert.Null(StateOf(child));
+
+            // Both parents finish at once, while the continuation might still be being created: each writes what
+            // it finished as for it
+            Succeed(first);
+            Succeed(second);
+            Assert.Equal(2, HashOf("fan-in:" + child).Count);
+
+            // Days later a server looks at the continuations whose creation was to be over long ago
+            MoveClock(TimeSpan.FromDays(40));
+            _storage.Database.RemoveExpired();
+            using (MaintenanceOnly())
+            {
+                WaitUntil(() => HashOf("fan-in:" + child).Count == 0, "what the parents wrote for the continuation that was never created to go");
+                WaitUntil(() => SetItems("fan-in:unconfirmed").Count == 0, "the continuation to be forgotten");
+            }
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(failing);
+            budget.SetValue(null, before);
+        }
+    }
+
+    [Fact]
+    public void FanIn_ThatWasCreated_KeepsWhatItsParentsFinishedAs_WhenAServerLooksAtTheContinuationsCreatedLongAgo()
+    {
+        string first = _client.Create(() => Step("first"), new EnqueuedState())!;
+        string second = _client.Create(() => Step("second"), new ScheduledState(TimeSpan.FromDays(3)))!;
+        string all = _client.ContinueJobWithAll([first, second], () => Step("all"))!;
+        Succeed(first);
+
+        MoveClock(TimeSpan.FromHours(1));
+        using (MaintenanceOnly())
+        {
+            WaitUntil(() => SetItems("fan-in:unconfirmed").Count == 0, "the continuation to be looked at");
+        }
+
+        Assert.Equal(new Dictionary<string, string> { [first] = SucceededState.StateName }, Outcomes(all));
+        Assert.Equal(AwaitingState.StateName, StateOf(all));
+    }
+
+    [Theory]
+    [InlineData(90)]
+    [InlineData(30)]
+    public void Steps_OfAChainWhoseRecordWasLost_StillRun_WithinTheTimeTheirRecordWasToBeKept_HoweverLongTheServersKeepRecords(int writerDays)
+    {
+        TimeSpan before = JobChain.RecordRetention;
+        try
+        {
+            // The client that creates the chain keeps records that long; the servers keep them 30 days
+            GlobalConfiguration.Configuration.UseChainRetention(TimeSpan.FromDays(writerDays));
+            JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Once("b")).Enqueue(_client)!;
+            string a = chain.RootId;
+            GlobalConfiguration.Configuration.UseChainRetention(TimeSpan.FromDays(30));
+
+            Fail(a);
+            using (IStorageConnection connection = _storage.GetConnection())
+            using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+            {
+                transaction.RemoveHash(JobChains.GetKey(chain.ChainId));
+                transaction.Commit();
+            }
+
+            // Requeued and failed again: a server looks at the chain, finds no record, and keeps it listed
+            Assert.True(_client.ChangeState(a, new EnqueuedState(), FailedState.StateName));
+            Assert.True(_client.ChangeState(a, new FailedState(new InvalidOperationException("again")), EnqueuedState.StateName));
+            MoveClock(TimeSpan.FromMinutes(6));
+            using (MaintenanceOnly())
+            {
+                WaitUntil(() => SetItems(SoonSet).Count == 0, "the look asked for");
+            }
+
+            Assert.Contains(chain.ChainId, SetItems("chains:lost"));
+
+            // A month later servers run again: the chain leaves the list only once the writer's time is over
+            MoveClock(TimeSpan.FromDays(31));
+            using (MaintenanceOnly())
+            {
+                Thread.Sleep(300);
+            }
+
+            Assert.Equal(writerDays > 31, SetItems(JobChains.SetKey).Contains(chain.ChainId));
+
+            // The failed step is requeued: listed or older than its record was to be kept, it runs
+            Assert.True(_client.ChangeState(a, new EnqueuedState(), FailedState.StateName));
+            using (CreateServer())
+            {
+                WaitUntil(() => StateOf(a) != EnqueuedState.StateName && StateOf(a) != ProcessingState.StateName, "the requeued step to be taken");
+            }
+
+            Assert.True(SucceededState.StateName == StateOf(a), $"{StateOf(a)}: {ReasonOf(a)}");
+        }
+        finally
+        {
+            GlobalConfiguration.Configuration.UseChainRetention(before);
+        }
+    }
+
+    [Fact]
     public void DeleteChain_DeletesEveryStep_AndTheRecord()
     {
         JobChainResult chain = JobChain.StartWith(() => Step("a"))
@@ -2564,6 +2687,28 @@ public sealed class JobChainStorageFacts : IDisposable
 
         Assert.All(chain.Steps.Values, id => Assert.Equal(DeletedState.StateName, StateOf(id)));
         Assert.Null(_storage.GetChain(chain.ChainId));
+    }
+
+    private Dictionary<string, string> HashOf(string key)
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+        return connection.GetAllEntriesFromHash(key) ?? [];
+    }
+
+    // Fails the state change that has a job with the given argument wait for several jobs, after the election
+    private sealed class FailingAwaitingState(string argument) : IApplyStateFilter
+    {
+        public void OnStateApplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
+        {
+            if (context.NewState is AwaitingJobsState && (string?)context.BackgroundJob.Job?.Args[0] == argument)
+            {
+                throw new InvalidOperationException("The state of the continuation can't be stored.");
+            }
+        }
+
+        public void OnStateUnapplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
+        {
+        }
     }
 
     // A server that runs the chain maintenance and no job of these tests

@@ -812,6 +812,26 @@ public class JobChainFacts : IDisposable
         _storage.Connection.Verify(x => x.SetJobParameter("job-1", JobChains.ChainRecordedParameter, "172800"), Times.Once);
     }
 
+    [Fact]
+    public void Enqueue_WritesTheTimeThisProcessKeepsRecordsFor_AmongTheTimesAnyProcessDid()
+    {
+        TimeSpan retention = JobChain.RecordRetention;
+
+        try
+        {
+            JobChain.StartWith(() => Step("a")).Enqueue(_client.Object);
+            JobChain.StartWith(() => Step("b")).Enqueue(_client.Object);
+            JobChain.RecordRetention = TimeSpan.FromDays(2);
+            JobChain.StartWith(() => Step("c")).Enqueue(_client.Object);
+        }
+        finally
+        {
+            JobChain.RecordRetention = retention;
+        }
+
+        Assert.Equal(["172800", "2592000"], _storage.Hashes["chains:retentions"].Keys.Order(StringComparer.Ordinal));
+    }
+
     [Theory]
     [InlineData("172800", 2)]
     [InlineData("true", 30)]

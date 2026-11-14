@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 using Masterly.NightShift.Logging;
 namespace Masterly.NightShift;
@@ -11,6 +13,16 @@ public static partial class JobChains
     private const string CreatedAtField = "CreatedAt";
     private const string DeleteBehaviorField = "DeleteBehavior";
     private const string CleanupField = "Cleanup";
+
+    /// <summary>
+    /// The hash of the times records were written to be kept for, one field each, in seconds: the longest a step
+    /// may have been marked with (<see cref="ChainRecordedParameter"/>). It keeps a chain whose record was lost
+    /// listed for as long as any of its steps may count on its record (<see cref="LostRetention"/>).
+    /// </summary>
+    internal const string RetentionsKey = "chains:retentions";
+
+    // The retentions this process has written in each storage's RetentionsKey: written once each
+    private static readonly ConditionalWeakTable<JobStorage, ConcurrentDictionary<long, byte>> WrittenRetentions = [];
 
     // The state data that says when a step finished
     private static readonly string[] FinishedAtFields = ["FailedAt", "SucceededAt", "DeletedAt"];
@@ -136,6 +148,42 @@ public static partial class JobChains
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// How long a chain whose record was lost is kept listed: the longest time any process wrote a record to be
+    /// kept for (<see cref="RetentionsKey"/>), and this process's at least, so no step that counts on its record is
+    /// taken for one of a chain that was deleted. The longest time allowed when that can't be read.
+    /// </summary>
+    internal static TimeSpan LostRetention(IStorageConnection connection)
+    {
+        TimeSpan longest = JobChain.RecordRetention;
+        Dictionary<string, string>? written;
+
+        try
+        {
+            written = connection.GetAllEntriesFromHash(RetentionsKey);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            Logger.DebugException("The times records were written to be kept for couldn't be read; a chain whose record was lost is kept listed the longest time allowed.", ex);
+            written = null;
+        }
+
+        if (written == null || written.Count == 0)
+        {
+            return TimeSpan.FromDays(ExpireAfterAttribute.MaxDays);
+        }
+
+        foreach (string field in written.Keys)
+        {
+            if (MarkedRetention(field) is { } retention && retention > longest)
+            {
+                longest = retention;
+            }
+        }
+
+        return longest;
     }
 
     /// <summary>
@@ -300,7 +348,8 @@ public static partial class JobChains
 
             // With the record where the storage can, so no job is marked of a chain that isn't recorded
             JobStorageTransaction? marking = storage.HasFeature(JobStorageFeatures.Transaction.SetJobParameter) ? transaction as JobStorageTransaction : null;
-            string mark = RecordedMark(JobChain.RecordRetention);
+            TimeSpan retention = JobChain.RecordRetention;
+            string mark = RecordedMark(retention);
             if (marking != null)
             {
                 foreach (string jobId in recorded)
@@ -313,7 +362,21 @@ public static partial class JobChains
             JobStorageTransaction? expiring = expires ? transaction as JobStorageTransaction : null;
             expiring?.ExpireHash(GetKey(ChainId), expireAt - now);
 
+            // The time the marks say, among those any process wrote, once for this process
+            ConcurrentDictionary<long, byte> written = WrittenRetentions.GetOrCreateValue(storage);
+            long seconds = (long)retention.TotalSeconds;
+            bool newRetention = !written.ContainsKey(seconds);
+            if (newRetention)
+            {
+                transaction.SetRangeInHash(RetentionsKey, [new KeyValuePair<string, string>(mark, JobHelper.SerializeDateTime(now))]);
+            }
+
             transaction.Commit();
+
+            if (newRetention)
+            {
+                written.TryAdd(seconds, 0);
+            }
 
             if (expiring != null)
             {

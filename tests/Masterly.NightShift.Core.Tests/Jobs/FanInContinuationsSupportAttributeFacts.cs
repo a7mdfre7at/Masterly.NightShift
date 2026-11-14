@@ -13,6 +13,9 @@ public class FanInContinuationsSupportAttributeFacts
     private readonly Dictionary<string, string> _parameters = [];
     private readonly Dictionary<string, Dictionary<string, string>> _hashes = [];
 
+    // The entries of the set of the continuations being created, with their scores
+    private readonly Dictionary<string, double> _unconfirmed = [];
+
     public FanInContinuationsSupportAttributeFacts()
     {
         Mock<IStorageConnection> connection = _context.ApplyContext.Connection;
@@ -51,6 +54,10 @@ public class FanInContinuationsSupportAttributeFacts
                     });
                 });
             transaction.Setup(x => x.RemoveHash(It.IsAny<string>())).Callback<string>(key => pending.Add(() => _hashes.Remove(key)));
+            transaction.Setup(x => x.AddToSet(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double>()))
+                .Callback<string, string, double>((key, value, score) => pending.Add(() => _unconfirmed[value] = score));
+            transaction.Setup(x => x.RemoveFromSet(It.IsAny<string>(), It.IsAny<string>()))
+                .Callback<string, string>((key, value) => pending.Add(() => _unconfirmed.Remove(value)));
             transaction.Setup(x => x.Commit()).Callback(() => pending.ForEach(static action => action()));
             return transaction.Object;
         });
@@ -1040,6 +1047,86 @@ public class FanInContinuationsSupportAttributeFacts
         _states["child"] = EnqueuedState.StateName;
         Assert.True(FanInContinuationsSupportAttribute.RecordOutcomes(connection, "child", ["p1"], finalStates, TimeSpan.Zero));
         Assert.False(_hashes.ContainsKey("fan-in:child"));
+    }
+
+    [Fact]
+    public void OnStateElection_ChildBranch_ListsTheChildAmongTheOnesBeingCreated_BeforeItIsRegisteredOnAnyParent()
+    {
+        _states["p1"] = ProcessingState.StateName;
+        _context.ApplyContext.BackgroundJob.Id = "child";
+        _context.ApplyContext.NewStateObject = new AwaitingJobsState(["p1", "missing-parent"]);
+
+        // The creation fails at its second parent: the child is listed all the same
+        Assert.Throws<InvalidOperationException>(() => Create().OnStateElection(_context.Object));
+
+        double score = Assert.Single(_unconfirmed, static x => x.Key == "child").Value;
+        Assert.InRange(score, JobHelper.ToTimestamp(DateTime.UtcNow.AddMinutes(29)), JobHelper.ToTimestamp(DateTime.UtcNow.AddMinutes(31)));
+    }
+
+    [Fact]
+    public void OnStateElection_ParentBranch_AfterTheCommit_RemovesWhatItWrote_ForAChildWhoseCreationWasGivenUp()
+    {
+        // Created an hour ago, and still without a state: its creation stopped
+        _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "aborted-child" });
+        _context.ApplyContext.Connection.Setup(x => x.GetJobData("aborted-child")).Returns(new JobData { CreatedAt = DateTime.UtcNow.AddHours(-1) });
+        _hashes["fan-in:aborted-child"] = new Dictionary<string, string> { ["parent"] = SucceededState.StateName };
+        PostCommitActions afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
+
+        Create().OnStateElection(_context.Object);
+        _states["parent"] = SucceededState.StateName;
+        afterCommit.Run();
+
+        Assert.False(_hashes.ContainsKey("fan-in:aborted-child"));
+    }
+
+    [Fact]
+    public void OnStateElection_ParentBranch_AfterTheCommit_KeepsWhatItWrote_ForAChildThatMayStillBeBeingCreated()
+    {
+        FanInContinuationsSupportAttribute.DecisionRoundBudget = TimeSpan.FromMilliseconds(100);
+        try
+        {
+            _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "young-child" });
+            _context.ApplyContext.Connection.Setup(x => x.GetJobData("young-child")).Returns(new JobData { CreatedAt = DateTime.UtcNow });
+            _hashes["fan-in:young-child"] = new Dictionary<string, string> { ["parent"] = SucceededState.StateName };
+            PostCommitActions afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
+
+            Create().OnStateElection(_context.Object);
+            _states["parent"] = SucceededState.StateName;
+            afterCommit.Run();
+
+            Assert.True(_hashes.ContainsKey("fan-in:young-child"));
+        }
+        finally
+        {
+            FanInContinuationsSupportAttribute.DecisionRoundBudget = TimeSpan.FromSeconds(5);
+        }
+    }
+
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("", true)]
+    [InlineData("Awaiting", false)]
+    [InlineData("Enqueued", false)]
+    public void ForgetIfNeverCreated_RemovesWhatTheParentsWrote_OnlyForAChildWithoutState_AndForgetsTheChildEitherWay(string state, bool removed)
+    {
+        _unconfirmed["child"] = 1;
+        _hashes["fan-in:child"] = new Dictionary<string, string> { ["p1"] = SucceededState.StateName };
+        _context.ApplyContext.Connection.Setup(x => x.GetJobData("child")).Returns(new JobData { State = state });
+
+        Assert.Equal(removed, FanInContinuationsSupportAttribute.ForgetIfNeverCreated(_context.ApplyContext.Connection.Object, "child"));
+
+        Assert.Equal(!removed, _hashes.ContainsKey("fan-in:child"));
+        Assert.Empty(_unconfirmed);
+    }
+
+    [Fact]
+    public void ForgetIfNeverCreated_RemovesWhatTheParentsWrote_ForAChildWhoseJobIsGone()
+    {
+        _hashes["fan-in:missing-child"] = new Dictionary<string, string> { ["p1"] = SucceededState.StateName };
+
+        Assert.True(FanInContinuationsSupportAttribute.ForgetIfNeverCreated(_context.ApplyContext.Connection.Object, "missing-child"));
+
+        Assert.Empty(_hashes);
     }
 
     private ApplyStateContextMock ParentFinishes(string parentId, string state, params string[] children)
