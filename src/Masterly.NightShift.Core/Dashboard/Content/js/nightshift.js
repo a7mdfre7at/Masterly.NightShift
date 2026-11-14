@@ -59,6 +59,15 @@
         Chart.defaults.global.defaultFontFamily = '"IBM Plex Sans", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
     }
 
+    // A value as one segment of a dashboard path, written as RouteValues.Encode writes it on the server.
+    // ASP.NET Core decodes the path except "%2F", so encodeURIComponent alone gave "a/b" and the literal
+    // "a%2Fb" the same path: "%", "/" and "~" are written "~25", "~2F" and "~7E" first.
+    nightshift.routeValue = function (value) {
+        return encodeURIComponent(String(value).replace(/[~%\/]/g, function (c) {
+            return c === '~' ? '~7E' : c === '%' ? '~25' : '~2F';
+        }));
+    };
+
     nightshift.config = {
         pollInterval: $("#nightshiftConfig").data("pollinterval"),
         pollUrl: $("#nightshiftConfig").data("pollurl"),
@@ -535,7 +544,7 @@
             var match = /[?&]edit=([^&]+)/.exec(window.location.search);
             if (match) {
                 var button = $('.js-recurring-edit').filter(function () {
-                    return String($(this).data('id')) === decodeURIComponent(match[1].replace(/\+/g, ' '));
+                    return $(this).attr('data-id') === decodeURIComponent(match[1].replace(/\+/g, ' '));
                 }).first();
 
                 if (button.length) {
@@ -545,19 +554,21 @@
         }
 
         RecurringJobEditor.prototype.open = function (button) {
-            this._jobId = String(button.data('id'));
+            // .attr, not .data: jQuery's .data() converts the text, so the id "[7]" read as the array [7] and
+            // the update was posted for the job "7"
+            this._jobId = button.attr('data-id') || '';
             this._modal.find('.js-recurring-edit-id').text(this._jobId);
-            this._cron.val(button.data('cron') || '');
+            this._cron.val(button.attr('data-cron') || '');
             // The list holds the host's own zones. A job's zone can be missing there (an IANA id on Windows, a
             // Windows id on Linux, an id only a custom resolver knows), so it's added rather than left unselected,
             // which previewed in UTC; the server resolves it like the scheduler does.
-            var timezone = String(button.data('timezone') || 'UTC');
+            var timezone = button.attr('data-timezone') || 'UTC';
             if (!this._timezone.find('option').filter(function () { return this.value === timezone; }).length) {
                 this._timezone.append($('<option>').val(timezone).text(timezone));
             }
             this._timezone.val(timezone);
-            this._queue.val(button.data('queue') || '');
-            this._misfire.val(button.data('misfire') || 'Relaxed');
+            this._queue.val(button.attr('data-queue') || '');
+            this._misfire.val(button.attr('data-misfire') || 'Relaxed');
             this._startAt = button.data('start-at') || '';
             this._endAt = button.data('end-at') || '';
             this._error.hide().text('');
@@ -635,7 +646,7 @@
             save.button('loading');
             this._error.hide();
 
-            $.post(this._updateUrl + encodeURIComponent(this._jobId), {
+            $.post(this._updateUrl + nightshift.routeValue(this._jobId), {
                 cron: $.trim(this._cron.val()),
                 timezone: this._timezone.val(),
                 // An empty queue is sent too: it puts the job back in the default queue
@@ -678,7 +689,7 @@
 
         LiveJobs.prototype._startDetails = function () {
             var self = this;
-            var jobId = String(this._details.data('job-id'));
+            var jobId = this._details.attr('data-job-id');
             var initialState = this._details.data('state');
             var startedAt = parseInt(this._details.data('started-at'));
 
@@ -769,7 +780,7 @@
 
         LiveJobs.prototype._startRows = function () {
             var self = this;
-            var ids = this._rows.map(function () { return String($(this).data('job-id')); }).get().slice(0, LiveJobs.MAX_JOBS);
+            var ids = this._rows.map(function () { return $(this).attr('data-job-id'); }).get().slice(0, LiveJobs.MAX_JOBS);
 
             var poll = function () {
                 // A hidden tab doesn't need the rows; the next poll after it's shown again catches up
@@ -783,7 +794,7 @@
                     .done(function (data) {
                         self._rows.each(function () {
                             var row = $(this);
-                            var job = data.jobs && data.jobs[String(row.data('job-id'))];
+                            var job = data.jobs && data.jobs[row.attr('data-job-id')];
                             if (!job) return;
 
                             if (job.progress) {
@@ -1417,12 +1428,12 @@
             var match = /^>\s*(pause|resume)\s+(queue|server)\s+(\S+)/i.exec(text);
             if (match) {
                 var kind = match[2].toLowerCase() === 'queue' ? '/queues/' : '/servers/';
-                all.unshift({ title: '> ' + match[1].toLowerCase() + ' ' + match[2].toLowerCase() + ' ' + match[3], detail: 'post ' + kind + match[1].toLowerCase() + '/' + match[3], run: post(kind + match[1].toLowerCase() + '/' + encodeURIComponent(match[3])) });
+                all.unshift({ title: '> ' + match[1].toLowerCase() + ' ' + match[2].toLowerCase() + ' ' + match[3], detail: 'post ' + kind + match[1].toLowerCase() + '/' + match[3], run: post(kind + match[1].toLowerCase() + '/' + nightshift.routeValue(match[3])) });
             }
             var job = /^>\s*(requeue|delete)\s+#?(\S+)/i.exec(text);
             if (job) {
                 var verb = job[1].toLowerCase();
-                all.unshift({ title: '> ' + verb + ' #' + job[2], detail: verb + ' job ' + job[2], run: post('/jobs/actions/' + verb + '/' + encodeURIComponent(job[2])) });
+                all.unshift({ title: '> ' + verb + ' #' + job[2], detail: verb + ' job ' + job[2], run: post('/jobs/actions/' + verb + '/' + nightshift.routeValue(job[2])) });
             }
             var needle = text.replace(/^>\s*/, '').toLowerCase();
             return all.filter(function (c) { return !needle || c.title.toLowerCase().indexOf(needle) >= 0; })
@@ -1722,7 +1733,7 @@
             var row = $('<li>').addClass('hf-activity-row' + (animate ? ' hf-activity-new' : ''));
             row.append($('<time>').addClass('hf-activity-time').attr('title', NightShiftIntl.format(entry.t, 'dateTimeWithSeconds')).text(NightShiftIntl.format(entry.t, 'timeWithSeconds')));
             row.append($('<span>').addClass('label label-' + (STATE_CLASSES[entry.s] || 'default') + ' hf-activity-state').text(entry.s));
-            row.append($('<a>').addClass('hf-activity-job').attr('href', this._jobUrl + encodeURIComponent(entry.j)).text('#' + entry.j));
+            row.append($('<a>').addClass('hf-activity-job').attr('href', this._jobUrl + nightshift.routeValue(entry.j)).text('#' + entry.j));
             if (entry.m) row.append($('<code>').addClass('hf-activity-method').text(entry.m));
             if (entry.v) row.append($('<span>').addClass('text-muted hf-activity-server').text(entry.v));
             if (entry.r) row.append($('<span>').addClass('text-muted hf-activity-reason').attr('title', entry.r).text(entry.r));
@@ -1794,11 +1805,11 @@
         CatalogRunner.prototype.open = function (button) {
             var parameters = button.data('parameters') || [];
 
-            this._id.val(button.data('id') || '');
-            this._source.val(button.data('source') || '');
+            this._id.val(button.attr('data-id') || '');
+            this._source.val(button.attr('data-source') || '');
             // "Run again with changes" starts in the job's own queue; the Catalog page in "default"
-            this._modal.find('[name="queue"]').val(button.data('queue') || '');
-            this._title.text(button.data('type') + '.' + button.data('method'));
+            this._modal.find('[name="queue"]').val(button.attr('data-queue') || '');
+            this._title.text(button.attr('data-type') + '.' + button.attr('data-method'));
             this._error.hide().text('');
             this._success.hide().empty();
             this._submit.button('reset');
@@ -1921,7 +1932,7 @@
                             .append($('<a>').attr('href', self._recurringUrl + '?edit=' + encodeURIComponent(data.recurringId)).text(data.recurringId));
                     } else {
                         message = $('<span>').text(self._text.created.replace('{0}', data.jobId) + ' ')
-                            .append($('<a>').attr('href', self._jobUrl + encodeURIComponent(data.jobId)).text('#' + data.jobId));
+                            .append($('<a>').attr('href', self._jobUrl + nightshift.routeValue(data.jobId)).text('#' + data.jobId));
                     }
                     self._success.empty().append(message).show();
                 })
@@ -1938,7 +1949,7 @@
             var needle = $.trim(text).toLowerCase();
             $('.js-catalog-entry').each(function () {
                 var row = $(this);
-                row.toggle(!needle || String(row.data('search')).toLowerCase().indexOf(needle) >= 0);
+                row.toggle(!needle || String(row.attr('data-search') || '').toLowerCase().indexOf(needle) >= 0);
             });
             $('.js-catalog-group').each(function () {
                 var group = $(this);
@@ -1971,7 +1982,7 @@
             $(document).on('click', '.js-copy-code', function (e) {
                 e.preventDefault();
                 var button = $(this);
-                var code = String(button.data('code'));
+                var code = button.attr('data-code') || '';
                 var original = button.html();
                 var done = function () {
                     button.addClass('btn-success').html('<span class="glyphicon glyphicon-ok"></span> ' + button.data('copied'));
@@ -2139,12 +2150,12 @@
             $(document).on('click', '.js-watch-toggle', function (e) {
                 e.preventDefault();
                 var button = $(this);
-                self.toggle(String(button.data('id')), String(button.data('name') || ''), button.data('state'));
+                self.toggle(button.attr('data-id') || '', button.attr('data-name') || '', button.attr('data-state'));
             });
 
             this._panel.on('click', '.js-watch-remove', function (e) {
                 e.preventDefault();
-                self.remove(String($(this).data('id')));
+                self.remove($(this).attr('data-id') || '');
             });
         }
 
@@ -2168,7 +2179,7 @@
             for (var i = 0; i < this._items.length; i++) {
                 var item = this._items[i];
                 var li = $('<li class="hf-watchlist-item">').toggleClass('done', !!FINAL[item.state]);
-                li.append($('<a>').attr('href', this._jobUrl + encodeURIComponent(item.id)).append($('<span class="hf-watchlist-id">').text('#' + item.id)).append($('<span class="hf-watchlist-name">').text(item.name || '')));
+                li.append($('<a>').attr('href', this._jobUrl + nightshift.routeValue(item.id)).append($('<span class="hf-watchlist-id">').text('#' + item.id)).append($('<span class="hf-watchlist-name">').text(item.name || '')));
                 li.append($('<span class="hf-watchlist-state">').addClass('state-' + String(item.state || '').toLowerCase()).text(item.state || '…'));
                 li.append($('<button type="button" class="hf-watchlist-remove js-watch-remove" aria-label="remove">').attr('data-id', item.id).html('&times;'));
                 this._list.append(li);
@@ -2179,7 +2190,7 @@
             var self = this;
             $('.js-watch-toggle').each(function () {
                 var button = $(this);
-                var watching = self._find(String(button.data('id'))) >= 0;
+                var watching = self._find(button.attr('data-id') || '') >= 0;
                 button.toggleClass('active btn-info', watching).removeClass(watching ? 'btn-default' : 'btn-info').addClass(watching ? '' : 'btn-default')
                     .attr('aria-pressed', watching ? 'true' : 'false');
                 button.find('.js-watch-label').text(watching ? button.data('text-watching') : button.data('text-watch'));
@@ -2244,7 +2255,7 @@
         Watchlist.prototype._notify = function (item) {
             var text = String(this._text.done).replace('{0}', '#' + item.id).replace('{1}', item.state);
             var toast = $('<div class="hf-toast">').addClass('hf-toast-' + String(item.state).toLowerCase())
-                .append($('<a>').attr('href', this._jobUrl + encodeURIComponent(item.id)).text(text + (item.name ? ' — ' + item.name : '')));
+                .append($('<a>').attr('href', this._jobUrl + nightshift.routeValue(item.id)).text(text + (item.name ? ' — ' + item.name : '')));
             $('body').append(toast);
             setTimeout(function () { toast.addClass('show'); }, 10);
             setTimeout(function () { toast.removeClass('show'); setTimeout(function () { toast.remove(); }, 400); }, 8000);

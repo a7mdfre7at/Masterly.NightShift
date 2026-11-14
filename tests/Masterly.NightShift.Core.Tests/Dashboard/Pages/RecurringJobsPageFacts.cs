@@ -340,6 +340,18 @@ public class RecurringJobsPageFacts
         Assert.Contains("0 0 * * *", html);
     }
 
+    [Fact]
+    public void Render_LinksEachJobsDetails_SoThatASlashAndALiteralPercent2FStayApart()
+    {
+        AddJob("a/b", "0 0 * * *", null);
+        AddJob("a%2Fb", "0 0 * * *", null);
+
+        string html = _renderer.Render(new RecurringJobsPage());
+
+        Assert.Contains("href=\"/recurring/details/a~2Fb\"", html);
+        Assert.Contains("href=\"/recurring/details/a~252Fb\"", html);
+    }
+
     private void AddJob(string id, string cron, DateTime? nextExecution, Dictionary<string, string> extra = null)
     {
         Dictionary<string, string> hash = new()

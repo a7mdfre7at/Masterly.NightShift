@@ -44,6 +44,23 @@ public class RetriesPageFacts
         Assert.DoesNotContain("/jobs/scheduled/enqueue", html);
     }
 
+    [Fact]
+    public void Render_ARetryWithAnUnreadableEnqueueAt_IsShownWithoutIt()
+    {
+        SetupRetries();
+        _renderer.Connection.Setup(x => x.GetStateData("1")).Returns(new StateData
+        {
+            Name = "Scheduled",
+            Reason = "Retry attempt 1 of 10",
+            Data = new Dictionary<string, string> { { "EnqueueAt", "nonsense" } },
+        });
+
+        string html = _renderer.Render(new RetriesPage());
+
+        Assert.Contains("Retry attempt 1 of 10", html);
+        Assert.DoesNotContain("nonsense", html);
+    }
+
     private void SetupRetries()
     {
         _renderer.Connection.Setup(x => x.GetSetCount("retries")).Returns(1);

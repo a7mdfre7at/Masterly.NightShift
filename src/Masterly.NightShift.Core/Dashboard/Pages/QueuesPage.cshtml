@@ -185,13 +185,13 @@
                                     <td class="min-width hf-queue-actions">
                                         @if (paused)
                                         {
-                                            <button class="btn btn-xs btn-success" data-ajax="@Url.To("/queues/resume/" + Uri.EscapeDataString(queue.Name))" data-loading-text="@Strings.QueuesPage_Resume">
+                                            <button class="btn btn-xs btn-success" data-ajax="@Url.To("/queues/resume/" + RouteValues.Encode(queue.Name))" data-loading-text="@Strings.QueuesPage_Resume">
                                                 <span class="glyphicon glyphicon-play"></span> @Strings.QueuesPage_Resume
                                             </button>
                                         }
                                         else
                                         {
-                                            <button class="btn btn-xs btn-default" data-ajax="@Url.To("/queues/pause/" + Uri.EscapeDataString(queue.Name))" data-loading-text="@Strings.QueuesPage_Pause" data-confirm="@Strings.QueuesPage_PauseConfirm">
+                                            <button class="btn btn-xs btn-default" data-ajax="@Url.To("/queues/pause/" + RouteValues.Encode(queue.Name))" data-loading-text="@Strings.QueuesPage_Pause" data-confirm="@Strings.QueuesPage_PauseConfirm">
                                                 <span class="glyphicon glyphicon-pause"></span> @Strings.QueuesPage_Pause
                                             </button>
                                         }

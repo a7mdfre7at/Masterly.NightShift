@@ -307,8 +307,14 @@ public class HtmlHelper
         return new NonEscapedString(label);
     }
 
-    public NonEscapedString ServerId(string serverId)
+    public NonEscapedString ServerId(string? serverId)
     {
+        // State data written without a server id (by another writer, or before ServerId replaced ServerName)
+        if (serverId == null)
+        {
+            return new NonEscapedString($"<span class=\"label label-default\"><i>{HtmlEncode(Strings.Common_Unknown)}</i></span>");
+        }
+
         string[] parts = serverId.Split(':');
         string shortenedId = parts.Length > 1
             ? string.Join(":", parts.Take(parts.Length - 1))

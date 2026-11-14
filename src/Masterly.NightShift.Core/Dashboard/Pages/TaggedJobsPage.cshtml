@@ -44,7 +44,7 @@
                 @if (!IsReadOnly)
                 {
                     <button class="btn btn-xs btn-default"
-                            data-ajax="@(Url.To("/tags/forget-expired/" + Uri.EscapeDataString(Tag)) + "?from=" + finalPager.FromRecord + "&count=" + finalPager.RecordsPerPage)"
+                            data-ajax="@(Url.To("/tags/forget-expired/" + RouteValues.Encode(Tag)) + "?from=" + finalPager.FromRecord + "&count=" + finalPager.RecordsPerPage)"
                             data-loading-text="@Strings.TaggedJobsPage_ForgetExpired">
                         <span class="glyphicon glyphicon-remove"></span>
                         @Strings.TaggedJobsPage_ForgetExpired

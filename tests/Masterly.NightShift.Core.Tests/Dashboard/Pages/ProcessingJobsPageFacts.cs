@@ -172,6 +172,22 @@ public class ProcessingJobsPageFacts
         _renderer.Connection.Verify(x => x.GetJobParameter(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 
+    [Fact]
+    public void Render_AJobWithoutAServerId_ShowsTheServerAsUnknown()
+    {
+        // A storage gives no id when the state has neither ServerId nor the legacy ServerName
+        SetupJobs(new Dictionary<string, ProcessingJobDto>
+        {
+            { "1", Processing(QuickJob(), _now.AddSeconds(-5), serverId: null) },
+            { "2", Processing(QuickJob(), _now.AddSeconds(-5)) },
+        });
+
+        string html = _renderer.Render(new ProcessingJobsPage());
+
+        Assert.Contains("<i>" + Encode(Strings.Common_Unknown) + "</i>", html);
+        Assert.Contains("title=\"server-1:abc\"", html);
+    }
+
     private void SetupJobs(Dictionary<string, ProcessingJobDto> jobs)
     {
         _renderer.Monitoring.Setup(x => x.ProcessingCount()).Returns(jobs.Count);

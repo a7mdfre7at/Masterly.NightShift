@@ -134,7 +134,7 @@ internal static partial class JobDiagnostics
 
     private static void DiagnoseScheduled(RazorPage page, IMonitoringApi monitor, JobDetailsDto details, StateHistoryDto current, DateTime now, List<JobDiagnostic> findings)
     {
-        DateTime? enqueueAt = current.Data != null && current.Data.TryGetValue("EnqueueAt", out string? value) ? JobHelper.DeserializeNullableDateTime(value) : null;
+        DateTime? enqueueAt = current.Data != null && current.Data.TryGetValue("EnqueueAt", out string? value) ? StateDataValues.ReadDateTime(value) : null;
         Match? retry = current.Reason != null ? RetryReasonRegex().Match(current.Reason) : null;
 
         if (retry != null && retry.Success)
@@ -252,7 +252,7 @@ internal static partial class JobDiagnostics
         if (notListed > 0)
         {
             findings.Add(new JobDiagnostic("parents-not-listed", JobDiagnosticSeverity.Info, Format(page, Strings.Diagnostics_ParentsNotListed, notListed.ToString(CultureInfo.CurrentCulture)),
-                batchId != null ? page.Url.To("/batches/" + Uri.EscapeDataString(batchId)) : null, batchId != null ? Strings.JobDetailsPage_Batch : null));
+                batchId != null ? page.Url.To("/batches/" + RouteValues.Encode(batchId)) : null, batchId != null ? Strings.JobDetailsPage_Batch : null));
         }
     }
 
@@ -307,8 +307,11 @@ internal static partial class JobDiagnostics
 
     private static void DiagnoseProcessing(RazorPage page, IMonitoringApi monitor, JobDetailsDto details, StateHistoryDto current, DateTime now, List<JobDiagnostic> findings)
     {
-        string? serverId = current.Data != null && current.Data.TryGetValue("ServerId", out string? value) ? value : null;
-        DateTime? startedAt = current.Data != null && current.Data.TryGetValue("StartedAt", out string? started) ? JobHelper.DeserializeNullableDateTime(started) : null;
+        string? serverId = current.Data == null ? null
+            : current.Data.TryGetValue("ServerId", out string? value) ? value
+            : current.Data.TryGetValue("ServerName", out string? legacyName) ? legacyName
+            : null;
+        DateTime? startedAt = current.Data != null && current.Data.TryGetValue("StartedAt", out string? started) ? StateDataValues.ReadDateTime(started) : null;
         TimeSpan running = startedAt.HasValue ? now - startedAt.Value : now - current.CreatedAt;
         ServerDto? server = serverId != null ? monitor.Servers().FirstOrDefault(x => x.Name == serverId) : null;
 
@@ -318,7 +321,7 @@ internal static partial class JobDiagnostics
         }
         else if (server != null && !IsAlive(page, server, now))
         {
-            findings.Add(new JobDiagnostic("server-stale", JobDiagnosticSeverity.Problem, Format(page, Strings.Diagnostics_ServerStale, page.Html.ServerId(serverId!), page.Html.RelativeTime(server.Heartbeat ?? server.StartedAt)), page.Url.To("/servers"), Strings.NavigationMenu_Servers)); // server was found by this id
+            findings.Add(new JobDiagnostic("server-stale", JobDiagnosticSeverity.Problem, Format(page, Strings.Diagnostics_ServerStale, page.Html.ServerId(serverId), page.Html.RelativeTime(server.Heartbeat ?? server.StartedAt)), page.Url.To("/servers"), Strings.NavigationMenu_Servers));
         }
 
         JobInsight? insight = null;

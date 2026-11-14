@@ -229,6 +229,20 @@ public class JobExportDispatcherFacts
     }
 
     [Fact]
+    public async Task ListExport_LeavesTheTimeOfAScheduledJobBlank_WhenItsEnqueueAtIsUnreadable()
+    {
+        // Storages answer DateTime.MinValue when the state has no readable EnqueueAt
+        _monitor.Setup(x => x.ScheduledJobs(0, 500)).Returns(new JobList<ScheduledJobDto>(
+        [
+            new KeyValuePair<string, ScheduledJobDto>("1", new ScheduledJobDto { InScheduledState = true, EnqueueAt = DateTime.MinValue }),
+        ]));
+
+        string[] lines = await ExportAsync("scheduled", "/jobs/scheduled/export");
+
+        Assert.Equal("1,Scheduled,,,,,,", lines[1]);
+    }
+
+    [Fact]
     public async Task ListExport_WritesProcessingJobs_WithTheElapsedTimeAndTheServer()
     {
         DateTime startedAt = DateTime.UtcNow.AddMinutes(-1);

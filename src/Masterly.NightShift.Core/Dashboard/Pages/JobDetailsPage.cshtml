@@ -48,13 +48,18 @@
         else
         {
             StateHistoryDto currentState = job.History[0];
-            if (currentState.StateName == ProcessingState.StateName)
+            // Older data names the server ServerName; data without either says nothing about the server
+            string? processingServerId = currentState.StateName != ProcessingState.StateName ? null
+                : currentState.Data.TryGetValue("ServerId", out string? stateServerId) ? stateServerId
+                : currentState.Data.TryGetValue("ServerName", out string? stateServerName) ? stateServerName
+                : null;
+            if (processingServerId != null)
             {
-                ServerDto? server = monitor.Servers().FirstOrDefault(x => x.Name == currentState.Data["ServerId"]);
+                ServerDto? server = monitor.Servers().FirstOrDefault(x => x.Name == processingServerId);
                 if (server == null)
                 {
                     <div class="alert alert-danger">
-                        @Html.Raw(String.Format(Strings.JobDetailsPage_JobAbortedNotActive_Warning_Html, Html.HtmlEncode(currentState.Data["ServerId"]), Html.HtmlEncode(Url.To("/servers"))))
+                        @Html.Raw(String.Format(Strings.JobDetailsPage_JobAbortedNotActive_Warning_Html, Html.HtmlEncode(processingServerId), Html.HtmlEncode(Url.To("/servers"))))
                     </div>
                 }
                 else if (server.Heartbeat.HasValue && server.Heartbeat < (StorageUtcNow ?? ApplicationUtcNow).Add(DashboardOptions.ServerPossiblyAbortedThreshold.Negate()))
@@ -187,15 +192,15 @@
                 <div class="hf-tags" aria-label="@Strings.JobDetailsPage_Tags">
                     @if (chainId != null)
                     {
-                        <a class="hf-tag hf-tag-batch" href="@Url.To("/chains/" + Uri.EscapeDataString(chainId))"><span class="glyphicon glyphicon-link"></span> @String.Format(Strings.ChainDetailsPage_Title, chainId.Substring(0, Math.Min(8, chainId.Length)))</a>
+                        <a class="hf-tag hf-tag-batch" href="@Url.To("/chains/" + RouteValues.Encode(chainId))"><span class="glyphicon glyphicon-link"></span> @String.Format(Strings.ChainDetailsPage_Title, chainId.Substring(0, Math.Min(8, chainId.Length)))</a>
                     }
                     @if (batchId != null)
                     {
-                        <a class="hf-tag hf-tag-batch" href="@Url.To("/batches/" + Uri.EscapeDataString(batchId))"><span class="glyphicon glyphicon-th-large"></span> @Strings.JobDetailsPage_Batch @batchId</a>
+                        <a class="hf-tag hf-tag-batch" href="@Url.To("/batches/" + RouteValues.Encode(batchId))"><span class="glyphicon glyphicon-th-large"></span> @Strings.JobDetailsPage_Batch @batchId</a>
                     }
                     @if (batchContinuationOf != null)
                     {
-                        <a class="hf-tag hf-tag-batch" href="@Url.To("/batches/" + Uri.EscapeDataString(batchContinuationOf))"><span class="glyphicon glyphicon-th-large"></span> @Strings.JobDetailsPage_BatchContinuation @batchContinuationOf</a>
+                        <a class="hf-tag hf-tag-batch" href="@Url.To("/batches/" + RouteValues.Encode(batchContinuationOf))"><span class="glyphicon glyphicon-th-large"></span> @Strings.JobDetailsPage_BatchContinuation @batchContinuationOf</a>
                     }
                     @if (tags.Count > 0)
                     {
@@ -203,7 +208,7 @@
                     }
                     @foreach (string tag in tags)
                     {
-                        <a class="hf-tag" href="@Url.To("/tags/" + Uri.EscapeDataString(tag))">@tag</a>
+                        <a class="hf-tag" href="@Url.To("/tags/" + RouteValues.Encode(tag))">@tag</a>
                     }
                 </div>
             }
@@ -320,7 +325,7 @@
 
             bool isProcessing = currentState.StateName == ProcessingState.StateName;
             DateTime? liveStartedAt = isProcessing && currentState.Data.TryGetValue("StartedAt", out string? startedAtValue)
-                ? JobHelper.DeserializeNullableDateTime(startedAtValue)
+                ? StateDataValues.ReadDateTime(startedAtValue)
                 : null;
 
             if (isProcessing || progress != null || consoleEntries.Count > 0)

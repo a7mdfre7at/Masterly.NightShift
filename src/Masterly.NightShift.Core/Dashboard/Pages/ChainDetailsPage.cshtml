@@ -41,7 +41,7 @@
                         </span>
                         @if (!IsReadOnly && !chain.IsSettled)
                         {
-                            <button class="btn btn-sm btn-default" data-ajax="@Url.To("/chains/delete/" + chain.ChainId)" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.ChainDetailsPage_DeleteConfirm">
+                            <button class="btn btn-sm btn-default" data-ajax="@Url.To("/chains/delete/" + RouteValues.Encode(chain.ChainId))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.ChainDetailsPage_DeleteConfirm">
                                 <span class="glyphicon glyphicon-remove"></span> @Strings.Common_Delete
                             </button>
                         }

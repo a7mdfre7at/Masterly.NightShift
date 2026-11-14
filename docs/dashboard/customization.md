@@ -84,7 +84,7 @@ They are shared by every dashboard in the process (all paths, all storages). Reg
 | `DashboardContext.IsReadOnly` | Result of `IsReadOnlyFunc` for this request. |
 | `DashboardContext.GetBackgroundJobClient()` / `GetRecurringJobManager()` | Client and manager bound to the dashboard's storage (from DI in ASP.NET Core). |
 | `DashboardContext.GetUserName()` | The signed-in user's name, or `null`. |
-| `DashboardRequest` (`context.Request`) | `Method`, `Path` (relative to the dashboard), `PathBase`, `LocalIpAddress`, `RemoteIpAddress`, `GetQuery(key)`, `GetFormValuesAsync(key)`, `GetHeader(name)` (`null` when the header is missing, or on hosts other than ASP.NET Core). Values captured from the path are already decoded by ASP.NET Core, except `%2F`, which stays as is. |
+| `DashboardRequest` (`context.Request`) | `Method`, `Path` (relative to the dashboard), `PathBase`, `LocalIpAddress`, `RemoteIpAddress`, `GetQuery(key)`, `GetFormValuesAsync(key)`, `GetHeader(name)` (`null` when the header is missing, or on hosts other than ASP.NET Core). Values captured from the path are already decoded by ASP.NET Core, except `%2F`, which stays as is. The built-in pages write `%`, `/` and `~` inside a value as `~25`, `~2F` and `~7E` before encoding it, so that a literal `%2F` and a `/` stay apart; a link from an extension to a built-in page should do the same with `NightShift.routeValue(value)` in scripts. |
 | `DashboardResponse` (`context.Response`) | `ContentType`, `StatusCode`, `Body`, `WriteAsync(text)`, `SetExpire(DateTimeOffset?)`. |
 | `context.GetHttpContext()` | The ASP.NET Core `HttpContext` (namespace `Masterly.NightShift.Dashboard`, package `Masterly.NightShift.AspNetCore`). |
 

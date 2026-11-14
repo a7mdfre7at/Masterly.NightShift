@@ -70,7 +70,7 @@ internal sealed class SearchDispatcher : IDashboardDispatcher
                 {
                     tag,
                     count = JobTags.Count(connection, tag),
-                    url = new UrlHelper(context).To("/tags/" + Uri.EscapeDataString(tag)),
+                    url = new UrlHelper(context).To("/tags/" + RouteValues.Encode(tag)),
                 });
             }
         }

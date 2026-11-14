@@ -63,7 +63,7 @@
 
                                 <tr class="hover">
                                     <td>
-                                        <a class="hf-batch-link" href="@Url.To("/batches/" + Uri.EscapeDataString(batch.Id))">
+                                        <a class="hf-batch-link" href="@Url.To("/batches/" + RouteValues.Encode(batch.Id))">
                                             <span class="label @stateCss text-uppercase">@stateText</span>
                                             <strong>@(batch.Description ?? batch.Id)</strong>
                                             @if (batch.Description != null)

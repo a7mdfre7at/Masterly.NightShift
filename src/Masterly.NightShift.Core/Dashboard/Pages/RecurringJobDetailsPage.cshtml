@@ -29,7 +29,7 @@
 
     string title = String.Format(Strings.RecurringJobDetailsPage_Title, Id);
     Layout = new LayoutPage(title);
-    string encodedId = Uri.EscapeDataString(Id);
+    string encodedId = RouteValues.Encode(Id);
 }
 
 <div class="row">

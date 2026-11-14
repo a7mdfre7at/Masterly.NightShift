@@ -154,7 +154,7 @@ internal abstract class SharedMonitoringApi : JobStorageMonitor
             LoadException = exception,
             InvocationData = data,
             InScheduledState = IsIn(stored, ScheduledState.StateName),
-            EnqueueAt = JobHelper.DeserializeNullableDateTime(state["EnqueueAt"]) ?? DateTime.MinValue,
+            EnqueueAt = ReadDateTime(state["EnqueueAt"]) ?? DateTime.MinValue,
             ScheduledAt = stored.State?.CreatedAt,
             StateData = state,
         });
@@ -169,9 +169,7 @@ internal abstract class SharedMonitoringApi : JobStorageMonitor
             InvocationData = data,
             InSucceededState = IsIn(stored, SucceededState.StateName),
             Result = state["Result"],
-            TotalDuration = state.TryGetValue("PerformanceDuration", out string? duration) && state.TryGetValue("Latency", out string? latency)
-                ? long.Parse(duration, CultureInfo.InvariantCulture) + long.Parse(latency, CultureInfo.InvariantCulture)
-                : null,
+            TotalDuration = ReadLong(state["PerformanceDuration"]) + ReadLong(state["Latency"]),
             SucceededAt = stored.State?.CreatedAt,
             StateData = state,
         });
@@ -377,6 +375,25 @@ internal abstract class SharedMonitoringApi : JobStorageMonitor
         }
 
         return result;
+    }
+
+    // State data can come from another writer or version: a value that can't be read is left out of its row,
+    // so that one bad row doesn't take down the whole list
+    private static DateTime? ReadDateTime(string? value)
+    {
+        try
+        {
+            return JobHelper.DeserializeNullableDateTime(value);
+        }
+        catch (Exception ex) when (ex is FormatException or ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+    }
+
+    private static long? ReadLong(string? value)
+    {
+        return long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long number) ? number : null;
     }
 
     private static bool IsIn(StoredJob job, string stateName)

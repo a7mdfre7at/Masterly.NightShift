@@ -125,6 +125,33 @@ public class LiveJobsDispatcherFacts
     }
 
     [Fact]
+    public async Task Dispatch_AnswersForTheOtherJobs_WhenOneHasAnUnreadableStart_AndReadsTheLegacyServerName()
+    {
+        _connection.Setup(x => x.GetStateData("job-3")).Returns(new StateData
+        {
+            Name = ProcessingState.StateName,
+            Data = new Dictionary<string, string> { { "ServerName", "server-old" }, { "StartedAt", "nonsense" } }
+        });
+        _connection.Setup(x => x.GetStateData("job-4")).Returns(new StateData
+        {
+            Name = ProcessingState.StateName,
+            Data = new Dictionary<string, string> { { "ServerId", "server-a" }, { "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow) } }
+        });
+        DashboardRequestStub request = new("POST", "/jobs/live");
+        request.Form["jobs[]"] = ["job-3", "job-4"];
+        request.Form["console"] = ["0"];
+        DashboardContextStub context = new(new DashboardOptions(), request, _storage.Object);
+
+        await new LiveJobsDispatcher().Dispatch(context);
+
+        Assert.Equal(200, context.Response.StatusCode);
+        JsonNode? jobs = JsonNode.Parse(context.Response.Text)["jobs"];
+        Assert.Equal("server-old", jobs["job-3"]["serverId"].GetValue<string>());
+        Assert.Null(jobs["job-3"]["elapsedMs"]);
+        Assert.Equal("server-a", jobs["job-4"]["serverId"].GetValue<string>());
+    }
+
+    [Fact]
     public async Task Dispatch_OmitsServerAndElapsed_ForJobsNoLongerProcessing()
     {
         _connection.Setup(x => x.GetStateData("job-2")).Returns(new StateData

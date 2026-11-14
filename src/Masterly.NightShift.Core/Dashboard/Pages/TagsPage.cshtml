@@ -67,7 +67,7 @@
             <div class="hf-tags-cloud">
                 @foreach (JobTagSummary tag in tags)
                 {
-                    <a class="hf-tag hf-tag-lg js-tag" href="@Url.To("/tags/" + Uri.EscapeDataString(tag.Tag))" data-tag="@tag.Tag" style="--hf-weight: @(((double)tag.Count / largest).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))">
+                    <a class="hf-tag hf-tag-lg js-tag" href="@Url.To("/tags/" + RouteValues.Encode(tag.Tag))" data-tag="@tag.Tag" style="--hf-weight: @(((double)tag.Count / largest).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))">
                         <span class="glyphicon glyphicon-tag"></span> @tag.Tag <span class="hf-tag-count">@tag.Count</span>
                     </a>
                 }
@@ -89,12 +89,12 @@
                         @foreach (JobTagSummary tag in tags)
                         {
                             <tr class="js-tag-row" data-tag="@tag.Tag">
-                                <td><a href="@Url.To("/tags/" + Uri.EscapeDataString(tag.Tag))" class="hf-tag"><span class="glyphicon glyphicon-tag"></span> @tag.Tag</a></td>
+                                <td><a href="@Url.To("/tags/" + RouteValues.Encode(tag.Tag))" class="hf-tag"><span class="glyphicon glyphicon-tag"></span> @tag.Tag</a></td>
                                 <td class="align-right">@tag.Count</td>
                                 @if (!IsReadOnly)
                                 {
                                     <td>
-                                        <button class="btn btn-xs btn-default" data-ajax="@Url.To("/tags/forget/" + Uri.EscapeDataString(tag.Tag))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.TagsPage_ForgetConfirm">
+                                        <button class="btn btn-xs btn-default" data-ajax="@Url.To("/tags/forget/" + RouteValues.Encode(tag.Tag))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.TagsPage_ForgetConfirm">
                                             <span class="glyphicon glyphicon-remove"></span> @Strings.TagsPage_Forget
                                         </button>
                                     </td>
