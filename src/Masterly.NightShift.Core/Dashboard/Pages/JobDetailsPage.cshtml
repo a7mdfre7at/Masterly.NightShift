@@ -187,15 +187,15 @@
                 <div class="hf-tags" aria-label="@Strings.JobDetailsPage_Tags">
                     @if (chainId != null)
                     {
-                        <a class="hf-tag hf-tag-batch" href="@Url.To("/chains/" + Uri.EscapeDataString(chainId))"><span class="glyphicon glyphicon-link"></span> @String.Format(Strings.ChainDetailsPage_Title, chainId.Substring(0, Math.Min(8, chainId.Length)))</a>
+                        <a class="hf-tag hf-tag-batch" href="@Url.To("/chains/" + RouteValues.Encode(chainId))"><span class="glyphicon glyphicon-link"></span> @String.Format(Strings.ChainDetailsPage_Title, chainId.Substring(0, Math.Min(8, chainId.Length)))</a>
                     }
                     @if (batchId != null)
                     {
-                        <a class="hf-tag hf-tag-batch" href="@Url.To("/batches/" + Uri.EscapeDataString(batchId))"><span class="glyphicon glyphicon-th-large"></span> @Strings.JobDetailsPage_Batch @batchId</a>
+                        <a class="hf-tag hf-tag-batch" href="@Url.To("/batches/" + RouteValues.Encode(batchId))"><span class="glyphicon glyphicon-th-large"></span> @Strings.JobDetailsPage_Batch @batchId</a>
                     }
                     @if (batchContinuationOf != null)
                     {
-                        <a class="hf-tag hf-tag-batch" href="@Url.To("/batches/" + Uri.EscapeDataString(batchContinuationOf))"><span class="glyphicon glyphicon-th-large"></span> @Strings.JobDetailsPage_BatchContinuation @batchContinuationOf</a>
+                        <a class="hf-tag hf-tag-batch" href="@Url.To("/batches/" + RouteValues.Encode(batchContinuationOf))"><span class="glyphicon glyphicon-th-large"></span> @Strings.JobDetailsPage_BatchContinuation @batchContinuationOf</a>
                     }
                     @if (tags.Count > 0)
                     {
@@ -203,7 +203,7 @@
                     }
                     @foreach (string tag in tags)
                     {
-                        <a class="hf-tag" href="@Url.To("/tags/" + Uri.EscapeDataString(tag))">@tag</a>
+                        <a class="hf-tag" href="@Url.To("/tags/" + RouteValues.Encode(tag))">@tag</a>
                     }
                 </div>
             }

@@ -50,7 +50,7 @@
                     {
                         <div class="hf-batch-actions">
                             <a class="btn btn-sm btn-default" href="@Url.To("/policies?edit=" + Uri.EscapeDataString(policy.Name) + "#editor")"><span class="glyphicon glyphicon-pencil"></span> @Strings.RecurringJobsPage_Edit</a>
-                            <button class="btn btn-sm btn-default" data-ajax="@Url.To("/policies/delete/" + Uri.EscapeDataString(policy.Name) + "/" + policy.Revision.ToString(CultureInfo.InvariantCulture))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.PoliciesPage_DeleteConfirm">
+                            <button class="btn btn-sm btn-default" data-ajax="@Url.To("/policies/delete/" + RouteValues.Encode(policy.Name) + "/" + policy.Revision.ToString(CultureInfo.InvariantCulture))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.PoliciesPage_DeleteConfirm">
                                 <span class="glyphicon glyphicon-remove"></span> @Strings.Common_Delete
                             </button>
                         </div>

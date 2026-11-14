@@ -90,13 +90,13 @@
                         <div class="hf-batch-actions">
                             @if (batch.Failed > 0)
                             {
-                                <button class="btn btn-sm btn-primary" data-ajax="@Url.To("/batches/requeue-failed/" + Uri.EscapeDataString(batch.Id))" data-loading-text="@Strings.Common_Enqueueing">
+                                <button class="btn btn-sm btn-primary" data-ajax="@Url.To("/batches/requeue-failed/" + RouteValues.Encode(batch.Id))" data-loading-text="@Strings.Common_Enqueueing">
                                     <span class="glyphicon glyphicon-repeat"></span> @String.Format(Strings.BatchDetailsPage_RequeueFailed, batch.Failed)
                                 </button>
                             }
                             @if (batch.Pending + batch.Failed > 0)
                             {
-                                <button class="btn btn-sm btn-default" data-ajax="@Url.To("/batches/delete/" + Uri.EscapeDataString(batch.Id))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.BatchDetailsPage_DeletePendingConfirm">
+                                <button class="btn btn-sm btn-default" data-ajax="@Url.To("/batches/delete/" + RouteValues.Encode(batch.Id))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.BatchDetailsPage_DeletePendingConfirm">
                                     <span class="glyphicon glyphicon-remove"></span> @String.Format(Strings.BatchDetailsPage_DeletePending, batch.Pending + batch.Failed)
                                 </button>
                             }

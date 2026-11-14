@@ -647,7 +647,7 @@ internal static class ChainFlowchartRenderer
         // With the chain in the address: a step whose job expired no longer says what chain it belongs to
         if (retryChain != null && (FailedState.StateName.Equals(info.StateOrOutcome, StringComparison.OrdinalIgnoreCase) || DeletedState.StateName.Equals(info.StateOrOutcome, StringComparison.OrdinalIgnoreCase)))
         {
-            html.Append("<button class=\"btn btn-xs btn-primary\" data-ajax=\"").Append(Encode(page.Url.To("/chains/retry/" + Uri.EscapeDataString(retryChain) + "/" + Uri.EscapeDataString(info.JobId)))).Append("\" data-loading-text=\"").Append(Encode(Strings.ChainDetailsPage_Retrying)).Append("\">");
+            html.Append("<button class=\"btn btn-xs btn-primary\" data-ajax=\"").Append(Encode(page.Url.To("/chains/retry/" + RouteValues.Encode(retryChain) + "/" + RouteValues.Encode(info.JobId)))).Append("\" data-loading-text=\"").Append(Encode(Strings.ChainDetailsPage_Retrying)).Append("\">");
             html.Append("<span class=\"glyphicon glyphicon-repeat\"></span> ").Append(Encode(Strings.ChainDetailsPage_RetryFromHere)).Append("</button>");
         }
 

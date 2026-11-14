@@ -252,7 +252,7 @@ internal static partial class JobDiagnostics
         if (notListed > 0)
         {
             findings.Add(new JobDiagnostic("parents-not-listed", JobDiagnosticSeverity.Info, Format(page, Strings.Diagnostics_ParentsNotListed, notListed.ToString(CultureInfo.CurrentCulture)),
-                batchId != null ? page.Url.To("/batches/" + Uri.EscapeDataString(batchId)) : null, batchId != null ? Strings.JobDetailsPage_Batch : null));
+                batchId != null ? page.Url.To("/batches/" + RouteValues.Encode(batchId)) : null, batchId != null ? Strings.JobDetailsPage_Batch : null));
         }
     }
 

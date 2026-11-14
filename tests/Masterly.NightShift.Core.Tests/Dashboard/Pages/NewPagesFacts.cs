@@ -50,6 +50,22 @@ public class NewPagesFacts
     }
 
     [Fact]
+    public void RecurringJobDetails_OfAnIdWithALiteralPercent2F_ShowsThatJob_AndActsOnIt()
+    {
+        // The route hands the page the path as ASP.NET Core decoded it: "a~252Fb" for the id "a%2Fb"
+        _renderer.Connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:a%2Fb")).Returns(new Dictionary<string, string>
+        {
+            ["Cron"] = "0 2 * * *",
+            ["Job"] = InvocationData.SerializeJob(Job.FromExpression(() => Run())).SerializePayload(),
+        });
+
+        string html = _renderer.Render(new RecurringJobDetailsPage("a~252Fb"));
+
+        Assert.Contains("data-ajax=\"/recurring/trigger-one/a~252Fb\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-ajax=\"/recurring/pause-one/a~252Fb\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RecurringJobDetails_HidesTheActions_ForReadOnlyUsers()
     {
         _renderer.Options = new DashboardOptions { IsReadOnlyFunc = static _ => true };

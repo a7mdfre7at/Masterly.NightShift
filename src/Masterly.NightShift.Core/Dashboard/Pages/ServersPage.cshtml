@@ -101,13 +101,13 @@
                                     <td class="min-width">
                                         @if (drain.PausedServers.ContainsKey(server.Name))
                                         {
-                                            <button class="btn btn-xs btn-success" data-ajax="@Url.To("/servers/resume/" + Uri.EscapeDataString(server.Name))" data-loading-text="@Strings.ServersPage_Resume_Server">
+                                            <button class="btn btn-xs btn-success" data-ajax="@Url.To("/servers/resume/" + RouteValues.Encode(server.Name))" data-loading-text="@Strings.ServersPage_Resume_Server">
                                                 <span class="glyphicon glyphicon-play"></span> @Strings.ServersPage_Resume_Server
                                             </button>
                                         }
                                         else
                                         {
-                                            <button class="btn btn-xs btn-default" data-ajax="@Url.To("/servers/pause/" + Uri.EscapeDataString(server.Name))" data-loading-text="@Strings.ServersPage_Pause_Server" data-confirm="@Strings.ServersPage_PauseConfirm">
+                                            <button class="btn btn-xs btn-default" data-ajax="@Url.To("/servers/pause/" + RouteValues.Encode(server.Name))" data-loading-text="@Strings.ServersPage_Pause_Server" data-confirm="@Strings.ServersPage_PauseConfirm">
                                                 <span class="glyphicon glyphicon-pause"></span> @Strings.ServersPage_Pause_Server
                                             </button>
                                         }
@@ -136,7 +136,7 @@
                             }
                             @if (!IsReadOnly)
                             {
-                                <button class="btn btn-xs btn-default" data-ajax="@Url.To("/servers/resume/" + Uri.EscapeDataString(serverId))" data-loading-text="@Strings.ServersPage_StalePauses_Clear">
+                                <button class="btn btn-xs btn-default" data-ajax="@Url.To("/servers/resume/" + RouteValues.Encode(serverId))" data-loading-text="@Strings.ServersPage_StalePauses_Clear">
                                     <span class="glyphicon glyphicon-remove"></span> @Strings.ServersPage_StalePauses_Clear
                                 </button>
                             }

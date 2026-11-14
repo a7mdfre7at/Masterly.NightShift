@@ -49,8 +49,8 @@
                         @foreach (JobChainInfo chain in chains)
                         {
                             JobChainStepInfo? first = chain.Steps.FirstOrDefault();
-                            <tr class="hover hf-row-link" data-href="@Url.To("/chains/" + chain.ChainId)">
-                                <td class="min-width"><a href="@Url.To("/chains/" + chain.ChainId)"><code>@chain.ChainId.Substring(0, Math.Min(8, chain.ChainId.Length))</code></a></td>
+                            <tr class="hover hf-row-link" data-href="@Url.To("/chains/" + RouteValues.Encode(chain.ChainId))">
+                                <td class="min-width"><a href="@Url.To("/chains/" + RouteValues.Encode(chain.ChainId))"><code>@chain.ChainId.Substring(0, Math.Min(8, chain.ChainId.Length))</code></a></td>
                                 <td class="min-width">@StatusLabel(chain)</td>
                                 <td class="word-break">@(first?.Job != null ? Html.JobName(first.Job) : String.Empty)</td>
                                 <td class="min-width">@chain.Steps.Count</td>

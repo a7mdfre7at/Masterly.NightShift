@@ -463,6 +463,17 @@ public class DashboardServerFacts
     }
 
     [Fact]
+    public async Task TheScriptBundle_EncodesPathSegments_AsTheServerReadsThem()
+    {
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+
+        string bundle = await app.GetStringAsync("/nightshift/js1");
+
+        Assert.Contains("return c === '~' ? '~7E' : c === '%' ? '~25' : '~2F';", bundle);
+        Assert.Contains("$.post(this._updateUrl + nightshift.routeValue(this._jobId), {", bundle);
+    }
+
+    [Fact]
     public async Task TheScriptBundle_GivesThePaletteRolesAndNames_AndLetsUsersTurnOffSingleKeyShortcuts()
     {
         await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
@@ -507,6 +518,66 @@ public class DashboardServerFacts
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Same(filter, Assert.Single(options.Authorization));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PauseOne_OfAnIdWithALiteralPercent2F_PausesThatJob_NotTheOneWithASlash(bool middleware)
+    {
+        // Kestrel decodes "%25" but keeps "%2F", so encodeURIComponent("a%2Fb") reached the dashboard as the
+        // "a%2Fb" that encodeURIComponent("a/b") gives, and the job "a/b" was paused
+        Mock<IRecurringJobManagerV3> manager = RecurringJobManager();
+        await using RunningApp app = await StartAsync(
+            services => services.AddSingleton(Factory(manager.Object)),
+            middleware ? static app => app.UseNightShiftDashboard() : static app => app.MapNightShiftDashboard());
+
+        // What the pages send now: "~" escapes "%", "/" and itself inside the segment, which no host decodes
+        HttpResponseMessage literal = await app.PostAsync("/nightshift/recurring/pause-one/a~252Fb", ScriptPost);
+        HttpResponseMessage slash = await app.PostAsync("/nightshift/recurring/resume-one/a~2Fb", ScriptPost);
+
+        Assert.Equal(HttpStatusCode.NoContent, literal.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, slash.StatusCode);
+        manager.Verify(x => x.Pause("a%2Fb"), Times.Once);
+        manager.Verify(x => x.Pause("a/b"), Times.Never);
+        manager.Verify(x => x.Resume("a/b"), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("/nightshift/recurring/pause-one/reports%2Fdaily", "reports/daily")]
+    [InlineData("/nightshift/recurring/pause-one/nightly%20report", "nightly report")]
+    [InlineData("/nightshift/recurring/pause-one/plain-id", "plain-id")]
+    public async Task PauseOne_StillUnderstands_LinksEncodedWithEncodeURIComponent(string path, string expected)
+    {
+        // What the pages sent before, and what an extension that encodes the id itself still sends
+        Mock<IRecurringJobManagerV3> manager = RecurringJobManager();
+        await using RunningApp app = await StartAsync(services => services.AddSingleton(Factory(manager.Object)), static app => app.MapNightShiftDashboard());
+
+        HttpResponseMessage response = await app.PostAsync(path, ScriptPost);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        manager.Verify(x => x.Pause(expected), Times.Once);
+    }
+
+    private static Mock<IRecurringJobManagerV3> RecurringJobManager()
+    {
+        Mock<IRecurringJobManagerV3> manager = new();
+        manager.Setup(x => x.Pause(It.IsAny<string>())).Returns(true);
+        manager.Setup(x => x.Resume(It.IsAny<string>())).Returns(true);
+        return manager;
+    }
+
+    private static IRecurringJobManagerFactory Factory(IRecurringJobManager manager)
+    {
+        Mock<IRecurringJobManagerFactory> factory = new();
+        factory.Setup(x => x.GetManager(It.IsAny<JobStorage>())).Returns(manager);
+        return factory.Object;
+    }
+
+    private static void ScriptPost(HttpRequestMessage request)
+    {
+        request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+        request.Headers.TryAddWithoutValidation("Sec-Fetch-Site", "same-origin");
     }
 
     private async Task<RunningApp> StartAsync(Action<IServiceCollection> services = null, Action<WebApplication> map = null)

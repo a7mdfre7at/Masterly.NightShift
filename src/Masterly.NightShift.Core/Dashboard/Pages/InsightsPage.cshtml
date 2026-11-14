@@ -192,7 +192,7 @@
                                         <td class="min-width">
                                             @if (circuit.State != CircuitBreakerAttribute.ClosedState || circuit.Failures > 0)
                                             {
-                                                <button class="btn btn-xs btn-default" data-ajax="@Url.To("/insights/circuits/reset/" + Uri.EscapeDataString(circuit.Resource))" data-loading-text="@Strings.InsightsPage_Circuits_Reset">
+                                                <button class="btn btn-xs btn-default" data-ajax="@Url.To("/insights/circuits/reset/" + RouteValues.Encode(circuit.Resource))" data-loading-text="@Strings.InsightsPage_Circuits_Reset">
                                                     <span class="glyphicon glyphicon-refresh"></span> @Strings.InsightsPage_Circuits_Reset
                                                 </button>
                                             }
