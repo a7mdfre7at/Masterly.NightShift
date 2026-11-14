@@ -101,48 +101,40 @@ public class RecurringJobSchedulingFacts
     }
 
     [Fact, CleanDatabase]
-    public void RetireUndeclared_WithoutAScope_PausesTheJobsOfAnotherApplicationsSet()
+    public void RetireUndeclared_OfAnotherApplicationsSet_LeavesTheJobsOfThisOneAlone()
     {
-        // Nothing tells whose set declared a job, so two applications that declare different sets in one storage
-        // pause each other's jobs at each start. This is why such sets need a scope each (see the next test)
-        SqlServerStorage storage = CreateStorage();
-        RecurringJobManager manager = new(storage);
-
-        new RecurringJobSet().Add("billing:invoices", () => Answer(), "0 * * * *").RetireUndeclared().Apply(manager, storage);
-        RecurringJobSetResult reports = new RecurringJobSet().Add("reports:daily", () => Answer(), "0 * * * *").RetireUndeclared().Apply(manager, storage);
-
-        Assert.Equal(["billing:invoices"], reports.Retired);
-        Assert.True(Find(storage, "billing:invoices").Paused);
-    }
-
-    [Fact, CleanDatabase]
-    public void RetireUndeclared_WithAScopeEach_LeavesTheJobsOfAnotherApplicationsSetAlone()
-    {
+        // Each job records the name of the set that declared it, so two applications that declare different sets
+        // in one storage, without a scope, never pause each other's jobs
         SqlServerStorage storage = CreateStorage();
         RecurringJobManager manager = new(storage);
 
         for (int start = 0; start < 2; start++)
         {
-            Assert.Empty(new RecurringJobSet()
-                .Add("billing:invoices", () => Answer(), "0 * * * *")
-                .RetireUndeclared(static id => id.StartsWith("billing:", StringComparison.Ordinal))
-                .Apply(manager, storage).Retired);
-            Assert.Empty(new RecurringJobSet()
-                .Add("reports:daily", () => Answer(), "0 * * * *")
-                .RetireUndeclared(static id => id.StartsWith("reports:", StringComparison.Ordinal))
-                .Apply(manager, storage).Retired);
+            Assert.Empty(new RecurringJobSet().Named("billing").Add("billing:invoices", () => Answer(), "0 * * * *").RetireUndeclared().Apply(manager, storage).Retired);
+            Assert.Empty(new RecurringJobSet().Named("reports").Add("reports:daily", () => Answer(), "0 * * * *").RetireUndeclared().Apply(manager, storage).Retired);
         }
 
         Assert.False(Find(storage, "billing:invoices").Paused);
         Assert.False(Find(storage, "reports:daily").Paused);
+        Assert.Equal("billing", Find(storage, "billing:invoices").DeclaredBy);
+    }
 
-        // A job one of them stops declaring is still retired
+    [Fact, CleanDatabase]
+    public void RetireUndeclared_PausesAJobItsOwnSetStoppedDeclaring_AndOnlyThat()
+    {
+        SqlServerStorage storage = CreateStorage();
+        RecurringJobManager manager = new(storage);
+        new RecurringJobSet().Named("billing").Add("billing:invoices", () => Answer(), "0 * * * *").Apply(manager, storage);
+        new RecurringJobSet().Named("reports").Add("reports:daily", () => Answer(), "0 * * * *").Apply(manager, storage);
+
         RecurringJobSetResult billing = new RecurringJobSet()
+            .Named("billing")
             .Add("billing:reminders", () => Answer(), "0 * * * *")
-            .RetireUndeclared(static id => id.StartsWith("billing:", StringComparison.Ordinal))
+            .RetireUndeclared()
             .Apply(manager, storage);
 
         Assert.Equal(["billing:invoices"], billing.Retired);
+        Assert.True(Find(storage, "billing:invoices").Paused);
         Assert.False(Find(storage, "reports:daily").Paused);
     }
 

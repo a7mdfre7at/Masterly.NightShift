@@ -2165,6 +2165,97 @@ internal static class JsonRoundTrip
         return true;
     }
 
+    /// <summary>
+    /// Tells whether two JSON texts hold the same value, whatever their whitespace and the order of object members:
+    /// member names are compared without regard to case, as values are read, numbers by their value, and strings
+    /// exactly. Text that isn't JSON is the same as nothing.
+    /// </summary>
+    public static bool AreEquivalent([NotNull] string left, [NotNull] string right)
+    {
+        try
+        {
+            using JsonDocument leftDocument = JsonDocument.Parse(left);
+            using JsonDocument rightDocument = JsonDocument.Parse(right);
+            return AreEquivalent(leftDocument.RootElement, rightDocument.RootElement);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static bool AreEquivalent(JsonElement left, JsonElement right)
+    {
+        if (left.ValueKind != right.ValueKind)
+        {
+            return false;
+        }
+
+        return left.ValueKind switch
+        {
+            JsonValueKind.Object => ObjectsAreEquivalent(left, right),
+            JsonValueKind.Array => ArraysAreEquivalent(left, right),
+            JsonValueKind.String => string.Equals(left.GetString(), right.GetString(), StringComparison.Ordinal),
+            JsonValueKind.Number => NumbersAreEqual(left, right),
+            _ => true,
+        };
+    }
+
+    private static bool ObjectsAreEquivalent(JsonElement left, JsonElement right)
+    {
+        Dictionary<string, JsonElement> rightMembers = new(StringComparer.OrdinalIgnoreCase);
+        foreach (JsonProperty property in right.EnumerateObject())
+        {
+            if (!rightMembers.TryAdd(property.Name, property.Value))
+            {
+                // Two members whose names differ only by case: nothing tells which one a reader takes
+                return false;
+            }
+        }
+
+        int count = 0;
+        foreach (JsonProperty property in left.EnumerateObject())
+        {
+            count++;
+            if (!rightMembers.TryGetValue(property.Name, out JsonElement value) || !AreEquivalent(property.Value, value))
+            {
+                return false;
+            }
+        }
+
+        return count == rightMembers.Count;
+    }
+
+    private static bool ArraysAreEquivalent(JsonElement left, JsonElement right)
+    {
+        if (left.GetArrayLength() != right.GetArrayLength())
+        {
+            return false;
+        }
+
+        using JsonElement.ArrayEnumerator rightItems = right.EnumerateArray();
+        foreach (JsonElement item in left.EnumerateArray())
+        {
+            rightItems.MoveNext();
+            if (!AreEquivalent(item, rightItems.Current))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool NumbersAreEqual(JsonElement left, JsonElement right)
+    {
+        if (left.TryGetDecimal(out decimal leftDecimal) && right.TryGetDecimal(out decimal rightDecimal))
+        {
+            return leftDecimal == rightDecimal;
+        }
+
+        return string.Equals(left.GetRawText(), right.GetRawText(), StringComparison.Ordinal);
+    }
+
     private static bool HasConstructorToBind(Type type)
     {
         foreach (ConstructorInfo constructor in type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))

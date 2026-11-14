@@ -51,8 +51,10 @@ An error from the storage while applying, such as an unreachable database, also 
 | `AddHandler<TArgs>(id, args, cron, options)`, `AddHandler<TArgs>(args, cron, options)` | Declares a job run by the only registered [handler](../jobs/typed-handlers.md) of `TArgs`, which gets `args` every time. Without an ID, the name of the handler is used. |
 | `AddHandler<THandler, TArgs>(id, args, cron, options)`, `AddHandler<THandler, TArgs>(args, cron, options)` | The same with the handler named, which doesn't need registering. |
 | `ResolvePlaceholders(getValue)` | Replaces each `%Section:Key%` schedule with its value. A host does this for you. |
-| `RemoveUndeclared(scope)` | After applying, also removes stored recurring jobs that aren't declared. See below. |
-| `RetireUndeclared(scope)` | After applying, pauses the jobs a set declared before that this one doesn't, instead of removing them. See below. Can't be combined with `RemoveUndeclared`. |
+| `Named(name)` | Names the set, up to 100 characters. See [Set names](#set-names). |
+| `Name` | The set's name. |
+| `RemoveUndeclared(scope)` | After applying, also removes the jobs a set of the same name declared before that this one doesn't. See below. |
+| `RetireUndeclared(scope)` | After applying, pauses the jobs a set of the same name declared before that this one doesn't, instead of removing them. See below. Can't be combined with `RemoveUndeclared`. |
 | `Once(key, methodCall, delay)` | Declares a job created once for `key`, the first time a set with it is applied. See below. |
 | `AddPolicy(policy)` | Declares a [schedule policy](../jobs/schedule-policies.md#declaring-policies-in-code), saved before the jobs. |
 | `DeclaredIds` | The identifiers declared so far. |
@@ -61,7 +63,18 @@ An error from the storage while applying, such as an unreachable database, also 
 
 `cron` is a CRON expression or a `%Section:Key%` placeholder. `options` is a [`RecurringJobOptions`](creating-recurring-jobs.md#recurringjoboptions), for the time zone, queue, misfire handling and dates. It is optional. `Apply` returns a `RecurringJobSetResult` with the `Applied`, `Removed` and `Retired` identifiers, the `CreatedOnce` keys and the `PoliciesSaved` names.
 
-Applying a set marks each declared job with the `Declared` field of its hash, so `RecurringJobDto.Declared` tells a job declared in code from one created any other way. The field is written the first time only.
+Applying a set writes its name into the `Declared` field of each declared job's hash, so `RecurringJobDto.Declared` tells a job declared in code from one created any other way, and `RecurringJobDto.DeclaredBy` names the set. The field is written only when it changes.
+
+### Set names
+
+Each set has a name, and `RetireUndeclared` and `RemoveUndeclared` act only on the jobs a set of that name declared. So applications that share a storage, a web host and a worker host for example, each declaring its own jobs, never pause or delete each other's jobs, while the instances and the new versions of one application, which have the same name, are one set.
+
+- **The default** is the simple name of the entry assembly (`Assembly.GetEntryAssembly()`), or `default` when there is none (`RecurringJobSet.DefaultName`). With `AddNightShiftRecurringJobs` it is the host's `IHostEnvironment.ApplicationName`, which is the entry assembly's name unless the host sets another.
+- **`Named(name)`** gives another one, for example to keep the name when the assembly is renamed, or to split one application's jobs in two sets. It throws `ArgumentException` for a name that is empty, longer than 100 characters, or `1`. With a host, call it in a declaration: `jobs.Named("billing")`.
+- **The last declaration wins.** A job declared by a set of another name moves to this set, logged at debug level, and from then on only this set retires or removes it.
+- **Jobs marked by earlier builds**, whose `Declared` field holds `1` instead of a name, belong to no set: no set retires or removes them, and the first set that declares one again writes its name into it. `RecurringJobDto.Declared` is `true` for them and `DeclaredBy` is `null`.
+
+The dashboard shows the name next to the job's **From code** badge.
 
 ## More examples
 
@@ -115,15 +128,16 @@ builder.Services.AddNightShiftRecurringJobs<BillingJobs>();
 ```csharp
 builder.Services.AddNightShiftRecurringJobs(jobs => jobs
     .Add<ReportService>("app:daily-report", service => service.BuildDaily(), Cron.Daily(2))
-    .RemoveUndeclared(static id => id.StartsWith("app:", StringComparison.Ordinal)));
+    .RemoveUndeclared());
 ```
 
-Removal is off unless you ask for it, because it has two risks:
+or, to remove only the jobs with a prefix, `RemoveUndeclared(static id => id.StartsWith("app:", StringComparison.Ordinal))`.
 
-- **It deletes jobs created any other way**: from the dashboard, a [manifest](recurring-job-manifest.md) or other code. Pass a `scope`, as above, and give your declared jobs a prefix.
-- **During a rolling deployment, versions delete each other's jobs.** The old version removes what only the new one declares, and the other way around, until the old instances are gone. Use it where one version runs at a time, or apply the removal as a step of the deployment.
+A job a set of the same [name](#set-names) declared before that this one doesn't is removed. Jobs another set declared, jobs created any other way (from the dashboard, a [manifest](recurring-job-manifest.md) or other code with `AddOrUpdate`) and jobs marked by earlier builds are never removed. A `scope`, as above, limits the removal further.
 
-Nothing is removed when applying a job failed, or when no job was declared at all, since an empty set is more likely a mistake.
+Removal is off unless you ask for it, because **during a rolling deployment, versions delete each other's jobs**: the old version removes what only the new one declares, and the other way around, until the old instances are gone. Use it where one version runs at a time, or apply the removal as a step of the deployment, or use `RetireUndeclared` instead.
+
+Nothing is removed when applying a job failed, or when no job was declared at all, since an empty set is more likely a mistake. Each removed job is logged at info level.
 
 ### Pause jobs that are no longer in the code
 
@@ -133,9 +147,7 @@ builder.Services.AddNightShiftRecurringJobs(jobs => jobs
     .RetireUndeclared());
 ```
 
-A job a set declared before that this one doesn't is paused and marked as retired (`RecurringJobDto.Retired`), in one transaction: it keeps its definition and history, and declaring it again resumes it. Jobs that no set declared, created from the dashboard, a manifest or other code, are never touched, so `RetireUndeclared` is safer than `RemoveUndeclared`. During a rolling deployment the old version resumes what the new one retired, until it stops, so the last version to start decides. Pausing needs a manager that implements `IRecurringJobManagerV3`, as the container's does.
-
-**When several applications declare sets in one storage, give each set a `scope`.** A stored job only records that *a* set declared it, not which one, so without a scope each application takes the jobs the other declares for jobs it stopped declaring, and every start of one pauses the jobs of the other. With a prefix per application (`RetireUndeclared(static id => id.StartsWith("billing:", StringComparison.Ordinal))`), each one retires only its own. A set without a scope that retires jobs logs a warning that says so. With a single application, or several instances of one, no scope is needed.
+A job a set of the same [name](#set-names) declared before that this one doesn't is paused and marked as retired (`RecurringJobDto.Retired`), in one transaction, and logged at info level: it keeps its definition and history, and declaring it again resumes it. Jobs another set declared, jobs that no set declared (created from the dashboard, a manifest or other code) and jobs marked by earlier builds are never touched, so applications that share a storage need no `scope` to keep apart; a `scope` limits it further. `RetireUndeclared` is safer than `RemoveUndeclared`: during a rolling deployment the old version resumes what the new one retired, until it stops, so the last version to start decides, and nothing is lost meanwhile. Pausing needs a manager that implements `IRecurringJobManagerV3`, as the container's does.
 
 ### Run start-up work once
 

@@ -130,7 +130,7 @@ The stored recurring jobs are read through a storage connection, with extension 
 
 The `JobStorageConnection` overloads need a storage with the extended API (`JobStorage.HasFeature(JobStorageFeatures.ExtendedApi)`; SQL Server has it): cast the connection, `(JobStorageConnection)storage.GetConnection()`. Other storages throw `NotSupportedException` from them.
 
-`RecurringJobDto` has `Id`, `Cron`, `Queue`, `TimeZoneId`, `Job` (the method call, or `null` when it can't be loaded, with the reason in `LoadException`), `NextExecution`, `LastExecution`, `LastJobId`, `LastJobState`, `CreatedAt`, `Error` and `RetryAttempt` (scheduling failures), `Paused`, `MisfireHandling`, `StartAt`, `EndAt` (UTC), `SkipAfter`, `Policy`, `Declared` and `Retired` (see [Recurring jobs declared in code](recurring-jobs-in-code.md)) and `Removed`. The monitoring API only counts recurring jobs (`GetStatistics().Recurring`); to list them, use these extensions.
+`RecurringJobDto` has `Id`, `Cron`, `Queue`, `TimeZoneId`, `Job` (the method call, or `null` when it can't be loaded, with the reason in `LoadException`), `NextExecution`, `LastExecution`, `LastJobId`, `LastJobState`, `CreatedAt`, `Error` and `RetryAttempt` (scheduling failures), `Paused`, `MisfireHandling`, `StartAt`, `EndAt` (UTC), `SkipAfter`, `Policy`, `Declared`, `DeclaredBy` and `Retired` (see [Recurring jobs declared in code](recurring-jobs-in-code.md)) and `Removed`. The monitoring API only counts recurring jobs (`GetStatistics().Recurring`); to list them, use these extensions.
 
 ```csharp
 using Masterly.NightShift;
@@ -355,7 +355,7 @@ public static void RemoveUnknown(JobStorage storage, IRecurringJobManager recurr
 }
 ```
 
-`JobStorage` is registered in the container by `AddNightShift`. A [manifest](recurring-job-manifest.md) applied with `prune: true` does this for you, and so does `RemoveUndeclared` on [recurring jobs declared in code](recurring-jobs-in-code.md).
+`JobStorage` is registered in the container by `AddNightShift`. A [manifest](recurring-job-manifest.md) applied with `prune: true` does this for you, and so does `RemoveUndeclared` for the jobs a [recurring job set](recurring-jobs-in-code.md) declared.
 
 ### Knowing which run you are
 

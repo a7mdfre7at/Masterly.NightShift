@@ -1,6 +1,13 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Drawing;
+using System.Globalization;
+using System.Linq.Expressions;
+using System.Numerics;
 using System.Reflection;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
+using Range = System.Range;
 using Masterly.NightShift.Client;
 using Masterly.NightShift.Logging;
 
@@ -791,6 +798,146 @@ public class RecurringJobManifestFacts
             JobHelper.DeserializeDateTime(_writes["recurring-job:good"]["StartAt"]));
     }
 
+    [DataCompatibilityRangeTheory, CleanSerializerSettings]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Apply_RefusesAStructArgument_ThatWouldBeReadBackAsItsDefault_AndAppliesTheOtherEntries(bool recommended)
+    {
+        // Temperature is written as its read-only member, which nothing can set: imported, it would run as 0 °C
+        UseSettings(recommended);
+        string json = Manifest(
+            StructEntry("measure", () => StructSink.Measure(default), "{\"Celsius\":21.5}"),
+            Entry("a"));
+
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json, prune: false, allowAnyMethod: true);
+
+        RecurringJobManifestError error = Assert.Single(result.Errors);
+        Assert.Equal("measure", error.Id);
+        Assert.Contains("'measure'", error.Message, StringComparison.Ordinal);
+        Assert.Contains("argument 1", error.Message, StringComparison.Ordinal);
+        Assert.Contains(typeof(Temperature).FullName!, error.Message, StringComparison.Ordinal);
+        Assert.Contains("can't be stored as a job argument", error.Message, StringComparison.Ordinal);
+        Assert.Equal(["a"], result.Added);
+        _manager.Verify(x => x.AddOrUpdate("measure", It.IsAny<Job>(), It.IsAny<string>(), It.IsAny<RecurringJobOptions>()), Times.Never);
+    }
+
+    [DataCompatibilityRangeTheory, CleanSerializerSettings]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Apply_RefusesAStructArgument_WhoseMembersDiffer_WhateverTheirOrder(bool recommended)
+    {
+        UseSettings(recommended);
+        string json = Manifest(StructEntry("locate", () => StructSink.Locate(default), "{\"Y\":1,\"X\":0}"));
+
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json, prune: false, allowAnyMethod: true);
+
+        Assert.Equal("locate", Assert.Single(result.Errors).Id);
+        Assert.Empty(result.Added);
+    }
+
+    [DataCompatibilityRangeTheory, CleanSerializerSettings]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Apply_ImportsAStructArgument_ThatReadsBackAsWritten(bool recommended)
+    {
+        // Its default value, with other whitespace and member order, and a struct with computed members only
+        UseSettings(recommended);
+        string json = Manifest(
+            StructEntry("measure", () => StructSink.Measure(default), "{ \"Celsius\" : 0 }"),
+            StructEntry("locate", () => StructSink.Locate(default), "{\"Y\":0,\"X\":0}"),
+            StructEntry("mark", () => StructSink.Mark(default), "{\"IsMarker\":true}"));
+
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json, prune: false, allowAnyMethod: true);
+
+        Assert.Empty(result.Errors);
+        Assert.Equal(["measure", "locate", "mark"], result.Added);
+    }
+
+    [DataCompatibilityRangeTheory, CleanSerializerSettings]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Export_ThenApply_RoundTripsJobsCreatedAsUsual(bool recommended)
+    {
+        UseSettings(recommended);
+        DateTime at = new(2026, 11, 14, 8, 30, 15, DateTimeKind.Utc);
+        DateTimeOffset offset = new(2026, 11, 14, 8, 30, 15, TimeSpan.FromHours(3));
+        BigInteger amount = BigInteger.Parse("123456789012345678901234567890", CultureInfo.InvariantCulture);
+        Color custom = Color.FromArgb(128, 10, 20, 30);
+        Guid id = Guid.Parse("8b0d6d5e-0c1a-4a52-9a4c-2a3e6f1d7c90");
+        Order order = new("A-1", 3, [1, 2]);
+        List<string> tags = ["x", "y"];
+        Dictionary<string, int> counts = new() { ["a"] = 1 };
+        int? none = null;
+        Index index = ^1;
+        Range range = 1..^2;
+        Store("ordinary", Job.FromExpression(() => StructSink.Ordinary(42, "text", at, offset, TimeSpan.FromMinutes(90), 12.5m, id, DayOfWeek.Friday)));
+        Store("values", Job.FromExpression(() => StructSink.Values(order, Color.Red, custom, amount, index, range, tags, counts, none)));
+        Store("structs", Job.FromExpression(() => StructSink.Structs(new Bound(7), default, default)));
+        string json = RecurringJobManifest.Export(_connection.Object);
+        List<Job> applied = [];
+        _manager.Setup(x => x.AddOrUpdate(It.IsAny<string>(), It.IsAny<Job>(), It.IsAny<string>(), It.IsAny<RecurringJobOptions>()))
+            .Callback<string, Job, string, RecurringJobOptions>((_, job, _, _) => applied.Add(job));
+
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
+
+        Assert.Empty(result.Errors);
+        Assert.Equal(["ordinary", "structs", "values"], result.Updated);
+        object[] ordinary = [42, "text", at, offset, TimeSpan.FromMinutes(90), 12.5m, id, DayOfWeek.Friday];
+        Assert.Equal(ordinary, applied[0].Args);
+        Assert.Equal(new Bound(7), applied[1].Args[0]);
+        Assert.Equal(default(Temperature), applied[1].Args[1]);
+        object[] values = [.. applied[2].Args];
+        Assert.Equal(order.Number, ((Order)values[0]).Number);
+        Assert.Equal(order.Lines, ((Order)values[0]).Lines);
+        Assert.Equal(Color.Red, values[1]);
+        Assert.Equal(custom.ToArgb(), ((Color)values[2]).ToArgb());
+        Assert.Equal(amount, values[3]);
+        Assert.Equal(^1, values[4]);
+        Assert.Equal(1..^2, values[5]);
+        Assert.Equal(tags, values[6]);
+        Assert.Equal(counts, values[7]);
+        Assert.Null(values[8]);
+    }
+
+    private static void UseSettings(bool recommended)
+    {
+        if (recommended)
+        {
+            GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
+        }
+    }
+
+    private void Store(string id, Job job)
+    {
+        _hashes["recurring-job:" + id] = new Dictionary<string, string>
+        {
+            { "Cron", "0 1 * * *" },
+            { "Job", InvocationData.SerializeJob(job).SerializePayload() },
+            { "TimeZoneId", "UTC" },
+            { "Queue", "default" },
+        };
+    }
+
+    /// <summary>An entry for a method of <see cref="StructSink"/> with one argument, written as <paramref name="argument"/>.</summary>
+    private static string StructEntry(string id, Expression<Action> methodCall, string argument)
+    {
+        InvocationData data = InvocationData.SerializeJob(Job.FromExpression(methodCall));
+        JsonObject entry = new()
+        {
+            ["id"] = id,
+            ["cron"] = "0 1 * * *",
+            ["job"] = new JsonObject
+            {
+                ["type"] = data.Type,
+                ["method"] = data.Method,
+                ["parameterTypes"] = data.ParameterTypes,
+                ["arguments"] = JsonSerializer.Serialize(new[] { argument }),
+            },
+        };
+
+        return entry.ToJsonString();
+    }
+
     private static string ManifestOnlyEntry(string id, Type type, string method)
     {
         return "{ \"id\": \"" + id + "\", \"cron\": \"0 1 * * *\", " +
@@ -809,4 +956,45 @@ public class RecurringJobManifestFacts
     {
         public void Run(string name) { }
     }
+
+    public static class StructSink
+    {
+        public static void Measure(Temperature temperature) { }
+
+        public static void Locate(Spot spot) { }
+
+        public static void Mark(Marker marker) { }
+
+        public static void Ordinary(int number, string text, DateTime at, DateTimeOffset offset, TimeSpan duration, decimal price, Guid id, DayOfWeek day) { }
+
+        public static void Values(Order order, Color named, Color custom, BigInteger amount, Index index, Range range, List<string> tags, Dictionary<string, int> counts, int? none) { }
+
+        public static void Structs(Bound bound, Temperature zero, Marker marker) { }
+    }
+
+    // Written as its read-only member, which no constructor parameter is named after: read back as its default value
+    public readonly struct Temperature(double c)
+    {
+        public double Celsius { get; } = c;
+    }
+
+    public readonly struct Spot(int a, int b)
+    {
+        public int X { get; } = a;
+
+        public int Y { get; } = b;
+    }
+
+    public readonly struct Marker
+    {
+        public bool IsMarker => true;
+    }
+
+    [method: JsonConstructor]
+    public readonly struct Bound(int value)
+    {
+        public int Value { get; } = value;
+    }
+
+    public sealed record Order(string Number, int Quantity, int[] Lines);
 }

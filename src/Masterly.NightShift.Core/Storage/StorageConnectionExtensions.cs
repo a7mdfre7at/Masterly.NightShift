@@ -202,7 +202,12 @@ public static class StorageConnectionExtensions
                 dto.SkipAfter = TimeSpan.FromSeconds(skipAfterSeconds);
             }
 
-            dto.Declared = hash.TryGetValue(RecurringJobSet.DeclaredField, out string? declared) && declared == "1";
+            // The name of the set that declared it, or the mark of an earlier build, which names no set
+            if (hash.TryGetValue(RecurringJobSet.DeclaredField, out string? declared) && !string.IsNullOrEmpty(declared))
+            {
+                dto.Declared = true;
+                dto.DeclaredBy = declared == RecurringJobSet.UnnamedMark ? null : declared;
+            }
 
             if (hash.TryGetValue(RecurringJobEntity.PolicyField, out string? policy) && !string.IsNullOrWhiteSpace(policy))
             {

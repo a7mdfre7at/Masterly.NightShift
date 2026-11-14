@@ -50,6 +50,23 @@ public class NewPagesFacts
     }
 
     [Fact]
+    public void RecurringJobDetails_ShowsTheNameOfTheSetThatDeclaredTheJob_Encoded()
+    {
+        _renderer.Connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:nightly")).Returns(new Dictionary<string, string>
+        {
+            ["Cron"] = "0 2 * * *",
+            ["Job"] = InvocationData.SerializeJob(Job.FromExpression(() => Run())).SerializePayload(),
+            ["Declared"] = "<billing>",
+        });
+
+        string html = _renderer.Render(new RecurringJobDetailsPage("nightly"));
+
+        Assert.Contains("From code", html, StringComparison.Ordinal);
+        Assert.Contains("&lt;billing&gt;", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<billing>", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RecurringJobDetails_OfAnIdWithALiteralPercent2F_ShowsThatJob_AndActsOnIt()
     {
         // The route hands the page the path as ASP.NET Core decoded it: "a~252Fb" for the id "a%2Fb"

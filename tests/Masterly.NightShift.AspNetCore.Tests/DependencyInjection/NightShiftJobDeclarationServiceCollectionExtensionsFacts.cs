@@ -197,6 +197,55 @@ public sealed class NightShiftJobDeclarationServiceCollectionExtensionsFacts : I
     }
 
     [Fact]
+    public async Task HostedService_NamesTheSet_AfterTheHostsApplication()
+    {
+        _services.AddSingleton(CreateEnvironment("Billing.Web"));
+        _services.AddNightShiftRecurringJobs(static jobs => jobs.Add("report", () => Run(), Hourly));
+        StoreReport();
+
+        await StartHostedServicesAsync();
+
+        VerifyMarked("Billing.Web");
+    }
+
+    [Fact]
+    public async Task HostedService_KeepsTheNameADeclarationGives()
+    {
+        _services.AddSingleton(CreateEnvironment("Billing.Web"));
+        _services.AddNightShiftRecurringJobs(static jobs => jobs.Named("billing").Add("report", () => Run(), Hourly));
+        StoreReport();
+
+        await StartHostedServicesAsync();
+
+        VerifyMarked("billing");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("1")]
+    public async Task HostedService_KeepsTheDefaultName_WhenTheApplicationNameCannotNameASet(string applicationName)
+    {
+        _services.AddSingleton(CreateEnvironment(applicationName));
+        _services.AddNightShiftRecurringJobs(static jobs => jobs.Add("report", () => Run(), Hourly));
+        StoreReport();
+
+        await StartHostedServicesAsync();
+
+        VerifyMarked(RecurringJobSet.DefaultName);
+    }
+
+    [Fact]
+    public async Task HostedService_KeepsTheDefaultName_WithoutAHostEnvironment()
+    {
+        _services.AddNightShiftRecurringJobs(static jobs => jobs.Add("report", () => Run(), Hourly));
+        StoreReport();
+
+        await StartHostedServicesAsync();
+
+        VerifyMarked(RecurringJobSet.DefaultName);
+    }
+
+    [Fact]
     public void HostedService_IsCreated_FromWhatAddNightShiftRegisters()
     {
         ServiceCollection services = new();
@@ -208,6 +257,24 @@ public sealed class NightShiftJobDeclarationServiceCollectionExtensionsFacts : I
         IHostedService[] hostedServices = [.. services.BuildServiceProvider().GetServices<IHostedService>()];
 
         Assert.Single(hostedServices);
+    }
+
+    private static IHostEnvironment CreateEnvironment(string applicationName)
+    {
+        Mock<IHostEnvironment> environment = new();
+        environment.SetupGet(static x => x.ApplicationName).Returns(applicationName);
+        return environment.Object;
+    }
+
+    private void StoreReport()
+    {
+        _connection.Setup(static x => x.GetAllEntriesFromHash("recurring-job:report")).Returns(new Dictionary<string, string> { ["Cron"] = Hourly });
+    }
+
+    private void VerifyMarked(string setName)
+    {
+        _transaction.Verify(x => x.SetRangeInHash("recurring-job:report", It.Is<IEnumerable<KeyValuePair<string, string>>>(
+            fields => fields.Contains(new KeyValuePair<string, string>("Declared", setName)))));
     }
 
     private async Task StartHostedServicesAsync()
