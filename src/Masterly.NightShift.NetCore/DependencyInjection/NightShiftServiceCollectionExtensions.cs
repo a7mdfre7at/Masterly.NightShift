@@ -369,7 +369,7 @@ public static class NightShiftServiceCollectionExtensions
         }
     }
 
-    // One control for every server of the container, which the servers join as the host creates them
+    // One control for every server of the container, which the servers join as the host starts them
     private static void AddServerControl(IServiceCollection services)
     {
         services.TryAddSingleton<BackgroundJobServerControl>();
@@ -400,7 +400,12 @@ public static class NightShiftServiceCollectionExtensions
         IHostApplicationLifetime? lifetime = provider.GetService<IHostApplicationLifetime>();
 
         BackgroundJobServerHostedService service = new(storage, options, additionalProcesses, factory, performer, stateChanger, lifetime);
-        provider.GetService<BackgroundJobServerControl>()?.Register(service);
+        // Joined when the host starts it: anything else that resolves the hosted services creates more of them
+        BackgroundJobServerControl? control = provider.GetService<BackgroundJobServerControl>();
+        if (control != null)
+        {
+            service.JoinOnStart(control);
+        }
         return service;
     }
 

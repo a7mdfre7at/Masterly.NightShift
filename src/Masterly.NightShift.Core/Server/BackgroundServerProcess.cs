@@ -97,7 +97,19 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
             {
                 // ReSharper disable once AccessToDisposedClosure
                 using IBackgroundDispatcher heartbeat = CreateHeartbeatProcess(context, restartCts.Cancel);
-                StartDispatchers(context, dispatchers);
+                try
+                {
+                    StartDispatchers(context, dispatchers);
+                }
+                catch (Exception)
+                {
+                    // Their tokens come from restartCts alone once it is disposed: the started dispatchers, and the
+                    // heartbeat, would run for good, one more set on every attempt to start again
+                    restartCts.Cancel();
+                    StopStartedDispatchers(context, [.. dispatchers, heartbeat]);
+                    throw;
+                }
+
                 execution.NotifySucceeded();
 
                 WaitForDispatchers(context, dispatchers);
@@ -291,6 +303,17 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
         else
         {
             _logger.Info($"{GetServerTemplate(context.ServerId)} All dispatchers stopped");
+        }
+    }
+
+    // Waits for the dispatchers whose tokens were just canceled, for the shutdown timeout at most, before they are
+    // disposed
+    private void StopStartedDispatchers(BackgroundServerContext context, IReadOnlyList<IBackgroundDispatcher> dispatchers)
+    {
+        Task[] waitTasks = [.. dispatchers.Select(static x => x.WaitAsync(Timeout.InfiniteTimeSpan, CancellationToken.None))];
+        if (!Task.WaitAll(waitTasks, _options.ShutdownTimeout))
+        {
+            _logger.Warn($"{GetServerTemplate(context.ServerId)} could not stop every dispatcher it started within {_options.ShutdownTimeout} after it failed to start the others.");
         }
     }
 

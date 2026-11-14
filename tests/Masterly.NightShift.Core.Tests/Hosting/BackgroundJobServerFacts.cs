@@ -612,21 +612,40 @@ public class BackgroundJobServerFacts
         /// <summary>The servers paused now.</summary>
         public string[] PausedServers => [.. DrainMode.Read(Connection.Object).PausedServers.Keys];
 
+        // The pauses' fields of the drain-mode hash, called under _sync
+        private Dictionary<string, string> ServerFields()
+        {
+            return _hashes.TryGetValue(DrainMode.HashKey, out Dictionary<string, string> hash)
+                ? hash.Where(static x => x.Key.StartsWith(DrainMode.ServerFieldPrefix, StringComparison.Ordinal)).ToDictionary()
+                : [];
+        }
+
         private IWriteOnlyTransaction CreateTransaction()
         {
+            // A null list removes the hash
             List<(string Key, List<KeyValuePair<string, string>> Fields)> pending = [];
             Mock<IWriteOnlyTransaction> transaction = new();
 
             transaction
                 .Setup(x => x.SetRangeInHash(It.IsAny<string>(), It.IsAny<IEnumerable<KeyValuePair<string, string>>>()))
                 .Callback((string key, IEnumerable<KeyValuePair<string, string>> fields) => pending.Add((key, [.. fields])));
+            transaction
+                .Setup(x => x.RemoveHash(It.IsAny<string>()))
+                .Callback((string key) => pending.Add((key, null)));
 
             transaction.Setup(x => x.Commit()).Callback(() =>
             {
                 lock (_sync)
                 {
+                    Dictionary<string, string> pausesBefore = ServerFields();
                     foreach ((string key, List<KeyValuePair<string, string>> fields) in pending)
                     {
+                        if (fields == null)
+                        {
+                            _hashes.Remove(key);
+                            continue;
+                        }
+
                         if (!_hashes.TryGetValue(key, out Dictionary<string, string> hash))
                         {
                             _hashes[key] = hash = [];
@@ -641,12 +660,12 @@ public class BackgroundJobServerFacts
                         {
                             _events.Add("check");
                         }
-
-                        foreach (KeyValuePair<string, string> field in fields.Where(x => key == DrainMode.HashKey && x.Key.StartsWith(DrainMode.ServerFieldPrefix, StringComparison.Ordinal)))
-                        {
-                            _events.Add(field.Value == "[resumed]" ? "resume" : "pause");
-                        }
                     }
+
+                    // A resume removes the server's field, by writing the hash again without it
+                    Dictionary<string, string> pausesAfter = ServerFields();
+                    _events.AddRange(pausesBefore.Keys.Where(x => !pausesAfter.ContainsKey(x)).Select(static _ => "resume"));
+                    _events.AddRange(pausesAfter.Where(x => !pausesBefore.TryGetValue(x.Key, out string before) || before != x.Value).Select(static _ => "pause"));
                 }
             });
 

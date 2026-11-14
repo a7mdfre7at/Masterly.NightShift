@@ -515,7 +515,19 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
 
         bool fencedByNewer = fenced && older;
         WarnOnceWhenFencedByNewer(fencedByNewer, order, current, currentOrder);
-        UpdatePause(connection, serverId, fenced, order, current, fencedByNewer ? currentOrder : null);
+        try
+        {
+            UpdatePause(connection, serverId, fenced, order, current, fencedByNewer ? currentOrder : null);
+        }
+        catch (DistributedLockTimeoutException ex)
+        {
+            // The drain-mode switch's lock, not the lock of the checks: Execute takes a timeout on that one to mean
+            // that no deployment can take over. This is a failure like any storage error
+            throw new InvalidOperationException(
+                $"The deployment check of server '{serverId}' couldn't take the lock '{ex.Resource}' to {(fenced ? "pause" : "resume")} the server.",
+                ex);
+        }
+
         WarnWhenGapsKeepItFenced(fenced, gap, current, uptime);
 
         // A fenced server is paused by now. One that isn't may work, once this check went all the way, and for as

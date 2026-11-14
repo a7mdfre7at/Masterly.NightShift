@@ -1,5 +1,7 @@
-﻿using System.Diagnostics;
+﻿using System.Collections;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using Masterly.NightShift.Server;
 using Moq.Sequences;
 
@@ -81,6 +83,31 @@ public class WorkerFacts
 
         _context.Storage.Verify(x => x.GetConnection(), Times.Once);
         _connection.Verify(x => x.Dispose(), Times.Once);
+    }
+
+    [Fact]
+    public void Execute_KeepsNothingInStaticState_ForEachRunOfTheWorker()
+    {
+        // Each run of a worker's loop (a restart of the server, or of the loop after an error) has a new execution id
+        Worker worker = CreateWorker();
+        int before = CountStaticItems();
+
+        for (int i = 0; i < 50; i++)
+        {
+            BackgroundProcessContextMock context = new() { ExecutionId = Guid.NewGuid() };
+            context.Storage.Setup(x => x.GetConnection()).Returns(_connection.Object);
+            worker.Execute(context.Object);
+        }
+
+        Assert.Equal(before, CountStaticItems());
+    }
+
+    private static int CountStaticItems()
+    {
+        return typeof(Worker).GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+            .Select(static x => x.GetValue(null))
+            .OfType<ICollection>()
+            .Sum(static x => x.Count);
     }
 
     [Fact]
@@ -242,6 +269,37 @@ public class WorkerFacts
         Assert.Contains(contexts, ctx => ctx.NewState is SucceededState);
         _fetchedJob.Verify(x => x.RemoveFromQueue());
         _fetchedJob.Verify(x => x.Requeue(), Times.Never);
+    }
+
+    [Fact]
+    public void Execute_AcknowledgesTheJobAfterTheCommit_WhenTheStorageReportsTransactionalAcknowledge_ButItsTransactionCanNotDoIt()
+    {
+        // A wrapper storage that passes HasFeature on, with transactions that aren't JobStorageTransaction ones:
+        // BackgroundJobStateChanger refuses a state change that should acknowledge the job in them
+        _context.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Transaction.RemoveFromQueue(_fetchedJob.Object.GetType()))).Returns(true);
+        _connection.Setup(x => x.CreateWriteTransaction()).Returns(new Mock<IWriteOnlyTransaction>().Object);
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Returns<StateChangeContext>(ctx => ctx.CompleteJob != null
+                ? throw new InvalidOperationException("Storage transaction class must inherit the JobStorageTransaction class to use transactional acknowledge")
+                : ctx.NewState);
+
+        CreateWorker(1).Execute(_context.Object);
+
+        _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx => ctx.NewState is SucceededState && ctx.CompleteJob == null)));
+        _fetchedJob.Verify(x => x.RemoveFromQueue());
+        _fetchedJob.Verify(x => x.Requeue(), Times.Never);
+    }
+
+    [Fact]
+    public void Execute_AcknowledgesTheJobInTheTransactionOfItsFinalState_WhenTheStorageCan()
+    {
+        Mock<JobStorageTransaction> transaction = new();
+        _context.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Transaction.RemoveFromQueue(_fetchedJob.Object.GetType()))).Returns(true);
+        _connection.Setup(x => x.CreateWriteTransaction()).Returns(transaction.Object);
+
+        CreateWorker().Execute(_context.Object);
+
+        _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx => ctx.NewState is SucceededState && ctx.CompleteJob == _fetchedJob.Object)));
     }
 
     [Fact]

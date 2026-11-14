@@ -441,6 +441,51 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
         Assert.True(scheduler.TasksPerformed > 1);
     }
 
+    [Fact, StaticLock]
+    public void Perform_KeepsPumpingContinuations_AfterTheShutdownTokenIsCanceled()
+    {
+        // An async job whose cancellation completes on another thread posts its continuation
+        // to the worker's synchronization context: the worker must keep running it, or it
+        // waits for the job forever.
+        using CancellationTokenSource source = new();
+        _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(source.Token);
+        _context.BackgroundJob.Job = Job.FromExpression(() => CooperativeJob(CancellationToken.None));
+        CoreBackgroundJobPerformer performer = new(_activator.Object, null);
+        Exception? thrown = null;
+
+        Thread thread = new(() =>
+        {
+            try
+            {
+                performer.Perform(_context.Object);
+            }
+            catch (Exception ex)
+            {
+                thrown = ex;
+            }
+        })
+        { IsBackground = true };
+
+        thread.Start();
+        Thread.Sleep(300);
+        source.Cancel();
+
+        Assert.True(thread.Join(TimeSpan.FromSeconds(5)), "The worker thread hangs");
+        Assert.IsAssignableFrom<OperationCanceledException>(thrown);
+    }
+
+    [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
+    [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
+    public static async Task CooperativeJob(CancellationToken token)
+    {
+        await Task.Run(() =>
+        {
+            token.WaitHandle.WaitOne();
+            Thread.Sleep(100);
+            token.ThrowIfCancellationRequested();
+        });
+    }
+
     private static readonly AsyncLocal<string> AsyncLocal = new();
 
     [Fact]

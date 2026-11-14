@@ -116,7 +116,7 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
                     return InvokeOnTaskScheduler(context, method, getTaskFunc);
                 }
 
-                return InvokeOnTaskPump(context, method, getTaskFunc);
+                return InvokeOnTaskPump(method, getTaskFunc);
             }
 
             return InvokeSynchronously(method);
@@ -169,7 +169,7 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
         return ((BackgroundJobMethod)state!).Invoke(); // The method passed when scheduling this
     }
 
-    private static object? InvokeOnTaskPump(PerformContext context, BackgroundJobMethod method, Func<object, Task> getTaskFunc)
+    private static object? InvokeOnTaskPump(BackgroundJobMethod method, Func<object, Task> getTaskFunc)
     {
         // Using SynchronizationContext here is the best default option, where workers
         // are still running on synchronous dispatchers, and where a single job performer
@@ -185,7 +185,6 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
         try
         {
             using InlineSynchronizationContext syncContext = new();
-            using CancellationTokenExtensions.CancellationEvent cancellationEvent = context.CancellationToken.ShutdownToken.GetCancellationEvent();
             SynchronizationContext.SetSynchronizationContext(syncContext);
 
             object? result = InvokeSynchronously(method);
@@ -197,7 +196,9 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
             Task task = getTaskFunc(result);
             IAsyncResult asyncResult = (IAsyncResult)task;
 
-            WaitHandle[] waitHandles = [syncContext.WaitHandle, asyncResult.AsyncWaitHandle, cancellationEvent.WaitHandle];
+            // Pump until the task completes, also after shutdown or an abort: the job sees them
+            // through its token, and the continuations that end it may be posted here.
+            WaitHandle[] waitHandles = [syncContext.WaitHandle, asyncResult.AsyncWaitHandle];
 
             while (!asyncResult.IsCompleted && WaitHandle.WaitAny(waitHandles) == 0)
             {

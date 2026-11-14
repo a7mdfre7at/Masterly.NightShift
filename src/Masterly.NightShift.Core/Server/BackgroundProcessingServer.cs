@@ -125,16 +125,23 @@ public sealed class BackgroundProcessingServer : IBackgroundProcessingServer
     {
         ThrowIfDisposed();
 
-        Volatile.Write(ref _awaited, true);
-        return _dispatcher.Wait(timeout);
+        // Set only once the server has shut down: Dispose after a wait that ended sooner still waits (for the
+        // shutdown timeout at most), or it would dispose the timers that bring the stopped and shutdown signals
+        bool shutDown = _dispatcher.Wait(timeout);
+        if (shutDown)
+        {
+            Volatile.Write(ref _awaited, true);
+        }
+
+        return shutDown;
     }
 
     public async Task WaitForShutdownAsync(CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
 
-        Volatile.Write(ref _awaited, true);
         await _dispatcher.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+        Volatile.Write(ref _awaited, true);
     }
 
     public void Dispose()

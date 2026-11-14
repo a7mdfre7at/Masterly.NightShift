@@ -14,6 +14,7 @@
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
 using Masterly.NightShift.Client;
+using Masterly.NightShift.Logging;
 using Masterly.NightShift.Server;
 using Masterly.NightShift.States;
 using Microsoft.Extensions.Hosting;
@@ -39,6 +40,16 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
     // IBackgroundJobServerControl may start and stop it from different threads
     private readonly NightShiftLock _startLock = new();
     private IBackgroundProcessingServer? _processingServer;
+
+    // The shutdowns IBackgroundJobServerControl started, which end with the server's disposal. The host's StopAsync
+    // and Dispose wait for them, so the container isn't disposed under running jobs
+    private readonly List<Task> _shutdowns = [];
+
+    // The control this service joins when the host starts it, so services the host never starts (anything else that
+    // resolves IEnumerable<IHostedService> creates more) are never started by the control
+    private BackgroundJobServerControl? _control;
+    private bool _started;
+    private CancellationTokenRegistration _stoppingRegistration;
 
     // Set when IBackgroundJobServerControl stopped the server, so the ApplicationStarted callback doesn't start it again
     private bool _stoppedByControl;
@@ -117,16 +128,19 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
         [CanBeNull] IBackgroundJobStateChanger? stateChanger,
         [CanBeNull] IHostApplicationLifetime? hostApplicationLifetime)
     {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
-        _storage = storage ?? throw new ArgumentNullException(nameof(storage));
-        _additionalProcesses = additionalProcesses ?? throw new ArgumentNullException(nameof(additionalProcesses));
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(storage);
+        ArgumentNullException.ThrowIfNull(additionalProcesses);
+
+        _options = options;
+        _storage = storage;
+        _additionalProcesses = additionalProcesses;
 
         _factory = factory;
         _performer = performer;
         _stateChanger = stateChanger;
 
         _hostApplicationLifetime = hostApplicationLifetime;
-        _hostApplicationLifetime?.ApplicationStopping.Register(SendStopSignal);
     }
 
     /// <summary>
@@ -135,6 +149,19 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
     /// <param name="cancellationToken">Not used.</param>
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        JoinControl();
+
+        lock (_startLock)
+        {
+            if (_started)
+            {
+                return Task.CompletedTask;
+            }
+
+            _started = true;
+            _stoppingRegistration = _hostApplicationLifetime?.ApplicationStopping.Register(SendStopSignal) ?? default;
+        }
+
         // A manual server waits for IBackgroundJobServerControl.StartAsync
         if (_options.StartMode == ServerStartMode.Manual)
         {
@@ -161,17 +188,28 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         IBackgroundProcessingServer? server;
+        Task[] shutdowns;
         lock (_startLock)
         {
             _hostStopped = true;
             server = _processingServer;
+            shutdowns = [.. _shutdowns];
         }
 
-        if (server == null)
+        if (server != null)
         {
-            return;
+            await StopRunningServerAsync(server, cancellationToken);
         }
 
+        // Servers IBackgroundJobServerControl is stopping: their jobs may still run
+        if (shutdowns.Length > 0)
+        {
+            await Task.WhenAll(shutdowns).WaitAsync(cancellationToken);
+        }
+    }
+
+    private static async Task StopRunningServerAsync(IBackgroundProcessingServer server, CancellationToken cancellationToken)
+    {
         try
         {
             server.SendStop();
@@ -191,8 +229,15 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
         }
     }
 
-    /// <inheritdoc />
-    public Task StartingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    /// <summary>
+    /// Makes the server known to <see cref="IBackgroundJobServerControl"/> before any hosted service starts.
+    /// </summary>
+    /// <param name="cancellationToken">Not used.</param>
+    public Task StartingAsync(CancellationToken cancellationToken)
+    {
+        JoinControl();
+        return Task.CompletedTask;
+    }
 
     /// <inheritdoc />
     public Task StartedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -211,20 +256,45 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
     public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     /// <summary>
-    /// Disposes the server.
+    /// Disposes the server, and waits for the shutdowns <see cref="IBackgroundJobServerControl"/> started.
     /// </summary>
     public void Dispose()
     {
         IBackgroundProcessingServer? server;
+        Task[] shutdowns;
         lock (_startLock)
         {
             _hostStopped = true;
             server = _processingServer;
             Volatile.Write(ref _processingServer, null);
+            shutdowns = [.. _shutdowns];
+            _shutdowns.Clear();
         }
 
+        _stoppingRegistration.Dispose();
         server?.Dispose();
+        WaitForShutdowns(shutdowns);
         GC.SuppressFinalize(this);
+    }
+
+    // Each shutdown is bounded by the server's shutdown timeout
+    private static void WaitForShutdowns(Task[] shutdowns)
+    {
+        if (shutdowns.Length == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            Task.WaitAll(shutdowns);
+        }
+        catch (AggregateException ex)
+        {
+            // The control's StopAsync, if its caller still waited, has reported it already
+            LogProvider.GetLogger(typeof(BackgroundJobServerHostedService)).WarnException(
+                "A NightShift server stopped by IBackgroundJobServerControl failed to shut down.", ex);
+        }
     }
 
     /// <summary>Whether the server runs.</summary>
@@ -250,26 +320,54 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
     }
 
     /// <summary>Stops the server and forgets it, so it can start again, for <see cref="IBackgroundJobServerControl"/>.</summary>
+    /// <remarks>
+    /// A canceled <paramref name="cancellationToken"/> stops only the waiting: the server goes on shutting down with
+    /// its stop and shutdown timeouts, and the host's <see cref="StopAsync"/> and <see cref="Dispose"/> wait for it.
+    /// </remarks>
     internal async Task StopServerAsync(CancellationToken cancellationToken)
     {
-        IBackgroundProcessingServer? server;
+        Task shutdown;
         lock (_startLock)
         {
             // Also before the application started: the ApplicationStarted callback then leaves it stopped
             _stoppedByControl = true;
-            server = _processingServer;
-            Volatile.Write(ref _processingServer, null);
+            _shutdowns.RemoveAll(static x => x.IsCompleted);
+            IBackgroundProcessingServer? server = _processingServer;
+            if (server == null)
+            {
+                // A stop whose waiting was canceled may still be shutting the server down
+                shutdown = Task.WhenAll(_shutdowns);
+            }
+            else
+            {
+                Volatile.Write(ref _processingServer, null);
+
+                // Task.Run: nothing of the shutdown runs under the lock
+                shutdown = Task.Run(() => ShutDownAsync(server), CancellationToken.None);
+                _shutdowns.Add(shutdown);
+            }
         }
 
-        if (server == null)
-        {
-            return;
-        }
+        await shutdown.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
 
+    /// <summary>Joins the control the host's start makes this service known to.</summary>
+    internal void JoinOnStart([NotNull] BackgroundJobServerControl control)
+    {
+        Volatile.Write(ref _control, control);
+    }
+
+    private void JoinControl()
+    {
+        Volatile.Read(ref _control)?.Register(this);
+    }
+
+    private static async Task ShutDownAsync(IBackgroundProcessingServer server)
+    {
         try
         {
             server.SendStop();
-            await server.WaitForShutdownAsync(cancellationToken).ConfigureAwait(false);
+            await server.WaitForShutdownAsync(CancellationToken.None).ConfigureAwait(false);
         }
         finally
         {
