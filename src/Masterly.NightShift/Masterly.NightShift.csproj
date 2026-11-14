@@ -1,7 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- Version, authors, repository, license, icon and packed files come from src/Directory.Build.props. -->
   <PropertyGroup>
     <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <Description>Background jobs that work the night shift: fire-and-forget, delayed, recurring and continuation jobs for .NET, stored in SQL Server, with a dashboard. Installs the core library, SQL Server storage and the ASP.NET Core integration.</Description>
+    <PackageTags>Background;Jobs;Scheduler;Recurring;Delayed;FireAndForget;Queue;Dashboard;Cron;SqlServer;Worker;OpenTelemetry;Hangfire;Masterly;Csharp;DotNet</PackageTags>
     <RootNamespace>Masterly.NightShift</RootNamespace>
     <!-- A meta-package: it has no assembly of its own, only the dependencies below -->
     <IncludeBuildOutput>false</IncludeBuildOutput>

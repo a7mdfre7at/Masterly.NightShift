@@ -10,6 +10,9 @@
         <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
         <DebugType>embedded</DebugType>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <Deterministic>true</Deterministic>
+        <!-- Writes the repository URL and commit into the package (SourceLink ships with the SDK) -->
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
     </PropertyGroup>
     <ItemGroup>
         <Compile Include="..\SharedAssemblyInfo.cs" Link="Properties\SharedAssemblyInfo.cs" />
@@ -30,8 +33,8 @@
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     </PropertyGroup>
 
-    <!-- Package metadata shared by every Masterly.NightShift package. Raise <Version> to publish a new release; the
-         assembly versions follow it. The packages contain code under the MIT license and code derived from Hangfire under
+    <!-- Package metadata shared by every Masterly.NightShift package; Description and PackageTags are in each .csproj.
+         Raise <Version> to publish a new release; the assembly versions follow it. The packages contain code under the MIT license and code derived from Hangfire under
          the LGPL v3 or later (see NOTICE.md), so both licenses apply and both texts, with the GPL v3 the LGPL builds on,
          are packed. -->
     <PropertyGroup>
@@ -40,17 +43,17 @@
         <Company>Masterly</Company>
         <Product>Masterly.NightShift</Product>
         <Copyright>Copyright © 2026 Ahmad Al-Freihat</Copyright>
-        <PackageProjectUrl>https://github.com/a7mdfre7at/Masterly.NightShift</PackageProjectUrl>
+        <!-- The "Project website" link on nuget.org: the documentation site. The source is RepositoryUrl. -->
+        <PackageProjectUrl>https://a7mdfre7at.github.io/Masterly.NightShift/</PackageProjectUrl>
         <RepositoryUrl>https://github.com/a7mdfre7at/Masterly.NightShift</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
-        <PackageTags>Background;Jobs;Scheduler;Recurring;Delayed;FireAndForget;Queue;Dashboard;Cron;SqlServer;Worker;OpenTelemetry;Hangfire</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <!-- The packed README.md. The meta-package packs README.nuget.md; every other package sets this to its own
              src/<Package>/README.md. Links in these files are absolute, because relative links break on nuget.org. -->
         <PackageReadmeSource>$(MSBuildThisFileDirectory)..\README.nuget.md</PackageReadmeSource>
         <PackageIcon>logo.png</PackageIcon>
         <PackageLicenseExpression>MIT AND LGPL-3.0-or-later</PackageLicenseExpression>
-        <PackageReleaseNotes>See https://github.com/a7mdfre7at/Masterly.NightShift/blob/master/CHANGELOG.md</PackageReleaseNotes>
+        <PackageReleaseNotes>Release notes for version $(Version): https://github.com/a7mdfre7at/Masterly.NightShift/blob/master/CHANGELOG.md</PackageReleaseNotes>
     </PropertyGroup>
 
     <!-- What every package ships next to the assemblies. Items are evaluated after every property, so a
