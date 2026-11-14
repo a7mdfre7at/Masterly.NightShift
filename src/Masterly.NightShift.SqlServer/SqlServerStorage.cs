@@ -622,7 +622,7 @@ public class SqlServerStorage : JobStorage
         }
 
         InitializeQueueProviders();
-        HeartbeatProcess = new SqlServerHeartbeatProcess();
+        HeartbeatProcess = new SqlServerHeartbeatProcess(this);
 
         // Normally read right after the schema version, when the database is known to be reachable
         if (!Options.TryAutoDetectSchemaDependentOptions && Options.AllowDelayedDurability)
