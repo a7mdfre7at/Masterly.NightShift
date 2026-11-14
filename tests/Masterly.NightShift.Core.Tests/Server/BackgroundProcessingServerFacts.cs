@@ -127,6 +127,39 @@ public class BackgroundProcessingServerFacts
         Assert.True(sawShutdown);
     }
 
+    [Fact]
+    public void Execute_StopsTheDispatchersItStarted_WhenAnotherFailsToStart()
+    {
+        int executions = 0;
+        Mock<IBackgroundProcess> process = new();
+        process.Setup(x => x.Execute(It.IsAny<BackgroundProcessContext>())).Callback<BackgroundProcessContext>(context =>
+        {
+            Interlocked.Increment(ref executions);
+            context.Wait(TimeSpan.FromMilliseconds(20));
+        });
+        Mock<IBackgroundProcessDispatcherBuilder> failing = new();
+        failing.Setup(x => x.Create(It.IsAny<BackgroundServerContext>(), It.IsAny<BackgroundProcessingServerOptions>()))
+            .Throws(new InvalidOperationException("can't start"));
+
+        // Every start fails, and the server tries again after RestartDelay
+        using (new BackgroundProcessingServer(
+                   _storage.Object,
+                   [process.Object.UseBackgroundPool(threadCount: 1), failing.Object],
+                   _properties,
+                   new BackgroundProcessingServerOptions { RestartDelay = TimeSpan.FromMilliseconds(50) }))
+        {
+            Assert.True(SpinWait.SpinUntil(() => Volatile.Read(ref executions) > 0, TimeSpan.FromSeconds(10)));
+            Thread.Sleep(500);
+        }
+
+        Thread.Sleep(200);
+        int afterDispose = Volatile.Read(ref executions);
+        Thread.Sleep(300);
+
+        // Nothing started by a failed start goes on running
+        Assert.Equal(afterDispose, Volatile.Read(ref executions));
+    }
+
     private BackgroundProcessingServer CreateServer()
     {
         return new BackgroundProcessingServer(_storage.Object, _processes, _properties);
