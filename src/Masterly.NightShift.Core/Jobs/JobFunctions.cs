@@ -55,6 +55,14 @@ public abstract class JobFunction([NotNull] string name)
     /// Reads a payload as a type: an instance of it is used as is, a JSON text or <see cref="JsonElement"/> is read,
     /// and any other object is converted through JSON, with the application's serializer settings.
     /// </summary>
+    /// <remarks>
+    /// A payload may come from another service, a script or a message, so it is read as data, the way the
+    /// dashboard reads what an operator types: a value declared as <see cref="object"/> (in a dictionary of objects,
+    /// for example) is read as plain JSON, and a <c>"$type"</c> in it is refused instead of creating the type it
+    /// names; a <see cref="Type"/> value is refused; a value declared as an interface or abstract class takes a
+    /// <c>"$type"</c> only when it names a loaded type assignable to it. An object converted through JSON is
+    /// written without type names, so its <see cref="object"/> members arrive as plain JSON too.
+    /// </remarks>
     /// <exception cref="ArgumentException">The payload can't be read as the type.</exception>
     protected object? ConvertPayload([CanBeNull] object? payload, [NotNull] Type type)
     {
@@ -77,7 +85,7 @@ public abstract class JobFunction([NotNull] string name)
 
         try
         {
-            return SerializationHelper.Deserialize(ToJson(payload), type, SerializationOption.User);
+            return SerializationHelper.DeserializeInput(ToJson(payload), type);
         }
         catch (Exception ex) when (ex is JsonException or NotSupportedException or FormatException or InvalidOperationException)
         {
@@ -85,7 +93,10 @@ public abstract class JobFunction([NotNull] string name)
         }
     }
 
-    /// <summary>The payload as JSON: a text is taken as JSON already.</summary>
+    /// <summary>
+    /// The payload as JSON: a text is taken as JSON already, and any other object is written with the application's
+    /// serializer settings, without type names.
+    /// </summary>
     protected static string ToJson([NotNull] object payload)
     {
         ArgumentNullException.ThrowIfNull(payload);
@@ -94,7 +105,7 @@ public abstract class JobFunction([NotNull] string name)
         {
             string text => text,
             JsonElement element => element.GetRawText(),
-            _ => SerializationHelper.Serialize(payload, SerializationOption.User),
+            _ => SerializationHelper.SerializeInput(payload, payload.GetType())!, // Not null: the payload isn't
         };
     }
 }
