@@ -325,7 +325,7 @@
 
             bool isProcessing = currentState.StateName == ProcessingState.StateName;
             DateTime? liveStartedAt = isProcessing && currentState.Data.TryGetValue("StartedAt", out string? startedAtValue)
-                ? JobHelper.DeserializeNullableDateTime(startedAtValue)
+                ? StateDataValues.ReadDateTime(startedAtValue)
                 : null;
 
             if (isProcessing || progress != null || consoleEntries.Count > 0)

@@ -46,6 +46,29 @@ public class SucceededJobsFacts
         Assert.DoesNotContain("/jobs/succeeded/requeue", html);
     }
 
+    [Fact]
+    public void Render_ARowWithAnUnreadableDurationOrLatency_IsShownWithoutThem()
+    {
+        _renderer.Monitoring.Setup(x => x.SucceededListCount()).Returns(2);
+        _renderer.Monitoring.Setup(x => x.SucceededJobs(It.IsAny<int>(), It.IsAny<int>()))
+            .Returns(new JobList<SucceededJobDto>(new Dictionary<string, SucceededJobDto>
+            {
+                { "1", Succeeded(new Dictionary<string, string> { { "PerformanceDuration", "abc" }, { "Latency", "" } }) },
+                { "2", Succeeded(new Dictionary<string, string> { { "PerformanceDuration", "1500" }, { "Latency", "20" } }) },
+            }));
+
+        string html = _renderer.Render(new SucceededJobs());
+
+        Assert.Contains("value=\"1\"", html);
+        Assert.Contains("value=\"2\"", html);
+        Assert.DoesNotContain("abc", html);
+    }
+
+    private static SucceededJobDto Succeeded(Dictionary<string, string> stateData)
+    {
+        return new SucceededJobDto { Job = Job.FromExpression(() => SucceededPageJobs.Work()), InSucceededState = true, SucceededAt = DateTime.UtcNow, StateData = stateData };
+    }
+
     private void SetupJobs()
     {
         _renderer.Monitoring.Setup(x => x.SucceededListCount()).Returns(1);

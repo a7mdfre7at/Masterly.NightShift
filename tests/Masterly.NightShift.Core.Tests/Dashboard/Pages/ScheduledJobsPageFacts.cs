@@ -46,6 +46,23 @@ public class ScheduledJobsPageFacts
         Assert.DoesNotContain("/jobs/scheduled/enqueue", html);
     }
 
+    [Fact]
+    public void Render_ARowWithoutAReadableEnqueueAt_IsShownWithoutIt()
+    {
+        // Storages answer DateTime.MinValue when the state has no readable EnqueueAt
+        _renderer.Monitoring.Setup(x => x.ScheduledCount()).Returns(1);
+        _renderer.Monitoring.Setup(x => x.ScheduledJobs(It.IsAny<int>(), It.IsAny<int>()))
+            .Returns(new JobList<ScheduledJobDto>(new Dictionary<string, ScheduledJobDto>
+            {
+                { "1", new ScheduledJobDto { Job = Job.FromExpression(() => ScheduledPageJobs.Work()), InScheduledState = true, EnqueueAt = DateTime.MinValue } }
+            }));
+
+        string html = _renderer.Render(new ScheduledJobsPage());
+
+        Assert.Contains("value=\"1\"", html);
+        Assert.DoesNotContain(DateTime.MinValue.ToString(System.Globalization.CultureInfo.CurrentCulture), html);
+    }
+
     private void SetupJobs()
     {
         _renderer.Monitoring.Setup(x => x.ScheduledCount()).Returns(1);

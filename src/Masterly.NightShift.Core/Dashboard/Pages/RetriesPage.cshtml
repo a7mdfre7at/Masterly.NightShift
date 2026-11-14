@@ -143,9 +143,10 @@ else
                                                 @(stateData?.Reason)
                                             </td>
                                             <td class="align-right">
-                                                @if (stateData != null && stateData.Data.ContainsKey("EnqueueAt"))
+                                                @{ DateTime? retryAt = stateData != null && stateData.Data.TryGetValue("EnqueueAt", out string? enqueueAt) ? StateDataValues.ReadDateTime(enqueueAt) : null; }
+                                                @if (retryAt.HasValue)
                                                 {
-                                                    @Html.RelativeTime(JobHelper.DeserializeDateTime(stateData.Data["EnqueueAt"]))
+                                                    @Html.RelativeTime(retryAt.Value)
                                                 }
                                             </td>
                                             <td class="align-right">

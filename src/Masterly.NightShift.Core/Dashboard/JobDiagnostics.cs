@@ -134,7 +134,7 @@ internal static partial class JobDiagnostics
 
     private static void DiagnoseScheduled(RazorPage page, IMonitoringApi monitor, JobDetailsDto details, StateHistoryDto current, DateTime now, List<JobDiagnostic> findings)
     {
-        DateTime? enqueueAt = current.Data != null && current.Data.TryGetValue("EnqueueAt", out string? value) ? JobHelper.DeserializeNullableDateTime(value) : null;
+        DateTime? enqueueAt = current.Data != null && current.Data.TryGetValue("EnqueueAt", out string? value) ? StateDataValues.ReadDateTime(value) : null;
         Match? retry = current.Reason != null ? RetryReasonRegex().Match(current.Reason) : null;
 
         if (retry != null && retry.Success)
@@ -311,7 +311,7 @@ internal static partial class JobDiagnostics
             : current.Data.TryGetValue("ServerId", out string? value) ? value
             : current.Data.TryGetValue("ServerName", out string? legacyName) ? legacyName
             : null;
-        DateTime? startedAt = current.Data != null && current.Data.TryGetValue("StartedAt", out string? started) ? JobHelper.DeserializeNullableDateTime(started) : null;
+        DateTime? startedAt = current.Data != null && current.Data.TryGetValue("StartedAt", out string? started) ? StateDataValues.ReadDateTime(started) : null;
         TimeSpan running = startedAt.HasValue ? now - startedAt.Value : now - current.CreatedAt;
         ServerDto? server = serverId != null ? monitor.Servers().FirstOrDefault(x => x.Name == serverId) : null;
 

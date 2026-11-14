@@ -60,7 +60,7 @@ internal sealed class LiveJobsDispatcher : IDashboardDispatcher
         {
             if (stateData.Data.TryGetValue("StartedAt", out string? startedAtValue))
             {
-                startedAt = JobHelper.DeserializeNullableDateTime(startedAtValue);
+                startedAt = StateDataValues.ReadDateTime(startedAtValue);
             }
 
             if (!stateData.Data.TryGetValue("ServerId", out serverId))

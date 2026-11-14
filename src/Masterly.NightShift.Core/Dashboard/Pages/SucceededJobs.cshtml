@@ -124,15 +124,17 @@
                                         if (job.Value.StateData != null)
                                         {
                                             <td class="min-width align-right">
-                                                @if (job.Value.StateData.TryGetValue("PerformanceDuration", out string? duration))
+                                                @{ TimeSpan? duration = StateDataValues.ReadMilliseconds(job.Value.StateData.TryGetValue("PerformanceDuration", out string? durationText) ? durationText : null); }
+                                                @if (duration.HasValue)
                                                 {
-                                                    @Html.ToHumanDuration(TimeSpan.FromMilliseconds(long.Parse(duration, System.Globalization.CultureInfo.InvariantCulture)), false)
+                                                    @Html.ToHumanDuration(duration.Value, false)
                                                 }
                                             </td>
                                             <td class="min-width align-right">
-                                                @if (job.Value.StateData.TryGetValue("Latency", out string? latency))
+                                                @{ TimeSpan? latency = StateDataValues.ReadMilliseconds(job.Value.StateData.TryGetValue("Latency", out string? latencyText) ? latencyText : null); }
+                                                @if (latency.HasValue)
                                                 {
-                                                    @Html.ToHumanDuration(TimeSpan.FromMilliseconds(long.Parse(latency, System.Globalization.CultureInfo.InvariantCulture)), false)
+                                                    @Html.ToHumanDuration(latency.Value, false)
                                                 }
                                             </td>
                                         }

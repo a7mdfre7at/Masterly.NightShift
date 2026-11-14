@@ -190,6 +190,36 @@ public class JobDetailsPageFacts
     }
 
     [Fact]
+    public void Render_AProcessingStateWithAnUnreadableStart_ShowsTheJob()
+    {
+        SetupJob(Details(ProcessingState.StateName, new Dictionary<string, string> { { "ServerId", "srv-1" }, { "StartedAt", "nonsense" } }));
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        Assert.Contains("SampleJobs.Work", html);
+    }
+
+    [Fact]
+    public void Render_ASucceededStateWithAnUnreadableDuration_ShowsTheJob()
+    {
+        SetupJob(Details(SucceededState.StateName, new Dictionary<string, string> { { "PerformanceDuration", "abc" }, { "Latency", "x" } }));
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        Assert.Contains("SampleJobs.Work", html);
+    }
+
+    [Fact]
+    public void Render_AScheduledStateWithAnUnreadableEnqueueAt_ShowsTheJob()
+    {
+        SetupJob(Details(ScheduledState.StateName, new Dictionary<string, string> { { "EnqueueAt", "nonsense" }, { "ScheduledAt", "nonsense" } }));
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        Assert.Contains("SampleJobs.Work", html);
+    }
+
+    [Fact]
     public void Render_EncodesTheServerId_InTheAbortedJobWarning()
     {
         SetupJob(Details(ProcessingState.StateName, ProcessingData("<img src=x onerror=alert(1)>")));
