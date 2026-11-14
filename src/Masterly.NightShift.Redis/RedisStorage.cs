@@ -1,3 +1,4 @@
+using System.Text;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Storage.Shared;
 using StackExchange.Redis;
@@ -69,7 +70,6 @@ public sealed class RedisStorage : JobStorage, IDisposable
     private readonly bool _ownsConnection;
     private readonly RedisChannel _channel;
     private readonly Action<RedisChannel, RedisValue> _onEnqueued;
-    private TaskCompletionSource _enqueued = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _disposed;
 
     /// <summary>A storage on a new connection, from a StackExchange.Redis configuration string such as <c>localhost:6379</c>.</summary>
@@ -105,7 +105,8 @@ public sealed class RedisStorage : JobStorage, IDisposable
         Prefix = new RedisKey(settings.Prefix);
         _ownsConnection = ownsConnection;
         _channel = RedisChannel.Literal(settings.Prefix + "enqueued");
-        _onEnqueued = (_, _) => Signal();
+        // The scripts publish the name of the queue a job was enqueued to, so only its workers wake
+        _onEnqueued = (_, queue) => Signals.Signal(queue.ToString());
 
         try
         {
@@ -135,7 +136,11 @@ public sealed class RedisStorage : JobStorage, IDisposable
 
     internal IDatabase Database => Connection.GetDatabase(Settings.Database);
 
-    internal Task Enqueued => Volatile.Read(ref _enqueued).Task;
+    /// <summary>Wakes the workers of this process waiting for a job in a queue, when a job is enqueued to it.</summary>
+    internal QueueSignals Signals { get; } = new();
+
+    /// <summary>The SCAN pattern of the storage's keys: the prefix, its glob characters escaped, then anything.</summary>
+    internal string KeyPattern => EscapeGlob(Settings.Prefix) + "*";
 
     /// <inheritdoc />
     public override IMonitoringApi GetMonitoringApi() => new RedisMonitoringApi(this);
@@ -165,9 +170,12 @@ public sealed class RedisStorage : JobStorage, IDisposable
         foreach (IServer server in Connection.GetServers().Where(static x => !x.IsReplica && x.IsConnected))
         {
             List<RedisKey> doomed = [];
-            foreach (RedisKey key in server.Keys(Database.Database, Settings.Prefix + "*", pageSize: 1000))
+            foreach (RedisKey key in server.Keys(Database.Database, KeyPattern, pageSize: 1000))
             {
-                if (!KeptByPurge(key.ToString()[Settings.Prefix.Length..], options))
+                // A key of the prefix that isn't one the storage writes may be another storage's, whose prefix
+                // starts with this one ("{app}:" and "{app}:other:"): it is left alone
+                string name = key.ToString()[Settings.Prefix.Length..];
+                if (IsOwnKey(name) && !KeptByPurge(name, options))
                 {
                     doomed.Add(key);
                 }
@@ -273,9 +281,54 @@ public sealed class RedisStorage : JobStorage, IDisposable
         return settings;
     }
 
-    private void Signal()
+    /// <summary>Escapes the characters a Redis glob pattern gives a meaning to, so they match themselves.</summary>
+    internal static string EscapeGlob(string text)
     {
-        Interlocked.Exchange(ref _enqueued, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult();
+        StringBuilder escaped = new(text.Length);
+        foreach (char c in text)
+        {
+            if (c is '*' or '?' or '[' or ']' or '\\')
+            {
+                escaped.Append('\\');
+            }
+
+            escaped.Append(c);
+        }
+
+        return escaped.ToString();
+    }
+
+    /// <summary>
+    /// Whether <paramref name="name"/> (a key without the prefix) is one the storage writes: every key the
+    /// connection, the transactions and the scripts build from the prefix. Job keys must hold a number, so
+    /// "job:" alone doesn't take another storage's keys for its own.
+    /// </summary>
+    private static bool IsOwnKey(string name)
+    {
+        if (name is "job-id" or "jobs:expiring" or "states" or "queue-entry-id" or "queues" or "servers" or "servers:heartbeat")
+        {
+            return true;
+        }
+
+        if (name.StartsWith("job:", StringComparison.Ordinal))
+        {
+            ReadOnlySpan<char> rest = name.AsSpan(4);
+            int digits = 0;
+            while (digits < rest.Length && char.IsAsciiDigit(rest[digits]))
+            {
+                digits++;
+            }
+
+            return digits > 0 && rest[digits..] is "" or ":params" or ":history";
+        }
+
+        return name.StartsWith("state:", StringComparison.Ordinal)
+            || name.StartsWith("queue:", StringComparison.Ordinal)
+            || name.StartsWith("counter:", StringComparison.Ordinal)
+            || name.StartsWith("set:", StringComparison.Ordinal)
+            || name.StartsWith("list:", StringComparison.Ordinal)
+            || name.StartsWith("hash:", StringComparison.Ordinal)
+            || name.StartsWith("lock:", StringComparison.Ordinal);
     }
 
     private static bool KeptByPurge(string key, StoragePurgeOptions options)

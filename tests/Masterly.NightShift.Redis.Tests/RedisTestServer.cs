@@ -8,11 +8,10 @@ namespace Masterly.NightShift.Redis.Tests;
 /// </summary>
 internal static class RedisTestServer
 {
+    private static readonly string? Configuration = Environment.GetEnvironmentVariable("NightShift_Redis_Configuration");
+
     private static readonly Lazy<ConnectionMultiplexer?> Shared = new(static () =>
-    {
-        string? configuration = Environment.GetEnvironmentVariable("NightShift_Redis_Configuration");
-        return string.IsNullOrWhiteSpace(configuration) ? null : ConnectionMultiplexer.Connect(configuration);
-    });
+        string.IsNullOrWhiteSpace(Configuration) ? null : ConnectionMultiplexer.Connect(Configuration));
 
     public static ConnectionMultiplexer Connection
     {
@@ -23,12 +22,22 @@ internal static class RedisTestServer
         }
     }
 
+    /// <summary>A connection of the test's own, for example to profile the commands a storage sends. Dispose it.</summary>
+    public static ConnectionMultiplexer Connect()
+    {
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(Configuration), "Set NightShift_Redis_Configuration to run the Redis tests.");
+        return ConnectionMultiplexer.Connect(Configuration);
+    }
+
     /// <summary>A storage with a prefix of its own, so tests never see each other's keys.</summary>
-    public static RedisStorage CreateStorage(RedisStorageOptions? options = null)
+    public static RedisStorage CreateStorage(RedisStorageOptions? options = null) => CreateStorage(Connection, options);
+
+    /// <summary>A storage on <paramref name="connection"/> with a prefix of its own.</summary>
+    public static RedisStorage CreateStorage(IConnectionMultiplexer connection, RedisStorageOptions? options = null)
     {
         options ??= new RedisStorageOptions();
         options.Prefix = $"{{nightshift-tests-{Guid.NewGuid():N}}}:";
-        return new RedisStorage(Connection, options);
+        return new RedisStorage(connection, options);
     }
 
     /// <summary>Deletes every key of the storage's prefix.</summary>
@@ -37,7 +46,7 @@ internal static class RedisTestServer
         IDatabase database = storage.Connection.GetDatabase(storage.Options.Database);
         foreach (IServer server in storage.Connection.GetServers().Where(static x => !x.IsReplica))
         {
-            RedisKey[] keys = [.. server.Keys(database.Database, storage.Options.Prefix + "*")];
+            RedisKey[] keys = [.. server.Keys(database.Database, storage.KeyPattern)];
             if (keys.Length > 0)
             {
                 database.KeyDelete(keys);

@@ -61,13 +61,19 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
             throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
         }
 
+        using QueueSignals.Listener listener = storage.Signals.Listen(queues);
+
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Task enqueued = storage.Enqueued;
+
+            // Before the look, so a job enqueued while the script runs wakes the wait that follows
+            listener.Reset();
             string token = Guid.NewGuid().ToString("N");
 
-            // The script reads the time from the server, so clients with skewed clocks agree on what is stale
+            // The script reads the time from the server, so clients with skewed clocks agree on what is stale.
+            // Cancellation is checked between scripts, never during one: a reply lost to it would leave an entry
+            // taken that no worker runs before the invisibility timeout.
             RedisValue[] arguments = [(long)storage.Settings.InvisibilityTimeout.TotalMilliseconds, token, .. queues.Select(static x => (RedisValue)x)];
             RedisResult result = storage.Evaluate(RedisScripts.Fetch, arguments);
 
@@ -77,8 +83,7 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
                 return new RedisFetchedJob(storage, (string)taken[0]!, (string)taken[1]!, token); // Entries and queue names are never null
             }
 
-            // The task only ever completes successfully, so this returns or throws OperationCanceledException
-            enqueued.Wait((int)storage.Settings.FetchPollInterval.TotalMilliseconds, cancellationToken);
+            listener.Wait(storage.Settings.FetchPollInterval, cancellationToken);
         }
     }
 
@@ -333,6 +338,13 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
         return DateTime.UnixEpoch.AddSeconds(seconds).AddTicks(microseconds * 10);
     }
 
+    /// <summary>Releases the locks whose handles weren't disposed, as SQL Server does when a connection closes.</summary>
+    public override void Dispose()
+    {
+        _locks.ReleaseAll();
+        base.Dispose();
+    }
+
     bool ILeaseStore.TryTake(string resource, string owner, DateTime expireAt)
     {
         return Database.StringSet(LockKey(resource), owner, TimeSpan.FromMilliseconds(RedisValues.TimeToLive(expireAt)), When.NotExists);
@@ -529,9 +541,8 @@ internal sealed class RedisMonitoringApi(RedisStorage storage) : SharedMonitorin
 
     protected override IReadOnlyList<string> GetQueues()
     {
-        return [.. Database.SetMembers(storage.Key("queues"))
-            .Select(static x => x.ToString())
-            .Where(queue => GetQueueCounts(queue) is not (0, 0))];
+        // One script reads every queue that has an entry, instead of three commands per queue ever used
+        return [.. ((RedisResult[])storage.Evaluate(RedisScripts.ReadQueues)!).Select(static x => (string)x!)]; // A table of queue names
     }
 
     protected override IReadOnlyList<long> GetEnqueuedJobIds(string queue, int from, int count)
@@ -559,7 +570,9 @@ internal sealed class RedisMonitoringApi(RedisStorage storage) : SharedMonitorin
 
     protected override (long Enqueued, long Fetched) GetQueueCounts(string queue)
     {
-        return (Database.ListLength(storage.Key($"queue:{queue}")), Database.SortedSetLength(storage.Key($"queue:{queue}:fetched")));
+        // One script reads both, in one round trip
+        RedisResult[] counts = (RedisResult[])storage.Evaluate(RedisScripts.CountQueue, queue)!; // Two numbers
+        return ((long)counts[0], (long)counts[1]);
     }
 
     protected override IReadOnlyList<ServerDto> GetServers()
