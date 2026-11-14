@@ -245,8 +245,12 @@ public class PerformContextFacts
 
     [Theory, GlobalLock(Reason = "Changes the clock")]
     [InlineData("1795165205000-1795165235000", 15)]
-    [InlineData("1795165205000-1795165215000;1795165220000-", 10)]
-    [InlineData("1795165195000-", 0)]
+    [InlineData("1795165205000-1795165215000;1795165220000~1795165265000", 10)]
+    [InlineData("1795165195000~1795165240000", 5)]
+    [InlineData("1795165205000~1795165215000", 35)]
+    [InlineData("1795165205000~1795165205000", 45)]
+    [InlineData("1795165220000-", 20)]
+    [InlineData("1795165195000-", 5)]
     [InlineData("1795165140000-1795165170000", 45)]
     [InlineData("1795165190000-1795165210000", 35)]
     [InlineData("1795165240000-1795165290000", 40)]
@@ -258,9 +262,13 @@ public class PerformContextFacts
     public void Lateness_LeavesOutTheTimeAPausedServerHeldTheJob_AfterTheMomentTheJobWasMeantToRun(string holds, int secondsLate)
     {
         // Created at 09:00:00 (1795165200000 in Unix milliseconds) and started at 09:00:45. Held from 09:00:05 to
-        // 09:00:35; from 09:00:05 to 09:00:15, and from 09:00:20 in a hold whose end wasn't written; since before it
-        // was created; only before it was created, which isn't lateness to begin with; across its creation; past
-        // the moment it started; among values that can't be read; and in values that can't be read at all
+        // 09:00:35; from 09:00:05 to 09:00:15, and from 09:00:20 in a hold whose end wasn't written, counted up to
+        // the start; since before it was created, until 09:00:40 at most; from 09:00:05 in a hold whose end wasn't
+        // written, which counts until 09:00:15 at most (where a scheduler left it, or a state change that ran no
+        // filter); one that counts nothing; holds without the time they count until, written by an earlier build,
+        // for which the hold interval and the polling allowance count; only before it was created, which isn't
+        // lateness to begin with; across its creation; past the moment it started; among values that can't be
+        // read; and in values that can't be read at all
         DateTime createdAt = new(2026, 11, 20, 9, 0, 0, DateTimeKind.Utc);
         _backgroundJob.CreatedAt = createdAt;
         _backgroundJob.ParametersSnapshot = new Dictionary<string, string>
