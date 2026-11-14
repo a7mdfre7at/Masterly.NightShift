@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics;
 using System.Globalization;
 using Masterly.NightShift.Server;
 using Masterly.NightShift.Storage.Conformance;
@@ -553,6 +554,79 @@ public sealed class EfStorageFacts : IDisposable
     }
 
     [Fact]
+    public void PrepareSchema_CreatesTheVersionsTableFirst()
+    {
+        CreatedTables created = new();
+
+        _ = new EntityFrameworkCoreStorage(o => o.UseSqlite(_database.ConnectionString).AddInterceptors(created), new EntityFrameworkCoreStorageOptions { Schema = null });
+
+        Assert.Equal(12, created.Tables.Count);
+        Assert.Contains("\"SchemaVersion\"", created.Tables[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PrepareSchema_CompletesTheTables_OfACreatorThatStoppedHalfWay()
+    {
+        // As on a database whose DDL isn't transactional, when the process creating the tables stopped
+        LeaveTablesHalfCreated();
+
+        EntityFrameworkCoreStorage storage = _database.CreateStorage(new EntityFrameworkCoreStorageOptions { SchemaCompletionTimeout = TimeSpan.FromMilliseconds(200) });
+
+        using (DbContext context = storage.CreateContext())
+        {
+            Assert.Equal([SchemaVersionRow.Current], context.Set<SchemaVersionRow>().Select(static x => x.Version));
+        }
+
+        string id = CreateJob(storage);
+        Commit(storage, x =>
+        {
+            x.SetJobState(id, new EnqueuedState());
+            x.AddToQueue("default", id);
+            ((JobStorageTransaction)x).SetJobParameter(id, "name", "value");
+            x.AddToSet("set", "value");
+            x.InsertToList("list", "value");
+            x.SetRangeInHash("hash", [new("field", "value")]);
+            x.IncrementCounter("counter");
+        });
+        Assert.Equal(1, new EfCountersAggregator(storage).AggregateBatch());
+        using IStorageConnection connection = storage.GetConnection();
+        connection.AnnounceServer("server", new ServerContext());
+        using (connection.AcquireDistributedLock("lock", TimeSpan.Zero))
+        {
+            Assert.Equal(1, storage.GetMonitoringApi().EnqueuedCount("default"));
+        }
+    }
+
+    [Fact]
+    public async Task PrepareSchema_WaitsForTheTablesAnotherProcessIsCreating()
+    {
+        LeaveTablesHalfCreated();
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        Task<EntityFrameworkCoreStorage> waiting = Task.Run(() => _database.CreateStorage(), TestContext.Current.CancellationToken);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
+        Assert.False(waiting.IsCompleted);
+
+        // The other process completes the tables and records their version
+        _ = _database.CreateStorage(new EntityFrameworkCoreStorageOptions { SchemaCompletionTimeout = TimeSpan.Zero });
+
+        EntityFrameworkCoreStorage storage = await waiting;
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(20), $"The storage waited {stopwatch.Elapsed}.");
+        using DbContext context = storage.CreateContext();
+        Assert.Equal([SchemaVersionRow.Current], context.Set<SchemaVersionRow>().Select(static x => x.Version));
+    }
+
+    [Fact]
+    public void PrepareSchema_RefusesTables_WithoutTheVersionsTable()
+    {
+        _ = _database.CreateStorage();
+        ExecuteSql("drop table \"SchemaVersion\"");
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => _database.CreateStorage());
+
+        Assert.Contains("Couldn't read the schema version", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PrepareSchema_SurfacesTheDatabasesError_WhenTheTablesCanNotBeCreated()
     {
         using (SqliteConnection connection = new(_database.ConnectionString))
@@ -658,6 +732,26 @@ public sealed class EfStorageFacts : IDisposable
         });
     }
 
+    // The version's table, empty, and the job table: the others are gone
+    private void LeaveTablesHalfCreated()
+    {
+        _ = _database.CreateStorage();
+        ExecuteSql("delete from \"SchemaVersion\"");
+        foreach (string table in new[] { "State", "JobParameter", "JobQueue", "Set", "List", "Hash", "Counter", "AggregatedCounter", "Server", "Lock" })
+        {
+            ExecuteSql($"drop table \"{table}\"");
+        }
+    }
+
+    private void ExecuteSql(string sql)
+    {
+        using SqliteConnection connection = new(_database.ConnectionString);
+        connection.Open();
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.ExecuteNonQuery();
+    }
+
     private static string CreateJob(EntityFrameworkCoreStorage storage)
     {
         using IStorageConnection connection = storage.GetConnection();
@@ -692,6 +786,22 @@ public sealed class EfStorageFacts : IDisposable
             {
                 Lost++;
                 throw new TransientException();
+            }
+
+            return result;
+        }
+    }
+
+    /// <summary>The CREATE TABLE statements, in the order they run.</summary>
+    private sealed class CreatedTables : DbCommandInterceptor
+    {
+        public List<string> Tables { get; } = [];
+
+        public override InterceptionResult<int> NonQueryExecuting(DbCommand command, CommandEventData eventData, InterceptionResult<int> result)
+        {
+            if (command.CommandText.StartsWith("CREATE TABLE", StringComparison.OrdinalIgnoreCase))
+            {
+                Tables.Add(command.CommandText);
             }
 
             return result;

@@ -97,7 +97,7 @@ What still uses process clocks is listed under [Things to know](#things-to-know)
 | `EntityFrameworkCoreStorageOptions` | Default | What it does |
 |---|---|---|
 | `Schema` | `nightshift` | The schema of a dedicated context's tables; `null` for the default schema (SQLite has none). Your own context sets it in `ApplyNightShiftModel(schema)`. |
-| `PrepareSchemaIfNecessary` | `true` | Whether a dedicated context creates the database and its tables when they are missing, and checks the schema version of tables that exist; they are never changed. The storage connects when it is created. Several processes may start at once: one creates the tables and the others use them. |
+| `PrepareSchemaIfNecessary` | `true` | Whether a dedicated context creates the database and its tables when they are missing, and checks the schema version of tables that exist; they are never changed. The storage connects when it is created. Several processes may start at once: one creates the tables and the others wait for them. On a database whose DDL isn't transactional (MySQL, MariaDB, Oracle), where the tables appear one by one, a process that finds them incomplete waits up to 30 seconds, then creates those still missing itself (with their indexes), so a creator that stopped half-way doesn't block later starts. |
 | `QueuePollInterval` | 1 second | How long a waiting worker sleeps. Jobs enqueued, or staged and saved, through the same storage object wake workers at once. |
 | `InvisibilityTimeout` | 30 minutes | How long a fetched job stays invisible after its worker stopped keeping it alive. |
 | `JobExpirationCheckInterval` | 30 minutes | How often expired rows are deleted. |

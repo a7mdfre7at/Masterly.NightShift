@@ -1,8 +1,12 @@
+using System.Diagnostics;
 using System.Transactions;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Storage.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.EntityFrameworkCore.Storage;
 using NotNullWhenAttribute = System.Diagnostics.CodeAnalysis.NotNullWhenAttribute;
 
@@ -21,8 +25,9 @@ public sealed class EntityFrameworkCoreStorageOptions
     /// <summary>
     /// Whether a dedicated context creates its database and tables when they are missing, and checks the schema
     /// version of tables that exist; they are never changed. Several processes may start at once: one creates the
-    /// tables and the others use them. <c>true</c> by default; an application's own context creates them with its
-    /// migrations.
+    /// tables and the others wait for them. Tables still missing 30 seconds after their creation began (their
+    /// creator stopped half-way, on a database whose DDL isn't transactional) are created by the next process that
+    /// starts. <c>true</c> by default; an application's own context creates them with its migrations.
     /// </summary>
     public bool PrepareSchemaIfNecessary { get; set; } = true;
 
@@ -68,6 +73,12 @@ public sealed class EntityFrameworkCoreStorageOptions
     /// answers. See the remarks of <see cref="EntityFrameworkCoreStorage"/>.
     /// </remarks>
     public string? DatabaseClockSql { get; set; }
+
+    /// <summary>
+    /// How long a dedicated context waits for tables another process began creating before it creates those
+    /// still missing itself. Thirty seconds; shorter in tests.
+    /// </summary>
+    internal TimeSpan SchemaCompletionTimeout { get; set; } = TimeSpan.FromSeconds(30);
 }
 
 /// <summary>
@@ -131,6 +142,7 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
     internal const string CommitMarkersKey = "ef-storage:commits";
 
     private static readonly TimeSpan CommitMarkerLifetime = TimeSpan.FromHours(1);
+    private static readonly TimeSpan SchemaCompletionPoll = TimeSpan.FromMilliseconds(250);
 
     private readonly Dictionary<string, bool> _features = StorageRules.Features(typeof(EfFetchedJob));
     private readonly Func<DbContext> _contextFactory;
@@ -436,44 +448,142 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
             }
         }
 
-        if (!TablesExist(context, out Exception? probeError))
+        // The version's table is created before the others: a job table without it, still missing once the job
+        // table was found, comes from a build that didn't record its version
+        if (!TryReadSchemaVersions(context, out List<int>? versions, out Exception? probeError))
         {
-            logger.InfoException("The Masterly.NightShift tables weren't found (the exception tells why); creating them.", probeError);
-
-            try
+            if (TableExists(context, typeof(JobRow)) && !TryReadSchemaVersions(context, out versions, out probeError))
             {
-                creator.CreateTables();
+                throw UnversionedTables(probeError);
             }
-            catch (Exception ex) when (ex is not OutOfMemoryException && TablesExist(context, out _))
+
+            if (versions == null)
             {
-                logger.InfoException("Another process created the Masterly.NightShift tables first.", ex);
+                logger.InfoException("The Masterly.NightShift tables weren't found (the exception tells why); creating them.", probeError);
+
+                try
+                {
+                    CreateTables(context, only: null);
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException && TryReadSchemaVersions(context, out _, out _))
+                {
+                    logger.InfoException("Another process began creating the Masterly.NightShift tables first.", ex);
+                }
+
+                versions = TryReadSchemaVersions(context, out List<int>? created, out Exception? readError) ? created : throw UnversionedTables(readError);
             }
         }
 
-        EnsureSchemaVersion(context, logger);
+        // No version yet: the tables are being created, by this process or another one, or their creator stopped
+        // half-way on a database whose DDL isn't transactional (MySQL, MariaDB, Oracle)
+        if (versions.Count == 0)
+        {
+            CompleteTables(context, logger);
+        }
+
+        EnsureSchemaVersion(context, versions, logger);
     }
 
-    private static bool TablesExist(DbContext context, [NotNullWhen(false)] out Exception? error)
+    /// <summary>
+    /// Waits for the tables another process is creating, then creates those still missing after
+    /// <see cref="EntityFrameworkCoreStorageOptions.SchemaCompletionTimeout"/>: their creator stopped half-way.
+    /// Another process may complete them at the same time; what it created first is left alone.
+    /// </summary>
+    private void CompleteTables(DbContext context, ILog logger)
     {
+        Stopwatch waited = Stopwatch.StartNew();
+        int attempts = 0;
+
+        while (MissingTables(context) is { Count: > 0 } missing)
+        {
+            if (waited.Elapsed < Options.SchemaCompletionTimeout)
+            {
+                Thread.Sleep(SchemaCompletionPoll);
+                continue;
+            }
+
+            string names = string.Join(", ", missing.Select(static x => x.Name));
+            logger.Warn($"The Masterly.NightShift tables {names} were still missing {Options.SchemaCompletionTimeout} after their creation began: the process that created the others stopped. Creating them.");
+
+            try
+            {
+                CreateTables(context, missing);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException && ++attempts < 3)
+            {
+                logger.InfoException($"Couldn't create the Masterly.NightShift tables {names} (attempt {attempts} of 3), another process may be creating them; looking again.", ex);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Creates the tables of the model (or only <paramref name="only"/>, with their indexes), the version's table
+    /// first: on a database whose DDL isn't transactional, tables appear one by one, and a process that finds
+    /// the version's table knows that a creation began.
+    /// </summary>
+    private static void CreateTables(DbContext context, HashSet<(string Name, string? Schema)>? only)
+    {
+        IModel model = context.GetService<IDesignTimeModel>().Model;
+        List<MigrationOperation> operations = [.. context.GetService<IMigrationsModelDiffer>().GetDifferences(null, model.GetRelationalModel())];
+
+        if (only != null)
+        {
+            operations.RemoveAll(x => x switch
+            {
+                CreateTableOperation table => !only.Contains((table.Name, table.Schema)),
+                CreateIndexOperation index => !only.Contains((index.Table, index.Schema)),
+                _ => true, // The schema exists: the version's table is in it
+            });
+        }
+
+        int version = operations.FindIndex(static x => x is CreateTableOperation table && table.Name == SchemaVersionRow.TableName);
+        int firstTable = operations.FindIndex(static x => x is CreateTableOperation);
+        if (version > firstTable)
+        {
+            MigrationOperation versionTable = operations[version];
+            operations.RemoveAt(version);
+            operations.Insert(firstTable, versionTable);
+        }
+
+        IReadOnlyList<MigrationCommand> commands = context.GetService<IMigrationsSqlGenerator>().Generate(operations, model);
+        context.GetService<IMigrationCommandExecutor>().ExecuteNonQuery(commands, context.GetService<IRelationalConnection>());
+    }
+
+    /// <summary>The tables of the model that can't be read.</summary>
+    private static HashSet<(string Name, string? Schema)> MissingTables(DbContext context)
+    {
+        HashSet<(string Name, string? Schema)> missing = [];
+        foreach (IEntityType entity in context.Model.GetEntityTypes())
+        {
+            if (!TableExists(context, entity.ClrType))
+            {
+                missing.Add((entity.GetTableName()!, entity.GetSchema())); // Every entity of the model is mapped to a table
+            }
+        }
+
+        return missing;
+    }
+
+    private static bool TableExists(DbContext context, Type row)
+    {
+        IEntityType entity = context.Model.FindEntityType(row)!; // The model of a dedicated context has every row type
+        string table = context.GetService<ISqlGenerationHelper>().DelimitIdentifier(entity.GetTableName()!, entity.GetSchema()); // Mapped to a table
         try
         {
-            _ = context.Set<JobRow>().Any();
-            error = null;
+#pragma warning disable EF1002 // The table's name, from the model and quoted by the provider, can't be a parameter
+            context.Database.ExecuteSqlRaw($"select 1 from {table} where 1 = 0");
+#pragma warning restore EF1002
             return true;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            context.ChangeTracker.Clear();
-            error = ex;
             return false;
         }
     }
 
     /// <summary>Records the version of tables just created, and refuses tables of another version.</summary>
-    private static void EnsureSchemaVersion(DbContext context, ILog logger)
+    private static void EnsureSchemaVersion(DbContext context, List<int> versions, ILog logger)
     {
-        List<int> versions = ReadSchemaVersions(context);
-
         if (versions.Count == 0)
         {
             try
@@ -487,7 +597,7 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
                 // Another process that created the tables at the same time recorded the version first
                 logger.DebugException("Another process recorded the schema version first.", ex);
                 context.ChangeTracker.Clear();
-                versions = ReadSchemaVersions(context);
+                versions = TryReadSchemaVersions(context, out List<int>? recorded, out Exception? readError) ? recorded : throw UnversionedTables(readError);
             }
         }
 
@@ -500,18 +610,27 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
         }
     }
 
-    private static List<int> ReadSchemaVersions(DbContext context)
+    private static bool TryReadSchemaVersions(DbContext context, [NotNullWhen(true)] out List<int>? versions, [NotNullWhen(false)] out Exception? error)
     {
         try
         {
-            return [.. context.Set<SchemaVersionRow>().AsNoTracking().Select(static x => x.Version)];
+            versions = [.. context.Set<SchemaVersionRow>().AsNoTracking().Select(static x => x.Version)];
+            error = null;
+            return true;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            throw new InvalidOperationException(
-                "Couldn't read the schema version of the Masterly.NightShift tables. Tables created by a build of Masterly.NightShift.EntityFrameworkCore that didn't record it can't be used: use a new schema or database.",
-                ex);
+            versions = null;
+            error = ex;
+            return false;
         }
+    }
+
+    private static InvalidOperationException UnversionedTables(Exception error)
+    {
+        return new InvalidOperationException(
+            "Couldn't read the schema version of the Masterly.NightShift tables. Tables created by a build of Masterly.NightShift.EntityFrameworkCore that didn't record it can't be used: use a new schema or database.",
+            error);
     }
 
     private static Func<DbContext> CreateDedicatedFactory(Action<DbContextOptionsBuilder> configure, EntityFrameworkCoreStorageOptions options)
