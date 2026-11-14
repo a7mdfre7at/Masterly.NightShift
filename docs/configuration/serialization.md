@@ -91,13 +91,21 @@ And these converters, which add what System.Text.Json doesn't do by itself:
 |---|---|---|
 | Enums | Numbers | Numbers or names, ignoring case |
 | `System.Type` | Its name, through the configured type serializer | A name, through the configured type resolver |
-| Values declared as `object` | Their JSON; with type names kept, objects get a leading `"$type"` | `bool`, `long`, `double`, `DateTime` (ISO 8601 text), `string`, or a `JsonElement` for objects and arrays; with type names kept and a `"$type"` present, the named type |
+| Values declared as `object` | Their JSON; with type names kept, objects get a leading `"$type"`, and one whose own members include a `"$type"` or `"$values"` (a dictionary with such a key, a `JsonElement`) is written as `{"$type": ..., "$values": {...}}` | `bool`, `long`, `double`, `DateTime` (ISO 8601 text), `string`, or a `JsonElement` for objects and arrays; with type names kept and a `"$type"` as the first property, the named type |
 | Values declared as an interface or abstract class | Every member of the actual type, after a leading `"$type"` | The type named in `"$type"`, which must implement or derive from the declared type; `"$type"` is required |
 | `IState` | An object with a leading `"$type"` | The same; `"$type"` is required |
 | Arrays (except `byte[]`) | Plain JSON arrays | Plain arrays or `{"$type": ..., "$values": [...]}`. Not used when your options set a `ReferenceHandler` (see below) |
 | Other collections and dictionaries (the argument itself, its members and items) | As System.Text.Json writes them | As System.Text.Json reads them; also a collection wrapped as `{"$type": ..., "$values": [...]}` and a dictionary whose first entry is a `"$type"` naming a dictionary type that fits the declared one, which Hangfire wrote with type names on. The values are read as the declared type, and the stored type name is ignored. A leading `"$type"` entry that doesn't name such a type (`{"$type": "user-value"}`) is an ordinary key and is kept |
 | `CultureInfo` | Its name, such as `"en-US"` | A name |
 | `XElement` | XML text | XML text, or the JSON form older data used (`{"name": {"@attr": "1", "#text": "text"}}`) |
+| `BigInteger` | A JSON number, as Newtonsoft.Json wrote it | A number or a string |
+| `Rune` | Its text, such as `"A"` | Text, its scalar value as a number, or the members it was written as before (`"Value"`) |
+| `Index` | `{"Value": 1, "IsFromEnd": true}` | The same, or text such as `"^1"` |
+| `Range` | `{"Start": {...}, "End": {...}}` | The same, or text such as `"1..^2"` |
+| `TimeZoneInfo` | Its id for a time zone of the system, otherwise `TimeZoneInfo.ToSerializedString()` | Either, or the members it was written as before (`"Id"`, and `"BaseUtcOffset"` for a zone the system doesn't have) |
+| A type whose `TypeConverter` converts it to and from text, such as `System.Drawing.Color` | That text (`"Red"`, `"128, 10, 20, 30"`) | That text |
+
+The last row applies only to a type System.Text.Json would otherwise write as its members and couldn't read back (a struct none of whose members can be set, a class it can't create), so a type that already reads back keeps its form. Newtonsoft.Json wrote every such type as text.
 
 The default user options differ from the internal ones in two ways: they don't write `"$type"` for `object` values, and they write `null` members.
 
@@ -172,7 +180,8 @@ Use it when a filter or extension stores its own values next to the job, so they
 Arguments follow System.Text.Json rules, not Newtonsoft.Json rules:
 
 - **Properties need a public setter or `[JsonInclude]`.** A property with a private setter and no `[JsonInclude]` is written but not read back: the job runs with the default value, and nothing fails. A collection property without a setter is the exception: its items are added to the collection it already holds (see [above](#what-the-reader-adds-for-data-newtonsoftjson-could-read)).
-- **Constructors:** a public parameterless constructor, a single public constructor whose parameter names match the properties, or the constructor marked `[JsonConstructor]`. Records work as they are. A struct always has a parameterless constructor, which System.Text.Json uses; the reader uses the struct's own constructor instead when it is the only public one and every parameter matches a get-only property. A struct with several public constructors and get-only properties needs `[JsonConstructor]`, or those properties come back with their default values.
+- **Constructors:** a public parameterless constructor, a single public constructor whose parameter names match the properties, or the constructor marked `[JsonConstructor]`. Records work as they are. A struct always has a parameterless constructor, which System.Text.Json uses; the reader uses the struct's own constructor instead when it is the only public one and every parameter matches a get-only property. A struct with several public constructors and get-only properties needs `[JsonConstructor]`.
+- **A struct that can't be read back is refused.** When none of the members a struct argument is written with can be set (no setter, no constructor that takes them), creating the job throws `NotSupportedException` instead of storing a job that would run with the default value. `ConsoleKeyInfo` is one; so is a struct of your own with get-only properties and several public constructors. Add a converter, mark a constructor `[JsonConstructor]`, or pass the data in another type. The check is made once per type, and for an argument declared as `object` only under options that keep type names.
 - **Public fields are included.**
 - **Use `[JsonIgnore]`** for computed properties you don't want stored, and `[JsonPropertyName]` to rename a property. Newtonsoft attributes such as `[JsonProperty]` are ignored, and so is `JsonConvert.DefaultSettings`.
 - **Interface and abstract parameters keep the actual type.** An argument declared as an interface or abstract class is written with a leading `"$type"` naming its actual type, with any options, and the job receives an instance of that type. With `[JsonPolymorphic]` or `[JsonDerivedType]` on the declared type, System.Text.Json's own type discriminator is used instead.
@@ -208,13 +217,15 @@ This works with the default options, the recommended ones and your own, because 
 
 ## How `"$type"` is handled
 
+- **Only a leading `"$type"` names a type.** Newtonsoft.Json and Masterly.NightShift always write it as the first property; a `"$type"` anywhere else in an object is one of its members.
 - **States** are always written with `"$type"` first, and reading a state without one throws `JsonException`.
-- **Values declared as `object`** get `"$type"` under the internal and recommended options only. A primitive (number, string, boolean) never gets one.
+- **Values declared as `object`** get `"$type"` under the internal and recommended options only. A primitive (number, string, boolean) never gets one. A value whose own members include a `"$type"` or a `"$values"`, such as a `Dictionary<string, string>` filled from a form or a `JsonElement` from a message, is written as `{"$type": "<its type>", "$values": {<its members>}}`, so it reads back as that dictionary or element, with those keys, and its data never picks the type it is read as.
 - **Values declared as an interface or abstract class** always get `"$type"`, with any options, because they can't be read back without it. A value that isn't written as a JSON object (a collection, or a type whose converter writes a string) doesn't get one. Reading one without `"$type"` throws `JsonException`, and so does a `"$type"` naming a type that doesn't implement or derive from the declared type.
 - **Type names in `"$type"`** come from the configured type serializer, with `Version`, `Culture` and `PublicKeyToken` removed, for example `"MyApp.Payload, MyApp"`.
 - **When the declared type is concrete**, a `"$type"` in the data is ignored and the value is read as the declared type.
 - **In a collection or dictionary** that Hangfire stored with its type name, the `"$type"` is ignored and the values are read as the declared type, also when that is an interface such as `IReadOnlyList<T>` (System.Text.Json creates its usual type for it, here `List<T>`). Stored data can't make a server create the collection type it names. A dictionary's first `"$type"` entry counts as a type name only when the type resolver resolves it to a dictionary type assignable to the declared one, or of the same generic type; any other value, such as a key your own code added, stays in the dictionary.
 - **When reading**, `"$type"` is resolved through the configured type resolver. Anyone who can write to your job storage can therefore make a server load a type by name. Protect the storage the way you protect the application itself.
+- **Text from outside** (what an operator types in the dashboard's job forms, and [job function](../jobs/job-functions.md#the-payload) payloads) is read stricter: a `"$type"` in a value declared as `object` is refused, a `System.Type` value is refused, a dictionary's leading `"$type"` is an ordinary key, and a `"$type"` for a value declared as an interface or abstract class must name a type of an assembly already loaded that implements or derives from it, checked before the type resolver is asked.
 
 ## More examples
 

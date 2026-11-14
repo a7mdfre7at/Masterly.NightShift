@@ -3,9 +3,11 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Globalization;
+using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -1596,5 +1598,453 @@ internal sealed class XElementJsonConverter : JsonConverter<XElement>
             JsonValueKind.Null => null,
             _ => value.GetRawText()
         };
+    }
+}
+
+/// <summary>
+/// Writes a <see cref="BigInteger"/> as a JSON number, as the previous serializer did, and reads a number or a
+/// string. Without it, the value would be written as its read-only members and read back as zero.
+/// </summary>
+internal sealed class BigIntegerJsonConverter : JsonConverter<BigInteger>
+{
+    public override BigInteger Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        return reader.TokenType switch
+        {
+            JsonTokenType.Number => Parse(Encoding.UTF8.GetString(reader.HasValueSequence ? reader.ValueSequence.ToArray() : reader.ValueSpan)),
+            JsonTokenType.String => Parse(reader.GetString()!), // The token is a string
+            _ => throw new JsonException($"Can't convert {reader.TokenType} to {nameof(BigInteger)}."),
+        };
+    }
+
+    public override void Write(Utf8JsonWriter writer, BigInteger value, JsonSerializerOptions options)
+    {
+        writer.WriteRawValue(value.ToString("D", CultureInfo.InvariantCulture), skipInputValidation: true);
+    }
+
+    public override BigInteger ReadAsPropertyName(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        return Parse(reader.GetString()!); // A property name is a string
+    }
+
+    public override void WriteAsPropertyName(Utf8JsonWriter writer, BigInteger value, JsonSerializerOptions options)
+    {
+        writer.WritePropertyName(value.ToString("D", CultureInfo.InvariantCulture));
+    }
+
+    private static BigInteger Parse(string text)
+    {
+        if (BigInteger.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out BigInteger value))
+        {
+            return value;
+        }
+
+        throw new JsonException($"'{text}' isn't a whole number.");
+    }
+}
+
+/// <summary>Writes a <see cref="Rune"/> as its text, and reads text, its scalar value, or its members.</summary>
+internal sealed class RuneJsonConverter : JsonConverter<Rune>
+{
+    public override Rune Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.String:
+                string text = reader.GetString()!; // The token is a string
+                if (Rune.DecodeFromUtf16(text, out Rune rune, out int length) == OperationStatus.Done && length == text.Length)
+                {
+                    return rune;
+                }
+
+                throw new JsonException($"'{text}' isn't a single Unicode scalar value.");
+            case JsonTokenType.Number:
+                return FromScalar(reader.GetInt32());
+            case JsonTokenType.StartObject:
+                // Written as its members ("Value" is the scalar) before this converter
+                using (JsonDocument document = JsonDocument.ParseValue(ref reader))
+                {
+                    return JsonMembers.TryGet(document.RootElement, "Value", out JsonElement value) && value.ValueKind == JsonValueKind.Number
+                        ? FromScalar(value.GetInt32())
+                        : throw new JsonException($"A {nameof(Rune)} written as an object needs its \"Value\".");
+                }
+            default:
+                throw new JsonException($"Can't convert {reader.TokenType} to {nameof(Rune)}.");
+        }
+    }
+
+    public override void Write(Utf8JsonWriter writer, Rune value, JsonSerializerOptions options)
+    {
+        writer.WriteStringValue(value.ToString());
+    }
+
+    private static Rune FromScalar(int value)
+    {
+        return Rune.TryCreate(value, out Rune rune) ? rune : throw new JsonException($"{value} isn't a Unicode scalar value.");
+    }
+}
+
+/// <summary>
+/// Writes an <see cref="Index"/> as its members, <c>{"Value": 1, "IsFromEnd": true}</c>, the form it was written in
+/// before, and reads them back, or text such as <c>"^1"</c>. Without it, it would be read back as <c>0</c>.
+/// </summary>
+internal sealed class IndexJsonConverter : JsonConverter<Index>
+{
+    public override Index Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        using JsonDocument document = JsonDocument.ParseValue(ref reader);
+        return FromElement(document.RootElement);
+    }
+
+    public override void Write(Utf8JsonWriter writer, Index value, JsonSerializerOptions options)
+    {
+        writer.WriteStartObject();
+        writer.WriteNumber(JsonMembers.Name("Value", options), value.Value);
+        writer.WriteBoolean(JsonMembers.Name("IsFromEnd", options), value.IsFromEnd);
+        writer.WriteEndObject();
+    }
+
+    public static Index FromElement(JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Number:
+                return FromValue(element.GetInt32(), fromEnd: false);
+            case JsonValueKind.String:
+                return Parse(element.GetString()!); // The value is a string
+            case JsonValueKind.Object when JsonMembers.TryGet(element, "Value", out JsonElement value) && value.ValueKind == JsonValueKind.Number:
+                bool fromEnd = JsonMembers.TryGet(element, "IsFromEnd", out JsonElement end) && end.ValueKind == JsonValueKind.True;
+                return FromValue(value.GetInt32(), fromEnd);
+            default:
+                throw new JsonException($"Can't convert {element.ValueKind} to {nameof(Index)}.");
+        }
+    }
+
+    public static Index Parse(string text)
+    {
+        ReadOnlySpan<char> span = text.AsSpan().Trim();
+        bool fromEnd = span.StartsWith("^", StringComparison.Ordinal);
+        if (int.TryParse(fromEnd ? span[1..] : span, NumberStyles.None, CultureInfo.InvariantCulture, out int value))
+        {
+            return FromValue(value, fromEnd);
+        }
+
+        throw new JsonException($"'{text}' isn't an index.");
+    }
+
+    private static Index FromValue(int value, bool fromEnd)
+    {
+        return value >= 0 ? new Index(value, fromEnd) : throw new JsonException($"An index can't be negative: {value}.");
+    }
+}
+
+/// <summary>
+/// Writes a <see cref="Range"/> as its members, <c>{"Start": …, "End": …}</c>, the form it was written in before,
+/// and reads them back, or text such as <c>"1..^2"</c>.
+/// </summary>
+internal sealed class RangeJsonConverter : JsonConverter<Range>
+{
+    public override Range Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        using JsonDocument document = JsonDocument.ParseValue(ref reader);
+        JsonElement root = document.RootElement;
+
+        switch (root.ValueKind)
+        {
+            case JsonValueKind.String:
+                string text = root.GetString()!; // The value is a string
+                int separator = text.IndexOf("..", StringComparison.Ordinal);
+                if (separator < 0)
+                {
+                    throw new JsonException($"'{text}' isn't a range.");
+                }
+
+                string start = text[..separator].Trim();
+                string end = text[(separator + 2)..].Trim();
+                return new Range(
+                    start.Length == 0 ? Index.Start : IndexJsonConverter.Parse(start),
+                    end.Length == 0 ? Index.End : IndexJsonConverter.Parse(end));
+            case JsonValueKind.Object:
+                return new Range(
+                    JsonMembers.TryGet(root, "Start", out JsonElement startElement) ? IndexJsonConverter.FromElement(startElement) : Index.Start,
+                    JsonMembers.TryGet(root, "End", out JsonElement endElement) ? IndexJsonConverter.FromElement(endElement) : Index.End);
+            default:
+                throw new JsonException($"Can't convert {root.ValueKind} to {nameof(Range)}.");
+        }
+    }
+
+    public override void Write(Utf8JsonWriter writer, Range value, JsonSerializerOptions options)
+    {
+        IndexJsonConverter index = new();
+
+        writer.WriteStartObject();
+        writer.WritePropertyName(JsonMembers.Name("Start", options));
+        index.Write(writer, value.Start, options);
+        writer.WritePropertyName(JsonMembers.Name("End", options));
+        index.Write(writer, value.End, options);
+        writer.WriteEndObject();
+    }
+}
+
+/// <summary>
+/// Writes a <see cref="TimeZoneInfo"/> as its id when it is a time zone of the system with the same rules, and
+/// otherwise as <see cref="TimeZoneInfo.ToSerializedString"/>. Reads either, or the members it was written as
+/// before (its <c>"Id"</c>, or a custom zone from its <c>"BaseUtcOffset"</c>). Without it, a time zone was written
+/// but could never be read back.
+/// </summary>
+internal sealed class TimeZoneInfoJsonConverter : JsonConverter<TimeZoneInfo>
+{
+    public override TimeZoneInfo? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.Null:
+                return null;
+            case JsonTokenType.String:
+                return FromText(reader.GetString()!); // The token is a string
+            case JsonTokenType.StartObject:
+                using (JsonDocument document = JsonDocument.ParseValue(ref reader))
+                {
+                    return FromMembers(document.RootElement);
+                }
+            default:
+                throw new JsonException($"Can't convert {reader.TokenType} to {nameof(TimeZoneInfo)}.");
+        }
+    }
+
+    public override void Write(Utf8JsonWriter writer, TimeZoneInfo value, JsonSerializerOptions options)
+    {
+        bool system = TimeZoneInfo.TryFindSystemTimeZoneById(value.Id, out TimeZoneInfo? found) && found.HasSameRules(value);
+        writer.WriteStringValue(system ? value.Id : value.ToSerializedString());
+    }
+
+    private static TimeZoneInfo FromText(string text)
+    {
+        if (TimeZoneInfo.TryFindSystemTimeZoneById(text, out TimeZoneInfo? zone))
+        {
+            return zone;
+        }
+
+        try
+        {
+            return TimeZoneInfo.FromSerializedString(text);
+        }
+        catch (Exception ex) when (ex is ArgumentException or System.Runtime.Serialization.SerializationException)
+        {
+            throw new JsonException($"'{text}' is neither the id of a time zone of this system nor a serialized time zone.", ex);
+        }
+    }
+
+    private static TimeZoneInfo FromMembers(JsonElement root)
+    {
+        if (!JsonMembers.TryGet(root, "Id", out JsonElement id) || id.ValueKind != JsonValueKind.String)
+        {
+            throw new JsonException($"A {nameof(TimeZoneInfo)} written as an object needs its \"Id\".");
+        }
+
+        string zoneId = id.GetString()!; // The value is a string
+        if (TimeZoneInfo.TryFindSystemTimeZoneById(zoneId, out TimeZoneInfo? zone))
+        {
+            return zone;
+        }
+
+        if (JsonMembers.TryGet(root, "BaseUtcOffset", out JsonElement offset) && offset.ValueKind == JsonValueKind.String &&
+            TimeSpan.TryParse(offset.GetString(), CultureInfo.InvariantCulture, out TimeSpan baseUtcOffset))
+        {
+            return TimeZoneInfo.CreateCustomTimeZone(
+                zoneId,
+                baseUtcOffset,
+                JsonMembers.TryGet(root, "DisplayName", out JsonElement displayName) ? displayName.GetString() : zoneId,
+                JsonMembers.TryGet(root, "StandardName", out JsonElement standardName) ? standardName.GetString() : zoneId);
+        }
+
+        throw new JsonException($"'{zoneId}' isn't the id of a time zone of this system.");
+    }
+}
+
+/// <summary>
+/// Writes a type as text when a <see cref="TypeConverter"/> converts it to and from text, as the previous serializer
+/// did (<see cref="System.Drawing.Color"/>, for example), but only a type that System.Text.Json would write as its
+/// members and couldn't read back (<see cref="JsonRoundTrip.CannotReadBack"/>), so a type that reads back today
+/// keeps its form. Converters that can't be relied on (the base <see cref="TypeConverter"/>,
+/// <see cref="ReferenceConverter"/> and its kind) are left out, as the previous serializer left them out.
+/// </summary>
+internal sealed class StringTypeConverterJsonConverterFactory : JsonConverterFactory
+{
+    private static readonly ConcurrentDictionary<Type, TypeConverter?> Converters = new();
+
+    public override bool CanConvert(Type typeToConvert)
+    {
+        return Converters.GetOrAdd(typeToConvert, FindConverter) != null;
+    }
+
+    public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions options)
+    {
+        TypeConverter converter = Converters.GetOrAdd(typeToConvert, FindConverter)!; // Asked for only after CanConvert
+        return (JsonConverter?)Activator.CreateInstance(typeof(Converter<>).MakeGenericType(typeToConvert), converter);
+    }
+
+    private static TypeConverter? FindConverter(Type type)
+    {
+        if (type.IsPrimitive || type.IsEnum || type.IsInterface || type.IsAbstract || type.IsArray || type.IsPointer ||
+            type.IsByRef || type.ContainsGenericParameters || type == typeof(string) || type == typeof(object) ||
+            Nullable.GetUnderlyingType(type) != null || typeof(IEnumerable).IsAssignableFrom(type) ||
+            type.IsDefined(typeof(JsonConverterAttribute), inherit: false))
+        {
+            return null;
+        }
+
+        TypeConverter converter;
+        try
+        {
+            converter = TypeDescriptor.GetConverter(type);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            return null;
+        }
+
+        Type converterType = converter.GetType();
+        if (converterType == typeof(TypeConverter) || converter is ReferenceConverter ||
+            converterType.FullName == "System.Windows.Forms.Design.DataSourceConverter")
+        {
+            return null;
+        }
+
+        try
+        {
+            return converter.CanConvertTo(typeof(string)) && converter.CanConvertFrom(typeof(string)) && JsonRoundTrip.CannotReadBack(type)
+                ? converter
+                : null;
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            return null;
+        }
+    }
+
+    private sealed class Converter<T>(TypeConverter converter) : JsonConverter<T>
+    {
+        public override T? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType != JsonTokenType.String)
+            {
+                throw new JsonException($"Can't convert {reader.TokenType} to {typeof(T).Name}: it is written as text.");
+            }
+
+            string text = reader.GetString()!; // The token is a string
+            try
+            {
+                return (T?)converter.ConvertFromInvariantString(text);
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                throw new JsonException($"'{text}' can't be read as {typeof(T).Name}.", ex);
+            }
+        }
+
+        public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
+        {
+            writer.WriteStringValue(converter.ConvertToInvariantString(value));
+        }
+    }
+}
+
+/// <summary>
+/// Tells whether System.Text.Json reads a type back from what it writes: a value type written as its members
+/// none of which can be set (no setter, no constructor that takes them) comes back as its default value.
+/// </summary>
+internal static class JsonRoundTrip
+{
+    // System.Text.Json's own converters, public fields, and what reads structs set by their constructor and
+    // collection members without a setter: what every option reads with
+    private static readonly JsonSerializerOptions Probe = new()
+    {
+        IncludeFields = true,
+        TypeInfoResolver = new DefaultJsonTypeInfoResolver()
+            .WithAddedModifier(JsonConstructorOnlyStructModifier.Apply)
+            .WithAddedModifier(JsonGetOnlyCollectionModifier.Apply)
+    };
+
+    /// <summary>
+    /// Tells whether System.Text.Json alone writes the type as its members and couldn't read it back: a value
+    /// type whose written members can't be set, or a class it has no way to create.
+    /// </summary>
+    public static bool CannotReadBack(Type type)
+    {
+        JsonTypeInfo info;
+        try
+        {
+            info = Probe.GetTypeInfo(type);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            return false;
+        }
+
+        return type.IsValueType
+            ? IsReadAsDefault(info)
+            : info.Kind == JsonTypeInfoKind.Object && info.CreateObject == null && !HasConstructorToBind(type);
+    }
+
+    /// <summary>
+    /// Tells whether a value type is written as members that can't be read back: created with its parameterless
+    /// constructor, and none of the members it writes has a setter.
+    /// </summary>
+    public static bool IsReadAsDefault(JsonTypeInfo info)
+    {
+        if (info.Kind != JsonTypeInfoKind.Object || !info.Type.IsValueType || info.CreateObject == null || info.Properties.Count == 0)
+        {
+            return false;
+        }
+
+        foreach (JsonPropertyInfo property in info.Properties)
+        {
+            if (property.Set != null || property.IsExtensionData)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool HasConstructorToBind(Type type)
+    {
+        foreach (ConstructorInfo constructor in type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+        {
+            if (constructor.IsPublic || constructor.IsDefined(typeof(JsonConstructorAttribute), inherit: false))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
+/// <summary>Reads and names the members of the objects the compatibility converters write.</summary>
+internal static class JsonMembers
+{
+    /// <summary>Finds a member by name, ignoring case, as values written with any naming policy are read.</summary>
+    public static bool TryGet(JsonElement element, string name, out JsonElement value)
+    {
+        foreach (JsonProperty property in element.EnumerateObject())
+        {
+            if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    /// <summary>The name of a member as the options write it.</summary>
+    public static string Name(string name, JsonSerializerOptions options)
+    {
+        return options.PropertyNamingPolicy?.ConvertName(name) ?? name;
     }
 }
