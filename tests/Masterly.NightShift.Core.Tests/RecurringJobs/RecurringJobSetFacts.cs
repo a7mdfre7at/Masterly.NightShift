@@ -366,6 +366,44 @@ public sealed class RecurringJobSetFacts : IDisposable
     }
 
     [Fact]
+    public void Apply_PausesAJobNoLongerDeclared_AndMarksItRetired_InOneTransaction()
+    {
+        // A failure between the two would leave the job paused but not retired, and declaring it again wouldn't
+        // resume it
+        StoreHash("report", declared: true);
+        StoreHash("old", declared: true);
+        List<Mock<IWriteOnlyTransaction>> transactions = CaptureTransactions();
+        RecurringJobManager manager = new(_storage.Object);
+
+        RecurringJobSetResult result = new RecurringJobSet().Add("report", () => Run(), Cron).RetireUndeclared().Apply(manager, _storage.Object);
+
+        Assert.Equal(["old"], result.Retired);
+        Mock<IWriteOnlyTransaction> retired = Assert.Single(transactions, static x => WritesFields(x, "recurring-job:old"));
+        retired.Verify(x => x.SetRangeInHash("recurring-job:old", It.Is<IEnumerable<KeyValuePair<string, string>>>(
+            static fields => fields.Contains(new KeyValuePair<string, string>("Paused", "1")))));
+        retired.Verify(x => x.SetRangeInHash("recurring-job:old", It.Is<IEnumerable<KeyValuePair<string, string>>>(
+            static fields => fields.Contains(new KeyValuePair<string, string>("Retired", "1")))));
+        retired.Verify(x => x.Commit());
+    }
+
+    [Fact]
+    public void Apply_ResumesARetiredJobDeclaredAgain_AndClearsTheMark_InOneTransaction()
+    {
+        StoreHash("report", declared: true, retired: true, paused: true);
+        List<Mock<IWriteOnlyTransaction>> transactions = CaptureTransactions();
+        RecurringJobManager manager = new(_storage.Object);
+
+        new RecurringJobSet().Add("report", () => Run(), Cron).Apply(manager, _storage.Object);
+
+        Mock<IWriteOnlyTransaction> resumed = Assert.Single(transactions, static x => x.Invocations.Any(static i =>
+            i.Method.Name == nameof(IWriteOnlyTransaction.SetRangeInHash) &&
+            ((IEnumerable<KeyValuePair<string, string>>)i.Arguments[1]).Contains(new KeyValuePair<string, string>("Retired", string.Empty))));
+        resumed.Verify(x => x.SetRangeInHash("recurring-job:report", It.Is<IEnumerable<KeyValuePair<string, string>>>(
+            static fields => fields.Contains(new KeyValuePair<string, string>("Paused", "0")))));
+        resumed.Verify(x => x.Commit());
+    }
+
+    [Fact]
     public void Apply_RetiresOnlyJobsInTheScope()
     {
         Mock<IRecurringJobManagerV3> manager = new();
@@ -435,6 +473,41 @@ public sealed class RecurringJobSetFacts : IDisposable
     }
 
     [Fact]
+    public void Apply_StartsAOnceJob_AndRecordsItsKey_InOneTransaction()
+    {
+        // A failure between the two would leave a job that runs and a key that isn't recorded, so the next start
+        // would run it again
+        SetupJobCreation();
+        List<Mock<IWriteOnlyTransaction>> transactions = [];
+        _connection.Setup(x => x.CreateWriteTransaction()).Returns(() =>
+        {
+            Mock<IWriteOnlyTransaction> transaction = new();
+            transactions.Add(transaction);
+            return transaction.Object;
+        });
+
+        new RecurringJobSet().Once("seed-roles", () => Run()).Apply(_manager.Object, _storage.Object);
+
+        Mock<IWriteOnlyTransaction> started = Assert.Single(transactions, static x => x.Invocations.Any(static i => i.Method.Name == nameof(IWriteOnlyTransaction.SetJobState)));
+        started.Verify(x => x.SetJobState("42", It.Is<IState>(static state => state is EnqueuedState)));
+        started.Verify(x => x.SetRangeInHash(RecurringJobSet.OnceHashKey, It.Is<IEnumerable<KeyValuePair<string, string>>>(
+            fields => fields.Contains(new KeyValuePair<string, string>("seed-roles", "42")))));
+        started.Verify(x => x.Commit());
+    }
+
+    [Fact]
+    public void Apply_DoesNotStartAOnceJob_WhenRecordingItsKeyFails()
+    {
+        SetupJobCreation();
+        _transaction.Setup(x => x.SetRangeInHash(RecurringJobSet.OnceHashKey, It.IsAny<IEnumerable<KeyValuePair<string, string>>>()))
+            .Throws(new InvalidOperationException("storage down"));
+
+        Assert.Throws<InvalidOperationException>(() => new RecurringJobSet().Once("seed-roles", () => Run()).Apply(_manager.Object, _storage.Object));
+
+        _transaction.Verify(x => x.Commit(), Times.Never);
+    }
+
+    [Fact]
     public void Apply_DoesNotTakeTheLock_WithoutOnceJobs()
     {
         new RecurringJobSet().Add("report", () => Run(), Cron).Apply(_manager.Object, _storage.Object);
@@ -461,7 +534,25 @@ public sealed class RecurringJobSetFacts : IDisposable
         Assert.Throws<InvalidOperationException>(() => jobs.Once("seed", () => Run()));
     }
 
-    private void StoreHash(string id, bool declared, bool retired = false)
+    private List<Mock<IWriteOnlyTransaction>> CaptureTransactions()
+    {
+        List<Mock<IWriteOnlyTransaction>> transactions = [];
+        _connection.Setup(x => x.CreateWriteTransaction()).Returns(() =>
+        {
+            Mock<IWriteOnlyTransaction> transaction = new();
+            transactions.Add(transaction);
+            return transaction.Object;
+        });
+
+        return transactions;
+    }
+
+    private static bool WritesFields(Mock<IWriteOnlyTransaction> transaction, string key)
+    {
+        return transaction.Invocations.Any(i => i.Method.Name == nameof(IWriteOnlyTransaction.SetRangeInHash) && (string)i.Arguments[0] == key);
+    }
+
+    private void StoreHash(string id, bool declared, bool retired = false, bool paused = false)
     {
         _stored[id] = new RecurringJobDto();
         Dictionary<string, string> hash = new()
@@ -478,6 +569,11 @@ public sealed class RecurringJobSetFacts : IDisposable
         if (retired)
         {
             hash["Retired"] = "1";
+        }
+
+        if (paused)
+        {
+            hash["Paused"] = "1";
         }
 
         _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{id}")).Returns(hash);

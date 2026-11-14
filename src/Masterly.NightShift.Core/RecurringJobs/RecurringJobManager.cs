@@ -530,7 +530,33 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
             : queue;
     }
 
-    private bool UpdateExisting(string recurringJobId, Action<RecurringJobEntity, DateTime> update)
+    /// <summary>
+    /// Pauses or resumes the job as <see cref="Pause"/> and <see cref="Resume"/> do, and writes
+    /// <paramref name="fields"/> into its hash in the same transaction, so a failure leaves neither.
+    /// </summary>
+    /// <returns><c>false</c> when the job doesn't exist.</returns>
+    internal bool SetPaused([NotNull] string recurringJobId, bool paused, [NotNull] IReadOnlyDictionary<string, string> fields)
+    {
+        ArgumentNullException.ThrowIfNull(recurringJobId);
+        ArgumentNullException.ThrowIfNull(fields);
+
+        return UpdateExisting(
+            recurringJobId,
+            (recurringJob, now) =>
+            {
+                if (paused)
+                {
+                    recurringJob.Pause();
+                }
+                else if (recurringJob.Paused)
+                {
+                    recurringJob.Resume(TimeZoneResolver, now);
+                }
+            },
+            fields);
+    }
+
+    private bool UpdateExisting(string recurringJobId, Action<RecurringJobEntity, DateTime> update, IReadOnlyDictionary<string, string>? fields = null)
     {
         using (IStorageConnection connection = Storage.GetConnection())
         using (connection.AcquireDistributedRecurringJobLock(recurringJobId, DefaultTimeout))
@@ -544,10 +570,20 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
 
             update(recurringJob, now);
 
-            if (recurringJob.IsChanged(now, out IReadOnlyDictionary<string, string>? changedFields))
+            bool changed = recurringJob.IsChanged(now, out IReadOnlyDictionary<string, string>? changedFields);
+            if (changed || fields != null)
             {
                 using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
-                transaction.UpdateRecurringJob(recurringJob, changedFields, _logger);
+                if (changed)
+                {
+                    transaction.UpdateRecurringJob(recurringJob, changedFields, _logger);
+                }
+
+                if (fields != null)
+                {
+                    transaction.SetRangeInHash($"recurring-job:{recurringJobId}", fields);
+                }
+
                 transaction.Commit();
             }
 

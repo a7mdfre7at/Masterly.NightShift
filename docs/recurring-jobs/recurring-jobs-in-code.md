@@ -133,7 +133,9 @@ builder.Services.AddNightShiftRecurringJobs(jobs => jobs
     .RetireUndeclared());
 ```
 
-A job a set declared before that this one doesn't is paused and marked as retired (`RecurringJobDto.Retired`): it keeps its definition and history, and declaring it again resumes it. Jobs that no set declared, created from the dashboard, a manifest or other code, are never touched, so `RetireUndeclared` is safer than `RemoveUndeclared` and needs no scope; a `scope` limits it further. During a rolling deployment the old version resumes what the new one retired, until it stops, so the last version to start decides. Pausing needs a manager that implements `IRecurringJobManagerV3`, as the container's does.
+A job a set declared before that this one doesn't is paused and marked as retired (`RecurringJobDto.Retired`), in one transaction: it keeps its definition and history, and declaring it again resumes it. Jobs that no set declared, created from the dashboard, a manifest or other code, are never touched, so `RetireUndeclared` is safer than `RemoveUndeclared`. During a rolling deployment the old version resumes what the new one retired, until it stops, so the last version to start decides. Pausing needs a manager that implements `IRecurringJobManagerV3`, as the container's does.
+
+**When several applications declare sets in one storage, give each set a `scope`.** A stored job only records that *a* set declared it, not which one, so without a scope each application takes the jobs the other declares for jobs it stopped declaring, and every start of one pauses the jobs of the other. With a prefix per application (`RetireUndeclared(static id => id.StartsWith("billing:", StringComparison.Ordinal))`), each one retires only its own. A set without a scope that retires jobs logs a warning that says so. With a single application, or several instances of one, no scope is needed.
 
 ### Run start-up work once
 
@@ -143,7 +145,7 @@ builder.Services.AddNightShiftRecurringJobs(jobs => jobs
     .Once<SearchIndex>("rebuild-index-2026-11", index => index.RebuildAsync(), TimeSpan.FromMinutes(10)));
 ```
 
-The job is created the first time a set with its key is applied, enqueued at once or scheduled after the `delay`, and the key is recorded with the job's ID in the storage hash `recurring-job-set:once` (`RecurringJobSet.OnceHashKey`). Later applications, on any replica, skip it: creating these jobs takes a distributed lock, so replicas starting together create each one once. To run the work again, use a new key. The key is at most 100 characters; a key declared twice throws `InvalidOperationException`, and a negative delay `ArgumentOutOfRangeException`. A job a client filter refuses to create isn't recorded, so the next application tries again. Deleting the job doesn't make it run again.
+The job is created the first time a set with its key is applied, enqueued at once or scheduled after the `delay`, and the key is recorded with the job's ID in the storage hash `recurring-job-set:once` (`RecurringJobSet.OnceHashKey`). Later applications, on any replica, skip it: creating these jobs takes a distributed lock, so replicas starting together create each one once. To run the work again, use a new key. The key is at most 100 characters; a key declared twice throws `InvalidOperationException`, and a negative delay `ArgumentOutOfRangeException`. A job a client filter refuses to create isn't recorded, so the next application tries again. The job is created without a state and enqueued (or scheduled) in the transaction that records its key, so a failure in between leaves a job that never runs, and the next application creates it again: the work doesn't run twice. Deleting the job doesn't make it run again.
 
 ### Without a host
 
