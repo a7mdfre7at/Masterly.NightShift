@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Masterly.NightShift.Client;
 using Masterly.NightShift.Server;
 
 namespace Masterly.NightShift.SqlServer.Tests;
@@ -156,6 +157,54 @@ public class RecurringJobSchedulingFacts
         Assert.Equal(next[0].AddHours(1), next[1]);
     }
 
+    [Fact, CleanDatabase]
+    public void TriggerJob_FromAProcessWhoseClockIsBehind_DoesNotMakeTheSchedulerRunASlotAgain()
+    {
+        SqlServerStorage storage = CreateStorage();
+        RecurringJobManager manager = new(storage);
+        manager.AddOrUpdate("strict", Job.FromExpression(() => Answer()), "* * * * *", new RecurringJobOptions { MisfireHandling = MisfireHandlingMode.Strict });
+
+        // The occurrence of the current minute has run already
+        DateTime slot;
+        using (IStorageConnection connection = storage.GetConnection())
+        {
+            DateTime databaseNow = ((JobStorageConnection)connection).GetUtcDateTime();
+            slot = new DateTime(databaseNow.Ticks - (databaseNow.Ticks % TimeSpan.TicksPerMinute), DateTimeKind.Utc);
+
+            using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+            transaction.SetRangeInHash("recurring-job:strict", new Dictionary<string, string>
+            {
+                ["LastExecution"] = JobHelper.SerializeDateTime(slot),
+                ["NextExecution"] = JobHelper.SerializeDateTime(slot.AddMinutes(1)),
+                ["ScheduleChangedAt"] = JobHelper.SerializeDateTime(slot.AddHours(-1)),
+                ["CreatedAt"] = JobHelper.SerializeDateTime(slot.AddHours(-1)),
+            });
+            transaction.AddToSet("recurring-jobs", "strict", JobHelper.ToTimestamp(slot.AddMinutes(1)));
+            transaction.Commit();
+        }
+
+        string triggered;
+        TimeProvider original = JobClock.TimeProvider;
+        JobClock.TimeProvider = new OffsetClock(slot.AddSeconds(-10) - DateTime.UtcNow);
+        try
+        {
+            triggered = manager.TriggerJob("strict");
+        }
+        finally
+        {
+            JobClock.TimeProvider = original;
+        }
+
+        using (CancellationTokenSource cts = new())
+        {
+            BackgroundProcessContext context = new("server", storage, new Dictionary<string, object>(), Guid.NewGuid(), cts.Token, cts.Token, cts.Token);
+            new RecurringJobScheduler(new BackgroundJobFactory(JobFilterProviders.Providers), TimeSpan.FromMilliseconds(1)).Execute(context);
+        }
+
+        Assert.DoesNotContain(storage.GetRecurringJobRuns("strict"), run => run.JobId != triggered && run.ScheduledFor == slot);
+        Assert.True(Find(storage, "strict").LastExecution >= slot);
+    }
+
     public static int Answer() => 42;
 
     public static void Count()
@@ -167,6 +216,11 @@ public class RecurringJobSchedulingFacts
     {
         using IStorageConnection connection = storage.GetConnection();
         return connection.GetRecurringJobs([id]).Single();
+    }
+
+    private sealed class OffsetClock(TimeSpan offset) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => System.GetUtcNow() + offset;
     }
 
     private static SqlServerStorage CreateStorage()

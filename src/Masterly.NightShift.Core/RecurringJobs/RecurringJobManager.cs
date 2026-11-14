@@ -314,7 +314,11 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
         using (IStorageConnection connection = Storage.GetConnection())
         using (connection.AcquireDistributedRecurringJobLock(recurringJobId, DefaultTimeout))
         {
-            DateTime now = _nowFactory();
+            // The scheduler's clock: it counts the occurrences from the last execution this writes, by the
+            // storage's clock where the storage has one
+            DateTime now = Storage.HasFeature(JobStorageFeatures.Connection.GetUtcDateTime) && connection is JobStorageConnection storageConnection
+                ? DateTime.SpecifyKind(storageConnection.GetUtcDateTime(), DateTimeKind.Utc)
+                : _nowFactory();
 
             RecurringJobEntity? recurringJob = connection.GetRecurringJob(recurringJobId);
             if (recurringJob == null)
@@ -327,7 +331,10 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
             try
             {
                 backgroundJob = _factory.TriggerRecurringJob(Storage, connection, EmptyProfiler.Instance, recurringJob, now);
-                recurringJob.ScheduleNext(TimeZoneResolver, now);
+
+                // From the last execution, which a trigger never moves back: counted from an earlier time, the
+                // next occurrence could be one that has run already
+                recurringJob.ScheduleNext(TimeZoneResolver, recurringJob.LastExecution ?? now);
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {

@@ -883,6 +883,31 @@ public class RecurringJobManagerFacts
     }
 
     [Fact]
+    public void Trigger_DoesNotMoveTheLastExecutionBack_WhenItIsLaterThanNow()
+    {
+        // The occurrence of the next minute ran, by a scheduler whose clock is ahead of this process's
+        DateTime ran = _now.AddMinutes(1);
+        _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}")).Returns(new Dictionary<string, string>
+        {
+            { "Cron", "* * * * *" },
+            { "Job", InvocationData.SerializeJob(_job).SerializePayload() },
+            { "CreatedAt", JobHelper.SerializeDateTime(_now.AddMinutes(-3)) },
+            { "LastExecution", JobHelper.SerializeDateTime(ran) },
+            { "NextExecution", JobHelper.SerializeDateTime(_now) }
+        });
+
+        RecurringJobManager manager = CreateManager();
+
+        manager.Trigger(_id);
+
+        // Counted from the last execution, not from now: the occurrence that ran isn't due again
+        _transaction.Verify(x => x.SetRangeInHash($"recurring-job:{_id}", It.Is<Dictionary<string, string>>(dict =>
+            !dict.ContainsKey("LastExecution") &&
+            dict["NextExecution"] == JobHelper.SerializeDateTime(_now.AddMinutes(2)))));
+        _transaction.Verify(x => x.AddToSet("recurring-jobs", _id, JobHelper.ToTimestamp(_now.AddMinutes(2))));
+    }
+
+    [Fact]
     public void Trigger_ThrowsAnException_WhenRecurringJobCanNotBeTriggered_AndDoesNotCreateBackgroundJob()
     {
         // Arrange

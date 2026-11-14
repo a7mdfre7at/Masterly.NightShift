@@ -134,7 +134,13 @@ internal static class RecurringJobExtensions
 
             BackgroundJob? backgroundJob = factory.Create(context);
 
-            recurringJob.LastExecution = now;
+            // Never moved back: the scheduler counts the occurrences from it, so a trigger by a process whose clock
+            // is behind the scheduler's would make it run an occurrence that has run already
+            if (recurringJob.LastExecution is not { } lastExecution || lastExecution < now)
+            {
+                recurringJob.LastExecution = now;
+            }
+
             recurringJob.LastJobId = backgroundJob?.Id;
 
             return backgroundJob;
