@@ -157,6 +157,13 @@ public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IAp
             return;
         }
 
+        // A chain step whose retry hold ended goes to its queue as a job enqueued by hand does, not as a schedule
+        // coming due; one with a queue of its own gets there without a state change, so its worker meets it here
+        if (context.CandidateState is ProcessingState && IsHeldForAChainRetry(context))
+        {
+            return;
+        }
+
         // Read afresh: this check exists because the policy may have changed since the job was created
         SchedulePolicyCalendar? calendar = LoadCalendar(context.Storage, context.Connection, name, allowCached: false);
         if (calendar == null)
@@ -366,6 +373,24 @@ public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IAp
         }
 
         return calendar;
+    }
+
+    // The note of a retry of its chain is still on the step while the worker that takes it decides (it goes with
+    // this state change); a step put back for an abandoned retry is no longer a Processing candidate
+    private static bool IsHeldForAChainRetry(ElectStateContext context)
+    {
+        try
+        {
+            string? marker = context.BackgroundJob.ParametersSnapshot is { } snapshot
+                ? snapshot.GetValueOrDefault(JobChains.ChainRetryParameter)
+                : context.Connection.GetJobParameter(context.BackgroundJob.Id, JobChains.ChainRetryParameter);
+            return JobChains.RetryMarker.Parse(marker) != null;
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            Logger.DebugException($"Whether background job '{context.BackgroundJob.Id}' is held for a retry of its chain couldn't be read; its schedule policy decides it as a job that is due.", ex);
+            return false;
+        }
     }
 
     private static string? ReadParameter(ElectStateContext context, string name)

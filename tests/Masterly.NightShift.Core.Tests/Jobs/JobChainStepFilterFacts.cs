@@ -1342,6 +1342,32 @@ public sealed class JobChainStepFilterFacts : IDisposable
     }
 
     [Fact]
+    public void OnStateElection_LetsAStepWithItsOwnQueue_HeldForARetry_Run_WhateverItsSchedulePolicySays()
+    {
+        // A step with a queue of its own goes from its hold to its queue without a state change, so a worker takes
+        // it from the Scheduled state; the end of a hold isn't a schedule coming due, so no policy decides it
+        Step("1.0");
+        HeldForARetry(generation: 3, state: FailedState.StateName);
+        Record(4, ("0.0", "41"), ("1.0", JobId), ("2.0", "50"));
+        _context.ApplyContext.OldStateName = ScheduledState.StateName;
+        Dictionary<string, string> parameters = new(_context.ApplyContext.BackgroundJob.ParametersSnapshot)
+        {
+            [ScheduleOptions.PolicyParameter] = "\"closed\"",
+            [ScheduleOptions.WhenBlockedParameter] = "\"Skip\"",
+        };
+        _context.ApplyContext.BackgroundJob.ParametersSnapshot = parameters;
+        DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+        Dictionary<string, string> policy = new SchedulePolicy("closed").ExcludeDate(today).ExcludeDate(today.AddDays(1)).ToFields();
+        policy[SchedulePolicy.RevisionField] = "1";
+        _connection.Setup(x => x.GetAllEntriesFromHash(SchedulePolicies.GetKey("closed"))).Returns(policy);
+
+        _filter.OnStateElection(_context.Object);
+        new SchedulePolicyFilter().OnStateElection(_context.Object);
+
+        Assert.IsType<ProcessingState>(_context.Object.CandidateState);
+    }
+
+    [Fact]
     public void OnStateElection_DecidesAStepHeldForARetry_AsAnyStep_WhenTheRecordIsGoneOrWasWrittenAnew()
     {
         // The chain was deleted while the step was held
