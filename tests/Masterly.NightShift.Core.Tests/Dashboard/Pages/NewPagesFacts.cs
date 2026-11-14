@@ -83,8 +83,8 @@ public class NewPagesFacts
         Assert.Contains("Finished with failures", list, StringComparison.Ordinal);
         Assert.Contains("href=\"/jobs/details/job-1\"", details, StringComparison.Ordinal);
         Assert.Contains("href=\"/jobs/details/job-2\"", details, StringComparison.Ordinal);
-        Assert.Contains("/chains/retry/job-2", details, StringComparison.Ordinal);
-        Assert.DoesNotContain("/chains/retry/job-1", details, StringComparison.Ordinal);
+        Assert.Contains("/chains/retry/c1/job-2", details, StringComparison.Ordinal);
+        Assert.DoesNotContain("/chains/retry/c1/job-1", details, StringComparison.Ordinal);
         Assert.DoesNotContain("/chains/delete/", details, StringComparison.Ordinal);
     }
 

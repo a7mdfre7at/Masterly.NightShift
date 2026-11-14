@@ -460,7 +460,7 @@ internal static class ChainFlowchartRenderer
         {
             for (int i = 0; i < block.Level.Steps.Count; i++)
             {
-                AppendCard(html, page, block.Level.Steps[i], block.Cards[i], canRetry);
+                AppendCard(html, page, block.Level.Steps[i], block.Cards[i], canRetry ? chart.Chain.ChainId : null);
             }
         }
 
@@ -580,7 +580,8 @@ internal static class ChainFlowchartRenderer
         return alert ? "hf-flow-edge hf-flow-edge-alert" : "hf-flow-edge hf-flow-edge-taken";
     }
 
-    private static void AppendCard(StringBuilder html, RazorPage page, ChainFlowStep step, (int X, int Y) position, bool canRetry)
+    // 'retryChain': the chain a step can be retried in, or null when none can
+    private static void AppendCard(StringBuilder html, RazorPage page, ChainFlowStep step, (int X, int Y) position, string? retryChain)
     {
         JobChainStepInfo info = step.Info;
         // A step whose job expired shows what it finished as, when the chain kept it
@@ -643,9 +644,10 @@ internal static class ChainFlowchartRenderer
             html.Append("<span class=\"hf-flow-retries\" title=\"").Append(Encode(retries)).Append("\"><span class=\"glyphicon glyphicon-repeat\"></span> ").Append(step.RetryCount.ToString(CultureInfo.InvariantCulture)).Append("</span>");
         }
 
-        if (canRetry && (FailedState.StateName.Equals(info.StateOrOutcome, StringComparison.OrdinalIgnoreCase) || DeletedState.StateName.Equals(info.StateOrOutcome, StringComparison.OrdinalIgnoreCase)))
+        // With the chain in the address: a step whose job expired no longer says what chain it belongs to
+        if (retryChain != null && (FailedState.StateName.Equals(info.StateOrOutcome, StringComparison.OrdinalIgnoreCase) || DeletedState.StateName.Equals(info.StateOrOutcome, StringComparison.OrdinalIgnoreCase)))
         {
-            html.Append("<button class=\"btn btn-xs btn-primary\" data-ajax=\"").Append(Encode(page.Url.To("/chains/retry/" + Uri.EscapeDataString(info.JobId)))).Append("\" data-loading-text=\"").Append(Encode(Strings.ChainDetailsPage_Retrying)).Append("\">");
+            html.Append("<button class=\"btn btn-xs btn-primary\" data-ajax=\"").Append(Encode(page.Url.To("/chains/retry/" + Uri.EscapeDataString(retryChain) + "/" + Uri.EscapeDataString(info.JobId)))).Append("\" data-loading-text=\"").Append(Encode(Strings.ChainDetailsPage_Retrying)).Append("\">");
             html.Append("<span class=\"glyphicon glyphicon-repeat\"></span> ").Append(Encode(Strings.ChainDetailsPage_RetryFromHere)).Append("</button>");
         }
 

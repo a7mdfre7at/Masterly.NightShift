@@ -18,9 +18,13 @@ public static partial class JobChains
     /// <summary>
     /// In the transaction of a state change of a step that finishes: what it finished as is kept for its chain
     /// (<see cref="GetStepOutcomesKey"/>), in one field of a hash that belongs to the chain, so no other chain waits
-    /// for it; once that is committed, the hash is given the time to live of the chain's record. A job is known as a
-    /// step by its parameters: a storage that doesn't load them with the job costs a read for each job that finishes.
-    /// Bookkeeping: logged, never thrown.
+    /// for it. Also for a step created in such a state (a join a retry creates that is skipped at once). No time to
+    /// live is set here: the steps of a group finish side by side, and setting it touches every field of the hash.
+    /// Each write that keeps the record longer keeps the hash as long (<see cref="ExtendRecord"/>,
+    /// <see cref="ChainRecord.Write"/>, a server's look at a finished chain), and the hash goes with the chain when
+    /// it is deleted or leaves the list; until then, a field nobody gave a time to live doesn't expire. A job is
+    /// known as a step by its parameters: a storage that doesn't load them with the job costs a read for each job
+    /// that finishes. Bookkeeping: logged, never thrown.
     /// </summary>
     internal static void KeepOutcomeOfStep(ApplyStateContext context, IWriteOnlyTransaction transaction)
     {
@@ -33,13 +37,15 @@ public static partial class JobChains
 
         try
         {
-            // Only a step of a chain that was recorded: the jobs of a creation or a retry that failed are deleted
-            // without leaving anything behind
+            // A step that changes state again belongs to a chain that was recorded: the jobs of a creation or a
+            // retry that failed are deleted without leaving anything behind. A step created in a final state is
+            // created by a retry of a recorded chain, and is marked as recorded only after that.
+            bool created = context.OldStateName == null;
             string? serialized;
             IReadOnlyDictionary<string, string>? parameters = context.BackgroundJob.ParametersSnapshot;
             if (parameters != null)
             {
-                if (!parameters.TryGetValue(ChainIdParameter, out serialized) || !parameters.ContainsKey(ChainRecordedParameter))
+                if (!parameters.TryGetValue(ChainIdParameter, out serialized) || (!created && !parameters.ContainsKey(ChainRecordedParameter)))
                 {
                     return;
                 }
@@ -47,7 +53,8 @@ public static partial class JobChains
             else
             {
                 serialized = context.Connection.GetJobParameter(context.BackgroundJob.Id, ChainIdParameter);
-                if (string.IsNullOrEmpty(serialized) || string.IsNullOrEmpty(context.Connection.GetJobParameter(context.BackgroundJob.Id, ChainRecordedParameter)))
+                if (string.IsNullOrEmpty(serialized) ||
+                    (!created && string.IsNullOrEmpty(context.Connection.GetJobParameter(context.BackgroundJob.Id, ChainRecordedParameter))))
                 {
                     return;
                 }
@@ -59,16 +66,14 @@ public static partial class JobChains
                 return;
             }
 
-            transaction.SetRangeInHash(GetStepOutcomesKey(chainId), [new KeyValuePair<string, string>(context.BackgroundJob.Id, state)]);
-
-            // Not in this transaction: the steps of a group finish side by side, and each would hold every field of
-            // the hash until its commit. The hash goes with the chain when it leaves the list, should this be lost.
-            if (context.AfterCommit != null && context.Storage.HasFeature(JobStorageFeatures.ExtendedApi))
+            // A step deleted because its chain's record doesn't list it (the chain was deleted, or replaced it):
+            // nothing to keep, and nothing that would be removed with the chain any more
+            if (context.NewState is DeletedState deleted && JobChainStepFilter.IsRefusal(chainId, deleted.Reason))
             {
-                JobStorage storage = context.Storage;
-                IStorageConnection connection = context.Connection;
-                context.RunAfterCommit(() => KeepStepOutcomesWithRecord(storage, connection, chainId));
+                return;
             }
+
+            transaction.SetRangeInHash(GetStepOutcomesKey(chainId), [new KeyValuePair<string, string>(context.BackgroundJob.Id, state)]);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
@@ -90,30 +95,19 @@ public static partial class JobChains
     private static TimeSpan StepOutcomesExpiry(TimeSpan recordExpiresIn) => recordExpiresIn + RecordRefreshSlack;
 
     /// <summary>
-    /// Once the outcome of a step is committed: what the steps finished as is kept as long as the chain's record,
-    /// and at least as long as a record written now. Each write that keeps the record longer keeps it as long
-    /// (<see cref="ExtendRecord"/>, <see cref="ChainRecord.Write"/>). Best effort: an entry whose time to live was
-    /// never set goes with the chain when the chain leaves the list, or with the next write that keeps the record.
+    /// For a server's look at a chain that finished, whose record expires in <paramref name="recordExpiresIn"/>:
+    /// what its steps finished as is kept as long, since no step gave it a time to live. Once per chain. Best effort:
+    /// the hash goes with the chain when it leaves the list anyway.
     /// </summary>
-    private static void KeepStepOutcomesWithRecord(JobStorage storage, IStorageConnection connection, string chainId)
+    private static void KeepStepOutcomesWithRecord(IStorageConnection connection, string chainId, TimeSpan recordExpiresIn)
     {
         try
         {
-            if (connection is not JobStorageConnection storageConnection || !storage.HasFeature(JobStorageFeatures.ExtendedApi))
-            {
-                return;
-            }
-
-            // The record's own time, not what this process remembers of it: another process may have kept it longer
-            DateTime now = JobClock.UtcNow;
-            DateTime recordExpiry = now + storageConnection.GetHashTtl(GetKey(chainId));
-            DateTime atLeast = now + JobChain.RecordRetention;
-
-            ExpireStepOutcomes(connection, chainId, StepOutcomesExpiry((recordExpiry > atLeast ? recordExpiry : atLeast) - now));
+            ExpireStepOutcomes(connection, chainId, StepOutcomesExpiry(recordExpiresIn));
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
-            Logger.DebugException($"What the steps of chain '{chainId}' finished as couldn't be given the time to live of its record; the next write that keeps the record longer does it.", ex);
+            Logger.DebugException($"What the steps of chain '{chainId}' finished as couldn't be given the time to live of its record; it goes with the chain when the chain leaves the list.", ex);
         }
     }
 

@@ -309,6 +309,12 @@ public static class DashboardRoutes
         Routes.AddRazorPage("/recurring/details/(?<JobId>.+)", static x => new RecurringJobDetailsPage(x.Groups["JobId"].Value));
 
         Routes.AddRazorPage("/chains", static _ => new ChainsPage());
+        // With the chain, also for a step whose job expired; first, as the route below would take it too
+        Routes.Add("/chains/retry/(?<ChainId>[^/]+)/(?<JobId>[^/]+)", new JsonCommandDispatcher(static context =>
+        {
+            context.Storage.RetryChainFrom(RouteValues.Get(context, "ChainId"), RouteValues.Get(context, "JobId"));
+            return CommandResult.Done();
+        }));
         Routes.Add("/chains/retry/(?<JobId>.+)", new JsonCommandDispatcher(static context =>
         {
             context.Storage.RetryChainFrom(RouteValues.Get(context, "JobId"));

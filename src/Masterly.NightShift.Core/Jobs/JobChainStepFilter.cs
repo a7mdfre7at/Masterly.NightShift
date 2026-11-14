@@ -368,14 +368,15 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        // A step that finishes keeps what it finished as for its chain, for when its job is gone: also one that is
+        // created finished (a join that a retry creates and skips at once)
+        JobChains.KeepOutcomeOfStep(context, transaction);
+
         // A job being created: its chain is recorded once every step is
         if (context.OldStateName == null)
         {
             return;
         }
-
-        // A step that finishes keeps what it finished as for its chain, for when its job is gone
-        JobChains.KeepOutcomeOfStep(context, transaction);
 
         // A step put back into a state in which its job expires goes on expiring when it was to: the retention
         // filters, which ran before, would keep it for a whole retention from now, as a job that just finished

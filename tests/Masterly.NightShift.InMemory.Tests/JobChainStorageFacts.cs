@@ -2797,7 +2797,9 @@ public sealed class JobChainStorageFacts : IDisposable
         Assert.Equal(
             new Dictionary<string, string> { [chain.RootId] = SucceededState.StateName, [chain.Steps["1.0"]] = FailedState.StateName },
             HashOf(StepOutcomesKey(chain.ChainId)));
-        Assert.True(HashTimeToLive(StepOutcomesKey(chain.ChainId)) >= RecordTimeToLive(chain.ChainId));
+
+        // The steps give it no time to live of their own: it doesn't expire before the record
+        Assert.True(HashTimeToLive(StepOutcomesKey(chain.ChainId)) < TimeSpan.Zero);
 
         // A server keeps the record of the failed chain longer, and what its steps finished as with it
         MoveClock(TimeSpan.FromDays(25));
@@ -2874,6 +2876,134 @@ public sealed class JobChainStorageFacts : IDisposable
         }
 
         Assert.Equal(["b"], Ran);
+    }
+
+    [Fact]
+    public void RetryChainFrom_TheChain_RetriesAFailedStepWhoseJobExpired_AsTheDashboardOffers()
+    {
+        List<object> before = [.. GlobalJobFilters.Filters.Select(static x => x.Instance)];
+        GlobalConfiguration.Configuration.UseFailedJobRetention(TimeSpan.FromDays(1));
+
+        try
+        {
+            JobChainResult chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Then(() => Step("c")).Enqueue(_client)!;
+            Succeed(chain.RootId);
+            Fail(chain.Steps["1.0"]);
+            MoveClock(TimeSpan.FromDays(2));
+            _storage.Database.RemoveExpired();
+            Assert.Null(StateOf(chain.Steps["1.0"]));
+
+            JobChainInfo info = _storage.GetChain(chain.ChainId)!;
+            Assert.True(info.IsSettled);
+            Assert.Equal(FailedState.StateName, info.Steps[1].FinishedAs);
+
+            // The job no longer says what chain it belongs to: the chain does
+            Assert.Throws<InvalidOperationException>(() => _storage.RetryChainFrom(chain.Steps["1.0"]));
+            JobChainResult retried = _storage.RetryChainFrom(chain.ChainId, chain.Steps["1.0"]);
+
+            Assert.Equal(2, _storage.GetChain(chain.ChainId)!.Generation);
+            Assert.NotEqual(chain.Steps["1.0"], retried.Steps["1.0"]);
+            Assert.Equal(EnqueuedState.StateName, StateOf(retried.Steps["1.0"]));
+            Assert.Equal(AwaitingState.StateName, StateOf(retried.Steps["2.0"]));
+        }
+        finally
+        {
+            foreach (object filter in GlobalJobFilters.Filters.Select(static x => x.Instance).Except(before).ToList())
+            {
+                GlobalJobFilters.Filters.Remove(filter);
+            }
+        }
+    }
+
+    [Fact]
+    public void Join_SkippedAsARetryCreatesIt_KeepsWhatItFinishedAs_SoAStepBesideItCanBeRetriedOnceItsJobExpired()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a"))
+            .ThenMany(branches => branches.Branch(() => Step("b")).Branch(() => Step("c")))
+            .ThenAfterAll(() => Step("all"))
+            .ThenAfterAnyFailed(() => Step("failed"))
+            .Then(() => Step("z"))
+            .Enqueue(_client)!;
+        string b = chain.Steps["1.0"];
+        Succeed(chain.RootId);
+        FinishAs(chain.Steps["1.1"], "Deleted");
+        Fail(b);
+        Fail(chain.Steps["2.1"]);
+        Assert.True(_storage.GetChain(chain.ChainId)?.IsSettled);
+
+        // Retried from the failed branch: the new join for success is skipped as it is created (a branch was deleted)
+        JobChainResult retried = _storage.RetryChainFrom(b);
+        string all = retried.Steps["2.0"];
+        Assert.Equal(DeletedState.StateName, StateOf(all));
+        Fail(b);
+        Fail(retried.Steps["2.1"]);
+        Assert.True(_storage.GetChain(chain.ChainId)?.IsSettled);
+
+        // Two days later the skipped join's job expired, and what it finished as is still known
+        MoveClock(TimeSpan.FromDays(2));
+        _storage.Database.RemoveExpired();
+        Assert.Null(StateOf(all));
+        Assert.Equal(DeletedState.StateName, _storage.GetChain(chain.ChainId)!.Steps.Single(static x => x.Key == "2.0").FinishedAs);
+
+        // The failed join is retried: the step after the joins counts the skipped one as it finished, so it is
+        // skipped too, as it would be with the job still there
+        JobChainResult again = _storage.RetryChainFrom(retried.Steps["2.1"]);
+        Assert.Equal(3, _storage.GetChain(chain.ChainId)!.Generation);
+        Assert.Equal(DeletedState.StateName, StateOf(again.Steps["3.0"]));
+    }
+
+    [Fact]
+    public void Chain_WhoseWaitingStepWasNeverTold_AndWhoseParentExpired_IsSettled_WhenResultsArePassed()
+    {
+        List<object> before = [.. GlobalJobFilters.Filters.Select(static x => x.Instance)];
+        GlobalConfiguration.Configuration.UseResultsInContinuations();
+
+        try
+        {
+            JobChainResult chain = JobChain.StartWith(() => Produce("p")).Then(() => Consume("consumed", 0)).Enqueue(_client)!;
+            SucceedWithoutTellingTheNextStep(chain.RootId, 42);
+            using (IStorageConnection connection = _storage.GetConnection())
+            using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+            {
+                // As the step's own state transaction writes it
+                transaction.SetRangeInHash(StepOutcomesKey(chain.ChainId), new Dictionary<string, string> { [chain.RootId] = SucceededState.StateName });
+                transaction.ExpireJob(chain.RootId, TimeSpan.FromDays(1));
+                transaction.Commit();
+            }
+
+            MoveClock(TimeSpan.FromDays(2));
+            _storage.Database.RemoveExpired();
+            Assert.Null(StateOf(chain.RootId));
+
+            // Nothing can start the waiting step, its parent's result went with the job: the chain is settled, so it
+            // can be retried from its first step
+            Assert.True(_storage.GetChain(chain.ChainId)!.IsSettled, "The chain counts as running, though nothing will ever move it.");
+        }
+        finally
+        {
+            foreach (object filter in GlobalJobFilters.Filters.Select(static x => x.Instance).Except(before).ToList())
+            {
+                GlobalJobFilters.Filters.Remove(filter);
+            }
+        }
+    }
+
+    [Fact]
+    public void StepOfADeletedChain_ThatIsRequeued_LeavesNothingOfWhatItFinishedAs()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client)!;
+        Fail(chain.RootId);
+        Assert.Equal(2, _storage.DeleteChain(chain.ChainId));
+        Assert.Empty(HashOf(StepOutcomesKey(chain.ChainId)));
+
+        // Requeued by hand: the step isn't run, its chain is gone, and it leaves nothing for that chain
+        Assert.True(_client.ChangeState(chain.RootId, new EnqueuedState(), null));
+        using (CreateServer())
+        {
+            WaitUntil(() => StateOf(chain.RootId) == DeletedState.StateName, "the step of the deleted chain to be deleted again");
+        }
+
+        Assert.Empty(HashOf(StepOutcomesKey(chain.ChainId)));
     }
 
     private void FinishAs(string jobId, string outcome)

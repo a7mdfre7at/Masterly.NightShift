@@ -769,9 +769,14 @@ public static partial class JobChains
             }
 
             // A record the storage still holds after its time is as good as gone
-            return timeToLive > TimeSpan.Zero
-                ? new ChainPlacement(ExpirySetKey, now + timeToLive + ExpiryLookDelay)
-                : ChainPlacement.Unlist;
+            if (timeToLive <= TimeSpan.Zero)
+            {
+                return ChainPlacement.Unlist;
+            }
+
+            // Its steps may still be retried until then, by what they finished as
+            KeepStepOutcomesWithRecord(connection, chainId, timeToLive);
+            return new ChainPlacement(ExpirySetKey, now + timeToLive + ExpiryLookDelay);
         }
 
         // A step that couldn't be started (the storage failed) is tried again within minutes, not after as long

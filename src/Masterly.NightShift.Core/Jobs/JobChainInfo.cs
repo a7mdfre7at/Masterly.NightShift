@@ -313,11 +313,16 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
         HashSet<int> failed = [];
         HashSet<int> waiting = [];
 
+        // As JobChains.Decide: a step whose job is gone counts as what it finished as, except where the results are
+        // passed to continuations, which a step after it can't be started without
+        bool? pushesResults = null;
+
         foreach (JobChainStepInfo step in Steps)
         {
             parents.TryAdd(step.Level, step.ParentLevel);
             // A step whose job is gone blocks unless it is known to have finished otherwise
-            if (IsFailed(step.StateOrOutcome) || step.StateOrOutcome == null)
+            if (IsFailed(step.StateOrOutcome) ||
+                (step.State == null && (step.FinishedAs == null || (pushesResults ??= ContinuationsSupportAttribute.PushesResults()))))
             {
                 failed.Add(step.Level);
             }

@@ -111,6 +111,25 @@ public static partial class JobChains
         }
 
         /// <summary>
+        /// The same as <c>RetryChainFrom(stepJobId)</c> for a step of a given chain: also for a step whose job
+        /// expired, which no longer says what chain it belongs to (the <see cref="JobChainStepInfo.JobId"/> of a step
+        /// whose <see cref="JobChainStepInfo.State"/> is <c>null</c>). Its job is created again.
+        /// </summary>
+        /// <param name="chainId">The chain.</param>
+        /// <param name="stepJobId">The current job of the step to run again, as <c>GetChain</c> lists it.</param>
+        /// <returns>The chain's jobs after the retry.</returns>
+        /// <exception cref="InvalidOperationException">As for <c>RetryChainFrom(stepJobId)</c>.</exception>
+        [NotNull]
+        public JobChainResult RetryChainFrom([NotNull] string chainId, [NotNull] string stepJobId)
+        {
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentException.ThrowIfNullOrWhiteSpace(chainId);
+            ArgumentException.ThrowIfNullOrWhiteSpace(stepJobId);
+
+            return Retry(storage, new BackgroundJobClient(storage), stepJobId, chainId);
+        }
+
+        /// <summary>
         /// Replaces a chain that hasn't started: its first step is still enqueued or scheduled and the others are
         /// waiting. The new chain is created under the same identifier, enqueued or scheduled for the same moment as
         /// the old first step and with its schedule policy, late-start limit and queue; then the old steps are
@@ -181,11 +200,11 @@ public static partial class JobChains
                FailedState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase);
     }
 
-    internal static JobChainResult Retry(JobStorage storage, IBackgroundJobClientV2 client, string stepJobId)
+    internal static JobChainResult Retry(JobStorage storage, IBackgroundJobClientV2 client, string stepJobId, string? chainId = null)
     {
         using IStorageConnection connection = storage.GetConnection();
-        string chainId = ReadChainId(connection, stepJobId)
-            ?? throw new InvalidOperationException($"Background job '{stepJobId}' isn't a step of a chain.");
+        chainId ??= ReadChainId(connection, stepJobId)
+            ?? throw new InvalidOperationException($"Background job '{stepJobId}' isn't a step of a chain. A step whose job expired is retried with RetryChainFrom(chainId, stepJobId).");
 
         using (connection.AcquireDistributedLock(GetLockResource(chainId), LockTimeout))
         {

@@ -89,6 +89,18 @@ public class JsonCommandDispatcherFacts
     }
 
     [Fact]
+    public async Task ChainRetry_WithTheChain_RetriesItAsTheChainSays_AlsoForAStepWhoseJobIsGone()
+    {
+        DashboardContextStub context = Post("/chains/retry/c9/42", "/chains/retry/(?<ChainId>[^/]+)/(?<JobId>[^/]+)");
+
+        await DashboardRoutes.Routes.FindDispatcher("/chains/retry/c9/42")!.Item1.Dispatch(context);
+
+        // The chain is read by its identifier, not from the job: here it isn't recorded
+        Assert.Equal(422, context.Response.StatusCode);
+        Assert.Contains("Chain 'c9' isn't recorded", context.Response.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PolicySave_CreatesThePolicy_FromTheForm()
     {
         DashboardContextStub context = Post("/policies/save", "/policies/save", out DashboardRequestStub request);

@@ -123,8 +123,8 @@ public class ChainFlowchartFacts
         Assert.Equal(ChainFlowStatus.FinishedWithFailures, ChainFlowchart.StatusOf(chain));
         Assert.Contains("Succeeded (job expired)", html, StringComparison.Ordinal);
         Assert.Contains("Failed (job expired)", html, StringComparison.Ordinal);
-        Assert.Contains("/chains/retry/51", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("/chains/retry/50\"", html, StringComparison.Ordinal);
+        Assert.Contains("/chains/retry/c5/51\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("/chains/retry/c5/50\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -306,8 +306,8 @@ public class ChainFlowchartFacts
         Assert.Contains("1 succeeded &#183; 1 failed", html, StringComparison.Ordinal);
         Assert.Contains("title=\"ERP rejected the order\"", html, StringComparison.Ordinal);
         Assert.Contains("Retries: 2", html, StringComparison.Ordinal);
-        Assert.Contains("/chains/retry/3", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("/chains/retry/1\"", html, StringComparison.Ordinal);
+        Assert.Contains("/chains/retry/c1/3\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("/chains/retry/c1/1\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
