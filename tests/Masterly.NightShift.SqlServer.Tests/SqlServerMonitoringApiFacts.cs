@@ -913,6 +913,27 @@ public class SqlServerMonitoringApiFacts
     }
 
     [Fact, CleanDatabase]
+    public void SucceededJobs_ListsTheJobs_WhenTheSchemaNameContainsBraces()
+    {
+        SqlServerStorage storage = new(ConnectionUtils.CreateConnection, new SqlServerStorageOptions { SchemaName = "Bk{x}" });
+        using DbConnection connection = ConnectionUtils.CreateConnection();
+        connection.Execute("delete from [Bk{x}].Job");
+        string jobId;
+        using (IStorageConnection storageConnection = storage.GetConnection())
+        {
+            jobId = storageConnection.CreateExpiredJob(
+                Job.FromExpression(() => Empty()), new Dictionary<string, string?>(), DateTime.UtcNow, TimeSpan.FromHours(1));
+            using IWriteOnlyTransaction transaction = storageConnection.CreateWriteTransaction();
+            transaction.SetJobState(jobId, new SucceededState(null, 1, 1));
+            transaction.Commit();
+        }
+
+        JobList<SucceededJobDto?> result = storage.GetMonitoringApi().SucceededJobs(0, 10);
+
+        Assert.Equal(jobId, result.Single().Key);
+    }
+
+    [Fact, CleanDatabase]
     public void SucceededJobs_ReturnsCorrectJobs_InTheSucceededState()
     {
         // Arrange

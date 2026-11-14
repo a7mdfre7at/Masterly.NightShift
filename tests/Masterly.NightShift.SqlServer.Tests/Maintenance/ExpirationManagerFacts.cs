@@ -89,6 +89,24 @@ values ('', '', getutcdate(), @expireAt)";
     }
 
     [Fact, CleanDatabase]
+    public void Execute_ExpiresJobs_WhenTheSchemaNameContainsBraces()
+    {
+        SqlServerStorage storage = new(ConnectionUtils.CreateConnection, new SqlServerStorageOptions { SchemaName = "Bk{x}" });
+        using DbConnection connection = CreateConnection();
+        connection.Execute(
+            """
+            delete from [Bk{x}].Job;
+            insert into [Bk{x}].Job (InvocationData, Arguments, CreatedAt, ExpireAt) values (N'', N'', getutcdate(), @expireAt);
+            """,
+            new { expireAt = DateTime.UtcNow.AddMonths(-1) });
+        ExpirationManager manager = new(storage, TimeSpan.Zero, TimeSpan.FromMilliseconds(1));
+
+        manager.Execute(_cts.Token);
+
+        Assert.Equal(0, connection.ExecuteScalar<int>("select count(*) from [Bk{x}].Job"));
+    }
+
+    [Fact, CleanDatabase]
     public void Execute_Processes_StateTable_WhenOptionIsConfigured()
     {
         using DbConnection connection = CreateConnection();

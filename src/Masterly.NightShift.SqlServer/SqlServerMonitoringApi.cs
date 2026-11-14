@@ -663,21 +663,10 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
         bool descending,
         Func<SqlJob, Job?, InvocationData, JobLoadException?, SafeDictionary<string, string>, TDto> selector)
     {
-        string order = descending ? "desc" : "asc";
-        string query = string.Format(CultureInfo.InvariantCulture, _storage.GetQueryFromTemplate(static schemaName =>
-            $$"""
-            ;with cte as
-            (
-              select j.Id, row_number() over (order by j.Id {0}) as row_num
-              from [{{schemaName}}].Job j with (nolock, forceseek)
-              where j.StateName = @stateName
-            )
-            select j.*, s.Reason as StateReason, s.Data as StateData, s.CreatedAt as StateChanged
-            from [{{schemaName}}].Job j with (nolock, forceseek)
-            inner join cte on cte.Id = j.Id
-            left join [{{schemaName}}].State s with (nolock, forceseek) on j.StateId = s.Id and j.Id = s.JobId
-            where cte.row_num between @start and @end
-            """), order);
+        // Not through string.Format: the schema name may contain braces
+        string query = descending
+            ? _storage.GetQueryFromTemplate(static schemaName => GetJobsQuery(schemaName, "desc"))
+            : _storage.GetQueryFromTemplate(static schemaName => GetJobsQuery(schemaName, "asc"));
 
         List<SqlJob> jobs = [.. connection.Query<SqlJob>(
                     query,
@@ -685,6 +674,23 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
                     commandTimeout: _storage.CommandTimeout)];
 
         return DeserializeJobs(jobs, selector);
+    }
+
+    private static string GetJobsQuery(string schemaName, string order)
+    {
+        return $"""
+            ;with cte as
+            (
+              select j.Id, row_number() over (order by j.Id {order}) as row_num
+              from [{schemaName}].Job j with (nolock, forceseek)
+              where j.StateName = @stateName
+            )
+            select j.*, s.Reason as StateReason, s.Data as StateData, s.CreatedAt as StateChanged
+            from [{schemaName}].Job j with (nolock, forceseek)
+            inner join cte on cte.Id = j.Id
+            left join [{schemaName}].State s with (nolock, forceseek) on j.StateId = s.Id and j.Id = s.JobId
+            where cte.row_num between @start and @end
+            """;
     }
 
     private static JobList<TDto?> DeserializeJobs<TDto>(

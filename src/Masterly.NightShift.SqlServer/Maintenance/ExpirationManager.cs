@@ -197,32 +197,24 @@ internal sealed class ExpirationManager : IBackgroundProcess
         }
     }
 
+    // Built by interpolation, never by string.Format: the schema name may contain braces
     private static string GetExpireQuery(SqlServerStorage storage, string table)
     {
-        if (table.Equals("AggregatedCounter", StringComparison.OrdinalIgnoreCase))
-        {
-            // Schema 5, which still should be supported by Masterly.NightShift doesn't have an index that covers
-            // the `ExpireAt` column, making it impossible to run the query.
-            return string.Format(CultureInfo.InvariantCulture, storage.GetQueryFromTemplate(static schemaName => $$"""
-                set deadlock_priority low;
-                set transaction isolation level read committed;
-                set xact_abort on;
-                set lock_timeout 1000;
-                delete top (@count) T from [{{schemaName}}].[{0}] T
-                where ExpireAt < @now
-                option (loop join, optimize for (@count = 20000));
-                """), table);
-        }
+        // Schema 5, which still should be supported by Masterly.NightShift doesn't have an index that covers
+        // the `ExpireAt` column of AggregatedCounter, making it impossible to seek on it.
+        string hint = table.Equals("AggregatedCounter", StringComparison.OrdinalIgnoreCase)
+            ? string.Empty
+            : " with (forceseek)";
 
-        return string.Format(CultureInfo.InvariantCulture, storage.GetQueryFromTemplate(static schemaName => $$"""
+        return $"""
             set deadlock_priority low;
             set transaction isolation level read committed;
             set xact_abort on;
             set lock_timeout 1000;
-            delete top (@count) T from [{{schemaName}}].[{0}] T with (forceseek)
+            delete top (@count) T from [{storage.SchemaName}].[{table}] T{hint}
             where ExpireAt < @now
             option (loop join, optimize for (@count = 20000));
-            """), table);
+            """;
     }
 
     private static string GetStateCleanupQuery(SqlServerStorage storage)
