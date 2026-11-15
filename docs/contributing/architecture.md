@@ -157,7 +157,7 @@ Pages are `.cshtml` files in `Dashboard/Pages/`, passed to the compiler as `Addi
 - Nothing generated is checked in. To read the output, build with `-p:EmitCompilerGeneratedFiles=true` and look in `obj/<configuration>/<framework>/generated`.
 - UI strings are in `Dashboard/Content/resx/Strings*.resx`, one file per locale; `Strings.Designer.cs` is generated.
 - Static files in `Dashboard/Content` must be listed as `EmbeddedResource` in `Masterly.NightShift.Core.csproj`.
-- Dates are formatted by `Content/js/nightshift-intl.js` with the browser's `Intl` APIs. It is also Chart.js's date adapter, and its date arithmetic matches moment.js exactly, including across daylight saving changes, because dashboard extensions and the graphs rely on that.
+- Dates are formatted by `Content/js/nightshift-intl.js` with the browser's `Intl` APIs. It is also the date adapter of Chart.js 4 (in place of `chartjs-adapter-moment`), and its date arithmetic matches moment.js exactly, including across daylight saving changes, because dashboard extensions and the graphs rely on that.
 
 ### The job invoker source generator
 
