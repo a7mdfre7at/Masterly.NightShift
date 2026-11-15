@@ -112,7 +112,8 @@
                             <span class="ns-actions-divider" aria-hidden="true"></span>
                             <button class="btn btn-sm @(requeueIsPrimary ? "btn-primary" : "ns-btn-tonal")"
                                     data-ajax="@Url.To("/jobs/actions/requeue/" + encodedId)"
-                                    data-loading-text="@Strings.Common_Enqueueing">
+                                    data-loading-text="@Strings.Common_Enqueueing"
+                                    @Html.ConfirmAttributes(Strings.JobDetailsPage_RequeueConfirm, Strings.JobDetailsPage_RequeueConfirm_Body, Strings.JobDetailsPage_Requeue)>
                                 @Html.Icon("arrow-repeat") @Strings.JobDetailsPage_Requeue
                             </button>
                         }
@@ -185,14 +186,6 @@
                 <section class="hf-card ns-exception-card" aria-labelledby="job-details-exception">
                     <div class="hf-card-header">
                         <h2 id="job-details-exception">@Html.Icon("exclamation-circle-fill") @Strings.JobDetailsPage_Exception</h2>
-                        @if (canRequeue)
-                        {
-                            <button class="btn btn-sm ns-btn-tonal"
-                                    data-ajax="@Url.To("/jobs/actions/requeue/" + encodedId)"
-                                    data-loading-text="@Strings.Common_Enqueueing">
-                                @Html.Icon("arrow-repeat") @Strings.JobDetailsPage_Requeue
-                            </button>
-                        }
                     </div>
                     <div class="hf-card-body">
                         @if (!String.IsNullOrEmpty(exceptionType))
@@ -523,13 +516,17 @@
                     }
                     @if (segments.Count > 1 && segmentTotal > 0)
                     {
-                        <div class="hf-state-bar" title="@Strings.JobDetailsPage_StateTimeline">
+                        @* Each segment grows with its share of the time and is never narrower than its minimum width (CSS);
+                           a label that doesn't fit its segment is hidden (js-state-bar), the name and time stay in the
+                           tooltip and in the text for screen readers *@
+                        <div class="hf-state-bar js-state-bar" role="list" aria-label="@Strings.JobDetailsPage_StateTimeline">
                             @foreach (KeyValuePair<string, TimeSpan> segment in segments)
                             {
-                                double share = Math.Max(1.5, 100.0 * Math.Max(0, segment.Value.TotalMilliseconds) / segmentTotal);
+                                double share = 100.0 * Math.Max(0, segment.Value.TotalMilliseconds) / segmentTotal;
                                 string? group = JobHistoryRenderer.GetStateColorGroup(segment.Key);
+                                string description = segment.Key + ": " + Html.ToHumanDuration(segment.Value, false)?.Trim();
                                 // A state without a colour group (Created, or a custom state without a CSS suffix) sits on the bar's neutral track
-                                <span class="hf-state-seg@(group == null ? " hf-state-seg-neutral" : " ns-state-" + group)" style="width: @share.ToString("0.##", CultureInfo.InvariantCulture)%" title="@segment.Key: @Html.ToHumanDuration(segment.Value, false)"><em>@segment.Key</em></span>
+                                <span role="listitem" class="hf-state-seg@(group == null ? " hf-state-seg-neutral" : " ns-state-" + group)@(share < 8 ? " hf-state-seg-tight" : null)" style="flex-grow: @share.ToString("0.##", CultureInfo.InvariantCulture)" title="@description"><em aria-hidden="true">@segment.Key</em><span class="visually-hidden">@description</span></span>
                             }
                         </div>
                     }

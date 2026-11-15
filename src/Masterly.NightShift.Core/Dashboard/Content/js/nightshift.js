@@ -1910,8 +1910,12 @@
             this.shell = new NightShift.Shell();
             this.dialogs = new NightShift.Dialogs();
             nightshift.markFittingTables();
+            nightshift.fitStateBars();
             var fitTimer = null;
-            $(window).on('resize', function () { clearTimeout(fitTimer); fitTimer = setTimeout(nightshift.markFittingTables, 150); });
+            $(window).on('resize', function () {
+                clearTimeout(fitTimer);
+                fitTimer = setTimeout(function () { nightshift.markFittingTables(); nightshift.fitStateBars(); }, 150);
+            });
             nightshift.fields();
             nightshift.snackbar.restore();
             this.liveJobs = new NightShift.LiveJobs(config.pollInterval);
@@ -3752,9 +3756,22 @@
         return Shortcuts;
     })();
 
-    // The chain flowchart: zoom in steps, fit to the width, full screen
+    // The job page's state bar: a segment too narrow for its label hides the label (hf-state-seg-tight); its tooltip
+    // and the text for screen readers keep the state and the time
+    nightshift.fitStateBars = function () {
+        $('.js-state-bar .hf-state-seg').each(function () {
+            var label = this.querySelector('em');
+            if (label) $(this).toggleClass('hf-state-seg-tight', label.offsetWidth + 12 > this.clientWidth);
+        });
+    };
+
+    // The chain flowchart: zoom in steps, fit to the frame, full screen. The frame is as tall as the chart at its
+    // zoom, up to 75% of the window (CSS), and scrolls beyond that
     NightShift.ChainFlow = (function () {
         var zoomSteps = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.25, 1.5, 2];
+        // Fitting a tall chart into the frame's height never makes it smaller than this: below it, the frame scrolls
+        var minFitZoom = 0.6;
+        var frameHeight = 0.75;
 
         function ChainFlow(element) {
             this._element = element;
@@ -3807,8 +3824,15 @@
         };
 
         ChainFlow.prototype.fit = function () {
-            var available = this._viewport.clientWidth - 2;
-            this.zoom(this._width > 0 && available > 0 ? Math.min(1, available / this._width) : 1);
+            var availableWidth = this._viewport.clientWidth - 2;
+            var fullscreen = $(this._element).hasClass('hf-flow-fullscreen');
+            var availableHeight = (fullscreen ? this._viewport.clientHeight : Math.floor(window.innerHeight * frameHeight)) - 2;
+            var zoom = this._width > 0 && availableWidth > 0 ? Math.min(1, availableWidth / this._width) : 1;
+            if (this._height > 0 && availableHeight > 0) {
+                zoom = Math.min(zoom, Math.max(minFitZoom, availableHeight / this._height));
+            }
+
+            this.zoom(zoom);
             this._fitted = true;
         };
 

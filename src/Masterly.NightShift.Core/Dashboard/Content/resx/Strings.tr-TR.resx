@@ -2206,4 +2206,10 @@
   <data name="TagsPage_ForgetTag" xml:space="preserve">
     <value>{0} etiketini unut</value>
   </data>
+  <data name="JobDetailsPage_RequeueConfirm" xml:space="preserve">
+    <value>Bu iş yeniden kuyruğa alınsın mı?</value>
+  </data>
+  <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
+    <value>Kuyruğa alınır ve yeniden çalışır. Geçmişi, geçtiği tüm durumları korur.</value>
+  </data>
 </root>

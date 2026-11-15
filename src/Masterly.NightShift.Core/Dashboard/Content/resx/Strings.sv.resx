@@ -2236,4 +2236,10 @@
   <data name="TagsPage_ForgetTag" xml:space="preserve">
     <value>Glöm taggen {0}</value>
   </data>
+  <data name="JobDetailsPage_RequeueConfirm" xml:space="preserve">
+    <value>Köa det här jobbet igen?</value>
+  </data>
+  <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
+    <value>Det köas och körs igen. Historiken behåller alla tillstånd det har passerat.</value>
+  </data>
 </root>

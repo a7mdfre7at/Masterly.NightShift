@@ -2195,4 +2195,10 @@
   <data name="TagsPage_ForgetTag" xml:space="preserve">
     <value>Tag {0} vergeten</value>
   </data>
+  <data name="JobDetailsPage_RequeueConfirm" xml:space="preserve">
+    <value>Deze job opnieuw in de wachtrij plaatsen?</value>
+  </data>
+  <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
+    <value>Hij wordt in de wachtrij geplaatst en draait opnieuw. Zijn geschiedenis bewaart elke status die hij heeft doorlopen.</value>
+  </data>
 </root>

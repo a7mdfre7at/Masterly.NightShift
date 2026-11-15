@@ -2234,4 +2234,10 @@
   <data name="TagsPage_ForgetTag" xml:space="preserve">
     <value>Glem taggen {0}</value>
   </data>
+  <data name="JobDetailsPage_RequeueConfirm" xml:space="preserve">
+    <value>Sette denne jobben i kø på nytt?</value>
+  </data>
+  <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
+    <value>Den settes i kø og kjøres på nytt. Historikken beholder alle tilstandene den har vært i.</value>
+  </data>
 </root>

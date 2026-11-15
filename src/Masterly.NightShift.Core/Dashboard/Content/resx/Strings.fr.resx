@@ -2197,4 +2197,10 @@ Vous devriez les remettre en file d'attente ou les supprimer manuellement, ou ap
   <data name="TagsPage_ForgetTag" xml:space="preserve">
     <value>Oublier l'étiquette {0}</value>
   </data>
+  <data name="JobDetailsPage_RequeueConfirm" xml:space="preserve">
+    <value>Remettre cette tâche en file d'attente ?</value>
+  </data>
+  <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
+    <value>Elle est mise en file d'attente et s'exécute à nouveau. Son historique conserve tous les états par lesquels elle est passée.</value>
+  </data>
 </root>

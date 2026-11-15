@@ -2222,4 +2222,10 @@
   <data name="TagsPage_ForgetTag" xml:space="preserve">
     <value>Забыть тег {0}</value>
   </data>
+  <data name="JobDetailsPage_RequeueConfirm" xml:space="preserve">
+    <value>Поставить это задание в очередь заново?</value>
+  </data>
+  <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
+    <value>Оно ставится в очередь и выполняется снова. В его истории остаются все состояния, через которые оно прошло.</value>
+  </data>
 </root>

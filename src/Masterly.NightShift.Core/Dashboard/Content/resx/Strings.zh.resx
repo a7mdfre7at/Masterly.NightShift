@@ -2183,4 +2183,10 @@
   <data name="TagsPage_ForgetTag" xml:space="preserve">
     <value>忘记标签 {0}</value>
   </data>
+  <data name="JobDetailsPage_RequeueConfirm" xml:space="preserve">
+    <value>要将此作业重新排入队列吗？</value>
+  </data>
+  <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
+    <value>它会排入队列并再次运行。历史记录会保留它经历过的每个状态。</value>
+  </data>
 </root>

@@ -4187,9 +4187,10 @@ label.ns-required::after {
     color: var(--hf-text-2);
 }
 
+/* As tall as the chart at its zoom (the sizer), up to 75% of the window, then it scrolls both ways */
 .hf-flow-viewport {
     overflow: auto;
-    max-height: 78vh;
+    max-height: 75vh;
     background-color: var(--hf-bg);
     background-image: radial-gradient(var(--hf-border) 1px, transparent 1px);
     background-size: 18px 18px;
@@ -5171,11 +5172,16 @@ body.hf-app.hf-wallboard {
     background: var(--hf-neutral-soft);
 }
 
+/* A segment grows with its share of the time (flex-grow, set by the page) from nothing, and is never narrower than
+   min-width, so a short state stays visible; one whose label doesn't fit hides it (hf-state-seg-tight) */
 .hf-state-seg {
     display: block;
+    flex: 0 1 0%;
+    min-width: 12px;
     height: 100%;
     overflow: hidden;
     white-space: nowrap;
+    text-overflow: clip;
     font-size: 0.6875rem;
     color: var(--ns-state-on-color, var(--md-sys-color-on-surface));
     text-transform: uppercase;
@@ -5198,6 +5204,14 @@ body.hf-app.hf-wallboard {
 .hf-state-seg em {
     font-style: normal;
     opacity: .9;
+}
+
+.hf-state-seg.hf-state-seg-tight {
+    padding: 0;
+}
+
+.hf-state-seg.hf-state-seg-tight em {
+    visibility: hidden;
 }
 
 .hf-tl-tick-first { transform: none; }

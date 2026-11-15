@@ -2173,4 +2173,10 @@
   <data name="TagsPage_ForgetTag" xml:space="preserve">
     <value>Olvidar la etiqueta {0}</value>
   </data>
+  <data name="JobDetailsPage_RequeueConfirm" xml:space="preserve">
+    <value>¿Volver a poner este trabajo en la cola?</value>
+  </data>
+  <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
+    <value>Se pone en la cola y vuelve a ejecutarse. Su historial conserva todos los estados por los que pasó.</value>
+  </data>
 </root>

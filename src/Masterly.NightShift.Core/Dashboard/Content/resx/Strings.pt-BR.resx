@@ -2237,4 +2237,10 @@
   <data name="TagsPage_ForgetTag" xml:space="preserve">
     <value>Esquecer a etiqueta {0}</value>
   </data>
+  <data name="JobDetailsPage_RequeueConfirm" xml:space="preserve">
+    <value>Recolocar este trabalho na fila?</value>
+  </data>
+  <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
+    <value>É colocado na fila e executado novamente. O histórico mantém todos os estados por que passou.</value>
+  </data>
 </root>

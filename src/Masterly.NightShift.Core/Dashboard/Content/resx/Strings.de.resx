@@ -2175,4 +2175,10 @@
   <data name="TagsPage_ForgetTag" xml:space="preserve">
     <value>Tag {0} vergessen</value>
   </data>
+  <data name="JobDetailsPage_RequeueConfirm" xml:space="preserve">
+    <value>Diesen Job erneut einreihen?</value>
+  </data>
+  <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
+    <value>Er wird eingereiht und läuft erneut. Sein Verlauf behält jeden Zustand, den er durchlaufen hat.</value>
+  </data>
 </root>

@@ -782,13 +782,34 @@ public class JobDetailsPageFacts
 
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
-        Assert.Contains("<div class=\"hf-state-bar\" title=\"" + H(Strings.JobDetailsPage_StateTimeline) + "\">", html);
-        Assert.Contains("style=\"width: 1.5%\"", html);
-        Assert.Contains("style=\"width: 33.33%\"", html);
-        Assert.Contains("style=\"width: 66.67%\"", html);
-        Assert.Contains("<em>Processing</em></span>", html);
+        Assert.Contains("<div class=\"hf-state-bar js-state-bar\" role=\"list\" aria-label=\"" + H(Strings.JobDetailsPage_StateTimeline) + "\">", html);
+        // Each segment grows with its share of the time; a short one is marked tight, so its label hides, and the
+        // state and its time stay in the tooltip and in the text for screen readers
+        Assert.Contains("style=\"flex-grow: 33.33\"", html);
+        Assert.Contains("style=\"flex-grow: 66.67\"", html);
+        Assert.Contains("<em aria-hidden=\"true\">Processing</em><span class=\"visually-hidden\">Processing: " + H(Duration(TimeSpan.FromSeconds(2)).Trim()) + "</span></span>", html);
         Assert.Equal(4, CountOf(html, "<li class=\"ns-step"));
-        Assert.Contains("class=\"hf-state-seg ns-state-processing\"", html);
+        Assert.Contains("<span role=\"listitem\" class=\"hf-state-seg ns-state-processing\"", html);
+        Assert.DoesNotContain("width: 1.5%", html);
+    }
+
+    [Fact]
+    public void Render_MarksAStateTooShortForItsLabel_AsTight_AndKeepsItsName()
+    {
+        JobDetailsDto details = Details(FailedState.StateName, createdAt: _now.AddSeconds(-100));
+        details.History =
+        [
+            new() { StateName = FailedState.StateName, CreatedAt = _now, Data = new Dictionary<string, string>() },
+            new() { StateName = ProcessingState.StateName, CreatedAt = _now.AddSeconds(-99), Data = ProcessingData("srv-1") },
+            new() { StateName = EnqueuedState.StateName, CreatedAt = _now.AddSeconds(-100), Data = new Dictionary<string, string> { { "Queue", "default" } } },
+        ];
+        SetupJob(details);
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        Assert.Contains("<span role=\"listitem\" class=\"hf-state-seg ns-state-enqueued hf-state-seg-tight\" style=\"flex-grow: 1\" title=\"Enqueued: ", html);
+        Assert.Contains("<span role=\"listitem\" class=\"hf-state-seg ns-state-processing\" style=\"flex-grow: 99\"", html);
+        Assert.Contains("<em aria-hidden=\"true\">Enqueued</em><span class=\"visually-hidden\">Enqueued: ", html);
     }
 
     [Fact]
@@ -863,8 +884,26 @@ public class JobDetailsPageFacts
         Assert.Contains("data-confirm=\"" + H(Strings.JobDetailsPage_DeleteConfirm) + "\"", html);
     }
 
+    [Theory]
+    [InlineData("Failed")]
+    [InlineData("Succeeded")]
+    [InlineData("Processing")]
+    public void Render_AsksBeforeRequeueing_AsBeforeDeleting(string state)
+    {
+        SetupJob(Details(state));
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        Assert.Contains(
+            "data-ajax=\"/jobs/actions/requeue/1\"\r\n                                    data-loading-text=\"" + H(Strings.Common_Enqueueing) + "\"\r\n                                    "
+            + "data-confirm=\"" + H(Strings.JobDetailsPage_RequeueConfirm) + "\" data-confirm-body=\"" + H(Strings.JobDetailsPage_RequeueConfirm_Body)
+            + "\" data-confirm-label=\"" + H(Strings.JobDetailsPage_Requeue) + "\">",
+            html);
+        Assert.Equal(1, CountOf(html, "data-ajax=\"/jobs/actions/requeue/1\""));
+    }
+
     [Fact]
-    public void Render_ShowsTheExceptionOfAFailedJob_RightUnderTheHeader_WithItsStackTraceAndRequeue()
+    public void Render_ShowsTheExceptionOfAFailedJob_RightUnderTheHeader_WithItsStackTrace_AndRequeueOnlyInTheHeader()
     {
         Dictionary<string, string> data = new()
         {
@@ -885,7 +924,11 @@ public class JobDetailsPageFacts
         Assert.Contains("<p class=\"ns-exception-message\">The &lt;input&gt; is empty</p>", html);
         Assert.Contains("<details class=\"ns-exception-trace js-exception-trace\" open>", html);
         Assert.Contains("<summary>" + H(Strings.JobDetailsPage_StackTrace) + "</summary>", html);
-        Assert.Contains("<button class=\"btn btn-sm ns-btn-tonal\"\r\n                                    data-ajax=\"/jobs/actions/requeue/1\"", html);
+        // Requeue is the header's primary action, and only there
+        int requeue = html.IndexOf("data-ajax=\"/jobs/actions/requeue/1\"", StringComparison.Ordinal);
+        Assert.True(requeue >= 0 && requeue < card, $"{requeue} {card}");
+        Assert.Equal(1, CountOf(html, "data-ajax=\"/jobs/actions/requeue/1\""));
+        Assert.Contains("<h2 id=\"job-details-exception\">" + DashboardMarkup.Icon("exclamation-circle-fill") + " " + H(Strings.JobDetailsPage_Exception) + "</h2>\r\n                    </div>", html);
         // The history keeps the failed state's data, folded, as the card above shows it
         Assert.Contains("<details class=\"ns-step-more\">", html);
         Assert.Contains("<summary>" + H(Strings.JobDetailsPage_StateDetails) + "</summary>", html);

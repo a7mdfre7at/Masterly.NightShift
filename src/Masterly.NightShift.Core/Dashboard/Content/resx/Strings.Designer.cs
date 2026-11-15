@@ -6571,5 +6571,23 @@ namespace Masterly.NightShift.Dashboard.Resources {
                 return ResourceManager.GetString("TagsPage_ForgetTag", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Requeue this job?.
+        /// </summary>
+        public static string JobDetailsPage_RequeueConfirm {
+            get {
+                return ResourceManager.GetString("JobDetailsPage_RequeueConfirm", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to It is enqueued and runs again. Its history keeps every state it went through..
+        /// </summary>
+        public static string JobDetailsPage_RequeueConfirm_Body {
+            get {
+                return ResourceManager.GetString("JobDetailsPage_RequeueConfirm_Body", resourceCulture);
+            }
+        }
     }
 }
