@@ -93,7 +93,7 @@
                                     : span.Outcome == FailedState.StateName ? "hf-tl-failed"
                                     : span.Outcome == DeletedState.StateName ? "hf-tl-deleted"
                                     : "hf-tl-held";
-                                string title = (span.Method ?? span.JobId) + " · " + (span.IsRunning ? Strings.TimelinePage_Running : span.Outcome) + " · " + Html.ToHumanDuration(TimeSpan.FromMilliseconds(span.DurationMs), false);
+                                string title = (span.Method ?? span.JobId) + " · " + (span.IsRunning ? Strings.TimelinePage_Running : HtmlHelper.StateDisplayName(span.Outcome ?? String.Empty)) + " · " + Html.ToHumanDuration(TimeSpan.FromMilliseconds(span.DurationMs), false);
                                 <a class="hf-tl-span @css" href="@Url.JobDetails(span.JobId)" style="left: @left.ToString("0.###", CultureInfo.InvariantCulture)%; width: @width.ToString("0.###", CultureInfo.InvariantCulture)%" title="@title"></a>
                             }
                         </div>
@@ -118,7 +118,7 @@
                                 <div class="ns-job-title"><a class="job-method" href="@Url.JobDetails(span.JobId)">@(span.Method ?? "#" + span.JobId)</a></div>
                                 <div class="ns-job-meta">
                                     <span class="ns-job-id">#@span.JobId</span>
-                                    @Html.StateLabel(state, span.IsRunning ? Strings.TimelinePage_Running : span.Outcome)
+                                    @Html.StateLabel(state, span.IsRunning ? Strings.TimelinePage_Running : HtmlHelper.StateDisplayName(state))
                                     <span>@Html.ToHumanDuration(TimeSpan.FromMilliseconds(span.DurationMs), false)</span>
                                     <span>@Html.ServerId(run.Key.ServerId) <code title="@run.Key.WorkerId">@run.Key.ShortWorkerId</code></span>
                                 </div>

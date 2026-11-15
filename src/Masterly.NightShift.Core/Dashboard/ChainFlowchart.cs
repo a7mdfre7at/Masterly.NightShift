@@ -598,7 +598,11 @@ internal static class ChainFlowchartRenderer
     {
         JobChainStepInfo info = step.Info;
         // A step whose job expired shows what it finished as, when the chain kept it
-        string state = info.State ?? (info.FinishedAs != null ? string.Format(CultureInfo.CurrentCulture, Strings.ChainFlow_FinishedAsExpired, info.FinishedAs) : Strings.Common_JobExpired);
+        string state = info.State != null
+            ? HtmlHelper.StateDisplayName(info.State)
+            : info.FinishedAs != null
+                ? string.Format(CultureInfo.CurrentCulture, Strings.ChainFlow_FinishedAsExpired, HtmlHelper.StateDisplayName(info.FinishedAs))
+                : Strings.Common_JobExpired;
         string color = info.StateOrOutcome != null ? JobHistoryRenderer.GetStateColorCss(info.StateOrOutcome) : "var(--ns-state-deleted)";
         bool dim = info.State == null || step.Condition == ChainFlowCondition.NotRun;
         string css = "hf-flow-card" + (dim ? " hf-flow-dim" : string.Empty) + (IsProcessing(info.State) ? " hf-flow-active" : string.Empty);
@@ -614,7 +618,14 @@ internal static class ChainFlowchartRenderer
         // Name and state
         string name = StepName(page, info);
         html.Append("<div class=\"hf-flow-card-head\"><a class=\"hf-flow-name\" href=\"").Append(Encode(page.Url.JobDetails(info.JobId))).Append("\" title=\"").Append(Encode(name)).Append("\">").Append(Encode(name)).Append("</a>");
-        html.Append("<span class=\"hf-flow-state\">").Append(Encode(state)).Append("</span></div>");
+        // The state's own name stays in data-state; the card shows it in the reader's language
+        html.Append("<span class=\"hf-flow-state\"");
+        if (info.StateOrOutcome != null)
+        {
+            html.Append(" data-state=\"").Append(Encode(info.StateOrOutcome)).Append('"');
+        }
+
+        html.Append('>').Append(Encode(state)).Append("</span></div>");
 
         // Arguments
         string arguments = FormatArguments(info.Job);

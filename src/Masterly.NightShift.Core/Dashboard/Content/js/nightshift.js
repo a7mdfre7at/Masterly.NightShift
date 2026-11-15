@@ -3069,6 +3069,9 @@
             this._lastAnnounced = 0;
             this._status = $('.js-activity-status').first();
             this._summary = this._list.attr('data-text-summary') || '{0} new state changes';
+            // The built-in states' names in the reader's language (HtmlHelper.StateDisplayName); a chip keeps the
+            // state's own name in data-state
+            try { this._stateNames = JSON.parse(this._list.attr('data-state-names') || '{}') || {}; } catch (e) { this._stateNames = {}; }
 
             var self = this;
             this._poll(true);
@@ -3174,8 +3177,9 @@
             if (meta.children().length) main.append(meta);
             row.append(main);
 
-            row.append($('<span>').addClass('ns-state-chip hf-activity-state' + (chip ? ' ns-state-' + chip[0] : ''))
-                .append(nightshift.icon(chip ? chip[1] : 'circle-fill')).append($('<span>').text(entry.s)));
+            var stateName = Object.prototype.hasOwnProperty.call(this._stateNames, entry.s) ? this._stateNames[entry.s] : entry.s;
+            row.append($('<span>').addClass('ns-state-chip hf-activity-state' + (chip ? ' ns-state-' + chip[0] : '')).attr('data-state', entry.s)
+                .append(nightshift.icon(chip ? chip[1] : 'circle-fill')).append($('<span>').text(stateName)));
             row.append($('<time>').addClass('hf-activity-time').attr('datetime', new Date(entry.t).toISOString())
                 .attr('title', NightShiftIntl.format(entry.t, 'dateTimeWithSeconds')).text(NightShiftIntl.format(entry.t, 'timeWithSeconds')));
 

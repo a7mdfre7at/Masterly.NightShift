@@ -114,8 +114,8 @@
                          data-deleted-string="@Strings.JobsSidebarMenu_Deleted"
                          role="img" aria-label="@Strings.HomePage_RealtimeGraph" aria-describedby="home-realtime-summary"></canvas>
                 </div>
-                @* Filled in by the script from the points the graph shows *@
-                <p id="home-realtime-summary" class="ns-graph-summary js-graph-summary" data-format="@Strings.HomePage_GraphSummary_LastMinute"></p>
+                @* Starts with nothing counted (the graph starts empty); the script sums up the points it shows from the first poll *@
+                <p id="home-realtime-summary" class="ns-graph-summary js-graph-summary" data-format="@Strings.HomePage_GraphSummary_LastMinute">@RealtimeSummary()</p>
                 <div class="display-none">
                     <span data-metric="succeeded:count"></span>
                     <span data-metric="failed:count"></span>
@@ -135,7 +135,7 @@
                     </label>
                 </div>
             </div>
-            <ol class="hf-activity js-activity" data-url="@Url.To("/activity")" data-job-url="@Url.To("/jobs/details/")" data-empty="@Strings.HomePage_Activity_Empty" data-off="@Strings.HomePage_Activity_Off" data-text-summary="@Strings.HomePage_Activity_Summary" aria-labelledby="home-activity">
+            <ol class="hf-activity js-activity" data-url="@Url.To("/activity")" data-job-url="@Url.To("/jobs/details/")" data-empty="@Strings.HomePage_Activity_Empty" data-off="@Strings.HomePage_Activity_Off" data-text-summary="@Strings.HomePage_Activity_Summary" data-state-names="@StateNamesJson()" aria-labelledby="home-activity">
                 <li class="hf-activity-empty text-muted">@Strings.HomePage_Activity_Empty</li>
             </ol>
             <div class="visually-hidden js-activity-status" role="status"></div>

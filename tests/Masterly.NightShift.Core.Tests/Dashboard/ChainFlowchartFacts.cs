@@ -125,6 +125,32 @@ public class ChainFlowchartFacts
         Assert.Contains("Failed (job expired)", html, StringComparison.Ordinal);
         Assert.Contains("/chains/retry/c5/51\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("/chains/retry/c5/50\"", html, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"hf-flow-state\" data-state=\"Succeeded\">", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Render_NamesTheStepsStates_InTheReadersLanguage_AndKeepsTheirOwnNamesInAnAttribute()
+    {
+        JobChain definition = JobChain.StartWith(() => Step("a")).Then(() => Step("b"));
+        SetUpChain("c6", definition, ["60", "61"]);
+        _renderer.Connection.Setup(x => x.GetAllEntriesFromHash(JobChains.GetStepOutcomesKey("c6")))
+            .Returns(new Dictionary<string, string> { ["60"] = SucceededState.StateName, ["61"] = FailedState.StateName });
+        JobChainInfo chain = _renderer.Storage.Object.GetChain("c6")!;
+        CultureInfo previous = CultureInfo.CurrentUICulture;
+        string html;
+        try
+        {
+            CultureHelper.SetCurrentUICulture("de");
+            html = ChainFlowchartRenderer.Render(CreatePage(), ChainFlowchart.Build(_renderer.Storage.Object, chain, Now)).ToString();
+        }
+        finally
+        {
+            CultureHelper.SetCurrentUICulture(previous);
+        }
+
+        Assert.Contains("<span class=\"hf-flow-state\" data-state=\"Succeeded\">Erfolgreich", html, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"hf-flow-state\" data-state=\"Failed\">Fehler", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Succeeded (", html, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -27,6 +27,30 @@ public class HomePageFacts
     }
 
     [Fact]
+    public void Render_SumsUpTheRealtimeGraph_BeforeItsFirstPoll_AndNamesTheActivitysStates_InTheReadersLanguage()
+    {
+        CultureInfo previous = CultureInfo.CurrentUICulture;
+        string html;
+        string sentence;
+        try
+        {
+            CultureHelper.SetCurrentUICulture("de");
+            html = _renderer.Render(new HomePage());
+            sentence = string.Format(CultureInfo.CurrentCulture, Strings.HomePage_GraphSummary_LastMinute, 0, 0);
+        }
+        finally
+        {
+            CultureHelper.SetCurrentUICulture(previous);
+        }
+
+        Assert.NotEqual(string.Format(CultureInfo.InvariantCulture, "Last minute: {0} succeeded, {1} failed", 0, 0), sentence);
+        Assert.Contains($"class=\"ns-graph-summary js-graph-summary\" data-format=\"", html);
+        Assert.Contains($"\">{Encode(sentence)}</p>", html);
+        Assert.Contains("&quot;Succeeded&quot;:&quot;Erfolgreich&quot;", html);
+        Assert.Contains("&quot;Awaiting&quot;:", html);
+    }
+
+    [Fact]
     public void Render_GivesTheGraphsALegend_AndASummaryForScreenReaders()
     {
         _renderer.Monitoring.Setup(x => x.HourlySucceededJobs()).Returns(new Dictionary<DateTime, long> { { Hour, 5 }, { Hour.AddHours(-1), 7 } });
@@ -40,7 +64,7 @@ public class HomePageFacts
         // The realtime graph always has a deleted series; the history graph only when the storage graphs them
         Assert.Equal(1, CountOf(html, "<li class=\"ns-state-deleted\">"));
         Assert.Contains($"role=\"img\" aria-label=\"{Encode(Strings.HomePage_RealtimeGraph)}\" aria-describedby=\"home-realtime-summary\"", html);
-        Assert.Contains($"<p id=\"home-realtime-summary\" class=\"ns-graph-summary js-graph-summary\" data-format=\"{Encode(Strings.HomePage_GraphSummary_LastMinute)}\"></p>", html);
+        Assert.Contains($"<p id=\"home-realtime-summary\" class=\"ns-graph-summary js-graph-summary\" data-format=\"{Encode(Strings.HomePage_GraphSummary_LastMinute)}\">{Encode(string.Format(Strings.HomePage_GraphSummary_LastMinute, 0, 0))}</p>", html);
         Assert.Contains($"role=\"img\" aria-label=\"{Encode(Strings.HomePage_HistoryGraph)}\" aria-describedby=\"home-history-summary\"", html);
         Assert.Contains($"<p id=\"home-history-summary\" class=\"ns-graph-summary\">{Encode(string.Format(Strings.HomePage_GraphSummary_Day, 12, 2))}</p>", html);
     }

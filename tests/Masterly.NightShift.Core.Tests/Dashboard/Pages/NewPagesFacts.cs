@@ -139,7 +139,7 @@ public class NewPagesFacts
 
         Assert.Contains("/chains/c1", list, StringComparison.Ordinal);
         Assert.Contains("<tr class=\"hover hf-row-link\" data-href=\"/chains/c1\">", list, StringComparison.Ordinal);
-        Assert.Contains("<span class=\"ns-state-chip ns-state-failed\">" + DashboardMarkup.Icon("x-circle-fill") + "<span>Finished with failures</span></span>", list, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"ns-state-chip ns-state-failed\" data-state=\"Failed\">" + DashboardMarkup.Icon("x-circle-fill") + "<span>Finished with failures</span></span>", list, StringComparison.Ordinal);
         Assert.Contains("<a class=\"job-method\" href=\"/chains/c1\">", list, StringComparison.Ordinal);
         Assert.Contains("aria-valuenow=\"100\"", list, StringComparison.Ordinal);
         Assert.DoesNotContain("/chains/delete/", list, StringComparison.Ordinal);
@@ -191,7 +191,7 @@ public class NewPagesFacts
 
         string list = _renderer.Render(new ChainsPage());
 
-        Assert.Contains("<span class=\"ns-state-chip ns-state-awaiting\">" + DashboardMarkup.Icon("hourglass-split") + "<span>Waiting</span></span>", list, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"ns-state-chip ns-state-awaiting\" data-state=\"Awaiting\">" + DashboardMarkup.Icon("hourglass-split") + "<span>Waiting</span></span>", list, StringComparison.Ordinal);
         Assert.Contains("data-ajax=\"/chains/delete/c1\"", list, StringComparison.Ordinal);
         Assert.Contains("aria-label=\"Delete the unfinished steps of chain c1\"", list, StringComparison.Ordinal);
         Assert.Contains("data-confirm-destructive=\"true\"", list, StringComparison.Ordinal);
@@ -317,7 +317,9 @@ public class NewPagesFacts
         Assert.Contains("<span class=\"visually-hidden\">Tuesday: Blocked</span>", html, StringComparison.Ordinal);
         Assert.Contains("<li class=\"ns-chip ns-policy-day ns-policy-day-allowed\">", html, StringComparison.Ordinal);
         Assert.Contains("<li class=\"ns-chip ns-policy-day\">", html, StringComparison.Ordinal);
-        Assert.Equal(21, Count(html, "<li class=\"ns-chip ns-policy-day"));
+        Assert.Equal(7, Count(html, "<li class=\"ns-chip ns-policy-day"));
+        // A policy without a weekday rule allows every day, and says so in words, as its editor does
+        Assert.Equal(2, Count(html, "<span class=\"ns-policy-any\">Every day</span>"));
 
         Assert.Contains("22:00-06:00", html, StringComparison.Ordinal);
         Assert.Equal(1, Count(html, "<span class=\"ns-policy-overnight\">"));
@@ -493,7 +495,7 @@ public class NewPagesFacts
         string details = _renderer.Render(new ChainDetailsPage("c1"));
 
         Assert.Contains("<header class=\"ns-page-head\">", details, StringComparison.Ordinal);
-        Assert.Contains("<span class=\"ns-job-state\"><span class=\"ns-state-chip ns-state-failed\">", details, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"ns-job-state\"><span class=\"ns-state-chip ns-state-failed\" data-state=\"Failed\">", details, StringComparison.Ordinal);
         Assert.Contains("<h2 id=\"summary-steps\" class=\"ns-summary-label\">", details, StringComparison.Ordinal);
         Assert.Contains("<section class=\"ns-summary-tile ns-state-failed\" aria-labelledby=\"summary-failed\">", details, StringComparison.Ordinal);
         Assert.Contains("aria-valuenow=\"100\"", details, StringComparison.Ordinal);

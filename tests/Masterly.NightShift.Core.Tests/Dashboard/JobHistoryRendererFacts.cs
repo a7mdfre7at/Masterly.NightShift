@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Masterly.NightShift.Core.Tests.Stubs;
 using Masterly.NightShift.Dashboard;
@@ -85,7 +86,7 @@ public class JobHistoryRendererFacts
             { "NextState", Masterly.NightShift.Common.SerializationHelper.Serialize<IState>(new EnqueuedState("critical"), Masterly.NightShift.Common.SerializationOption.TypedInternal) },
         }).ToString();
 
-        Assert.Contains($"<dt>Next State</dt><dd><span class=\"ns-state-chip ns-state-enqueued\">{DashboardMarkup.Icon("inbox-fill")}<span>Enqueued</span></span></dd>", html);
+        Assert.Contains($"<dt>Next State</dt><dd><span class=\"ns-state-chip ns-state-enqueued\" data-state=\"Enqueued\">{DashboardMarkup.Icon("inbox-fill")}<span>Enqueued</span></span></dd>", html);
     }
 
     [Fact, StaticLock]
@@ -188,8 +189,30 @@ public class JobHistoryRendererFacts
     {
         string html = CreateHelper().StateLabel(state).ToString();
 
-        Assert.Equal($"<span class=\"ns-state-chip ns-state-{group}\">{DashboardMarkup.Icon(icon)}<span>{state}</span></span>", html);
+        Assert.Equal($"<span class=\"ns-state-chip ns-state-{group}\" data-state=\"{state}\">{DashboardMarkup.Icon(icon)}<span>{state}</span></span>", html);
         Assert.Equal(group, JobHistoryRenderer.GetStateColorGroup(state));
+    }
+
+    [Fact]
+    public void StateLabel_NamesABuiltInState_InTheReadersLanguage_AndKeepsItsOwnNameInTheClassAndAttribute()
+    {
+        CultureInfo previous = CultureInfo.CurrentUICulture;
+        string html;
+        string lowerCase;
+        try
+        {
+            CultureHelper.SetCurrentUICulture("de");
+            html = CreateHelper().StateLabel(SucceededState.StateName).ToString();
+            lowerCase = HtmlHelper.StateDisplayName("succeeded");
+        }
+        finally
+        {
+            CultureHelper.SetCurrentUICulture(previous);
+        }
+
+        Assert.Equal($"<span class=\"ns-state-chip ns-state-succeeded\" data-state=\"Succeeded\">{DashboardMarkup.Icon("check-circle-fill")}<span>Erfolgreich</span></span>", html);
+        Assert.Equal("Erfolgreich", lowerCase);
+        Assert.Equal("Facts.Custom", HtmlHelper.StateDisplayName("Facts.Custom"));
     }
 
     [Fact]
@@ -197,7 +220,7 @@ public class JobHistoryRendererFacts
     {
         string html = CreateHelper().StateLabel(FailedState.StateName, "<b>", hover: true).ToString();
 
-        Assert.Equal($"<span class=\"ns-state-chip ns-state-failed label-hover\">{DashboardMarkup.Icon("x-circle-fill")}<span>&lt;b&gt;</span></span>", html);
+        Assert.Equal($"<span class=\"ns-state-chip ns-state-failed label-hover\" data-state=\"Failed\">{DashboardMarkup.Icon("x-circle-fill")}<span>&lt;b&gt;</span></span>", html);
     }
 
     [Fact, StaticLock]
@@ -207,7 +230,7 @@ public class JobHistoryRendererFacts
 
         string html = CreateHelper().StateLabel("Facts.Grouped").ToString();
 
-        Assert.Equal($"<span class=\"ns-state-chip ns-state-processing\">{DashboardMarkup.Icon("play-circle-fill")}<span>Facts.Grouped</span></span>", html);
+        Assert.Equal($"<span class=\"ns-state-chip ns-state-processing\" data-state=\"Facts.Grouped\">{DashboardMarkup.Icon("play-circle-fill")}<span>Facts.Grouped</span></span>", html);
     }
 
     [Fact, StaticLock]
@@ -217,7 +240,7 @@ public class JobHistoryRendererFacts
 
         string html = CreateHelper().StateLabel("Facts.OwnSuffix").ToString();
 
-        Assert.Equal($"<span class=\"ns-state-chip label-state-mine\">{DashboardMarkup.Icon("circle-fill")}<span>Facts.OwnSuffix</span></span>", html);
+        Assert.Equal($"<span class=\"ns-state-chip label-state-mine\" data-state=\"Facts.OwnSuffix\">{DashboardMarkup.Icon("circle-fill")}<span>Facts.OwnSuffix</span></span>", html);
         Assert.Null(JobHistoryRenderer.GetStateColorGroup("Facts.OwnSuffix"));
     }
 
@@ -226,7 +249,7 @@ public class JobHistoryRendererFacts
     {
         string html = CreateHelper().StateLabel("Facts.Unknown").ToString();
 
-        Assert.Equal($"<span class=\"ns-state-chip\">{DashboardMarkup.Icon("circle-fill")}<span>Facts.Unknown</span></span>", html);
+        Assert.Equal($"<span class=\"ns-state-chip\" data-state=\"Facts.Unknown\">{DashboardMarkup.Icon("circle-fill")}<span>Facts.Unknown</span></span>", html);
     }
 
     [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]

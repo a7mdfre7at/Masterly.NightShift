@@ -84,6 +84,13 @@
                         <dl class="ns-kv ns-policy-rules">
                             <dt>@Strings.PoliciesPage_Days</dt>
                             <dd>
+                                @* Without a weekday rule every day is allowed: said in words, as the editor says it, rather than seven chips *@
+                                @if (policy.Days.Count == 0)
+                                {
+                                    <span class="ns-policy-any">@Strings.PoliciesPage_EveryDay</span>
+                                }
+                                else
+                                {
                                 <ul class="ns-policy-chips">
                                     @foreach (DayOfWeek day in Week)
                                     {
@@ -98,6 +105,7 @@
                                         </li>
                                     }
                                 </ul>
+                                }
                             </dd>
                             <dt>@Strings.PoliciesPage_Windows</dt>
                             <dd>

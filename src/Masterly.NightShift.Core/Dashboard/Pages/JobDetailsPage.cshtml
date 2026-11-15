@@ -524,9 +524,10 @@
                             {
                                 double share = 100.0 * Math.Max(0, segment.Value.TotalMilliseconds) / segmentTotal;
                                 string? group = JobHistoryRenderer.GetStateColorGroup(segment.Key);
-                                string description = segment.Key + ": " + Html.ToHumanDuration(segment.Value, false)?.Trim();
+                                string segmentName = HtmlHelper.StateDisplayName(segment.Key);
+                                string description = segmentName + ": " + Html.ToHumanDuration(segment.Value, false)?.Trim();
                                 // A state without a colour group (Created, or a custom state without a CSS suffix) sits on the bar's neutral track
-                                <span role="listitem" class="hf-state-seg@(group == null ? " hf-state-seg-neutral" : " ns-state-" + group)@(share < 8 ? " hf-state-seg-tight" : null)" style="flex-grow: @share.ToString("0.##", CultureInfo.InvariantCulture)" title="@description"><em aria-hidden="true">@segment.Key</em><span class="visually-hidden">@description</span></span>
+                                <span role="listitem" class="hf-state-seg@(group == null ? " hf-state-seg-neutral" : " ns-state-" + group)@(share < 8 ? " hf-state-seg-tight" : null)" style="flex-grow: @share.ToString("0.##", CultureInfo.InvariantCulture)" data-state="@segment.Key" title="@description"><em aria-hidden="true">@segmentName</em><span class="visually-hidden">@description</span></span>
                             }
                         </div>
                     }

@@ -183,15 +183,41 @@ public class HtmlHelper
         return job.ToString(includeQueue);
     }
 
+    /// <summary>
+    /// Renders a state chip, like <see cref="StateLabel(string, string, bool)"/>, with the state's name: a built-in
+    /// state's name in the reader's language, any other state's name as it is.
+    /// </summary>
+    /// <param name="stateName">The name of the state.</param>
     public NonEscapedString StateLabel(string? stateName)
     {
-        return StateLabel(stateName, stateName);
+        return StateLabel(stateName, stateName != null ? StateDisplayName(stateName) : null);
+    }
+
+    /// <summary>
+    /// The name of a state as the dashboard shows it: a built-in state's name (Enqueued, Scheduled, Processing,
+    /// Succeeded, Failed, Deleted, Awaiting) in the reader's language, the jobs menu's word for it; any other state's
+    /// name as it is. What is stored, and the classes and attributes scripts and styles read, keep the name itself.
+    /// </summary>
+    internal static string StateDisplayName(string stateName)
+    {
+        return stateName.ToUpperInvariant() switch
+        {
+            "ENQUEUED" => Strings.JobsSidebarMenu_Enqueued,
+            "SCHEDULED" => Strings.JobsSidebarMenu_Scheduled,
+            "PROCESSING" => Strings.JobsSidebarMenu_Processing,
+            "SUCCEEDED" => Strings.JobsSidebarMenu_Succeeded,
+            "FAILED" => Strings.JobsSidebarMenu_Failed,
+            "DELETED" => Strings.JobsSidebarMenu_Deleted,
+            "AWAITING" => Strings.JobsSidebarMenu_Awaiting,
+            _ => stateName,
+        };
     }
 
     /// <summary>
     /// Renders a state chip: the state's icon and <paramref name="text"/> in the state's MD3 colour group
     /// (<c>ns-state-chip ns-state-{group}</c>, see <see cref="JobHistoryRenderer.GetStateColorGroup"/>). A state
     /// without a group gets the neutral chip, with the class <c>label-state-{suffix}</c> when it has a CSS suffix.
+    /// The chip keeps the state's own name in <c>data-state</c>.
     /// </summary>
     /// <param name="stateName">The name of the state, which chooses the colours and the icon.</param>
     /// <param name="text">The text of the chip.</param>
@@ -221,7 +247,7 @@ public class HtmlHelper
             css.Append(" label-hover");
         }
 
-        return Raw($"<span class=\"{HtmlEncode(css.ToString())}\">{Icon(JobHistoryRenderer.GetStateIcon(stateName))}<span>{HtmlEncode(text)}</span></span>");
+        return Raw($"<span class=\"{HtmlEncode(css.ToString())}\" data-state=\"{HtmlEncode(stateName)}\">{Icon(JobHistoryRenderer.GetStateIcon(stateName))}<span>{HtmlEncode(text)}</span></span>");
     }
 
     /// <summary>

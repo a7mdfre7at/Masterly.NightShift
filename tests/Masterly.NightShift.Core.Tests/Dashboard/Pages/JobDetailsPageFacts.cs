@@ -807,7 +807,7 @@ public class JobDetailsPageFacts
 
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
-        Assert.Contains("<span role=\"listitem\" class=\"hf-state-seg ns-state-enqueued hf-state-seg-tight\" style=\"flex-grow: 1\" title=\"Enqueued: ", html);
+        Assert.Contains("<span role=\"listitem\" class=\"hf-state-seg ns-state-enqueued hf-state-seg-tight\" style=\"flex-grow: 1\" data-state=\"Enqueued\" title=\"Enqueued: ", html);
         Assert.Contains("<span role=\"listitem\" class=\"hf-state-seg ns-state-processing\" style=\"flex-grow: 99\"", html);
         Assert.Contains("<em aria-hidden=\"true\">Enqueued</em><span class=\"visually-hidden\">Enqueued: ", html);
     }
@@ -858,7 +858,7 @@ public class JobDetailsPageFacts
 
         Assert.Contains("<header class=\"ns-page-head ns-job-head\">", html);
         Assert.Contains("<span class=\"ns-overline\">" + H(Strings.Common_Job) + "</span><span class=\"ns-page-name\">", html);
-        Assert.Contains("<span class=\"ns-job-state\"><span class=\"ns-state-chip ns-state-scheduled\">", html);
+        Assert.Contains("<span class=\"ns-job-state\"><span class=\"ns-state-chip ns-state-scheduled\" data-state=\"Scheduled\">", html);
         Assert.Contains("<span class=\"ns-job-id-fact\"><span class=\"ns-job-id\">#1</span><button type=\"button\" class=\"ns-icon-button ns-copy-button js-copy\" data-copy=\"1\"", html);
         Assert.Contains("<a class=\"ns-queue-chip\" href=\"/jobs/enqueued/critical\">", html);
         Assert.Contains("<a class=\"ns-chip ns-chip-assist\" href=\"/recurring/details/nightly~2Freport\" title=\"" + H(Strings.RecurringJobDetailsPage_Kind) + "\">", html);

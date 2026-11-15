@@ -139,7 +139,7 @@ public class BatchesPageFacts
     }
 
     private static string Chip(string group, string icon, string text) =>
-        $"<span class=\"ns-state-chip ns-state-{group}\">{DashboardMarkup.Icon(icon)}<span>{Encode(text)}</span></span>";
+        $"<span class=\"ns-state-chip ns-state-{group}\" data-state=\"{char.ToUpperInvariant(group[0]) + group[1..]}\">{DashboardMarkup.Icon(icon)}<span>{Encode(text)}</span></span>";
 
     private static string Encode(string value) => WebUtility.HtmlEncode(value);
 }

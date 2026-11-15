@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using Masterly.NightShift.Dashboard.Resources;
 using Masterly.NightShift.Storage.Monitoring;
 
@@ -8,6 +9,9 @@ namespace Masterly.NightShift.Dashboard.Pages;
 internal partial class HomePage
 {
     public static readonly List<DashboardMetric> Metrics = [];
+
+    // The state names keep their keys as they are: the activity feed's entries name the states that way
+    private static readonly JsonSerializerOptions StateNamesOptions = DashboardJson.Create(camelCaseDictionaryKeys: false, ignoreNulls: true, utcDates: false, indented: false);
 
     /// <summary>
     /// The tiles of the home page, one per job state: the list it links to, the metric the poller updates it with,
@@ -34,6 +38,31 @@ internal partial class HomePage
         }
 
         return tiles;
+    }
+
+    /// <summary>
+    /// The names of the built-in states in the reader's language, by state, as JSON: the live activity's state chips
+    /// show them and keep the state's own name in <c>data-state</c>.
+    /// </summary>
+    internal static string StateNamesJson()
+    {
+        Dictionary<string, string> names = new(StringComparer.Ordinal);
+        foreach (string state in (string[])[EnqueuedState.StateName, ScheduledState.StateName, ProcessingState.StateName,
+                     SucceededState.StateName, FailedState.StateName, DeletedState.StateName, AwaitingState.StateName])
+        {
+            names[state] = HtmlHelper.StateDisplayName(state);
+        }
+
+        return JsonSerializer.Serialize(names, StateNamesOptions);
+    }
+
+    /// <summary>
+    /// The sentence under the realtime graph before its first poll: the graph starts empty, so nothing yet in the last
+    /// minute (the script sums up the points it shows from then on).
+    /// </summary>
+    internal static string RealtimeSummary()
+    {
+        return string.Format(CultureInfo.CurrentCulture, Strings.HomePage_GraphSummary_LastMinute, 0, 0);
     }
 
     /// <summary>The total of a graph's series.</summary>

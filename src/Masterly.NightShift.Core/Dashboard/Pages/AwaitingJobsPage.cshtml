@@ -214,7 +214,7 @@
                                                 @if (parentStateName != null && parentId != null)
                                                 {
                                                     <a href="@Url.JobDetails(parentId)" class="text-decoration-none">
-                                                        @Html.StateLabel(parentStateName, parentStateName, hover: true)
+                                                        @Html.StateLabel(parentStateName, HtmlHelper.StateDisplayName(parentStateName), hover: true)
                                                     </a>
                                                 }
                                                 else

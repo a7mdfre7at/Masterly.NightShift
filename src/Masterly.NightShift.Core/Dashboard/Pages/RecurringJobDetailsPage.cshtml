@@ -149,7 +149,7 @@
                         <p class="ns-summary-sub">
                             @if (!String.IsNullOrEmpty(job.LastJobId))
                             {
-                                <a class="text-decoration-none" href="@Url.JobDetails(job.LastJobId)">@Html.StateLabel(job.LastJobState ?? EnqueuedState.StateName, job.LastJobState ?? EnqueuedState.StateName, hover: true)</a>
+                                <a class="text-decoration-none" href="@Url.JobDetails(job.LastJobId)">@Html.StateLabel(job.LastJobState ?? EnqueuedState.StateName, HtmlHelper.StateDisplayName(job.LastJobState ?? EnqueuedState.StateName), hover: true)</a>
                                 @Html.JobIdLink(job.LastJobId)
                             }
                             else

@@ -47,7 +47,7 @@ public class BatchDetailsPageFacts
 
         Assert.Contains("Nightly import", html);
         Assert.Contains("<span class=\"ns-overline\">" + H(Strings.JobDetailsPage_Batch) + "</span><span class=\"ns-page-name\">Nightly import</span>", html);
-        Assert.Contains("ns-state-chip ns-state-processing\">" + DashboardMarkup.Icon("play-circle-fill") + "<span>" + H(Strings.BatchesPage_State_Running) + "</span>", html);
+        Assert.Contains("ns-state-chip ns-state-processing\" data-state=\"Processing\">" + DashboardMarkup.Icon("play-circle-fill") + "<span>" + H(Strings.BatchesPage_State_Running) + "</span>", html);
         Assert.Contains("<code class=\"ns-job-id\">b-1</code>", html);
         Assert.Contains("<h2 id=\"summary-created\" class=\"ns-summary-label\">", html);
         Assert.Contains("<h2 id=\"summary-pending\" class=\"ns-summary-label\">" + DashboardMarkup.Icon("hourglass-split") + " " + H(Strings.BatchDetailsPage_Pending) + "</h2>", html);
@@ -110,7 +110,7 @@ public class BatchDetailsPageFacts
 
         string html = _renderer.Render(new BatchDetailsPage(BatchId));
 
-        Assert.Contains("ns-state-chip ns-state-succeeded\">" + DashboardMarkup.Icon("check-circle-fill") + "<span>" + H(Strings.BatchesPage_State_Finished) + "</span>", html);
+        Assert.Contains("ns-state-chip ns-state-succeeded\" data-state=\"Succeeded\">" + DashboardMarkup.Icon("check-circle-fill") + "<span>" + H(Strings.BatchesPage_State_Finished) + "</span>", html);
         Assert.DoesNotContain("ns-page-actions", html);
         Assert.DoesNotContain("/batches/requeue-failed/", html);
         Assert.DoesNotContain("/batches/delete/", html);
@@ -123,7 +123,7 @@ public class BatchDetailsPageFacts
 
         string html = _renderer.Render(new BatchDetailsPage(BatchId));
 
-        Assert.Contains("ns-state-chip ns-state-failed\">" + DashboardMarkup.Icon("x-circle-fill") + "<span>" + H(Strings.BatchesPage_State_Failed) + "</span>", html);
+        Assert.Contains("ns-state-chip ns-state-failed\" data-state=\"Failed\">" + DashboardMarkup.Icon("x-circle-fill") + "<span>" + H(Strings.BatchesPage_State_Failed) + "</span>", html);
         Assert.Contains("<button class=\"btn btn-sm btn-primary\" data-ajax=\"/batches/requeue-failed/b-1\"", html);
         Assert.Contains("<button class=\"btn btn-sm ns-btn-outlined-error\" data-ajax=\"/batches/delete/b-1\"", html);
         Assert.Contains("<span class=\"ns-actions-divider\" aria-hidden=\"true\"></span>", html);

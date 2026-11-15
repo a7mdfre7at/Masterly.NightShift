@@ -408,7 +408,7 @@ internal static class JobLineageRenderer
             (double x, double y) = positions[node.Id];
             string color = node.State != null ? JobHistoryRenderer.GetStateColorCss(node.State) : "var(--ns-state-deleted)";
             string css = "hf-lineage-node" + (node.IsCurrent ? " hf-lineage-current" : string.Empty) + (node.Exists ? string.Empty : " hf-lineage-missing");
-            string title = node.Exists ? $"{page.Html.JobId(node.Id, false)} · {node.Name} · {node.State}" : string.Format(CultureInfo.CurrentCulture, Strings.JobDetailsPage_JobExpired, node.Id);
+            string title = node.Exists ? $"{page.Html.JobId(node.Id, false)} · {node.Name} · {(node.State != null ? HtmlHelper.StateDisplayName(node.State) : null)}" : string.Format(CultureInfo.CurrentCulture, Strings.JobDetailsPage_JobExpired, node.Id);
 
             svg.Append(FormattableString.Invariant($"<a href=\"{Encode(page.Url.JobDetails(node.Id))}\" class=\"{css}\" style=\"--hf-state: {Encode(color)}\"><title>{Encode(title)}</title>"));
             svg.Append(FormattableString.Invariant($"<rect x=\"{x}\" y=\"{y}\" width=\"{NodeWidth}\" height=\"{NodeHeight}\" rx=\"8\" ry=\"8\"/>"));
@@ -417,8 +417,8 @@ internal static class JobLineageRenderer
 
             if (node.Exists)
             {
-                string state = node.State ?? string.Empty;
-                svg.Append(FormattableString.Invariant($"<text class=\"hf-lineage-state\" x=\"{x + NodeWidth - 10}\" y=\"{y + 19}\" text-anchor=\"end\">{Encode(state)}</text>"));
+                string state = node.State != null ? HtmlHelper.StateDisplayName(node.State) : string.Empty;
+                svg.Append(FormattableString.Invariant($"<text class=\"hf-lineage-state\" data-state=\"{Encode(node.State ?? string.Empty)}\" x=\"{x + NodeWidth - 10}\" y=\"{y + 19}\" text-anchor=\"end\">{Encode(state)}</text>"));
                 svg.Append(FormattableString.Invariant($"<text class=\"hf-lineage-name\" x=\"{x + 14}\" y=\"{y + 37}\">{Encode(Truncate(node.Name ?? string.Empty))}</text>"));
             }
             else
