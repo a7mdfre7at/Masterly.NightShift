@@ -397,6 +397,10 @@ body.hf-app .small {
     z-index: var(--ns-z-drawer);
 }
 
+.hf-sidebar-landmark {
+    display: contents;
+}
+
 .hf-sidebar-head {
     display: flex;
     align-items: center;
@@ -952,7 +956,11 @@ body.hf-app .small {
         flex-basis: var(--ns-nav-rail-width);
     }
 
-    .hf-app:not(.hf-sidebar-open) .hf-sidebar-head {
+    .hf-app:not(.hf-sidebar-open) .hf-sidebar-landmark {
+    display: contents;
+}
+
+.hf-sidebar-head {
         justify-content: center;
         padding: var(--md-sys-spacing-3) 0 var(--md-sys-spacing-2);
     }
@@ -3959,8 +3967,21 @@ label.ns-required::after {
 }
 
 @media (max-width: 767px) {
-    .hf-drain-banner {
-        margin: 12px 16px 0;
+    /* The job snippet's buttons go above the code instead of over it */
+    .job-snippet-toolbar {
+        position: static;
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--md-sys-spacing-1);
+        margin-bottom: var(--md-sys-spacing-3);
+    }
+
+    .hf-app .job-snippet {
+        display: block;
+    }
+
+    .hf-app .job-snippet > * {
+        display: block;
     }
 
     .hf-forecast-label {

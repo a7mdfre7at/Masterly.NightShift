@@ -439,7 +439,10 @@
             var table = $(this).children('table')[0];
             if (!table) return;
             this.classList.remove('ns-table-fits');
-            this.classList.toggle('ns-table-fits', table.scrollWidth <= this.clientWidth + 1);
+            var fits = table.scrollWidth <= this.clientWidth + 1;
+            this.classList.toggle('ns-table-fits', fits);
+            // A box that scrolls sideways can be scrolled with the keyboard
+            if (fits) this.removeAttribute('tabindex'); else this.setAttribute('tabindex', '0');
         });
     };
 
@@ -562,9 +565,9 @@
 
             sidebar.inert = mode === 'modal' && !open;
             if (open) {
-                this._sidebar.attr({ role: 'dialog', 'aria-modal': 'true' });
+                this._sidebar.attr({ role: 'dialog', 'aria-modal': 'true', 'aria-label': this._sidebar.attr('data-label') || null });
             } else {
-                this._sidebar.removeAttr('role').removeAttr('aria-modal');
+                this._sidebar.removeAttr('role').removeAttr('aria-modal').removeAttr('aria-label');
             }
 
             if (this._main.length) this._main[0].inert = open;

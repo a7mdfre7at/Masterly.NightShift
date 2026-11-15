@@ -337,7 +337,8 @@ public class LayoutPageFacts
         string html = _renderer.Render(new TagsPage());
 
         Assert.Contains($"aria-label=\"{Encode(Strings.LayoutPage_Menu)}\" aria-expanded=\"false\" aria-controls=\"hfSidebar\"", html);
-        Assert.Contains("id=\"hfSidebar\"", html);
+        Assert.Contains($"<div class=\"hf-sidebar\" id=\"hfSidebar\" data-label=\"{Encode(Strings.LayoutPage_Navigation)}\">", html);
+        Assert.Contains($"<aside class=\"hf-sidebar-landmark\" aria-label=\"{Encode(Strings.LayoutPage_Navigation)}\">", html);
         Assert.Contains($"class=\"ns-icon-button hf-sidebar-close js-sidebar-close\" aria-label=\"{Encode(Strings.LayoutPage_CloseMenu)}\"", html);
         Assert.Contains($"<nav class=\"hf-nav\" aria-label=\"{Encode(Strings.LayoutPage_Navigation)}\">", html);
         Assert.Contains("class=\"hf-scrim js-sidebar-scrim\" hidden", html);

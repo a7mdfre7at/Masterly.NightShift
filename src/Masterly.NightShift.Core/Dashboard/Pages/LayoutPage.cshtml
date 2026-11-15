@@ -61,7 +61,9 @@
     <body class="hf-app">
         <a class="ns-skip-link" href="#content">@Strings.LayoutPage_SkipToContent</a>
         <div id="wrap">
-            <aside class="hf-sidebar" id="hfSidebar" aria-label="@Strings.LayoutPage_Navigation">
+            <div class="hf-sidebar" id="hfSidebar" data-label="@Strings.LayoutPage_Navigation">
+                @* The landmark of the drawer; the drawer itself becomes a modal dialog below 1240px, which an aside may not be *@
+                <aside class="hf-sidebar-landmark" aria-label="@Strings.LayoutPage_Navigation">
                 <div class="hf-sidebar-head">
                     <a class="hf-brand" href="@Url.Home()" @(htmlTitle ? null : Html.Raw("title=\"" + Html.HtmlEncode(plainTitle) + "\""))>
                         <span class="hf-brand-mark" aria-hidden="true">
@@ -100,7 +102,8 @@
                         <span>Masterly.NightShift @($"{version.Major}.{version.Minor}.{version.Build}")</span>
                     }
                 </div>
-            </aside>
+                </aside>
+            </div>
             <div class="hf-scrim js-sidebar-scrim" hidden></div>
 
             <div class="hf-main">
