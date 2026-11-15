@@ -135,7 +135,7 @@ They are shared by every dashboard in the process (all paths, all storages). Reg
 |---|---|
 | `configuration.UseJobDetailsRenderer(int order, Func<JobDetailsRendererDto, NonEscapedString> renderer)` | Adds a section to every job page, after the built-in sections and before the state history. Lower `order` comes first. The DTO has `Page`, `JobId` and `JobDetails` (with `Job`, `Properties`, `History`). If the renderer throws, the exception is shown in its place. |
 | `JobHistoryRenderer.Register(string state, Func<HtmlHelper, IDictionary<string, string>, NonEscapedString> renderer)` | Draws a state's data in the history. Replaces the renderer if one exists. States without one get a key/value list. |
-| `JobHistoryRenderer.AddStateCssSuffix(string stateName, string cssSuffix)` | Gives the state's labels the CSS class `label-state-{cssSuffix}` and its current-state card the class `state-card-state-{cssSuffix}`. The built-in suffixes are `active`, `success`, `danger`, `warning`, `info` and `inactive`; with one of them the state also gets that suffix's colors in the job lineage diagram and the time-in-state bar. Calling it again for the same state replaces the suffix. |
+| `JobHistoryRenderer.AddStateCssSuffix(string stateName, string cssSuffix)` | Gives the state's labels the CSS class `label-state-{cssSuffix}` and its current-state card the class `state-card-state-{cssSuffix}`. The built-in suffixes are `active`, `success`, `danger`, `warning`, `info` and `inactive`; with one of them the state's labels and card get that suffix's colors, in light and dark, and so does the state in the job lineage diagram and the time-in-state bar. For a suffix of your own, style `.hf-app .label-state-{suffix}` and `.hf-app .state-card-state-{suffix}` in your stylesheet. Calling it again for the same state replaces the suffix. |
 | `JobHistoryRenderer.GetStateCssSuffix(string stateName)` | The state's CSS suffix, or `null` when it has none. A state without a suffix gets the neutral label and card look. |
 | `JobHistoryRenderer.Exists(string state)` | Whether a renderer is registered for the state. |
 
@@ -492,7 +492,8 @@ Parameters set from filters with `SetJobParameter(name, value)` are stored as JS
 If you have your own `IState` (see [Custom filters](../filters/custom-filters.md)), tell the dashboard how to draw it:
 
 ```csharp
-// Reuse the look of a built-in state: active, success, danger, warning, info or inactive
+// Reuse the colors of a built-in state: active (teal, like Enqueued), info (blue, like Scheduled and Awaiting),
+// warning (ember, like Processing), success (green), danger (rose) or inactive (gray, like Deleted)
 JobHistoryRenderer.AddStateCssSuffix("Quarantined", cssSuffix: "warning");
 JobHistoryRenderer.Register("Quarantined", (html, data) =>
     new NonEscapedString(

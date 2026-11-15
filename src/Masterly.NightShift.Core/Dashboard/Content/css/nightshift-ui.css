@@ -1177,14 +1177,16 @@ body.hf-app hr {
 .hf-app .badge.text-bg-danger { background-color: var(--hf-danger-soft) !important; color: var(--hf-danger) !important; }
 .hf-app .badge.text-bg-primary { background-color: var(--hf-primary-soft) !important; color: var(--hf-primary) !important; }
 
-.hf-app .label-state-enqueued { background-color: var(--hf-info-soft); color: var(--hf-info); }
-.hf-app .label-state-scheduled { background-color: var(--hf-primary-soft); color: var(--hf-primary); }
-.hf-app .label-state-processing { background-color: var(--hf-warning-soft); color: var(--hf-warning); }
-.hf-app .label-state-succeeded { background-color: var(--hf-success-soft); color: var(--hf-success); }
-.hf-app .label-state-failed { background-color: var(--hf-danger-soft); color: var(--hf-danger); }
-.hf-app .label-state-deleted,
+/* State labels: label-state-{suffix}, the CSS suffix of the state (JobHistoryRenderer.AddStateCssSuffix). The built-in
+   states use active (Enqueued), info (Scheduled, Awaiting), warning (Processing), success (Succeeded), danger
+   (Failed) and inactive (Deleted), in the colors of the documentation site: enqueued teal, scheduled blue, processing
+   ember, succeeded green, failed rose. A state given one of these suffixes gets its colors. */
+.hf-app .label-state-active { background-color: var(--hf-primary-soft); color: var(--hf-primary); }
+.hf-app .label-state-info { background-color: var(--hf-info-soft); color: var(--hf-info); }
+.hf-app .label-state-warning { background-color: var(--hf-warning-soft); color: var(--hf-warning); }
+.hf-app .label-state-success { background-color: var(--hf-success-soft); color: var(--hf-success); }
+.hf-app .label-state-danger { background-color: var(--hf-danger-soft); color: var(--hf-danger); }
 .hf-app .label-state-inactive { background-color: var(--hf-neutral-soft); color: var(--hf-muted); }
-.hf-app .label-state-awaiting { background-color: var(--hf-neutral-soft); color: var(--hf-text-2); }
 
 .hf-app a:hover .label-hover {
     background-color: var(--hf-primary) !important;
@@ -1464,12 +1466,20 @@ body.hf-app hr {
     background-color: var(--hf-surface-2);
 }
 
-.hf-app .state-card-state-succeeded { border-left-color: var(--hf-success); }
-.hf-app .state-card-state-failed { border-left-color: var(--hf-danger); }
-.hf-app .state-card-state-processing { border-left-color: var(--hf-warning); }
-.hf-app .state-card-state-enqueued { border-left-color: var(--hf-info); }
-.hf-app .state-card-state-scheduled { border-left-color: var(--hf-primary); }
-.hf-app .state-card-state-deleted { border-left-color: var(--hf-muted); }
+/* The current state's card: state-card-state-{suffix}, in the colors of its labels */
+.hf-app .state-card-state-active { border-left-color: var(--hf-primary); }
+.hf-app .state-card-state-info { border-left-color: var(--hf-info); }
+.hf-app .state-card-state-warning { border-left-color: var(--hf-warning); }
+.hf-app .state-card-state-success { border-left-color: var(--hf-success); }
+.hf-app .state-card-state-danger { border-left-color: var(--hf-danger); }
+.hf-app .state-card-state-inactive { border-left-color: var(--hf-muted); }
+
+.hf-app .state-card-state-active .state-card-title { color: var(--hf-primary); }
+.hf-app .state-card-state-info .state-card-title { color: var(--hf-info); }
+.hf-app .state-card-state-warning .state-card-title { color: var(--hf-warning); }
+.hf-app .state-card-state-success .state-card-title { color: var(--hf-success); }
+.hf-app .state-card-state-danger .state-card-title { color: var(--hf-danger); }
+.hf-app .state-card-state-inactive .state-card-title { color: var(--hf-muted); }
 
 .hf-app .exception-type {
     color: var(--hf-danger);
