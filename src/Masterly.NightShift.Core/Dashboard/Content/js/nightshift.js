@@ -3248,30 +3248,27 @@
         return ActivityFeed;
     })();
 
-    // The runner dialog of the Job Catalog: builds a form from the method's parameters and creates the job
+    // The runner of the Job Catalog, in the side sheet: a copy of its template (js-catalog-template, in
+    // #catalogRunner, which holds the addresses and texts) with a field per parameter of the method, how to run it
+    // (now, later or as a recurring job) and Create. A field left empty that the job needs, or JSON that doesn't
+    // parse, is shown at its field before anything is sent; the server's answer is shown under the form.
     nightshift.CatalogRunner = (function () {
-        function CatalogRunner(modal) {
-            this._modal = $(modal);
-            this._form = this._modal.find('.js-catalog-form');
-            this._arguments = this._modal.find('.js-catalog-arguments');
-            this._title = this._modal.find('.js-catalog-title');
-            this._id = this._modal.find('.js-catalog-id');
-            this._source = this._modal.find('.js-catalog-source');
-            this._error = this._modal.find('.js-catalog-error');
-            this._success = this._modal.find('.js-catalog-success');
-            this._submit = this._modal.find('.js-catalog-submit');
-            this._cron = this._modal.find('.js-catalog-cron');
-            this._cronDescription = this._modal.find('.js-catalog-cron-description');
-            this._runUrl = this._modal.data('run-url');
-            this._previewUrl = this._modal.data('preview-url');
-            this._jobUrl = this._modal.data('job-url');
-            this._recurringUrl = this._modal.data('recurring-url');
+        function CatalogRunner(holder) {
+            this._holder = $(holder);
+            this._template = this._holder.find('template.js-catalog-template')[0];
+            this._runUrl = this._holder.attr('data-run-url');
+            this._previewUrl = this._holder.attr('data-preview-url');
+            this._jobUrl = this._holder.attr('data-job-url');
+            this._recurringUrl = this._holder.attr('data-recurring-url');
             this._text = {
-                created: this._modal.data('text-created'),
-                recurringCreated: this._modal.data('text-recurring-created'),
-                injected: this._modal.data('text-injected'),
-                redacted: this._modal.data('text-redacted') || 'redacted, enter the value again',
-                utc: this._modal.data('text-utc') || 'in UTC'
+                title: this._holder.attr('data-text-title'),
+                created: this._holder.attr('data-text-created'),
+                recurringCreated: this._holder.attr('data-text-recurring-created'),
+                injected: this._holder.attr('data-text-injected'),
+                redacted: this._holder.attr('data-text-redacted') || 'redacted, enter the value again',
+                utc: this._holder.attr('data-text-utc') || 'in UTC',
+                required: this._holder.attr('data-text-required') || 'Enter a value.',
+                json: this._holder.attr('data-text-json') || 'This isn\'t valid JSON.'
             };
             this._previewTimer = null;
 
@@ -3282,53 +3279,64 @@
                 self.open($(this));
             });
 
-            this._modal.on('change', '.js-catalog-modes input', function () {
+        }
+
+        CatalogRunner.prototype.open = function (button) {
+            if (!this._template) return;
+            var self = this;
+            var parameters = button.data('parameters') || [];
+            var content = $(document.importNode(this._template.content, true).children);
+            var find = function (selector) { return content.find(selector).add(content.filter(selector)); };
+
+            this._content = content;
+            this._form = find('.js-catalog-form');
+            this._arguments = find('.js-catalog-arguments');
+            this._error = find('.js-catalog-error');
+            this._success = find('.js-catalog-success');
+            this._submit = find('.js-catalog-submit');
+            this._cron = find('.js-catalog-cron');
+            this._cronDescription = find('.js-catalog-cron-description');
+
+            find('.js-catalog-id').val(button.attr('data-id') || '');
+            find('.js-catalog-source').val(button.attr('data-source') || '');
+            // "Run again with changes" starts in the job's own queue; the Catalog page in "default"
+            find('[name="queue"]').val(button.attr('data-queue') || '');
+
+            for (var i = 0; i < parameters.length; i++) {
+                this._arguments.append(this._buildField(parameters[i], i));
+            }
+            find('.js-catalog-arguments-group').prop('hidden', parameters.length === 0);
+
+            find('.js-catalog-modes').on('change', 'input', function () {
                 self._setMode($(this).val());
             });
-
             this._cron.on('input', function () {
                 clearTimeout(self._previewTimer);
                 self._previewTimer = setTimeout(function () { self._describeCron(); }, 300);
             });
-
+            this._form.on('input change', ':input', function () {
+                if ($(this).attr('aria-invalid') === 'true') nightshift.fieldError(this, null);
+            });
             this._form.on('submit', function (e) {
                 e.preventDefault();
                 self._run();
             });
 
-            $(document).on('input', '.js-catalog-filter', function () {
-                self._filter($(this).val());
-            });
-        }
-
-        CatalogRunner.prototype.open = function (button) {
-            var parameters = button.data('parameters') || [];
-
-            this._id.val(button.attr('data-id') || '');
-            this._source.val(button.attr('data-source') || '');
-            // "Run again with changes" starts in the job's own queue; the Catalog page in "default"
-            this._modal.find('[name="queue"]').val(button.attr('data-queue') || '');
-            this._title.text(button.attr('data-type') + '.' + button.attr('data-method'));
-            this._error.hide().text('');
-            this._success.hide().empty();
-            nightshift.setLoading(this._submit, false);
-            this._arguments.empty();
-
-            for (var i = 0; i < parameters.length; i++) {
-                this._arguments.append(this._buildField(parameters[i], i));
-            }
-
-            this._modal.find('.js-catalog-modes input[value="enqueue"]').prop('checked', true);
             this._setMode('enqueue');
-            var first = this._arguments.find('input, select, textarea').first();
-            this._modal[0].addEventListener('shown.bs.modal', function () { first.trigger('focus'); }, { once: true });
-            bootstrap.Modal.getOrCreateInstance(this._modal[0]).show();
+            nightshift.sheet.open({
+                title: button.attr('data-type') + '.' + button.attr('data-method'),
+                overline: this._text.title,
+                content: content,
+                opener: button[0],
+                guard: true
+            });
+            var first = this._form.find('input:not([type=hidden]), select, textarea').filter(':visible').first();
+            first.trigger('focus');
         };
-
         CatalogRunner.prototype._buildField = function (parameter, index) {
             var id = 'catalogArg' + index;
             var name = 'arg:' + parameter.name;
-            var group = $('<div>').addClass('mb-3');
+            var group = $('<div>').addClass('ns-field');
             var label = $('<label>').attr('for', id).append(document.createTextNode(parameter.name + ' '))
                 .append($('<span>').addClass('text-muted hf-param-type').text(parameter.type));
             var input;
@@ -3338,7 +3346,7 @@
                     // An unchecked box sends nothing, which would mean "the default", so a hidden "false" goes first;
                     // the server takes "true" when the box sends it too
                     input = $('<input type="checkbox" class="form-check-input" value="true">').attr({ id: id, name: name }).prop('checked', parameter['default'] === 'true');
-                    group.addClass('form-check')
+                    group.removeClass('ns-field').addClass('form-check ns-catalog-check')
                         .append($('<input type="hidden" value="false">').attr('name', name))
                         .append(input)
                         .append($('<label class="form-check-label">').attr('for', id).text(parameter.name));
@@ -3388,21 +3396,26 @@
             }
 
             if (parameter.hasDefault) input.attr('placeholder', parameter['default'] || 'null');
+            // A number or a date the job needs, without a default, has to be filled in before the job can be made
+            if (!parameter.hasDefault && !parameter.nullable && (parameter.input === 'number' || parameter.input === 'datetime')) {
+                input.attr({ 'data-required': 'true', required: 'required' });
+            }
+            if (parameter.input === 'json') input.attr('data-json', 'true');
 
             if (parameter.redacted) {
                 input.val('').attr('placeholder', this._text.redacted).attr('autocomplete', 'new-password');
-                label.append(' ').append($('<span>').addClass('badge text-bg-secondary').text('redacted'));
+                label.append(' ').append($('<span>').addClass('ns-catalog-redacted').text('redacted'));
             }
 
             return group.append(label).append(input);
         };
 
         CatalogRunner.prototype._setMode = function (mode) {
-            this._modal.find('.js-catalog-modes label').each(function () {
+            this._content.find('.js-catalog-modes label').each(function () {
                 $(this).toggleClass('active', $(this).find('input').val() === mode);
             });
-            this._modal.find('.js-catalog-mode-field').each(function () {
-                $(this).toggle($(this).data('mode') === mode);
+            this._content.find('.js-catalog-mode-field').each(function () {
+                $(this).toggle($(this).attr('data-mode') === mode);
             });
         };
 
@@ -3412,16 +3425,47 @@
             if (!cron) { this._cronDescription.text(''); return; }
 
             $.get(this._previewUrl, { cron: cron })
-                .done(function (data) { self._cronDescription.text(data.error ? data.error : (data.description || data.cron || '')); })
+                .done(function (data) {
+                    self._cronDescription.text(data.error ? '' : (data.description || data.cron || ''));
+                    nightshift.fieldError(self._cron, data.error || null);
+                })
                 .fail(function () { self._cronDescription.text(''); });
+        };
+
+        // The fields to fill before sending: the arguments the job needs (no default, not nullable, not a checkbox),
+        // valid JSON, and the delay or the recurring job's id and schedule of the mode chosen
+        CatalogRunner.prototype._validate = function () {
+            var self = this;
+            var invalid = [];
+            var mode = this._content.find('.js-catalog-modes input:checked').val();
+            this._form.find('[aria-invalid="true"]').each(function () { nightshift.fieldError(this, null); });
+
+            this._arguments.find('[data-required="true"]').each(function () {
+                if (!trim($(this).val())) invalid.push([this, self._text.required]);
+            });
+            this._arguments.find('textarea[data-json="true"]').each(function () {
+                var value = trim($(this).val());
+                if (!value) return;
+                try { JSON.parse(value); } catch (e) { invalid.push([this, self._text.json]); }
+            });
+            var needed = mode === 'schedule' ? ['delay'] : mode === 'recurring' ? ['recurringId', 'cron'] : [];
+            for (var i = 0; i < needed.length; i++) {
+                var control = this._form.find('[name="' + needed[i] + '"]');
+                if (!trim(control.val())) invalid.push([control[0], this._text.required]);
+            }
+
+            for (var j = 0; j < invalid.length; j++) nightshift.fieldError(invalid[j][0], invalid[j][1]);
+            if (invalid.length) $(invalid[0][0]).trigger('focus');
+            return invalid.length === 0;
         };
 
         CatalogRunner.prototype._run = function () {
             var self = this;
-            nightshift.setLoading(this._submit, true);
             this._error.hide();
             this._success.hide();
+            if (!this._validate()) return;
 
+            nightshift.setLoading(this._submit, true);
             $.post(this._runUrl, this._form.serialize())
                 .done(function (data) {
                     nightshift.setLoading(self._submit, false);
@@ -3434,6 +3478,7 @@
                             .append($('<a>').attr('href', self._jobUrl + nightshift.routeValue(data.jobId)).text('#' + data.jobId));
                     }
                     self._success.empty().append(message).show();
+                    nightshift.announce(trim(message.text()));
                 })
                 .fail(function (xhr) {
                     nightshift.setLoading(self._submit, false);
@@ -3444,21 +3489,33 @@
                 });
         };
 
-        CatalogRunner.prototype._filter = function (text) {
+        // The Catalog page's filter, for read-only users too (who have no runner): the methods whose type, name or
+        // parameters hold the text, and a note when none does
+        CatalogRunner.filter = function (text) {
             var needle = trim(text).toLowerCase();
-            $('.js-catalog-entry').each(function () {
-                var row = $(this);
-                row.toggle(!needle || String(row.attr('data-search') || '').toLowerCase().indexOf(needle) >= 0);
-            });
+            var total = 0;
+            // Counted by match, not by visibility: a row of a group hidden by the last filter isn't visible yet
             $('.js-catalog-group').each(function () {
                 var group = $(this);
-                group.toggle(group.find('.js-catalog-entry:visible').length > 0);
+                var matches = 0;
+                group.find('.js-catalog-entry').each(function () {
+                    var row = $(this);
+                    var match = !needle || String(row.attr('data-search') || '').toLowerCase().indexOf(needle) >= 0;
+                    row.toggle(match);
+                    if (match) matches++;
+                });
+                group.toggle(matches > 0);
+                total += matches;
             });
+            $('.js-catalog-nomatch').prop('hidden', total > 0);
         };
+
+        $(document).on('input', '.js-catalog-filter', function () {
+            CatalogRunner.filter($(this).val());
+        });
 
         return CatalogRunner;
     })();
-
     // Small operator actions: pausing processing with a reason, copying a job as C#, failure clusters,
     // recurring job manifests, the tag filter
     nightshift.Operations = (function () {

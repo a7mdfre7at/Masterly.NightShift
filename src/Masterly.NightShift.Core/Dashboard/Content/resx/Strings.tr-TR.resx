@@ -2344,4 +2344,40 @@
   <data name="RecurringJobsPage_QueueHint" xml:space="preserve">
     <value>Varsayılan kuyruk için boş bırakın.</value>
   </data>
+  <data name="CatalogPage_EmptyTitle" xml:space="preserve">
+    <value>İş yöntemi yok</value>
+  </data>
+  <data name="CatalogPage_NoMatch" xml:space="preserve">
+    <value>Filtreyle eşleşen yöntem yok.</value>
+  </data>
+  <data name="CatalogPage_RunMethod" xml:space="preserve">
+    <value>{0} çalıştır…</value>
+  </data>
+  <data name="CatalogPage_Runner_How" xml:space="preserve">
+    <value>Nasıl çalıştırılacağı</value>
+  </data>
+  <data name="CatalogPage_Runner_Required" xml:space="preserve">
+    <value>Bir değer girin.</value>
+  </data>
+  <data name="CatalogPage_Runner_InvalidJson" xml:space="preserve">
+    <value>Bu geçerli bir JSON değil.</value>
+  </data>
+  <data name="CatalogPage_Fact_Retries" xml:space="preserve">
+    <value>Yeniden denemeler: {0}</value>
+  </data>
+  <data name="CatalogPage_Fact_Timeout" xml:space="preserve">
+    <value>Zaman aşımı: {0}</value>
+  </data>
+  <data name="CatalogPage_Fact_OneAtATime" xml:space="preserve">
+    <value>Aynı anda bir tane</value>
+  </data>
+  <data name="CatalogPage_Fact_AtMost" xml:space="preserve">
+    <value>Aynı anda en fazla {0}</value>
+  </data>
+  <data name="CatalogPage_Fact_RateLimit" xml:space="preserve">
+    <value>{1} başına {0}</value>
+  </data>
+  <data name="CatalogPage_Fact_Window" xml:space="preserve">
+    <value>Zaman aralığı: {0}</value>
+  </data>
 </root>

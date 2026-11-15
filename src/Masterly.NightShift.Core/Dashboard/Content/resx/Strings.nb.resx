@@ -2372,4 +2372,40 @@
   <data name="RecurringJobsPage_QueueHint" xml:space="preserve">
     <value>La stå tomt for standardkøen.</value>
   </data>
+  <data name="CatalogPage_EmptyTitle" xml:space="preserve">
+    <value>Ingen jobbmetoder</value>
+  </data>
+  <data name="CatalogPage_NoMatch" xml:space="preserve">
+    <value>Ingen metode samsvarer med filteret.</value>
+  </data>
+  <data name="CatalogPage_RunMethod" xml:space="preserve">
+    <value>Kjør {0}…</value>
+  </data>
+  <data name="CatalogPage_Runner_How" xml:space="preserve">
+    <value>Hvordan den kjøres</value>
+  </data>
+  <data name="CatalogPage_Runner_Required" xml:space="preserve">
+    <value>Skriv inn en verdi.</value>
+  </data>
+  <data name="CatalogPage_Runner_InvalidJson" xml:space="preserve">
+    <value>Dette er ikke gyldig JSON.</value>
+  </data>
+  <data name="CatalogPage_Fact_Retries" xml:space="preserve">
+    <value>Nye forsøk: {0}</value>
+  </data>
+  <data name="CatalogPage_Fact_Timeout" xml:space="preserve">
+    <value>Tidsavbrudd: {0}</value>
+  </data>
+  <data name="CatalogPage_Fact_OneAtATime" xml:space="preserve">
+    <value>Én om gangen</value>
+  </data>
+  <data name="CatalogPage_Fact_AtMost" xml:space="preserve">
+    <value>Høyst {0} om gangen</value>
+  </data>
+  <data name="CatalogPage_Fact_RateLimit" xml:space="preserve">
+    <value>{0} per {1}</value>
+  </data>
+  <data name="CatalogPage_Fact_Window" xml:space="preserve">
+    <value>Tidsvindu: {0}</value>
+  </data>
 </root>

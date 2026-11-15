@@ -2375,4 +2375,40 @@
   <data name="RecurringJobsPage_QueueHint" xml:space="preserve">
     <value>Deixe vazio para a fila padrão.</value>
   </data>
+  <data name="CatalogPage_EmptyTitle" xml:space="preserve">
+    <value>Nenhum método de trabalho</value>
+  </data>
+  <data name="CatalogPage_NoMatch" xml:space="preserve">
+    <value>Nenhum método corresponde ao filtro.</value>
+  </data>
+  <data name="CatalogPage_RunMethod" xml:space="preserve">
+    <value>Executar {0}…</value>
+  </data>
+  <data name="CatalogPage_Runner_How" xml:space="preserve">
+    <value>Como executar</value>
+  </data>
+  <data name="CatalogPage_Runner_Required" xml:space="preserve">
+    <value>Informe um valor.</value>
+  </data>
+  <data name="CatalogPage_Runner_InvalidJson" xml:space="preserve">
+    <value>Isto não é um JSON válido.</value>
+  </data>
+  <data name="CatalogPage_Fact_Retries" xml:space="preserve">
+    <value>Novas tentativas: {0}</value>
+  </data>
+  <data name="CatalogPage_Fact_Timeout" xml:space="preserve">
+    <value>Tempo limite: {0}</value>
+  </data>
+  <data name="CatalogPage_Fact_OneAtATime" xml:space="preserve">
+    <value>Um de cada vez</value>
+  </data>
+  <data name="CatalogPage_Fact_AtMost" xml:space="preserve">
+    <value>No máximo {0} de cada vez</value>
+  </data>
+  <data name="CatalogPage_Fact_RateLimit" xml:space="preserve">
+    <value>{0} a cada {1}</value>
+  </data>
+  <data name="CatalogPage_Fact_Window" xml:space="preserve">
+    <value>Janela: {0}</value>
+  </data>
 </root>

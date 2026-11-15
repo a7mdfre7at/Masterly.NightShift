@@ -2360,4 +2360,40 @@
   <data name="RecurringJobsPage_QueueHint" xml:space="preserve">
     <value>Оставьте пустым для очереди по умолчанию.</value>
   </data>
+  <data name="CatalogPage_EmptyTitle" xml:space="preserve">
+    <value>Нет методов заданий</value>
+  </data>
+  <data name="CatalogPage_NoMatch" xml:space="preserve">
+    <value>Ни один метод не подходит под фильтр.</value>
+  </data>
+  <data name="CatalogPage_RunMethod" xml:space="preserve">
+    <value>Запустить {0}…</value>
+  </data>
+  <data name="CatalogPage_Runner_How" xml:space="preserve">
+    <value>Как запустить</value>
+  </data>
+  <data name="CatalogPage_Runner_Required" xml:space="preserve">
+    <value>Введите значение.</value>
+  </data>
+  <data name="CatalogPage_Runner_InvalidJson" xml:space="preserve">
+    <value>Это не корректный JSON.</value>
+  </data>
+  <data name="CatalogPage_Fact_Retries" xml:space="preserve">
+    <value>Повторы: {0}</value>
+  </data>
+  <data name="CatalogPage_Fact_Timeout" xml:space="preserve">
+    <value>Тайм-аут: {0}</value>
+  </data>
+  <data name="CatalogPage_Fact_OneAtATime" xml:space="preserve">
+    <value>По одному</value>
+  </data>
+  <data name="CatalogPage_Fact_AtMost" xml:space="preserve">
+    <value>Не более {0} одновременно</value>
+  </data>
+  <data name="CatalogPage_Fact_RateLimit" xml:space="preserve">
+    <value>{0} за {1}</value>
+  </data>
+  <data name="CatalogPage_Fact_Window" xml:space="preserve">
+    <value>Окно: {0}</value>
+  </data>
 </root>

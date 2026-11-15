@@ -400,7 +400,8 @@ public class DashboardServerFacts
         string bundle = await app.GetStringAsync("/nightshift/js1");
         string script = bundle[bundle.IndexOf("(function (nightshift) {", StringComparison.Ordinal)..];
 
-        Assert.Contains("bootstrap.Modal.getOrCreateInstance(this._modal[0]).show();", script);
+        // The import dialog is a Bootstrap 5 modal (the schedule editor and the runner open in the side sheet)
+        Assert.Contains("bootstrap.Modal.getOrCreateInstance(modal[0]).show();", script);
         Assert.Contains("bootstrap.Tooltip.getOrCreateInstance(this);", script);
         Assert.Contains("nightshift.setLoading = function (element, loading) {", script);
         Assert.DoesNotContain("$.trim(", script);
@@ -520,7 +521,8 @@ public class DashboardServerFacts
 
         string bundle = await app.GetStringAsync("/nightshift/js1");
 
-        Assert.Contains("this._modal.find('[name=\"queue\"]').val(button.attr('data-queue') || '');", bundle);
+        // The runner fills a copy of its template, then opens it in the side sheet
+        Assert.Contains("find('[name=\"queue\"]').val(button.attr('data-queue') || '');", bundle);
         Assert.Contains("input = $('<input type=\"datetime-local\" step=\"1\" class=\"form-control\">').attr({ id: id, name: name }).val(value);", bundle);
     }
 

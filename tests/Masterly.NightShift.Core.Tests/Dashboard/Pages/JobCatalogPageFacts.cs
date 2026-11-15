@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using Masterly.NightShift.Dashboard.Pages;
 using Masterly.NightShift.Dashboard.Resources;
 
@@ -26,12 +27,20 @@ public class JobCatalogPageFacts : IDisposable
     {
         string html = _renderer.Render(new JobCatalogPage());
 
-        Assert.Contains($"{Encode(Strings.CatalogPage_Title)} <small class=\"text-muted\">{Encode(Strings.CatalogPage_Hint)}</small>", html);
-        Assert.Contains($"placeholder=\"{Encode(Strings.CatalogPage_Search)}\"", html);
-        Assert.Contains($"data-type=\"{typeof(CatalogPageJobs).FullName}\"", html);
-        Assert.Contains($"<span class=\"text-muted\">{typeof(CatalogPageJobs).Namespace}.</span>", html);
-        Assert.Contains("CatalogPageJobs</h3>", html);
-        Assert.Contains($"<span class=\"text-muted\">4 {Encode(Strings.CatalogPage_Summary_Methods)}</span>", html);
+        Assert.Contains("<header class=\"ns-page-head\">", html);
+        // Every method of the catalog: the types added here and the generated invokers of this assembly
+        Assert.Contains($"<span class=\"ns-page-name\">{Encode(Strings.CatalogPage_Title)}</span> <span class=\"ns-count-chip js-list-count\">{JobCatalog.GetEntries().Count:N0}</span></h1>", html);
+        Assert.Contains($"<p class=\"ns-page-subtitle\">{Encode(Strings.CatalogPage_Hint)}</p>", html);
+        Assert.Contains($"<label for=\"catalogFilter\" class=\"visually-hidden\">{Encode(Strings.CatalogPage_Search)}</label>", html);
+        Assert.Contains($"id=\"catalogFilter\" class=\"form-control js-catalog-filter\" placeholder=\"{Encode(Strings.CatalogPage_Search)}\"", html);
+        string group = Regex.Match(html, $"data-type=\"{Regex.Escape(typeof(CatalogPageJobs).FullName!)}\" aria-labelledby=\"(catalog-type-[0-9]+)\"").Groups[1].Value;
+        Assert.NotEmpty(group);
+        Assert.Contains($"<h2 id=\"{group}\">", html);
+        Assert.Contains($"<span class=\"ns-catalog-namespace\">{typeof(CatalogPageJobs).Namespace}.</span>CatalogPageJobs</h2>", html);
+        Assert.Contains($"<span class=\"ns-count-chip\">4 {Encode(Strings.CatalogPage_Summary_Methods)}</span>", html);
+        Assert.Contains("<div class=\"ns-empty-state ns-empty-state-compact js-catalog-nomatch\" hidden=\"hidden\">", html);
+        PageStructure.AssertHeadingsInOrder(PageStructure.WithoutTemplates(html));
+        PageStructure.AssertNoEmptyHeaderCells(html);
         Assert.DoesNotContain(Strings.CatalogPage_NoEntries_Html, html);
     }
 
@@ -44,11 +53,12 @@ public class JobCatalogPageFacts : IDisposable
         Assert.Contains("<code class=\"hf-catalog-method\">Import</code>", html);
         Assert.Contains("<code class=\"hf-catalog-method\">async SendAsync</code>", html);
         Assert.Contains("<code class=\"hf-catalog-method\">Cleanup</code>", html);
-        Assert.Contains($"<span class=\"badge text-bg-secondary\">{Encode(Strings.CatalogPage_Static)}</span>", html);
+        Assert.Contains($"<span class=\"ns-chip ns-chip-status ns-catalog-flag\">{Encode(Strings.CatalogPage_Static)}</span>", html);
         Assert.Contains("<span class=\"hf-param \" title=\"string\">", html);
         Assert.Contains("<span class=\"hf-param-type\">int</span> count", html);
         Assert.Contains($"<span class=\"hf-param hf-param-injected\" title=\"{Encode(Strings.CatalogPage_Injected)}\">", html);
-        Assert.Contains("<span class=\"badge text-bg-info\">AutomaticRetry</span>", html);
+        Assert.Contains("<span class=\"ns-chip ns-chip-status\">" + DashboardMarkup.Icon("arrow-repeat") + " " + Encode(string.Format(Strings.CatalogPage_Fact_Retries, 0)) + "</span>", html);
+        Assert.Contains("<li class=\"ns-list-item js-catalog-entry\"", html);
     }
 
     [Fact, StaticLock]
@@ -59,8 +69,8 @@ public class JobCatalogPageFacts : IDisposable
         string html = _renderer.Render(new JobCatalogPage());
 
         Assert.Contains($"<span title=\"{Encode(Strings.InsightsPage_Table_Runs)}\">10&times;</span>", html);
-        Assert.Contains($"<span class=\"text-muted\" title=\"{Encode(Strings.InsightsPage_Table_Median)}\">", html);
-        Assert.Contains($"<span class=\"text-danger\" title=\"{Encode(Strings.InsightsPage_Table_Failed)}\">{Encode(0.2.ToString("P0"))}</span>", html);
+        Assert.Contains($"<span title=\"{Encode(Strings.InsightsPage_Table_Median)}\">", html);
+        Assert.Contains($"<span class=\"ns-catalog-failures\" title=\"{Encode(Strings.InsightsPage_Table_Failed)}\">{Encode(0.2.ToString("P0"))}</span>", html);
     }
 
     [Fact, StaticLock]
@@ -103,7 +113,23 @@ public class JobCatalogPageFacts : IDisposable
     {
         string html = _renderer.Render(new JobCatalogPage());
 
-        Assert.Contains("class=\"btn btn-sm btn-primary js-catalog-run\"", html);
+        string runName = Encode(string.Format(Strings.CatalogPage_RunMethod, "CatalogPageJobs.Import"));
+        Assert.Contains($"class=\"ns-icon-button js-catalog-run\" aria-haspopup=\"dialog\" aria-label=\"{runName}\" title=\"{runName}\"", html);
+        Assert.Contains("<div class=\"ns-list-item-end ns-row-actions\">", html);
+        Assert.Contains("<div id=\"catalogRunner\" hidden=\"hidden\"", html);
+        Assert.Contains("<template class=\"js-catalog-template\">", html);
+        Assert.Contains($"<legend>{Encode(Strings.CatalogPage_Table_Parameters)}</legend>", html);
+        Assert.Contains($"<legend>{Encode(Strings.CatalogPage_Runner_How)}</legend>", html);
+        Assert.Contains($"role=\"radiogroup\" aria-label=\"{Encode(Strings.CatalogPage_Runner_How)}\"", html);
+        foreach (string field in (string[])["catalogQueue", "catalogDelay", "catalogRecurringId", "catalogCron"])
+        {
+            Assert.Contains($"<label for=\"{field}\">", html);
+        }
+
+        Assert.Contains($"data-text-required=\"{Encode(Strings.CatalogPage_Runner_Required)}\"", html);
+        Assert.Contains($"data-text-json=\"{Encode(Strings.CatalogPage_Runner_InvalidJson)}\"", html);
+        Assert.Contains("<button type=\"submit\" form=\"catalogRunnerForm\" class=\"btn btn-sm btn-primary js-catalog-submit\"", html);
+        Assert.DoesNotContain("class=\"modal fade\" id=\"catalogRunner\"", html);
         Assert.Contains("data-method=\"Import\"", html);
         Assert.Contains($"data-id=\"{Encode(Entry("Import").Id)}\"", html);
         Assert.Contains(Encode("{\"name\":\"mode\",\"type\":\"CatalogPageMode\",\"input\":\"select\""), html);
@@ -125,6 +151,47 @@ public class JobCatalogPageFacts : IDisposable
         Assert.Contains("<code class=\"hf-catalog-method\">Import</code>", html);
         Assert.DoesNotContain("js-catalog-run", html);
         Assert.DoesNotContain("catalogRunner", html);
+    }
+
+    [Fact, StaticLock]
+    public void Render_ShowsHowAMethodRuns_FromItsFilters_AsChips()
+    {
+        JobCatalog.Add<CatalogFactJobs>();
+
+        string html = _renderer.Render(new JobCatalogPage());
+
+        Assert.Contains("<a class=\"ns-queue-chip\" href=\"/jobs/enqueued/critical\">", html);
+        Assert.Contains(Fact("hourglass-split", string.Format(Strings.CatalogPage_Fact_Timeout, Duration(TimeSpan.FromSeconds(90)))), html);
+        Assert.Contains(Fact("lock-fill", Strings.CatalogPage_Fact_OneAtATime), html);
+        Assert.Contains(Fact("lock-fill", string.Format(Strings.CatalogPage_Fact_AtMost, 3)), html);
+        Assert.Contains(Fact("lightning-fill", string.Format(Strings.CatalogPage_Fact_RateLimit, 10, Duration(TimeSpan.FromMinutes(1)))), html);
+        Assert.Contains(Fact("clock", string.Format(Strings.CatalogPage_Fact_Window, "22:00-06:00")), html);
+        // The type's retry filter applies to its methods; the method's own filters are listed by name when no fact
+        // stands for them
+        Assert.Contains(Fact("arrow-repeat", string.Format(Strings.CatalogPage_Fact_Retries, 2)), html);
+        Assert.Contains("<span class=\"ns-chip ns-chip-status ns-catalog-filter\">PreventDuplicates</span>", html);
+        Assert.DoesNotContain(">Queue</span>", html);
+    }
+
+    [Fact, StaticLock]
+    public void Render_WhenReadOnly_KeepsTheFilterAndHeadings()
+    {
+        _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
+
+        string html = _renderer.Render(new JobCatalogPage());
+
+        Assert.Contains("js-catalog-filter", html);
+        Assert.DoesNotContain("ns-row-actions", html);
+        PageStructure.AssertHeadingsInOrder(html);
+    }
+
+    private string Fact(string icon, string text) =>
+        "<span class=\"ns-chip ns-chip-status\">" + DashboardMarkup.Icon(icon) + " " + Encode(text) + "</span>";
+
+    private static string Duration(TimeSpan duration)
+    {
+        JobCatalogPage page = new();
+        return new Masterly.NightShift.Dashboard.HtmlHelper(page).ToHumanDuration(duration, false)!.Trim();
     }
 
     private void SetupInsight(string method, long succeeded, long failed, string[] durations)
@@ -159,6 +226,21 @@ public enum CatalogPageMode
 {
     Fast,
     Safe
+}
+
+[AutomaticRetry(Attempts = 2)]
+public class CatalogFactJobs
+{
+    [Queue("critical")]
+    [JobTimeout(90)]
+    [DisableConcurrentExecution(60)]
+    [Throttle(MaxConcurrency = 3)]
+    [RateLimit(null, 10, 60)]
+    [RunWindow("22:00-06:00")]
+    [PreventDuplicates]
+    public void Nightly()
+    {
+    }
 }
 
 public class CatalogPageJobs

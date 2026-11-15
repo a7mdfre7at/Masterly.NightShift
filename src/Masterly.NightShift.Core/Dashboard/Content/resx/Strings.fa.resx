@@ -2366,4 +2366,40 @@
   <data name="RecurringJobsPage_QueueHint" xml:space="preserve">
     <value>برای صف پیش‌فرض خالی بگذارید.</value>
   </data>
+  <data name="CatalogPage_EmptyTitle" xml:space="preserve">
+    <value>هیچ متد کاری نیست</value>
+  </data>
+  <data name="CatalogPage_NoMatch" xml:space="preserve">
+    <value>هیچ متدی با فیلتر جور نیست.</value>
+  </data>
+  <data name="CatalogPage_RunMethod" xml:space="preserve">
+    <value>اجرای {0}…</value>
+  </data>
+  <data name="CatalogPage_Runner_How" xml:space="preserve">
+    <value>نحوهٔ اجرا</value>
+  </data>
+  <data name="CatalogPage_Runner_Required" xml:space="preserve">
+    <value>یک مقدار وارد کنید.</value>
+  </data>
+  <data name="CatalogPage_Runner_InvalidJson" xml:space="preserve">
+    <value>این JSON معتبر نیست.</value>
+  </data>
+  <data name="CatalogPage_Fact_Retries" xml:space="preserve">
+    <value>تلاش‌های دوباره: {0}</value>
+  </data>
+  <data name="CatalogPage_Fact_Timeout" xml:space="preserve">
+    <value>مهلت: {0}</value>
+  </data>
+  <data name="CatalogPage_Fact_OneAtATime" xml:space="preserve">
+    <value>یکی در هر زمان</value>
+  </data>
+  <data name="CatalogPage_Fact_AtMost" xml:space="preserve">
+    <value>حداکثر {0} هم‌زمان</value>
+  </data>
+  <data name="CatalogPage_Fact_RateLimit" xml:space="preserve">
+    <value>{0} در هر {1}</value>
+  </data>
+  <data name="CatalogPage_Fact_Window" xml:space="preserve">
+    <value>بازهٔ زمانی: {0}</value>
+  </data>
 </root>

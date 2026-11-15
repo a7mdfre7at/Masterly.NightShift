@@ -3,65 +3,68 @@
 @using Masterly.NightShift.Dashboard
 @using Masterly.NightShift.Dashboard.Resources
 @inherits RazorPage
-@* The modal behind "Run…" on the Catalog page and "Run again with changes…" on the job details page. *@
+@* The runner behind "Run…" on the Catalog page and "Run again with changes…" on the job details page: it opens in
+   the side sheet with a copy of the template; the element keeps the addresses and the texts the script needs. *@
 @if (!IsReadOnly)
 {
-    <div class="modal fade" id="catalogRunner" tabindex="-1" role="dialog" aria-labelledby="catalogRunnerTitle"
+    <div id="catalogRunner" hidden="hidden"
          data-run-url="@Url.To("/catalog/run")"
          data-preview-url="@Url.To("/recurring/preview")"
          data-job-url="@Url.To("/jobs/details/")"
          data-recurring-url="@Url.To("/recurring")"
+         data-text-title="@Strings.CatalogPage_Runner_Title"
          data-text-created="@Strings.CatalogPage_Created"
          data-text-recurring-created="@Strings.CatalogPage_RecurringCreated"
          data-text-injected="@Strings.CatalogPage_Injected"
          data-text-redacted="@Strings.CatalogPage_Runner_Redacted"
-         data-text-utc="@Strings.CatalogPage_Runner_Utc">
-        <div class="modal-dialog" role="document">
-            <form class="modal-content js-catalog-form">
-                <div class="modal-header">
-                    <h2 class="modal-title" id="catalogRunnerTitle">@Strings.CatalogPage_Runner_Title <code class="js-catalog-title"></code></h2>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@Strings.RecurringJobsPage_Cancel"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" name="id" class="js-catalog-id" />
-                    <input type="hidden" name="source" class="js-catalog-source" />
+         data-text-utc="@Strings.CatalogPage_Runner_Utc"
+         data-text-required="@Strings.CatalogPage_Runner_Required"
+         data-text-json="@Strings.CatalogPage_Runner_InvalidJson">
+        <template class="js-catalog-template">
+            <form id="catalogRunnerForm" class="ns-sheet-form js-catalog-form" novalidate="novalidate">
+                <input type="hidden" name="id" class="js-catalog-id" />
+                <input type="hidden" name="source" class="js-catalog-source" />
+                <fieldset class="ns-fieldset js-catalog-arguments-group">
+                    <legend>@Strings.CatalogPage_Table_Parameters</legend>
                     <div class="js-catalog-arguments"></div>
+                </fieldset>
 
-                    <div class="hf-segmented js-catalog-modes" role="radiogroup">
+                <fieldset class="ns-fieldset">
+                    <legend>@Strings.CatalogPage_Runner_How</legend>
+                    <div class="hf-segmented js-catalog-modes" role="radiogroup" aria-label="@Strings.CatalogPage_Runner_How">
                         <label class="active"><input type="radio" name="mode" value="enqueue" checked /> @Html.Icon("play-fill") @Strings.CatalogPage_Mode_Enqueue</label>
                         <label><input type="radio" name="mode" value="schedule" /> @Html.Icon("clock") @Strings.CatalogPage_Mode_Schedule</label>
                         <label><input type="radio" name="mode" value="recurring" /> @Html.Icon("arrow-repeat") @Strings.CatalogPage_Mode_Recurring</label>
                     </div>
 
-                    <div class="row">
-                        <div class="mb-3 col-md-5">
-                            <label for="catalogQueue">@Strings.RecurringJobsPage_Queue</label>
-                            <input type="text" class="form-control" id="catalogQueue" name="queue" placeholder="default" autocomplete="off" spellcheck="false" />
-                        </div>
-                        <div class="mb-3 col-md-7 js-catalog-mode-field" data-mode="schedule" style="display: none">
-                            <label for="catalogDelay">@Strings.CatalogPage_Delay</label>
-                            @* Minutes, or a phrase such as "in 2 hours", which a number input would reject *@
-                            <input type="text" class="form-control" id="catalogDelay" name="delay" value="5" placeholder="5, in 2 hours, tomorrow at 9am" autocomplete="off" spellcheck="false" />
-                        </div>
-                        <div class="mb-3 col-md-7 js-catalog-mode-field" data-mode="recurring" style="display: none">
-                            <label for="catalogRecurringId">@Strings.CatalogPage_RecurringId</label>
-                            <input type="text" class="form-control" id="catalogRecurringId" name="recurringId" autocomplete="off" spellcheck="false" />
-                        </div>
+                    <div class="ns-field">
+                        <label for="catalogQueue">@Strings.RecurringJobsPage_Queue</label>
+                        <input type="text" class="form-control" id="catalogQueue" name="queue" placeholder="default" autocomplete="off" spellcheck="false" />
                     </div>
-                    <div class="mb-3 js-catalog-mode-field" data-mode="recurring" style="display: none">
+                    <div class="ns-field js-catalog-mode-field" data-mode="schedule" style="display: none">
+                        <label for="catalogDelay">@Strings.CatalogPage_Delay</label>
+                        @* Minutes, or a phrase such as "in 2 hours", which a number input would reject *@
+                        <input type="text" class="form-control" id="catalogDelay" name="delay" value="5" placeholder="5, in 2 hours, tomorrow at 9am" autocomplete="off" spellcheck="false" />
+                    </div>
+                    <div class="ns-field js-catalog-mode-field" data-mode="recurring" style="display: none">
+                        <label for="catalogRecurringId">@Strings.CatalogPage_RecurringId</label>
+                        <input type="text" class="form-control" id="catalogRecurringId" name="recurringId" autocomplete="off" spellcheck="false" />
+                    </div>
+                    <div class="ns-field js-catalog-mode-field" data-mode="recurring" style="display: none">
                         <label for="catalogCron">@Strings.RecurringJobsPage_Schedule</label>
-                        <input type="text" class="form-control js-catalog-cron" id="catalogCron" name="cron" placeholder="every day at 3am" autocomplete="off" spellcheck="false" />
+                        <input type="text" class="form-control ns-mono js-catalog-cron" id="catalogCron" name="cron" placeholder="every day at 3am" autocomplete="off" spellcheck="false" />
+                        <div class="ns-field-supporting">@Strings.RecurringJobsPage_ScheduleHint</div>
                         <p class="cron-description js-catalog-cron-description" aria-live="polite"></p>
                     </div>
+                </fieldset>
 
-                    <div class="alert alert-danger js-catalog-error" style="display: none"></div>
-                    <div class="alert alert-success js-catalog-success" style="display: none"></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">@Strings.RecurringJobsPage_Cancel</button>
-                    <button type="submit" class="btn btn-primary js-catalog-submit" data-loading-text="@Strings.RecurringJobsPage_Saving">@Strings.CatalogPage_Submit</button>
+                <div class="alert alert-danger js-catalog-error" role="alert" style="display: none"></div>
+                <div class="alert alert-success js-catalog-success" role="status" style="display: none"></div>
+                <div class="js-sheet-actions">
+                    <button type="button" class="btn btn-sm ns-btn-text js-sheet-close">@Strings.Common_Close</button>
+                    <button type="submit" form="catalogRunnerForm" class="btn btn-sm btn-primary js-catalog-submit" data-loading-text="@Strings.RecurringJobsPage_Saving">@Strings.CatalogPage_Submit</button>
                 </div>
             </form>
-        </div>
+        </template>
     </div>
 }

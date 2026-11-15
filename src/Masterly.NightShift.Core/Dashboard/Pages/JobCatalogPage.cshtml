@@ -1,6 +1,7 @@
 ﻿@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True *@
 @using System
 @using System.Collections.Generic
+@using System.Globalization
 @using System.Linq
 @using Masterly.NightShift
 @using Masterly.NightShift.Common
@@ -31,110 +32,99 @@
     }
 
     int typeCount = entries.Select(e => e.Type).Distinct().Count();
+    int groupNumber = 0;
 }
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="hf-page-header">@Strings.CatalogPage_Title <small class="text-muted">@Strings.CatalogPage_Hint</small></h1>
+        <header class="ns-page-head">
+            <div class="ns-page-heading">
+                @Html.PageTitle(Strings.CatalogPage_Title, null, entries.Count)
+                <p class="ns-page-subtitle">@Strings.CatalogPage_Hint</p>
+            </div>
+        </header>
 
         @if (entries.Count == 0)
         {
-            <div class="alert alert-info">@Html.Raw(Strings.CatalogPage_NoEntries_Html)</div>
+            <div class="ns-empty-state">
+                @Html.Icon("book-fill")
+                <h2 class="ns-empty-state-title">@Strings.CatalogPage_EmptyTitle</h2>
+                <p>@Html.Raw(Strings.CatalogPage_NoEntries_Html)</p>
+            </div>
         }
         else
         {
             <div class="hf-catalog-toolbar">
-                <input type="search" class="form-control js-catalog-filter" placeholder="@Strings.CatalogPage_Search" autocomplete="off" spellcheck="false" />
-                <span class="text-muted hf-catalog-summary">@entries.Count @Strings.CatalogPage_Summary_Methods &middot; @typeCount @Strings.CatalogPage_Summary_Types</span>
+                <div class="ns-catalog-search">
+                    @Html.Icon("search")
+                    <label for="catalogFilter" class="visually-hidden">@Strings.CatalogPage_Search</label>
+                    <input type="search" id="catalogFilter" class="form-control js-catalog-filter" placeholder="@Strings.CatalogPage_Search" autocomplete="off" spellcheck="false" />
+                </div>
+                <span class="hf-catalog-summary">@entries.Count @Strings.CatalogPage_Summary_Methods &middot; @typeCount @Strings.CatalogPage_Summary_Types</span>
             </div>
 
             foreach (IGrouping<Type, JobCatalogEntry> group in entries.GroupBy(e => e.Type))
             {
-                <section class="hf-card hf-catalog-group js-catalog-group" data-type="@group.Key.FullName">
+                string groupId = "catalog-type-" + (groupNumber++).ToString(CultureInfo.InvariantCulture);
+                <section class="hf-card ns-table-card hf-catalog-group js-catalog-group" data-type="@group.Key.FullName" aria-labelledby="@groupId">
                     <div class="hf-card-header">
-                        <h3>@if (!String.IsNullOrEmpty(group.Key.Namespace)) { <span class="text-muted">@(group.Key.Namespace).</span> }@JobMethodCallRenderer.GetNameWithoutGenericArity(group.Key)</h3>
-                        <span class="text-muted">@group.Count() @Strings.CatalogPage_Summary_Methods</span>
+                        <h2 id="@groupId">@TypeHeading(group.Key)</h2>
+                        <span class="ns-count-chip">@group.Count() @Strings.CatalogPage_Summary_Methods</span>
                     </div>
-                    <div class="table-responsive">
-                        <table class="table hf-catalog-table" aria-describedby="page-title">
-                            <thead>
-                                <tr>
-                                    <th scope="col">@Strings.CatalogPage_Table_Method</th>
-                                    <th scope="col">@Strings.CatalogPage_Table_Parameters</th>
-                                    <th scope="col">@Strings.CatalogPage_Table_Filters</th>
-                                    <th scope="col" class="min-width">@Strings.CatalogPage_Table_Stats</th>
-                                    @if (!IsReadOnly)
-                                    {
-                                        <th scope="col" class="min-width"><span class="visually-hidden">@Strings.Common_Actions</span></th>
-                                    }
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (JobCatalogEntry entry in group)
-                                {
-                                    JobInsight? insight = insightsByKey.TryGetValue(entry.InsightsKey, out JobInsight? found) ? found : null;
-                                    List<JobCatalogParameter> userParameters = entry.UserParameters.ToList();
+                    <ul class="ns-list ns-catalog-list">
+                        @foreach (JobCatalogEntry entry in group)
+                        {
+                            JobInsight? insight = insightsByKey.TryGetValue(entry.InsightsKey, out JobInsight? found) ? found : null;
+                            List<JobCatalogParameter> userParameters = entry.UserParameters.ToList();
+                            string runName = String.Format(Strings.CatalogPage_RunMethod, JobMethodCallRenderer.GetNameWithoutGenericArity(entry.Type) + "." + entry.Method.Name);
 
-                                    <tr class="js-catalog-entry" data-search="@(entry.Type.FullName + " " + entry.Method.Name + " " + String.Join(" ", userParameters.Select(p => p.Name)))">
-                                        <td class="word-break">
-                                            <code class="hf-catalog-method">@(entry.IsAsync ? "async " : null)@entry.Method.Name</code>
-                                            @if (entry.Method.IsStatic)
-                                            {
-                                                <span class="badge text-bg-secondary">@Strings.CatalogPage_Static</span>
-                                            }
-                                        </td>
-                                        <td class="word-break">
-                                            @if (entry.Parameters.Count == 0)
-                                            {
-                                                <span class="text-muted">&ndash;</span>
-                                            }
-                                            @foreach (JobCatalogParameter parameter in entry.Parameters)
-                                            {
-                                                <span class="hf-param @(parameter.Injected ? "hf-param-injected" : null)" title="@(parameter.Injected ? Strings.CatalogPage_Injected : parameter.TypeName)">
-                                                    <span class="hf-param-type">@parameter.TypeName</span> @parameter.Name
-                                                </span>
-                                            }
-                                        </td>
-                                        <td class="word-break">
-                                            @foreach (string filter in entry.Filters)
-                                            {
-                                                <span class="badge text-bg-info">@filter</span>
-                                            }
-                                        </td>
-                                        <td class="min-width hf-catalog-stats">
-                                            @if (insight != null)
-                                            {
+                            <li class="ns-list-item js-catalog-entry" data-search="@(entry.Type.FullName + " " + entry.Method.Name + " " + String.Join(" ", userParameters.Select(p => p.Name)))">
+                                <div class="ns-list-item-body">
+                                    <div class="ns-job-title">
+                                        <code class="hf-catalog-method">@(entry.IsAsync ? "async " : null)@entry.Method.Name</code>
+                                        @if (entry.Method.IsStatic)
+                                        {
+                                            <span class="ns-chip ns-chip-status ns-catalog-flag">@Strings.CatalogPage_Static</span>
+                                        }
+                                        @Signature(entry)
+                                    </div>
+                                    <div class="ns-job-meta">
+                                        @Facts(entry)
+                                        @if (insight != null)
+                                        {
+                                            <span class="hf-catalog-stats">
                                                 <span title="@Strings.InsightsPage_Table_Runs">@insight.Total.ToString("N0")&times;</span>
-                                                <span class="text-muted" title="@Strings.InsightsPage_Table_Median">@Html.ToHumanDuration(TimeSpan.FromMilliseconds(insight.MedianMs), false)</span>
+                                                <span title="@Strings.InsightsPage_Table_Median">@Html.ToHumanDuration(TimeSpan.FromMilliseconds(insight.MedianMs), false)</span>
                                                 @if (insight.Failed > 0)
                                                 {
-                                                    <span class="text-danger" title="@Strings.InsightsPage_Table_Failed">@insight.FailureRate.ToString("P0")</span>
+                                                    <span class="ns-catalog-failures" title="@Strings.InsightsPage_Table_Failed">@insight.FailureRate.ToString("P0")</span>
                                                 }
-                                            }
-                                            else
-                                            {
-                                                <span class="text-muted">&ndash;</span>
-                                            }
-                                        </td>
-                                        @if (!IsReadOnly)
-                                        {
-                                            <td class="min-width">
-                                                <button type="button" class="btn btn-sm btn-primary js-catalog-run"
-                                                        data-id="@entry.Id"
-                                                        data-type="@JobMethodCallRenderer.GetNameWithoutGenericArity(entry.Type)"
-                                                        data-method="@entry.Method.Name"
-                                                        data-parameters="@DashboardJson.Serialize(userParameters.Select(p => JobCatalog.GetFormField(p, JobCatalog.FormatDefault(p.DefaultValue), false)).ToArray())">
-                                                    @Html.Icon("play-fill") @Strings.CatalogPage_Run
-                                                </button>
-                                            </td>
+                                            </span>
                                         }
-                                    </tr>
+                                    </div>
+                                </div>
+                                @if (!IsReadOnly)
+                                {
+                                    <div class="ns-list-item-end ns-row-actions">
+                                        <button type="button" class="ns-icon-button js-catalog-run" aria-haspopup="dialog" aria-label="@runName" title="@runName"
+                                                data-id="@entry.Id"
+                                                data-type="@JobMethodCallRenderer.GetNameWithoutGenericArity(entry.Type)"
+                                                data-method="@entry.Method.Name"
+                                                data-parameters="@DashboardJson.Serialize(userParameters.Select(p => JobCatalog.GetFormField(p, JobCatalog.FormatDefault(p.DefaultValue), false)).ToArray())">
+                                            @Html.Icon("play-fill")
+                                        </button>
+                                    </div>
                                 }
-                            </tbody>
-                        </table>
-                    </div>
+                            </li>
+                        }
+                    </ul>
                 </section>
             }
+
+            <div class="ns-empty-state ns-empty-state-compact js-catalog-nomatch" hidden="hidden">
+                @Html.Icon("search")
+                <p>@Strings.CatalogPage_NoMatch</p>
+            </div>
         }
     </div>
 </div>

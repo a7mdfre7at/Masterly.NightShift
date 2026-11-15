@@ -6985,5 +6985,113 @@ namespace Masterly.NightShift.Dashboard.Resources {
                 return ResourceManager.GetString("RecurringJobsPage_QueueHint", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No job methods.
+        /// </summary>
+        public static string CatalogPage_EmptyTitle {
+            get {
+                return ResourceManager.GetString("CatalogPage_EmptyTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No method matches the filter..
+        /// </summary>
+        public static string CatalogPage_NoMatch {
+            get {
+                return ResourceManager.GetString("CatalogPage_NoMatch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Run {0}….
+        /// </summary>
+        public static string CatalogPage_RunMethod {
+            get {
+                return ResourceManager.GetString("CatalogPage_RunMethod", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to How to run it.
+        /// </summary>
+        public static string CatalogPage_Runner_How {
+            get {
+                return ResourceManager.GetString("CatalogPage_Runner_How", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Enter a value..
+        /// </summary>
+        public static string CatalogPage_Runner_Required {
+            get {
+                return ResourceManager.GetString("CatalogPage_Runner_Required", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to This isn't valid JSON..
+        /// </summary>
+        public static string CatalogPage_Runner_InvalidJson {
+            get {
+                return ResourceManager.GetString("CatalogPage_Runner_InvalidJson", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Retries: {0}.
+        /// </summary>
+        public static string CatalogPage_Fact_Retries {
+            get {
+                return ResourceManager.GetString("CatalogPage_Fact_Retries", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Timeout: {0}.
+        /// </summary>
+        public static string CatalogPage_Fact_Timeout {
+            get {
+                return ResourceManager.GetString("CatalogPage_Fact_Timeout", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to One at a time.
+        /// </summary>
+        public static string CatalogPage_Fact_OneAtATime {
+            get {
+                return ResourceManager.GetString("CatalogPage_Fact_OneAtATime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to At most {0} at a time.
+        /// </summary>
+        public static string CatalogPage_Fact_AtMost {
+            get {
+                return ResourceManager.GetString("CatalogPage_Fact_AtMost", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} per {1}.
+        /// </summary>
+        public static string CatalogPage_Fact_RateLimit {
+            get {
+                return ResourceManager.GetString("CatalogPage_Fact_RateLimit", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Window: {0}.
+        /// </summary>
+        public static string CatalogPage_Fact_Window {
+            get {
+                return ResourceManager.GetString("CatalogPage_Fact_Window", resourceCulture);
+            }
+        }
     }
 }

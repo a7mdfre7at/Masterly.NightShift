@@ -2321,4 +2321,40 @@
   <data name="RecurringJobsPage_QueueHint" xml:space="preserve">
     <value>留空则使用默认队列。</value>
   </data>
+  <data name="CatalogPage_EmptyTitle" xml:space="preserve">
+    <value>没有作业方法</value>
+  </data>
+  <data name="CatalogPage_NoMatch" xml:space="preserve">
+    <value>没有符合筛选条件的方法。</value>
+  </data>
+  <data name="CatalogPage_RunMethod" xml:space="preserve">
+    <value>运行 {0}…</value>
+  </data>
+  <data name="CatalogPage_Runner_How" xml:space="preserve">
+    <value>运行方式</value>
+  </data>
+  <data name="CatalogPage_Runner_Required" xml:space="preserve">
+    <value>请输入值。</value>
+  </data>
+  <data name="CatalogPage_Runner_InvalidJson" xml:space="preserve">
+    <value>这不是有效的 JSON。</value>
+  </data>
+  <data name="CatalogPage_Fact_Retries" xml:space="preserve">
+    <value>重试：{0}</value>
+  </data>
+  <data name="CatalogPage_Fact_Timeout" xml:space="preserve">
+    <value>超时：{0}</value>
+  </data>
+  <data name="CatalogPage_Fact_OneAtATime" xml:space="preserve">
+    <value>一次一个</value>
+  </data>
+  <data name="CatalogPage_Fact_AtMost" xml:space="preserve">
+    <value>同时最多 {0} 个</value>
+  </data>
+  <data name="CatalogPage_Fact_RateLimit" xml:space="preserve">
+    <value>每 {1} {0} 次</value>
+  </data>
+  <data name="CatalogPage_Fact_Window" xml:space="preserve">
+    <value>时段：{0}</value>
+  </data>
 </root>

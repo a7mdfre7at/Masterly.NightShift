@@ -3659,66 +3659,111 @@ label.ns-required::after {
 }
 
 /* Job Catalog
-   ------------------------------------------------------------------ */
+   ------------------------------------------------------------------
+   A card per type with an h2; each method a two-line item: its name and its parameters, then how it runs (queue,
+   retries, timeout, concurrency, time window, its other filters) as chips and its runs from insights. Run opens the
+   runner in the side sheet. The filter has a label for screen readers and says when nothing matches. */
 
 .hf-catalog-toolbar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 14px;
-    margin-bottom: 18px;
+    gap: var(--md-sys-spacing-2) var(--md-sys-spacing-4);
+    margin-bottom: var(--md-sys-spacing-4);
 }
 
-.hf-catalog-toolbar .form-control {
-    max-width: 360px;
+.ns-catalog-search {
+    position: relative;
+    flex: 0 1 22rem;
+    min-width: 0;
+}
+
+.ns-catalog-search > .bi {
+    position: absolute;
+    top: 50%;
+    left: var(--md-sys-spacing-3);
+    transform: translateY(-50%);
+    color: var(--md-sys-color-on-surface-variant);
+    pointer-events: none;
+}
+
+.hf-app .ns-catalog-search .form-control {
+    padding-left: calc(var(--md-sys-spacing-3) * 2 + 1em);
 }
 
 .hf-catalog-summary {
-    font-size: 0.7813rem;
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
 }
 
-.hf-catalog-group .hf-card-header h3 {
-    font-family: var(--hf-mono);
-    font-size: 0.875rem;
+.hf-app .hf-catalog-group .hf-card-header h2 {
+    font: var(--md-sys-typescale-code-small);
+    font-size: var(--md-sys-typescale-title-small-size);
+    font-weight: 600;
+    overflow-wrap: anywhere;
 }
 
-.hf-catalog-table {
-    margin-bottom: 0;
+.ns-catalog-namespace {
+    font-weight: 400;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ns-catalog-list .ns-list-item {
+    align-items: center;
 }
 
 .hf-catalog-method {
     font-weight: 600;
 }
 
+.ns-catalog-params {
+    font: var(--md-sys-typescale-code-small);
+    color: var(--md-sys-color-on-surface-variant);
+    overflow-wrap: anywhere;
+}
+
 .hf-param {
-    display: inline-block;
-    margin: 2px 6px 2px 0;
-    padding: 2px 8px;
-    border-radius: 999px;
-    background-color: var(--hf-neutral-soft);
-    font-family: var(--hf-mono);
-    font-size: 0.7188rem;
     white-space: nowrap;
+    color: var(--md-sys-color-on-surface);
 }
 
 .hf-param-injected {
-    opacity: .55;
-    border: 1px dashed var(--hf-border-strong);
-    background-color: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    font-style: italic;
 }
 
 .hf-param-type {
-    color: var(--hf-info);
+    color: var(--md-sys-color-primary);
 }
 
 .hf-catalog-stats {
+    display: inline-flex;
+    gap: var(--md-sys-spacing-2);
     white-space: nowrap;
-    font-size: 0.7813rem;
+    font-variant-numeric: tabular-nums;
 }
 
-.hf-catalog-stats > span {
-    margin-right: 8px;
+.ns-catalog-failures {
+    color: var(--md-sys-color-error);
 }
 
+.ns-catalog-redacted {
+    font: var(--md-sys-typescale-label-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+/* The runner in the side sheet: the parameters, then how to run the job, each a fieldset */
+.hf-app .ns-sheet-form .hf-segmented {
+    margin-bottom: var(--md-sys-spacing-4);
+}
+
+.ns-catalog-check {
+    margin-bottom: var(--md-sys-spacing-4);
+}
+
+.ns-fieldset[hidden] {
+    display: none;
+}
 .hf-mono {
     font-family: var(--hf-mono);
     font-size: 0.7813rem;
