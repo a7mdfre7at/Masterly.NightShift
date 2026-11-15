@@ -5379,10 +5379,11 @@ body.hf-app.hf-wallboard {
     margin-left: -20px;
 }
 
-/* Links inside console and code text are underlined: their colour alone doesn't set them apart */
+/* Links inside console and code text, alerts and notes are underlined: their colour alone doesn't set them apart */
 body.hf-app .job-console a,
 body.hf-app .ns-code a,
-body.hf-app .alert a {
+body.hf-app .alert a,
+body.hf-app .ns-note-text a {
     text-decoration: underline;
     text-underline-offset: .15em;
 }

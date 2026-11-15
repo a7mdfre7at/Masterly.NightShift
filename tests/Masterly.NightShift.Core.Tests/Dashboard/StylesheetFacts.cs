@@ -98,6 +98,15 @@ public class StylesheetFacts
     }
 
     [Fact]
+    public void LinksInsideTheTextOfANote_AreUnderlined_AsTheirColourAloneDoesntSetThemApart()
+    {
+        // The Servers page's note about servers whose heartbeat is late links to Processing inside a sentence
+        string css = Read("nightshift-ui.css");
+
+        Assert.Matches(@"body\.hf-app \.ns-note-text a {\s*text-decoration: underline;", css);
+    }
+
+    [Fact]
     public void TheTokens_PutTheRootFontSizeBackToTheBrowsers_AndSizeTextInRem()
     {
         string tokens = Read("nightshift-tokens.css");
