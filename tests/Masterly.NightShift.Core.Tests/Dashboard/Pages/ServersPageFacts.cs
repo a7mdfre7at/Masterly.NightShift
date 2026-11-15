@@ -253,6 +253,22 @@ public class ServersPageFacts
     }
 
     [Fact]
+    public void Render_SaysAServerIsPaused_AlsoWhenItsHeartbeatIsLate()
+    {
+        // The card's class is a hook without a look of its own: the chip says it in words, beside the late one
+        SetupServers(Server("paused server", DateTime.UtcNow.AddMinutes(-10)));
+        SetupControlHash(new Dictionary<string, string> { { DrainMode.ServerFieldPrefix + "paused server", "" } });
+
+        string html = _renderer.Render(new ServersPage());
+
+        Assert.Contains("<section class=\"hf-card ns-server-card ns-server-stale ns-server-paused\"", html);
+        Assert.Equal(1, CountOf(html, "<div class=\"ns-server-statuses\">"));
+        Assert.Contains("ns-server-status-stale\">" + DashboardMarkup.Icon("exclamation-triangle-fill") + " " + H(Strings.ServersPage_Possibly_Aborted), html);
+        Assert.Contains("ns-server-status-paused\" title=\"\">" + DashboardMarkup.Icon("pause-fill") + " " + H(Strings.ServersPage_Paused) + "</span>", html);
+        Assert.DoesNotContain(H(Strings.ServersPage_Active) + "</span>", html);
+    }
+
+    [Fact]
     public void Render_ListsPausesLeftByServersThatAreGone_WithAClearButton()
     {
         SetupServers(Server("web-1:2:new", DateTime.UtcNow));

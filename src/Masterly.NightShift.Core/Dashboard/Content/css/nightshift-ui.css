@@ -7492,6 +7492,15 @@ a.ns-home-tile:hover {
     overflow-wrap: anywhere;
 }
 
+/* The status chips sit on the right of the name, one under the other when a late server is also paused */
+.ns-server-statuses {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--md-sys-spacing-1);
+}
+
 .ns-server-status {
     flex: 0 0 auto;
 }

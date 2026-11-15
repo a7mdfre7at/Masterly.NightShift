@@ -85,18 +85,21 @@
                                 <h2 id="@headingId" class="ns-server-name">@shortName</h2>
                                 <code class="ns-server-id">@server.Name</code>
                             </div>
-                            @if (stale)
-                            {
-                                <span class="ns-chip ns-chip-status ns-server-status ns-server-status-stale">@Html.Icon("exclamation-triangle-fill") @Strings.ServersPage_Possibly_Aborted</span>
-                            }
-                            else if (paused)
-                            {
-                                <span class="ns-chip ns-chip-status ns-server-status ns-server-status-paused" title="@serverPauseReason">@Html.Icon("pause-fill") @Strings.ServersPage_Paused</span>
-                            }
-                            else
-                            {
-                                <span class="ns-chip ns-chip-status ns-server-status"><span class="ns-dot ns-state-succeeded" aria-hidden="true"></span> @Strings.ServersPage_Active</span>
-                            }
+                            <div class="ns-server-statuses">
+                                @if (stale)
+                                {
+                                    <span class="ns-chip ns-chip-status ns-server-status ns-server-status-stale">@Html.Icon("exclamation-triangle-fill") @Strings.ServersPage_Possibly_Aborted</span>
+                                }
+                                @* A paused server says so in words, also when its heartbeat is late *@
+                                @if (paused)
+                                {
+                                    <span class="ns-chip ns-chip-status ns-server-status ns-server-status-paused" title="@serverPauseReason">@Html.Icon("pause-fill") @Strings.ServersPage_Paused</span>
+                                }
+                                else if (!stale)
+                                {
+                                    <span class="ns-chip ns-chip-status ns-server-status"><span class="ns-dot ns-state-succeeded" aria-hidden="true"></span> @Strings.ServersPage_Active</span>
+                                }
+                            </div>
                         </div>
 
                         <div class="ns-server-workers">
