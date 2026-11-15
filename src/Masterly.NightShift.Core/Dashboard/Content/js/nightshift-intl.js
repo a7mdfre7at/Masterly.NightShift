@@ -1,5 +1,6 @@
 // Date formatting for the dashboard, built on the browser's Intl APIs instead of moment.js.
-// Exposes `NightShiftIntl` and registers it as the date adapter of Chart.js 2.x time scales.
+// Exposes `NightShiftIntl` and registers it as the date adapter of Chart.js 4 time scales, in place of
+// chartjs-adapter-moment: every member answers what that adapter answers.
 (function (global) {
     'use strict';
 
@@ -190,9 +191,13 @@
             // Sunday, as in moment's default locale. The dashboard's charts never use week units.
             case 'week': return localDate(y, m, d - date.getDay());
             case 'isoWeek':
-                // Same as moment(time).isoWeekday(weekday) in Chart.js's moment adapter: moves to the given
-                // weekday (1 = Monday ... 7 = Sunday) within the current ISO week, keeping the time of day
-                return add(time, weekday - (date.getDay() || 7), 'day');
+                // Same as moment(time).isoWeekday(weekday).startOf('day') in chartjs-adapter-moment: the start
+                // of the given weekday (Chart.js passes 1 = Monday, or true for Monday; the adapter clamps it to
+                // 0 ... 6, 0 being the Sunday before the week) within the current ISO week
+                weekday = Math.trunc(Math.min(Math.max(0, weekday), 6));
+                if (isNaN(weekday)) return NaN;
+                date = new Date(add(time, weekday - (date.getDay() || 7), 'day'));
+                return localDate(date.getFullYear(), date.getMonth(), date.getDate());
             case 'month': return localDate(y, m, 1);
             case 'quarter': return localDate(y, m - m % 3, 1);
             case 'year': return localDate(y, 0, 1);
@@ -217,6 +222,8 @@
         }
     }
 
+    // A time in milliseconds, or null. Chart.js passes the time scale's `parser` as the format when it is a
+    // string; moment patterns aren't supported, so it is ignored and the value is read as Date.parse reads it.
     function parse(value) {
         if (value === null || value === undefined) return null;
         if (typeof value === 'number') return isFinite(value) ? value : null;
@@ -255,7 +262,7 @@
                     year: 'year'
                 };
             },
-            parse: function (value) { return parse(value); },
+            parse: function (value, format) { return parse(value); },
             format: function (time, name) { return format(time, name); },
             add: function (time, amount, unit) { return add(time, amount, unit); },
             diff: function (max, min, unit) { return diff(max, min, unit); },

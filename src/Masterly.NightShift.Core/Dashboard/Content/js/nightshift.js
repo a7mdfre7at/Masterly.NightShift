@@ -1,35 +1,41 @@
 ﻿(function (nightshift) {
-    var changeDatasetColorScheme = function(newColorScheme) {
-        this._chart.data.datasets[0].backgroundColor = COLORS[newColorScheme].failed.backgroundColor;
-        this._chart.data.datasets[0].borderColor = COLORS[newColorScheme].failed.borderColor;
+    // The graphs' series, in the order of their datasets: failed and deleted are stacked under succeeded
+    var SERIES = ['failed', 'deleted', 'succeeded'];
 
-        this._chart.data.datasets[1].backgroundColor = COLORS[newColorScheme].deleted.backgroundColor;
-        this._chart.data.datasets[1].borderColor = COLORS[newColorScheme].deleted.borderColor;
+    // Gives a graph the colors of a scheme ("light" or "dark"); the realtime and history graphs share it
+    var changeDatasetColorScheme = function (newColorScheme) {
+        var colors = COLORS[newColorScheme];
+        var datasets = this._chart.data.datasets;
+        var scales = this._chart.options.scales;
 
-        this._chart.data.datasets[2].backgroundColor = COLORS[newColorScheme].succeeded.backgroundColor;
-        this._chart.data.datasets[2].borderColor = COLORS[newColorScheme].succeeded.borderColor;
-        
-        this._chart.options.scales.xAxes[0].gridLines.color = COLORS[newColorScheme].cartesianColor;
-        this._chart.options.scales.yAxes[0].gridLines.color = COLORS[newColorScheme].cartesianColor;
-        this._chart.options.scales.xAxes[0].ticks.fontColor = COLORS[newColorScheme].tickColor;
-        this._chart.options.scales.yAxes[0].ticks.fontColor = COLORS[newColorScheme].tickColor;
+        for (var i = 0; i < SERIES.length; i++) {
+            datasets[i].backgroundColor = colors[SERIES[i]].backgroundColor;
+            datasets[i].borderColor = colors[SERIES[i]].borderColor;
+        }
 
-        this._chart.update();
-    }
+        [scales.x, scales.y].forEach(function (scale) {
+            scale.grid.color = colors.cartesianColor;
+            scale.border.color = colors.axisColor;
+            scale.ticks.color = colors.tickColor;
+        });
+
+        this._chart.update('none');
+    };
 
     // The job-state colors of the documentation site: succeeded green, failed rose, deleted slate. Only the
     // succeeded series has a line; the others are areas, so empty series draw no line along zero.
     var COLORS = {
         light: {
             cartesianColor: '#e3eeef',
+            axisColor: 'rgba(0, 0, 0, 0.25)',
             tickColor: '#5f7882',
             failed: {
                 backgroundColor: 'rgba(225, 29, 72, 0.75)',
-                borderColor: null,
+                borderColor: 'transparent',
             },
             deleted: {
                 backgroundColor: 'rgba(95, 120, 130, 0.45)',
-                borderColor: null,
+                borderColor: 'transparent',
             },
             succeeded: {
                 backgroundColor: 'rgba(52, 211, 153, 0.55)',
@@ -38,14 +44,15 @@
         },
         dark: {
             cartesianColor: 'rgba(95, 224, 200, 0.1)',
+            axisColor: 'rgba(0, 0, 0, 0.25)',
             tickColor: '#779597',
             failed: {
                 backgroundColor: 'rgba(251, 113, 133, 0.4)',
-                borderColor: null,
+                borderColor: 'transparent',
             },
             deleted: {
                 backgroundColor: 'rgba(166, 193, 195, 0.25)',
-                borderColor: null,
+                borderColor: 'transparent',
             },
             succeeded: {
                 backgroundColor: 'rgba(52, 211, 153, 0.35)',
@@ -56,8 +63,48 @@
 
     if (typeof Chart !== 'undefined') {
         // Canvas fonts accept only real family names, so no ui-sans-serif or system-ui here
-        Chart.defaults.global.defaultFontFamily = '"IBM Plex Sans", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+        Chart.defaults.font.family = '"IBM Plex Sans", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
     }
+
+    // The options both graphs share: stacked areas without points or legend, a tooltip for every series at the
+    // hovered time, colors of the current scheme
+    var graphOptions = function (x, y) {
+        var colors = COLORS[colorScheme];
+
+        x.grid = { color: colors.cartesianColor };
+        x.border = { color: colors.axisColor };
+        x.ticks = $.extend({ maxRotation: 0, color: colors.tickColor }, x.ticks);
+
+        y.grid = { color: colors.cartesianColor };
+        y.border = { color: colors.axisColor };
+        y.ticks = $.extend({ precision: 0, maxTicksLimit: 6, color: colors.tickColor }, y.ticks);
+        y.beginAtZero = true;
+        y.stacked = true;
+
+        return {
+            scales: { x: x, y: y },
+            elements: { line: { tension: 0 }, point: { radius: 0 } },
+            plugins: {
+                legend: { display: false },
+                tooltip: { mode: 'index', intersect: false }
+            }
+        };
+    };
+
+    var graphDatasets = function (labels, data) {
+        var colors = COLORS[colorScheme];
+
+        return SERIES.map(function (name) {
+            return {
+                label: labels[name],
+                borderColor: colors[name].borderColor,
+                backgroundColor: colors[name].backgroundColor,
+                borderWidth: name === 'succeeded' ? 3 : 2,
+                fill: 'origin',
+                data: data ? data[name] : []
+            };
+        });
+    };
 
     // A value as one segment of a dashboard path, written as RouteValues.Encode writes it on the server.
     // ASP.NET Core decodes the path except "%2F", so encodeURIComponent alone gave "a/b" and the literal
@@ -371,60 +418,125 @@
         return Metrics;
     })();
 
-    nightshift.RealtimeGraph = (function() {
+    // The x axis of the realtime graph, drawn as chartjs-plugin-streaming drew its realtime scale: ticks at whole
+    // multiples of the smallest step that leaves room for every label (5 seconds on a wide screen), so they move
+    // with the time instead of being chosen again on each frame, and labels cut at the edges of the plot, which
+    // keeps its width while ticks come and go there.
+    var RealtimeScale = typeof Chart === 'undefined' ? null : class extends Chart.TimeScale {
+        buildTicks() {
+            super.buildTicks();
+
+            var step = this._tickStep();
+            var ticks = [];
+            for (var time = Math.ceil(this.min / step) * step; time <= this.max; time += step) {
+                ticks.push({ value: time });
+            }
+
+            return ticks;
+        }
+
+        // Like Chart.js 2's time scale: the smallest step whose labels fit, with room for one more
+        _tickStep() {
+            var font = this.options.ticks.font || {};
+            var ctx = this.ctx;
+
+            ctx.save();
+            ctx.font = [font.style, font.weight, (font.size || 12) + 'px', font.family || Chart.defaults.font.family].join(' ').trim();
+            var labelWidth = ctx.measureText(this.format(this.max)).width || 1;
+            ctx.restore();
+
+            var capacity = Math.max(Math.floor(this.width / labelWidth) - 1, 1);
+            var range = this.max - this.min;
+            var steps = RealtimeScale.steps;
+
+            for (var i = 0; i < steps.length; i++) {
+                if (range / steps[i] <= capacity) return steps[i];
+            }
+
+            return steps[steps.length - 1];
+        }
+
+        fit() {
+            super.fit();
+
+            if (this.isHorizontal() && this.options.display && this.options.ticks.display) {
+                this.paddingLeft = 3;
+                this.paddingRight = 3;
+            }
+        }
+
+        drawLabels(chartArea) {
+            var ctx = this.ctx;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(chartArea.left, 0, chartArea.right - chartArea.left, this.chart.height);
+            ctx.clip();
+            super.drawLabels(chartArea);
+            ctx.restore();
+        }
+    };
+
+    if (RealtimeScale) {
+        RealtimeScale.id = 'nightshiftRealtime';
+        // No ticks from the data and no auto-skipping: buildTicks chooses them
+        RealtimeScale.defaults = { ticks: { source: 'data', autoSkip: false } };
+        RealtimeScale.steps = [1, 2, 5, 10, 15, 30, 60].map(function (seconds) { return seconds * 1000; });
+        Chart.register(RealtimeScale);
+    }
+
+    // The realtime graph: the jobs that succeeded, failed or were deleted between two polls of the statistics, over
+    // the last minute. It does what chartjs-plugin-streaming did with the settings the dashboard gave it (duration
+    // 60 seconds, delay one poll interval, no ttl, 30 frames per second):
+    // - the x axis shows the minute before now minus the delay, and slides with the clock: it is redrawn at most 30
+    //   times a second from requestAnimationFrame, so nothing is drawn while the tab is hidden;
+    // - each poll adds a point at the time it arrived, which comes in at the right edge one poll interval later;
+    // - points that left the axis are dropped but the last two, so the areas still reach the left edge.
+    nightshift.RealtimeGraph = (function () {
+        var DURATION = 60 * 1000;
+        var FRAME_INTERVAL = 1000 / 30;
+
         function RealtimeGraph(element, succeeded, failed, deleted, succeededStr, failedStr, deletedStr, pollInterval) {
             this._succeeded = succeeded;
             this._failed = failed;
             this._deleted = deleted;
             this._last = Date.now();
             this._pollInterval = pollInterval;
-            
+            this._duration = DURATION;
+            this._delay = pollInterval;
+            this._frameId = null;
+            this._lastFrame = 0;
+
+            var range = this._range(Date.now());
+            var options = graphOptions(
+                {
+                    type: 'nightshiftRealtime',
+                    min: range.min,
+                    max: range.max,
+                    time: { unit: 'second', tooltipFormat: 'dateTimeWithSeconds', displayFormats: { second: 'timeWithSeconds', minute: 'timeWithSeconds' } }
+                },
+                { min: 0, suggestedMax: 10 });
+
+            options.animation = false;
+
             this._chart = new Chart(element, {
                 type: 'line',
-                data: {
-                    datasets: [
-                        { 
-                            label: failedStr,  
-                            borderColor: COLORS[colorScheme].failed.borderColor, 
-                            backgroundColor: COLORS[colorScheme].failed.backgroundColor, 
-                            borderWidth: 2 
-                        },
-                        { 
-                            label: deletedStr,
-                            borderColor: COLORS[colorScheme].deleted.borderColor, 
-                            backgroundColor: COLORS[colorScheme].deleted.backgroundColor, 
-                            borderWidth: 2 
-                        },
-                        { 
-                            label: succeededStr,
-                            borderColor: COLORS[colorScheme].succeeded.borderColor, 
-                            backgroundColor: COLORS[colorScheme].succeeded.backgroundColor 
-                        },
-                    ]
-                },
-                options: {
-                    scales: {
-                        xAxes: [{
-                            gridLines: { color: COLORS[colorScheme].cartesianColor },
-                            type: 'realtime',
-                            realtime: { duration: 60 * 1000, delay: pollInterval },
-                            time: { unit: 'second', tooltipFormat: 'dateTimeWithSeconds', displayFormats: { second: 'timeWithSeconds', minute: 'timeWithSeconds' } },
-                            ticks: { maxRotation: 0, fontColor: COLORS[colorScheme].tickColor }
-                        }],
-                        yAxes: [{
-                            gridLines: { color: COLORS[colorScheme].cartesianColor },
-                            ticks: { beginAtZero: true, precision: 0, min: 0, maxTicksLimit: 6, suggestedMax: 10, fontColor: COLORS[colorScheme].tickColor }, 
-                            stacked: true 
-                        }]
-                    },
-                    elements: { line: { tension: 0 }, point: { radius: 0 } },
-                    animation: { duration: 0 },
-                    hover: { animationDuration: 0 },
-                    responsiveAnimationDuration: 0,
-                    legend: { display: false },
-                    tooltips: { mode: 'index', intersect: false }
+                data: { datasets: graphDatasets({ failed: failedStr, deleted: deletedStr, succeeded: succeededStr }) },
+                options: options
+            });
+
+            var self = this;
+            this._onFrame = function () { self._frame(); };
+
+            document.addEventListener('visibilitychange', function () {
+                if (document.hidden) {
+                    self._stop();
+                } else {
+                    self._start();
                 }
             });
+
+            this._start();
         }
 
         RealtimeGraph.prototype.appendHistory = function (statistics) {
@@ -441,10 +553,11 @@
                 this._chart.data.datasets[0].data.push({ x: now, y: failed });
                 this._chart.data.datasets[1].data.push({ x: now, y: deleted });
                 this._chart.data.datasets[2].data.push({ x: now, y: succeeded });
-                
-                this._chart.update();
+
+                // The next frame draws it; in a hidden tab, the points still mustn't pile up
+                this._dropOld(this._range(now).min);
             }
-            
+
             this._failed = newFailed;
             this._deleted = newDeleted;
             this._succeeded = newSucceeded;
@@ -453,10 +566,58 @@
 
         RealtimeGraph.prototype.changeDatasetColorScheme = changeDatasetColorScheme;
 
+        RealtimeGraph.prototype._range = function (now) {
+            var max = now - this._delay;
+            return { min: max - this._duration, max: max };
+        };
+
+        RealtimeGraph.prototype._start = function () {
+            if (this._frameId === null && !document.hidden) {
+                this._lastFrame = 0;
+                this._frameId = window.requestAnimationFrame(this._onFrame);
+            }
+        };
+
+        RealtimeGraph.prototype._stop = function () {
+            if (this._frameId !== null) {
+                window.cancelAnimationFrame(this._frameId);
+                this._frameId = null;
+            }
+        };
+
+        RealtimeGraph.prototype._frame = function () {
+            var now = Date.now();
+            this._frameId = window.requestAnimationFrame(this._onFrame);
+
+            // A frame of a 60 Hz display comes up to a millisecond early
+            if (now - this._lastFrame < FRAME_INTERVAL - 2) return;
+            this._lastFrame = now;
+
+            var range = this._range(now);
+            var x = this._chart.options.scales.x;
+            x.min = range.min;
+            x.max = range.max;
+
+            this._dropOld(range.min);
+            // Without animations; an update replays the last mouse event, so an open tooltip follows its points
+            this._chart.update('none');
+        };
+
+        RealtimeGraph.prototype._dropOld = function (min) {
+            var datasets = this._chart.data.datasets;
+
+            for (var i = 0; i < datasets.length; i++) {
+                var data = datasets[i].data;
+                while (data.length > 2 && data[2].x <= min) {
+                    data.shift();
+                }
+            }
+        };
+
         return RealtimeGraph;
     })();
 
-    nightshift.HistoryGraph = (function() {
+    nightshift.HistoryGraph = (function () {
         function HistoryGraph(element, succeeded, failed, deleted, succeededStr, failedStr, deletedStr) {
             var timeOptions = $(element).data('period') === 'week'
                 ? { unit: 'day', tooltipFormat: 'longDate', displayFormats: { day: 'shortDate' } }
@@ -465,44 +626,15 @@
             this._chart = new Chart(element, {
                 type: 'line',
                 data: {
-                    datasets: [
-                        { 
-                            label: failedStr,  
-                            borderColor: COLORS[colorScheme].failed.borderColor, 
-                            backgroundColor: COLORS[colorScheme].failed.backgroundColor, 
-                            borderWidth: 2,
-                            data: failed,
-                        },
-                        { 
-                            label: deletedStr,
-                            borderColor: COLORS[colorScheme].deleted.borderColor, 
-                            backgroundColor: COLORS[colorScheme].deleted.backgroundColor, 
-                            borderWidth: 2,
-                            data: deleted,
-                        },
-                        { 
-                            label: succeededStr,
-                            borderColor: COLORS[colorScheme].succeeded.borderColor, 
-                            backgroundColor: COLORS[colorScheme].succeeded.backgroundColor,
-                            data: succeeded,
-                        },
-                    ]
+                    datasets: graphDatasets(
+                        { failed: failedStr, deleted: deletedStr, succeeded: succeededStr },
+                        { failed: failed, deleted: deleted, succeeded: succeeded })
                 },
-                options: {
-                    scales: {
-                        xAxes: [{ gridLines: { color: COLORS[colorScheme].cartesianColor }, type: 'time', time: timeOptions, ticks: { maxRotation: 0, fontColor: COLORS[colorScheme].tickColor } }],
-                        yAxes: [{ gridLines: { color: COLORS[colorScheme].cartesianColor }, ticks: { beginAtZero: true, precision: 0, maxTicksLimit: 6, fontColor: COLORS[colorScheme].tickColor }, stacked: true }]
-                    },
-                    elements: { line: { tension: 0 }, point: { radius: 0 } },
-                    legend: { display: false },
-                    tooltips: { mode: 'index', intersect: false },
-                    plugins: { streaming: false },
-                }
+                options: graphOptions({ type: 'time', time: timeOptions }, {})
             });
-
-            HistoryGraph.prototype.changeDatasetColorScheme = changeDatasetColorScheme;
-
         }
+
+        HistoryGraph.prototype.changeDatasetColorScheme = changeDatasetColorScheme;
 
         return HistoryGraph;
     })();
