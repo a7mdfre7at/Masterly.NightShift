@@ -40,7 +40,7 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 class="page-header">@Strings.HomePage_Title</h1>
+        <h1 class="hf-page-header">@Strings.HomePage_Title</h1>
         @if (Metrics.Count > 0)
         {
             <div class="hf-kpi-grid">
@@ -83,8 +83,8 @@
             <div class="hf-card-header">
                 <h3>@Strings.HomePage_HistoryGraph</h3>
                 <div class="btn-group">
-                    <a href="?period=day" class="btn btn-sm btn-default @("day".Equals(period, StringComparison.OrdinalIgnoreCase) ? "active" : null)">@Strings.Common_PeriodDay</a>
-                    <a href="?period=week" class="btn btn-sm btn-default @("week".Equals(period, StringComparison.OrdinalIgnoreCase) ? "active" : null)">@Strings.Common_PeriodWeek</a>
+                    <a href="?period=day" class="btn btn-sm btn-outline-secondary @("day".Equals(period, StringComparison.OrdinalIgnoreCase) ? "active" : null)">@Strings.Common_PeriodDay</a>
+                    <a href="?period=week" class="btn btn-sm btn-outline-secondary @("week".Equals(period, StringComparison.OrdinalIgnoreCase) ? "active" : null)">@Strings.Common_PeriodWeek</a>
                 </div>
             </div>
             <div class="hf-card-body">

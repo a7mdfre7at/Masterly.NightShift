@@ -27,7 +27,7 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="page-header">@Strings.BatchesPage_Title <small class="text-muted">@Strings.BatchesPage_Hint</small></h1>
+        <h1 id="page-title" class="hf-page-header">@Strings.BatchesPage_Title <small class="text-muted">@Strings.BatchesPage_Hint</small></h1>
 
         @if (batches.Count == 0)
         {
@@ -58,13 +58,13 @@
                                 double failedPercent = 100.0 * batch.Failed / total;
                                 double processingPercent = 100.0 * batch.Processing / total;
                                 double deletedPercent = 100.0 * batch.Deleted / total;
-                                string stateCss = batch.IsFinished ? "label-success" : batch.IsStuck ? "label-danger" : "label-info";
+                                string stateCss = batch.IsFinished ? "text-bg-success" : batch.IsStuck ? "text-bg-danger" : "text-bg-info";
                                 string stateText = batch.IsFinished ? Strings.BatchesPage_State_Finished : batch.IsStuck ? Strings.BatchesPage_State_Failed : Strings.BatchesPage_State_Running;
 
                                 <tr class="hover">
                                     <td>
                                         <a class="hf-batch-link" href="@Url.To("/batches/" + RouteValues.Encode(batch.Id))">
-                                            <span class="label @stateCss text-uppercase">@stateText</span>
+                                            <span class="badge @stateCss text-uppercase">@stateText</span>
                                             <strong>@(batch.Description ?? batch.Id)</strong>
                                             @if (batch.Description != null)
                                             {

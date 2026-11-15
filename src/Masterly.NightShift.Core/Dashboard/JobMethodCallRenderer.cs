@@ -187,7 +187,7 @@ internal static class JobMethodCallRenderer
                 builder.Append(' ');
             }
 
-            builder.Append(FormattableString.Invariant($"<span title=\"{parameter.Name}\" data-placement=\"{tooltipPosition}\">"));
+            builder.Append(FormattableString.Invariant($"<span title=\"{parameter.Name}\" data-bs-placement=\"{tooltipPosition}\">"));
             builder.Append(renderedArgument);
             builder.Append("</span>");
 

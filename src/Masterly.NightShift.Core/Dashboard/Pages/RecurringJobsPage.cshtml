@@ -47,7 +47,7 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="page-header">@Strings.RecurringJobsPage_Title</h1>
+        <h1 id="page-title" class="hf-page-header">@Strings.RecurringJobsPage_Title</h1>
         @if (recurringJobs.Count == 0)
         {
             <div class="alert alert-info">
@@ -59,7 +59,7 @@
             if (lateCount > 0)
             {
                 <div class="alert alert-danger">
-                    <span class="glyphicon glyphicon-time"></span>
+                    @Html.Icon("clock")
                     @* Only the jobs of this page were checked; say so when there are other pages *@
                     @String.Format(pager != null && pager.TotalPageCount > 1 ? Strings.RecurringJobsPage_LateSummary_Page : Strings.RecurringJobsPage_LateSummary, lateCount)
                 </div>
@@ -67,28 +67,28 @@
 
             <div class="js-jobs-list">
                 <div class="btn-toolbar btn-toolbar-top">
-                    <a href="@Url.To("/recurring/forecast")" class="btn btn-sm btn-default">
-                        <span class="glyphicon glyphicon-calendar"></span>
+                    <a href="@Url.To("/recurring/forecast")" class="btn btn-sm btn-outline-secondary">
+                        @Html.Icon("calendar3")
                         @Strings.RecurringJobsPage_Forecast
                     </a>
-                    <button type="button" class="btn btn-sm btn-default js-manifest-export" data-url="@Url.To("/recurring/export")" title="@Strings.RecurringJobsPage_Export_Hint">
-                        <span class="glyphicon glyphicon-download-alt"></span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary js-manifest-export" data-url="@Url.To("/recurring/export")" title="@Strings.RecurringJobsPage_Export_Hint">
+                        @Html.Icon("download")
                         @Strings.RecurringJobsPage_Export
                     </button>
                     @if (!IsReadOnly)
                     {
-                        <button type="button" class="btn btn-sm btn-default js-manifest-import">
-                            <span class="glyphicon glyphicon-upload"></span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary js-manifest-import">
+                            @Html.Icon("upload")
                             @Strings.RecurringJobsPage_Import
                         </button>
                     }
                     @if (!IsReadOnly)
                     {
-                        <button class="btn btn-sm btn-default btn-delete-all"
+                        <button class="btn btn-sm btn-outline-secondary btn-delete-all"
                                 data-ajax="@Url.To("/recurring/remove-all")"
                                 data-loading-text="@Strings.Common_Deleting"
                                 data-confirm="@Strings.RecurringJobsPage_RemoveAllConfirm">
-                            <span class="glyphicon glyphicon-trash"></span>
+                            @Html.Icon("trash-fill")
                             @Strings.RecurringJobsPage_RemoveAll
                         </button>
                     }
@@ -98,38 +98,38 @@
                                 data-url="@Url.To("/recurring/trigger")"
                                 data-loading-text="@Strings.RecurringJobsPage_Triggering"
                                 disabled="disabled">
-                            <span class="glyphicon glyphicon-play-circle"></span>
+                            @Html.Icon("play-circle")
                             @Strings.RecurringJobsPage_TriggerNow
                         </button>
                     }
                     @if (!IsReadOnly)
                     {
-                        <button class="js-jobs-list-command btn btn-sm btn-default"
+                        <button class="js-jobs-list-command btn btn-sm btn-outline-secondary"
                                 data-url="@Url.To("/recurring/pause")"
                                 data-loading-text="@Strings.RecurringJobsPage_Pausing"
                                 disabled="disabled">
-                            <span class="glyphicon glyphicon-pause"></span>
+                            @Html.Icon("pause-fill")
                             @Strings.RecurringJobsPage_Pause
                         </button>
                     }
                     @if (!IsReadOnly)
                     {
-                        <button class="js-jobs-list-command btn btn-sm btn-default"
+                        <button class="js-jobs-list-command btn btn-sm btn-outline-secondary"
                                 data-url="@Url.To("/recurring/resume")"
                                 data-loading-text="@Strings.RecurringJobsPage_Resuming"
                                 disabled="disabled">
-                            <span class="glyphicon glyphicon-play"></span>
+                            @Html.Icon("play-fill")
                             @Strings.RecurringJobsPage_Resume
                         </button>
                     }
                     @if (!IsReadOnly)
                     {
-                        <button class="js-jobs-list-command btn btn-sm btn-default"
+                        <button class="js-jobs-list-command btn btn-sm btn-outline-secondary"
                                 data-url="@Url.To("/recurring/remove")"
                                 data-loading-text="@Strings.Common_Deleting"
                                 data-confirm="@Strings.Common_DeleteConfirm"
                                 disabled="disabled">
-                            <span class="glyphicon glyphicon-remove"></span>
+                            @Html.Icon("x-lg")
                             @Strings.Common_Delete
                         </button>
                     }
@@ -199,7 +199,7 @@
                                         <code title="@cronDescription" class="cron-badge">
                                             @if (cronError)
                                             {
-                                                <span class="glyphicon glyphicon-exclamation-sign"></span>
+                                                @Html.Icon("exclamation-circle-fill")
                                             }
                                             @job.Cron
                                         </code>
@@ -226,10 +226,10 @@
                                                 exception = ex;
                                             }
 
-                                            <span title="@displayName" data-container="body">@job.TimeZoneId
+                                            <span title="@displayName" data-bs-container="body">@job.TimeZoneId
                                                 @if (exception != null)
                                                 {
-                                                    <span class="glyphicon glyphicon-exclamation-sign" title="@exception.Message"></span>
+                                                    <span class="hf-icon" title="@exception.Message" role="img" aria-label="@exception.Message">@Html.Icon("exclamation-circle-fill")</span>
                                                 }
                                             </span>
                                         }
@@ -259,22 +259,22 @@
                                     <td class="align-right min-width">
                                         @if (job.Paused)
                                         {
-                                            <span class="label label-warning text-uppercase" title="@Strings.RecurringJobsPage_Paused_Tooltip">@Strings.RecurringJobsPage_Paused</span>
+                                            <span class="badge text-bg-warning text-uppercase" title="@Strings.RecurringJobsPage_Paused_Tooltip">@Strings.RecurringJobsPage_Paused</span>
                                         }
                                         else if (!job.NextExecution.HasValue && job.Error == null && job.EndAt.HasValue && job.EndAt.Value < now)
                                         {
-                                            <span class="label label-default text-uppercase" title="@Strings.RecurringJobsPage_Ended_Tooltip">@Strings.RecurringJobsPage_Ended</span>
+                                            <span class="badge text-bg-secondary text-uppercase" title="@Strings.RecurringJobsPage_Ended_Tooltip">@Strings.RecurringJobsPage_Ended</span>
                                             <div class="text-muted small">@Html.LocalTime(job.EndAt.Value)</div>
                                         }
                                         else if (!job.NextExecution.HasValue)
                                         {
                                             if (job.Error != null)
                                             {
-                                                <span class="label label-danger text-uppercase">@Strings.Common_Error</span>
+                                                <span class="badge text-bg-danger text-uppercase">@Strings.Common_Error</span>
                                             }
                                             else
                                             {
-                                                <span class="label label-default text-uppercase" title="@Strings.RecurringJobsPage_RecurringJobDisabled_Tooltip">@Strings.Common_Disabled</span>
+                                                <span class="badge text-bg-secondary text-uppercase" title="@Strings.RecurringJobsPage_RecurringJobDisabled_Tooltip">@Strings.Common_Disabled</span>
                                             }
 
                                         }
@@ -284,12 +284,12 @@
                                         }
                                         else if (DashboardHealth.IsLate(job, now))
                                         {
-                                            <span class="label label-danger text-uppercase" title="@Strings.RecurringJobsPage_Late_Tooltip">@Strings.RecurringJobsPage_Late</span>
+                                            <span class="badge text-bg-danger text-uppercase" title="@Strings.RecurringJobsPage_Late_Tooltip">@Strings.RecurringJobsPage_Late</span>
                                             @Html.RelativeTime(job.NextExecution.Value)
                                         }
                                         else if (job.RetryAttempt > 0)
                                         {
-                                            <span class="label label-warning">@Html.RelativeTime(job.NextExecution.Value)</span>
+                                            <span class="badge text-bg-warning">@Html.RelativeTime(job.NextExecution.Value)</span>
                                         }
                                         else
                                         {
@@ -311,13 +311,13 @@
                                                     }
                                                     @if (cssSuffix != null)
                                                     {
-                                                        <span class="label label-default label-hover label-state-@cssSuffix">
+                                                        <span class="badge label-hover label-state-@cssSuffix">
                                                             @Html.RelativeTime(job.LastExecution.Value)
                                                         </span>
                                                     }
                                                     else
                                                     {
-                                                        <span class="label label-default label-hover">
+                                                        <span class="badge text-bg-secondary label-hover">
                                                             @Html.RelativeTime(job.LastExecution.Value)
                                                         </span>
                                                     }
@@ -325,7 +325,7 @@
                                             }
                                             else
                                             {
-                                                <span class="label label-default label-state-inactive" title="@Strings.RecurringJobsPage_Canceled">
+                                                <span class="badge label-state-inactive" title="@Strings.RecurringJobsPage_Canceled">
                                                     @Html.RelativeTime(job.LastExecution.Value)
                                                 </span>
                                             }
@@ -387,19 +387,19 @@
         <div class="modal-dialog" role="document">
             <form class="modal-content js-recurring-edit-form">
                 <div class="modal-header">
-                    <button type="button" class="close" data-dismiss="modal" aria-label="@Strings.RecurringJobsPage_Cancel"><span aria-hidden="true">&times;</span></button>
                     <h4 class="modal-title" id="recurringJobEditorTitle">@Strings.RecurringJobsPage_EditSchedule <code class="js-recurring-edit-id"></code></h4>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@Strings.RecurringJobsPage_Cancel"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="form-group">
+                    <div class="mb-3">
                         <label for="recurringJobEditorCron">@Strings.RecurringJobsPage_Schedule</label>
                         <input type="text" class="form-control js-recurring-edit-cron" id="recurringJobEditorCron" name="cron" autocomplete="off" spellcheck="false" />
                         <p class="cron-description js-recurring-edit-description" aria-live="polite"></p>
-                        <p class="help-block">@Strings.RecurringJobsPage_ScheduleHint</p>
+                        <p class="form-text">@Strings.RecurringJobsPage_ScheduleHint</p>
                     </div>
-                    <div class="form-group">
+                    <div class="mb-3">
                         <label for="recurringJobEditorTimeZone">@Strings.RecurringJobsPage_Table_TimeZone</label>
-                        <select class="form-control js-recurring-edit-timezone" id="recurringJobEditorTimeZone" name="timezone">
+                        <select class="form-select js-recurring-edit-timezone" id="recurringJobEditorTimeZone" name="timezone">
                             @foreach (TimeZoneInfo zone in TimeZoneInfo.GetSystemTimeZones())
                             {
                                 <option value="@zone.Id">@zone.DisplayName</option>
@@ -407,13 +407,13 @@
                         </select>
                     </div>
                     <div class="row">
-                        <div class="form-group col-sm-5">
+                        <div class="mb-3 col-md-5">
                             <label for="recurringJobEditorQueue">@Strings.RecurringJobsPage_Queue</label>
                             <input type="text" class="form-control js-recurring-edit-queue" id="recurringJobEditorQueue" name="queue" autocomplete="off" spellcheck="false" />
                         </div>
-                        <div class="form-group col-sm-7">
+                        <div class="mb-3 col-md-7">
                             <label for="recurringJobEditorMisfire">@Strings.RecurringJobsPage_Misfire</label>
-                            <select class="form-control js-recurring-edit-misfire" id="recurringJobEditorMisfire" name="misfire">
+                            <select class="form-select js-recurring-edit-misfire" id="recurringJobEditorMisfire" name="misfire">
                                 <option value="Relaxed">@Strings.RecurringJobsPage_Misfire_Relaxed</option>
                                 <option value="Strict">@Strings.RecurringJobsPage_Misfire_Strict</option>
                                 <option value="Ignorable">@Strings.RecurringJobsPage_Misfire_Ignorable</option>
@@ -428,7 +428,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-default" data-dismiss="modal">@Strings.RecurringJobsPage_Cancel</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">@Strings.RecurringJobsPage_Cancel</button>
                     <button type="submit" class="btn btn-primary js-recurring-edit-save" data-loading-text="@Strings.RecurringJobsPage_Saving">@Strings.RecurringJobsPage_Save</button>
                 </div>
             </form>
@@ -442,26 +442,26 @@
         <div class="modal-dialog" role="document">
             <form class="modal-content js-manifest-form">
                 <div class="modal-header">
-                    <button type="button" class="close" data-dismiss="modal" aria-label="@Strings.RecurringJobsPage_Cancel"><span aria-hidden="true">&times;</span></button>
                     <h4 class="modal-title" id="manifestImportTitle">@Strings.RecurringJobsPage_Import_Title</h4>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@Strings.RecurringJobsPage_Cancel"></button>
                 </div>
                 <div class="modal-body">
                     <p class="text-muted">@Strings.RecurringJobsPage_Import_Hint</p>
-                    <div class="form-group">
+                    <div class="mb-3">
                         <textarea class="form-control hf-mono js-manifest-text" name="manifest" rows="12" spellcheck="false" placeholder="{ &quot;version&quot;: 1, &quot;recurringJobs&quot;: [ ... ] }"></textarea>
                     </div>
                     <div class="hf-manifest-row">
-                        <label class="btn btn-sm btn-default hf-file-button">
-                            <span class="glyphicon glyphicon-folder-open"></span> @Strings.RecurringJobsPage_Import_File
+                        <label class="btn btn-sm btn-outline-secondary hf-file-button">
+                            @Html.Icon("folder2-open") @Strings.RecurringJobsPage_Import_File
                             <input type="file" accept=".json,application/json" class="js-manifest-file" />
                         </label>
-                        <label class="checkbox-inline"><input type="checkbox" name="prune" value="true" /> @Strings.RecurringJobsPage_Import_Prune</label>
+                        <div class="form-check form-check-inline"><input type="checkbox" class="form-check-input" id="manifestImportPrune" name="prune" value="true" /><label class="form-check-label" for="manifestImportPrune">@Strings.RecurringJobsPage_Import_Prune</label></div>
                     </div>
                     <div class="alert alert-danger js-manifest-error" style="display: none"></div>
                     <div class="alert alert-success js-manifest-result" style="display: none"></div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-default" data-dismiss="modal">@Strings.RecurringJobsPage_Cancel</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">@Strings.RecurringJobsPage_Cancel</button>
                     <button type="submit" class="btn btn-primary js-manifest-apply" data-loading-text="@Strings.RecurringJobsPage_Import_Applying">@Strings.RecurringJobsPage_Import_Apply</button>
                 </div>
             </form>

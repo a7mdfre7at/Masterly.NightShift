@@ -34,7 +34,7 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="page-header">
+        <h1 id="page-title" class="hf-page-header">
             @Html.Breadcrumbs(title, new Dictionary<string, string> { { Strings.RecurringJobsPage_Title, Url.To("/recurring") } })
         </h1>
 
@@ -54,11 +54,11 @@
                         }
                         @if (job.Paused)
                         {
-                            <span class="label label-default text-uppercase">@Strings.RecurringJobsPage_Paused</span>
+                            <span class="badge text-bg-secondary text-uppercase">@Strings.RecurringJobsPage_Paused</span>
                         }
                         @if (job.Declared)
                         {
-                            <span class="label label-info text-uppercase" title="@Strings.RecurringJobDetailsPage_Declared_Tooltip">@Strings.RecurringJobDetailsPage_Declared</span>
+                            <span class="badge text-bg-info text-uppercase" title="@Strings.RecurringJobDetailsPage_Declared_Tooltip">@Strings.RecurringJobDetailsPage_Declared</span>
                             if (job.DeclaredBy != null)
                             {
                                 <code title="@Strings.RecurringJobDetailsPage_Declared_Tooltip">@job.DeclaredBy</code>
@@ -66,32 +66,32 @@
                         }
                         @if (job.Retired)
                         {
-                            <span class="label label-warning text-uppercase">@Strings.RecurringJobDetailsPage_Retired</span>
+                            <span class="badge text-bg-warning text-uppercase">@Strings.RecurringJobDetailsPage_Retired</span>
                         }
                     </div>
                     @if (!IsReadOnly)
                     {
                         <div class="hf-batch-actions">
                             <button class="btn btn-sm btn-primary" data-ajax="@Url.To("/recurring/trigger-one/" + encodedId)" data-loading-text="@Strings.RecurringJobsPage_Triggering">
-                                <span class="glyphicon glyphicon-play-circle"></span> @Strings.RecurringJobsPage_TriggerNow
+                                @Html.Icon("play-circle") @Strings.RecurringJobsPage_TriggerNow
                             </button>
                             @if (job.Paused)
                             {
-                                <button class="btn btn-sm btn-default" data-ajax="@Url.To("/recurring/resume-one/" + encodedId)" data-loading-text="@Strings.RecurringJobsPage_Resuming">
-                                    <span class="glyphicon glyphicon-play"></span> @Strings.RecurringJobsPage_Resume
+                                <button class="btn btn-sm btn-outline-secondary" data-ajax="@Url.To("/recurring/resume-one/" + encodedId)" data-loading-text="@Strings.RecurringJobsPage_Resuming">
+                                    @Html.Icon("play-fill") @Strings.RecurringJobsPage_Resume
                                 </button>
                             }
                             else
                             {
-                                <button class="btn btn-sm btn-default" data-ajax="@Url.To("/recurring/pause-one/" + encodedId)" data-loading-text="@Strings.RecurringJobsPage_Pausing">
-                                    <span class="glyphicon glyphicon-pause"></span> @Strings.RecurringJobsPage_Pause
+                                <button class="btn btn-sm btn-outline-secondary" data-ajax="@Url.To("/recurring/pause-one/" + encodedId)" data-loading-text="@Strings.RecurringJobsPage_Pausing">
+                                    @Html.Icon("pause-fill") @Strings.RecurringJobsPage_Pause
                                 </button>
                             }
                         </div>
                     }
                 </div>
 
-                <table class="table table-condensed hf-definition">
+                <table class="table table-sm hf-definition">
                     <tbody>
                         <tr><th class="min-width">@Strings.Common_Job</th><td class="word-break">@(job.Job != null ? Html.JobName(job.Job) : Strings.Common_CannotFindTargetMethod)</td></tr>
                         <tr><th>@Strings.RecurringJobsPage_Table_TimeZone</th><td>@job.TimeZoneId</td></tr>
@@ -131,7 +131,7 @@
                 <ul class="list-inline hf-next-runs" aria-describedby="next-runs">
                     @foreach (DateTime next in nextRuns)
                     {
-                        <li>@Html.RelativeTime(next)</li>
+                        <li class="list-inline-item">@Html.RelativeTime(next)</li>
                     }
                 </ul>
             }

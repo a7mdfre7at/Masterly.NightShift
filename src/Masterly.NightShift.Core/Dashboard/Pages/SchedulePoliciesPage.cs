@@ -64,7 +64,7 @@ internal partial class SchedulePoliciesPage
     private NonEscapedString DayCheckbox(DayOfWeek day, bool isChecked)
     {
         string name = CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedDayName(day);
-        return new NonEscapedString($"<label class=\"checkbox-inline\"><input type=\"checkbox\" name=\"days\" value=\"{day}\"{(isChecked ? " checked=\"checked\"" : string.Empty)}/> {Html.HtmlEncode(name)}</label>");
+        return new NonEscapedString($"<div class=\"form-check form-check-inline\"><input type=\"checkbox\" class=\"form-check-input\" id=\"policy-day-{day}\" name=\"days\" value=\"{day}\"{(isChecked ? " checked=\"checked\"" : string.Empty)}/><label class=\"form-check-label\" for=\"policy-day-{day}\">{Html.HtmlEncode(name)}</label></div>");
     }
 
     private static string ExcludedText(SchedulePolicy policy)

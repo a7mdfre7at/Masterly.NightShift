@@ -29,7 +29,7 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="page-header">@Strings.AuditPage_Title <small class="text-muted">@Strings.AuditPage_Hint</small></h1>
+        <h1 id="page-title" class="hf-page-header">@Strings.AuditPage_Title <small class="text-muted">@Strings.AuditPage_Hint</small></h1>
 
         @if (!AuditLog.Enabled)
         {
@@ -44,10 +44,10 @@
         {
             <div class="btn-toolbar btn-toolbar-top">
                 <span class="hf-catalog-summary text-muted">@entries.Count / @total</span>
-                <div class="btn-group pull-right">
+                <div class="btn-group float-end">
                     @foreach (int size in new[] { 50, 100, 250, 1000 })
                     {
-                        <a class="btn btn-sm @(size == count ? "btn-primary active" : "btn-default")" href="@Url.To("/audit?count=" + size)">@size</a>
+                        <a class="btn btn-sm @(size == count ? "btn-primary active" : "btn-outline-secondary")" href="@Url.To("/audit?count=" + size)">@size</a>
                     }
                 </div>
             </div>
@@ -84,7 +84,7 @@
                                 </td>
                                 <td>
                                     <span class="@(entry.Status >= 400 ? "text-danger" : null)">@AuditLog.Describe(entry.Action)</span>
-                                    <div class="text-muted"><code>@entry.Action</code> @if (entry.Status >= 400) { <span class="label label-danger">@entry.Status</span> }</div>
+                                    <div class="text-muted"><code>@entry.Action</code> @if (entry.Status >= 400) { <span class="badge text-bg-danger">@entry.Status</span> }</div>
                                 </td>
                                 <td class="word-break">
                                     @if (entry.Targets != null)

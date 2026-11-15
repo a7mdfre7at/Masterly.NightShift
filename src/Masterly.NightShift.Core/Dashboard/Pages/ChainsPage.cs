@@ -40,6 +40,6 @@ internal partial class ChainsPage
     internal static NonEscapedString StatusLabel(JobChainInfo chain)
     {
         ChainFlowStatus status = ChainFlowchart.StatusOf(chain);
-        return new NonEscapedString($"<span class=\"label {ChainFlowchart.StatusCss(status)} text-uppercase\">{System.Net.WebUtility.HtmlEncode(ChainFlowchart.StatusText(status))}</span>");
+        return new NonEscapedString($"<span class=\"badge {ChainFlowchart.StatusCss(status)} text-uppercase\">{System.Net.WebUtility.HtmlEncode(ChainFlowchart.StatusText(status))}</span>");
     }
 }

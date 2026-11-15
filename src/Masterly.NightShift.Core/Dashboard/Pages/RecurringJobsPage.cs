@@ -37,11 +37,12 @@ internal partial class RecurringJobsPage
 
     // The edit button carries what the schedule editor opens with. The row's button and the hidden one that
     // /recurring?edit={id} adds for a job of another page are the same.
-    private static NonEscapedString EditButton(RecurringJobDto job, bool hidden)
+    private NonEscapedString EditButton(RecurringJobDto job, bool hidden)
     {
         StringBuilder builder = new();
-        builder.Append("<button type=\"button\" class=\"btn btn-xs btn-default js-recurring-edit").Append(hidden ? " hidden" : null).Append('"');
+        builder.Append("<button type=\"button\" class=\"btn hf-btn-xs btn-outline-secondary js-recurring-edit").Append(hidden ? " d-none" : null).Append('"');
         AppendAttribute(builder, "title", Strings.RecurringJobsPage_EditSchedule);
+        AppendAttribute(builder, "aria-label", Strings.RecurringJobsPage_EditSchedule);
         AppendAttribute(builder, "data-id", job.Id);
         AppendAttribute(builder, "data-cron", job.Cron);
         AppendAttribute(builder, "data-timezone", job.TimeZoneId ?? TimeZoneInfo.Utc.Id);
@@ -49,7 +50,7 @@ internal partial class RecurringJobsPage
         AppendAttribute(builder, "data-misfire", job.MisfireHandling.ToString());
         AppendAttribute(builder, "data-start-at", job.StartAt.HasValue ? ToUnixMilliseconds(job.StartAt.Value) : null);
         AppendAttribute(builder, "data-end-at", job.EndAt.HasValue ? ToUnixMilliseconds(job.EndAt.Value) : null);
-        builder.Append("><span class=\"glyphicon glyphicon-pencil\"></span> <span class=\"hidden-xs\">")
+        builder.Append('>').Append(Html.Icon("pencil-fill")).Append(" <span class=\"d-none d-md-inline\">")
             .Append(WebUtility.HtmlEncode(Strings.RecurringJobsPage_Edit))
             .Append("</span></button>");
 

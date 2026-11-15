@@ -57,7 +57,7 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="page-header">@Strings.ProcessingJobsPage_Title</h1>
+        <h1 id="page-title" class="hf-page-header">@Strings.ProcessingJobsPage_Title</h1>
 
         @if (pager.TotalPageCount == 0)
         {
@@ -69,17 +69,17 @@
         {
             <div class="js-jobs-list">
                 <div class="btn-toolbar btn-toolbar-top">
-                    <button type="button" class="btn btn-sm btn-default js-download" data-url="@Url.To("/jobs/processing/export")" data-filename="nightshift-processing-jobs.csv">
-                        <span class="glyphicon glyphicon-download-alt"></span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary js-download" data-url="@Url.To("/jobs/processing/export")" data-filename="nightshift-processing-jobs.csv">
+                        @Html.Icon("download")
                         @Strings.Common_DownloadCsv
                     </button>
                     @if (!IsReadOnly)
                     {
-                        <button class="btn btn-sm btn-default btn-delete-all"
+                        <button class="btn btn-sm btn-outline-secondary btn-delete-all"
                                 data-ajax="@Url.To("/jobs/processing/delete-all")"
                                 data-loading-text="@Strings.Common_Deleting"
                                 data-confirm="@Strings.Common_DeleteAllConfirm">
-                            <span class="glyphicon glyphicon-trash"></span>
+                            @Html.Icon("trash-fill")
                             @Strings.Common_DeleteAll
                         </button>
                     }
@@ -89,18 +89,18 @@
                                 data-url="@Url.To("/jobs/processing/requeue")"
                                 data-loading-text="@Strings.Common_Enqueueing"
                                 disabled="disabled">
-                            <span class="glyphicon glyphicon-repeat"></span>
+                            @Html.Icon("arrow-repeat")
                             @Strings.Common_RequeueJobs
                         </button>
                     }
                     @if (!IsReadOnly)
                     {
-                        <button class="js-jobs-list-command btn btn-sm btn-default"
+                        <button class="js-jobs-list-command btn btn-sm btn-outline-secondary"
                                 data-url="@Url.To("/jobs/processing/delete")"
                                 data-loading-text="@Strings.Common_Deleting"
                                 data-confirm="@Strings.Common_DeleteConfirm"
                                 disabled="disabled">
-                            <span class="glyphicon glyphicon-remove"></span>
+                            @Html.Icon("x-lg")
                             @Strings.Common_DeleteSelected
                         </button>
                     }
@@ -144,7 +144,7 @@
                                         @Html.JobIdLink(job.Key)
                                         @if (job.Value != null && !job.Value.InProcessingState)
                                         {
-                                            <span title="@Strings.Common_JobStateChanged_Text" class="glyphicon glyphicon-question-sign"></span>
+                                            <span class="hf-icon" title="@Strings.Common_JobStateChanged_Text" role="img" aria-label="@Strings.Common_JobStateChanged_Text">@Html.Icon("question-circle-fill")</span>
                                         }
                                     </td>
                                     @if (job.Value == null)
@@ -163,17 +163,17 @@
                                         <td class="word-break">
                                             @if (job.Value.ServerId != null && servers.All(x => x.Name != job.Value.ServerId || x.Heartbeat < (StorageUtcNow ?? ApplicationUtcNow).Add(DashboardOptions.ServerPossiblyAbortedThreshold.Negate())))
                                             {
-                                                <span title="@Strings.ProcessingJobsPage_Aborted" class="glyphicon glyphicon-warning-sign glyphicon-sm text-warning"></span>
+                                                <span class="hf-icon hf-icon-sm text-warning" title="@Strings.ProcessingJobsPage_Aborted" role="img" aria-label="@Strings.ProcessingJobsPage_Aborted">@Html.Icon("exclamation-triangle-fill")</span>
                                             }
 
                                             @Html.JobNameLink(job.Key, job.Value.Job)
                                             @if (overdue)
                                             {
-                                                <span class="label label-danger text-uppercase" title="@Strings.Common_Overdue_Tooltip">@Strings.Common_Overdue</span>
+                                                <span class="badge text-bg-danger text-uppercase" title="@Strings.Common_Overdue_Tooltip">@Strings.Common_Overdue</span>
                                             }
                                             else if (deadline.HasValue)
                                             {
-                                                <span class="label label-default" title="@Strings.Common_Deadline">@Strings.Common_Deadline @Html.RelativeTime(deadline.Value)</span>
+                                                <span class="badge text-bg-secondary" title="@Strings.Common_Deadline">@Strings.Common_Deadline @Html.RelativeTime(deadline.Value)</span>
                                             }
                                         </td>
                                         <td class="min-width job-live-cell js-live-row" data-job-id="@job.Key">
@@ -198,7 +198,7 @@
                                                 }
                                             }
                                             <div class="progress job-live-progress-sm @(etaText != null ? "job-live-progress-eta" : null) @(etaLate ? "job-live-progress-late" : null)" title="@(jobProgress != null ? jobProgress.Message : etaText != null ? Strings.ProcessingJobsPage_Eta_Tooltip : null)">
-                                                <div class="progress-bar progress-bar-striped active js-live-bar" role="progressbar" style="width: @(jobProgress != null ? jobPercent : etaPercent)%"></div>
+                                                <div class="progress-bar progress-bar-striped progress-bar-animated js-live-bar" role="progressbar" style="width: @(jobProgress != null ? jobPercent : etaPercent)%"></div>
                                             </div>
                                             <small class="text-muted js-live-progress-message" data-eta="@etaText">@(jobProgress != null ? (jobProgress.Percent + "% " + jobProgress.Message) : etaText)</small>
                                         </td>

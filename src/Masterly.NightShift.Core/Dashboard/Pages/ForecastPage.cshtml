@@ -33,14 +33,14 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="page-header">@Strings.ForecastPage_Title <small class="text-muted">@Strings.ForecastPage_Hint</small></h1>
+        <h1 id="page-title" class="hf-page-header">@Strings.ForecastPage_Title <small class="text-muted">@Strings.ForecastPage_Hint</small></h1>
 
         <div class="btn-toolbar btn-toolbar-top">
             <div class="btn-group">
-                <a href="?window=24h" class="btn btn-sm btn-default @(!week ? "active" : null)">@Strings.ForecastPage_Window_24h</a>
-                <a href="?window=7d" class="btn btn-sm btn-default @(week ? "active" : null)">@Strings.ForecastPage_Window_7d</a>
+                <a href="?window=24h" class="btn btn-sm btn-outline-secondary @(!week ? "active" : null)">@Strings.ForecastPage_Window_24h</a>
+                <a href="?window=7d" class="btn btn-sm btn-outline-secondary @(week ? "active" : null)">@Strings.ForecastPage_Window_7d</a>
             </div>
-            <a href="@Url.To("/recurring")" class="btn btn-sm btn-default"><span class="glyphicon glyphicon-time"></span> @Strings.NavigationMenu_RecurringJobs</a>
+            <a href="@Url.To("/recurring")" class="btn btn-sm btn-outline-secondary">@Html.Icon("clock") @Strings.NavigationMenu_RecurringJobs</a>
         </div>
 
         @if (forecast.Rows.Count == 0)
@@ -50,25 +50,25 @@
         else
         {
             <div class="row insights-summary">
-                <div class="col-sm-3">
+                <div class="col-md-3">
                     <div class="insights-tile">
                         <div class="insights-tile-value" title="@(forecast.Truncated ? String.Format(Strings.ForecastPage_Truncated, ScheduleForecast.MaxOccurrencesPerJob) : null)">@(forecast.Truncated ? "\u2265" : null)@forecast.TotalRuns.ToString("N0")</div>
                         <div class="insights-tile-label">@Strings.ForecastPage_Summary_Runs</div>
                     </div>
                 </div>
-                <div class="col-sm-3">
+                <div class="col-md-3">
                     <div class="insights-tile">
                         <div class="insights-tile-value">@Html.ToHumanDuration(forecast.TotalBusyTime, false)</div>
                         <div class="insights-tile-label">@Strings.ForecastPage_Summary_BusyTime</div>
                     </div>
                 </div>
-                <div class="col-sm-3">
+                <div class="col-md-3">
                     <div class="insights-tile">
                         <div class="insights-tile-value">@if (busiest.HasValue) { <span data-moment-local="@JobHelper.ToTimestamp(busiest.Value)" data-moment-local-format="@(week ? "shortDateTime" : "time")">@busiest.Value.ToString("HH:mm", CultureInfo.InvariantCulture)</span> } else { <text>&ndash;</text> }</div>
                         <div class="insights-tile-label">@Strings.ForecastPage_Summary_Busiest</div>
                     </div>
                 </div>
-                <div class="col-sm-3">
+                <div class="col-md-3">
                     <div class="insights-tile @(forecast.HotSpots.Count > 0 ? "insights-tile-danger" : null)">
                         <div class="insights-tile-value">@forecast.HotSpots.Count</div>
                         <div class="insights-tile-label">@Strings.ForecastPage_HotSpots</div>
@@ -95,7 +95,7 @@
                             <small class="text-muted">
                                 @if (row.Dto.Paused)
                                 {
-                                    <span class="label label-warning">@Strings.ForecastPage_Paused</span>
+                                    <span class="badge text-bg-warning">@Strings.ForecastPage_Paused</span>
                                 }
                                 else
                                 {
@@ -113,7 +113,7 @@
                         <div class="hf-forecast-track">
                             @if (row.Error != null)
                             {
-                                <span class="text-danger hf-forecast-error" title="@row.Error"><span class="glyphicon glyphicon-warning-sign"></span> @row.Error</span>
+                                <span class="text-danger hf-forecast-error" title="@row.Error">@Html.Icon("exclamation-triangle-fill") @row.Error</span>
                             }
                             @if (row.Occurrences.Count > denseThreshold)
                             {
@@ -164,7 +164,7 @@
                             {
                                 <tr>
                                     <td class="min-width">@Html.LocalTime(hotSpot.Slot) <span class="text-muted">@Html.RelativeTime(hotSpot.Slot)</span></td>
-                                    <td class="min-width"><span class="label label-danger">@hotSpot.JobIds.Count</span></td>
+                                    <td class="min-width"><span class="badge text-bg-danger">@hotSpot.JobIds.Count</span></td>
                                     <td class="word-break">
                                         @foreach (string id in hotSpot.JobIds)
                                         {

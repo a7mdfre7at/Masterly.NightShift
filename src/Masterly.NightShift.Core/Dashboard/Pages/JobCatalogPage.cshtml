@@ -35,7 +35,7 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="page-header">@Strings.CatalogPage_Title <small class="text-muted">@Strings.CatalogPage_Hint</small></h1>
+        <h1 id="page-title" class="hf-page-header">@Strings.CatalogPage_Title <small class="text-muted">@Strings.CatalogPage_Hint</small></h1>
 
         @if (entries.Count == 0)
         {
@@ -80,7 +80,7 @@
                                             <code class="hf-catalog-method">@(entry.IsAsync ? "async " : null)@entry.Method.Name</code>
                                             @if (entry.Method.IsStatic)
                                             {
-                                                <span class="label label-default">@Strings.CatalogPage_Static</span>
+                                                <span class="badge text-bg-secondary">@Strings.CatalogPage_Static</span>
                                             }
                                         </td>
                                         <td class="word-break">
@@ -98,7 +98,7 @@
                                         <td class="word-break">
                                             @foreach (string filter in entry.Filters)
                                             {
-                                                <span class="label label-info">@filter</span>
+                                                <span class="badge text-bg-info">@filter</span>
                                             }
                                         </td>
                                         <td class="min-width hf-catalog-stats">
@@ -124,7 +124,7 @@
                                                         data-type="@JobMethodCallRenderer.GetNameWithoutGenericArity(entry.Type)"
                                                         data-method="@entry.Method.Name"
                                                         data-parameters="@DashboardJson.Serialize(userParameters.Select(p => JobCatalog.GetFormField(p, JobCatalog.FormatDefault(p.DefaultValue), false)).ToArray())">
-                                                    <span class="glyphicon glyphicon-play"></span> @Strings.CatalogPage_Run
+                                                    @Html.Icon("play-fill") @Strings.CatalogPage_Run
                                                 </button>
                                             </td>
                                         }

@@ -27,7 +27,7 @@
             { "Queues", Url.LinkToQueues() }
         })
 
-        <h1 id="page-title" class="page-header">@Queue <small>@Strings.EnqueuedJobsPage_Title</small></h1>
+        <h1 id="page-title" class="hf-page-header">@Queue <small>@Strings.EnqueuedJobsPage_Title</small></h1>
 
         @if (pager.TotalPageCount == 0)
         {
@@ -39,28 +39,28 @@
         {
             <div class="js-jobs-list">
                 <div class="btn-toolbar btn-toolbar-top">
-                    <button type="button" class="btn btn-sm btn-default js-download" data-url="@Url.To("/jobs/enqueued/export/" + RouteValues.Encode(Queue))" data-filename="nightshift-enqueued-jobs-@(Queue).csv">
-                        <span class="glyphicon glyphicon-download-alt"></span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary js-download" data-url="@Url.To("/jobs/enqueued/export/" + RouteValues.Encode(Queue))" data-filename="nightshift-enqueued-jobs-@(Queue).csv">
+                        @Html.Icon("download")
                         @Strings.Common_DownloadCsv
                     </button>
                     @if (!IsReadOnly)
                     {
-                        <button class="btn btn-sm btn-default btn-delete-all"
+                        <button class="btn btn-sm btn-outline-secondary btn-delete-all"
                                 data-ajax="@Url.To("/jobs/enqueued/delete-all/" + RouteValues.Encode(Queue))"
                                 data-loading-text="@Strings.Common_Deleting"
                                 data-confirm="@Strings.Common_DeleteAllConfirm">
-                            <span class="glyphicon glyphicon-trash"></span>
+                            @Html.Icon("trash-fill")
                             @Strings.Common_DeleteAll
                         </button>
                     }
                     @if (!IsReadOnly)
                     {
-                        <button class="js-jobs-list-command btn btn-sm btn-default"
+                        <button class="js-jobs-list-command btn btn-sm btn-outline-secondary"
                                 data-url="@Url.To("/jobs/enqueued/delete")"
                                 data-loading-text="@Strings.Common_Deleting"
                                 data-confirm="@Strings.Common_DeleteConfirm"
                                 disabled="disabled">
-                            <span class="glyphicon glyphicon-remove"></span>
+                            @Html.Icon("x-lg")
                             @Strings.Common_DeleteSelected
                         </button>
                     }
@@ -100,7 +100,7 @@
                                     @Html.JobIdLink(job.Key)
                                     @if (job.Value != null && !job.Value.InEnqueuedState)
                                     {
-                                        <span title="@Strings.Common_JobStateChanged_Text" class="glyphicon glyphicon-question-sign"></span>
+                                        <span class="hf-icon" title="@Strings.Common_JobStateChanged_Text" role="img" aria-label="@Strings.Common_JobStateChanged_Text">@Html.Icon("question-circle-fill")</span>
                                     }
                                 </td>
                                 @if (job.Value == null)

@@ -37,7 +37,7 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="page-header">@Strings.FailedJobsPage_Title</h1>
+        <h1 id="page-title" class="hf-page-header">@Strings.FailedJobsPage_Title</h1>
 
         @if (pager.TotalPageCount == 0)
         {
@@ -57,7 +57,7 @@
             {
                 <section class="hf-card hf-clusters" aria-labelledby="failed-clusters">
                     <div class="hf-card-header">
-                        <h3 id="failed-clusters"><span class="glyphicon glyphicon-th-large"></span> @Strings.FailedJobsPage_Clusters <small class="text-muted">@String.Format(Strings.FailedJobsPage_Clusters_Hint, FailureClusters.SampleSize)</small></h3>
+                        <h3 id="failed-clusters">@Html.Icon("grid-fill") @Strings.FailedJobsPage_Clusters <small class="text-muted">@String.Format(Strings.FailedJobsPage_Clusters_Hint, FailureClusters.SampleSize)</small></h3>
                     </div>
                     <div class="hf-cluster-list">
                         @foreach (FailureCluster cluster in clusters)
@@ -85,10 +85,10 @@
                                 {
                                     <div class="hf-cluster-actions">
                                         <button type="button" class="btn btn-sm btn-primary js-cluster-command" data-url="@Url.To("/jobs/failed/requeue")" data-jobs="@DashboardJson.Serialize(cluster.JobIds)" data-loading-text="@Strings.Common_Enqueueing">
-                                            <span class="glyphicon glyphicon-repeat"></span> @String.Format(Strings.FailedJobsPage_Clusters_Requeue, cluster.Count)
+                                            @Html.Icon("arrow-repeat") @String.Format(Strings.FailedJobsPage_Clusters_Requeue, cluster.Count)
                                         </button>
-                                        <button type="button" class="btn btn-sm btn-default js-cluster-command" data-url="@Url.To("/jobs/failed/delete")" data-jobs="@DashboardJson.Serialize(cluster.JobIds)" data-confirm="@Strings.FailedJobsPage_Clusters_DeleteConfirm" data-loading-text="@Strings.Common_Deleting">
-                                            <span class="glyphicon glyphicon-remove"></span> @String.Format(Strings.FailedJobsPage_Clusters_Delete, cluster.Count)
+                                        <button type="button" class="btn btn-sm btn-outline-secondary js-cluster-command" data-url="@Url.To("/jobs/failed/delete")" data-jobs="@DashboardJson.Serialize(cluster.JobIds)" data-confirm="@Strings.FailedJobsPage_Clusters_DeleteConfirm" data-loading-text="@Strings.Common_Deleting">
+                                            @Html.Icon("x-lg") @String.Format(Strings.FailedJobsPage_Clusters_Delete, cluster.Count)
                                         </button>
                                     </div>
                                 }
@@ -100,24 +100,24 @@
 
             <div class="js-jobs-list">
                 <div class="btn-toolbar btn-toolbar-top">
-                    <button type="button" class="btn btn-sm btn-default js-download" data-url="@Url.To("/jobs/failed/export")" data-filename="nightshift-failed-jobs.csv">
-                        <span class="glyphicon glyphicon-download-alt"></span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary js-download" data-url="@Url.To("/jobs/failed/export")" data-filename="nightshift-failed-jobs.csv">
+                        @Html.Icon("download")
                         @Strings.Common_DownloadCsv
                     </button>
                     @if (!IsReadOnly)
                     {
-                        <button class="btn btn-sm btn-default btn-delete-all"
+                        <button class="btn btn-sm btn-outline-secondary btn-delete-all"
                                 data-ajax="@Url.To("/jobs/failed/delete-all")"
                                 data-loading-text="@Strings.Common_Deleting"
                                 data-confirm="@Strings.Common_DeleteAllConfirm">
-                            <span class="glyphicon glyphicon-trash"></span>
+                            @Html.Icon("trash-fill")
                             @Strings.Common_DeleteAll
                         </button>
-                        <button class="btn btn-sm btn-default btn-requeue-all"
+                        <button class="btn btn-sm btn-outline-secondary btn-requeue-all"
                                 data-ajax="@Url.To("/jobs/failed/requeue-all")"
                                 data-loading-text="@Strings.Common_Enqueueing"
                                 data-confirm="@Strings.FailedJobsPage_RequeueAllConfirm">
-                            <span class="glyphicon glyphicon-repeat"></span>
+                            @Html.Icon("arrow-repeat")
                             @Strings.FailedJobsPage_RequeueAll
                         </button>
                     }
@@ -127,17 +127,17 @@
                                 data-url="@Url.To("/jobs/failed/requeue")"
                                 data-loading-text="@Strings.Common_Enqueueing"
                                 disabled="disabled">
-                            <span class="glyphicon glyphicon-repeat"></span>
+                            @Html.Icon("arrow-repeat")
                             @Strings.Common_RequeueJobs
                         </button>
                     }
                     @if (!IsReadOnly)
                     {
-                        <button class="js-jobs-list-command btn btn-sm btn-default"
+                        <button class="js-jobs-list-command btn btn-sm btn-outline-secondary"
                                 data-url="@Url.To("/jobs/failed/delete")"
                                 data-loading-text="@Strings.Common_Deleting"
                                 data-confirm="@Strings.Common_DeleteConfirm">
-                            <span class="glyphicon glyphicon-remove"></span>
+                            @Html.Icon("x-lg")
                             @Strings.Common_DeleteSelected
                         </button>
                     }
@@ -177,7 +177,7 @@
                                         @Html.JobIdLink(job.Key)
                                         @if (job.Value != null && !job.Value.InFailedState)
                                         {
-                                            <span title="@Strings.Common_JobStateChanged_Text" class="glyphicon glyphicon-question-sign"></span>
+                                            <span class="hf-icon" title="@Strings.Common_JobStateChanged_Text" role="img" aria-label="@Strings.Common_JobStateChanged_Text">@Html.Icon("question-circle-fill")</span>
                                         }
                                     </td>
                                     @if (job.Value == null)
@@ -193,7 +193,7 @@
                                                 @Html.JobNameLink(job.Key, job.Value.Job)
                                                 @if (acknowledgements.TryGetValue(job.Key, out JobNote? acknowledgement))
                                                 {
-                                                    <span class="label label-info hf-ack" title="@((acknowledgement.User ?? Strings.Common_Anonymous) + (acknowledgement.Text.Length > 0 ? ": " + acknowledgement.Text : String.Empty))"><span class="glyphicon glyphicon-ok"></span> @Strings.FailedJobsPage_Acknowledged</span>
+                                                    <span class="badge text-bg-info hf-ack" title="@((acknowledgement.User ?? Strings.Common_Anonymous) + (acknowledgement.Text.Length > 0 ? ": " + acknowledgement.Text : String.Empty))">@Html.Icon("check-lg") @Strings.FailedJobsPage_Acknowledged</span>
                                                 }
                                             </div>
                                             @if (!String.IsNullOrEmpty(job.Value.ExceptionMessage) || !String.IsNullOrEmpty(job.Value.ExceptionDetails))

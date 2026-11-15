@@ -200,10 +200,10 @@ internal sealed class ChainFlowchart
 
     public static string StatusCss(ChainFlowStatus status) => status switch
     {
-        ChainFlowStatus.Waiting => "label-default",
-        ChainFlowStatus.Done => "label-success",
-        ChainFlowStatus.FinishedWithFailures => "label-danger",
-        _ => "label-info",
+        ChainFlowStatus.Waiting => "text-bg-secondary",
+        ChainFlowStatus.Done => "text-bg-success",
+        ChainFlowStatus.FinishedWithFailures => "text-bg-danger",
+        _ => "text-bg-info",
     };
 
     /// <summary>What a step waits for, as its card says it.</summary>
@@ -491,7 +491,7 @@ internal static class ChainFlowchartRenderer
             html.Append("<a class=\"hf-chain-log-step\" href=\"").Append(Encode(page.Url.JobDetails(step.Info.JobId))).Append("\">").Append(Encode(source)).Append("</a> ");
             if (entry.Checkpoint != null)
             {
-                html.Append("<span class=\"glyphicon glyphicon-flag\"></span> ");
+                html.Append(page.Html.Icon("flag-fill")).Append(' ');
             }
 
             html.Append(Encode(entry.Checkpoint ?? entry.Message ?? string.Empty));
@@ -509,7 +509,7 @@ internal static class ChainFlowchartRenderer
 
         html.Append(FormattableString.Invariant($"<div class=\"hf-flow-box hf-flow-box-{(level.Kind == ChainLevelKind.Branches ? "group" : "outcomes")}\" style=\"left: {block.X}px; top: {block.Y}px; width: {block.Width}px; height: {block.Height}px\">"));
         html.Append("<div class=\"hf-flow-box-head\"><span class=\"hf-flow-box-title\">").Append(Encode(title)).Append("</span>");
-        html.Append("<span class=\"label ").Append(ChainFlowchart.StatusCss(status)).Append(" text-uppercase\">").Append(Encode(ChainFlowchart.StatusText(status))).Append("</span></div>");
+        html.Append("<span class=\"badge ").Append(ChainFlowchart.StatusCss(status)).Append(" text-uppercase\">").Append(Encode(ChainFlowchart.StatusText(status))).Append("</span></div>");
 
         if (level.Kind == ChainLevelKind.Branches)
         {
@@ -641,14 +641,14 @@ internal static class ChainFlowchartRenderer
         if (step.RetryCount > 0)
         {
             string retries = string.Format(CultureInfo.CurrentCulture, Strings.ChainFlow_Retries, step.RetryCount);
-            html.Append("<span class=\"hf-flow-retries\" title=\"").Append(Encode(retries)).Append("\"><span class=\"glyphicon glyphicon-repeat\"></span> ").Append(step.RetryCount.ToString(CultureInfo.InvariantCulture)).Append("</span>");
+            html.Append("<span class=\"hf-flow-retries\" title=\"").Append(Encode(retries)).Append("\">").Append(page.Html.Icon("arrow-repeat")).Append(' ').Append(step.RetryCount.ToString(CultureInfo.InvariantCulture)).Append("</span>");
         }
 
         // With the chain in the address: a step whose job expired no longer says what chain it belongs to
         if (retryChain != null && (FailedState.StateName.Equals(info.StateOrOutcome, StringComparison.OrdinalIgnoreCase) || DeletedState.StateName.Equals(info.StateOrOutcome, StringComparison.OrdinalIgnoreCase)))
         {
-            html.Append("<button class=\"btn btn-xs btn-primary\" data-ajax=\"").Append(Encode(page.Url.To("/chains/retry/" + RouteValues.Encode(retryChain) + "/" + RouteValues.Encode(info.JobId)))).Append("\" data-loading-text=\"").Append(Encode(Strings.ChainDetailsPage_Retrying)).Append("\">");
-            html.Append("<span class=\"glyphicon glyphicon-repeat\"></span> ").Append(Encode(Strings.ChainDetailsPage_RetryFromHere)).Append("</button>");
+            html.Append("<button class=\"btn hf-btn-xs btn-primary\" data-ajax=\"").Append(Encode(page.Url.To("/chains/retry/" + RouteValues.Encode(retryChain) + "/" + RouteValues.Encode(info.JobId)))).Append("\" data-loading-text=\"").Append(Encode(Strings.ChainDetailsPage_Retrying)).Append("\">");
+            html.Append(page.Html.Icon("arrow-repeat")).Append(' ').Append(Encode(Strings.ChainDetailsPage_RetryFromHere)).Append("</button>");
         }
 
         html.Append("</span></div></div>");

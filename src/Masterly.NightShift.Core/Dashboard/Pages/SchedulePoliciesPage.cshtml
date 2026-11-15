@@ -27,7 +27,7 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="page-header">@Strings.PoliciesPage_Title</h1>
+        <h1 id="page-title" class="hf-page-header">@Strings.PoliciesPage_Title</h1>
 
         @if (policies.Count == 0)
         {
@@ -49,14 +49,14 @@
                     @if (!IsReadOnly)
                     {
                         <div class="hf-batch-actions">
-                            <a class="btn btn-sm btn-default" href="@Url.To("/policies?edit=" + Uri.EscapeDataString(policy.Name) + "#editor")"><span class="glyphicon glyphicon-pencil"></span> @Strings.RecurringJobsPage_Edit</a>
-                            <button class="btn btn-sm btn-default" data-ajax="@Url.To("/policies/delete/" + RouteValues.Encode(policy.Name) + "/" + policy.Revision.ToString(CultureInfo.InvariantCulture))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.PoliciesPage_DeleteConfirm">
-                                <span class="glyphicon glyphicon-remove"></span> @Strings.Common_Delete
+                            <a class="btn btn-sm btn-outline-secondary" href="@Url.To("/policies?edit=" + Uri.EscapeDataString(policy.Name) + "#editor")">@Html.Icon("pencil-fill") @Strings.RecurringJobsPage_Edit</a>
+                            <button class="btn btn-sm btn-outline-secondary" data-ajax="@Url.To("/policies/delete/" + RouteValues.Encode(policy.Name) + "/" + policy.Revision.ToString(CultureInfo.InvariantCulture))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.PoliciesPage_DeleteConfirm">
+                                @Html.Icon("x-lg") @Strings.Common_Delete
                             </button>
                         </div>
                     }
                 </div>
-                <table class="table table-condensed hf-definition">
+                <table class="table table-sm hf-definition">
                     <tbody>
                         <tr><th class="min-width">@Strings.PoliciesPage_Days</th><td>@(policy.Days.Count == 0 ? Strings.PoliciesPage_EveryDay : String.Join(", ", policy.Days.Select(static d => CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedDayName(d))))</td></tr>
                         <tr><th>@Strings.PoliciesPage_Windows</th><td>@(policy.Windows.Count == 0 ? Strings.PoliciesPage_AnyTime : String.Join(", ", policy.Windows))</td></tr>
@@ -80,16 +80,16 @@
         @if (policies.Count > 0)
         {
             <h3 id="preview">@Strings.PoliciesPage_Preview</h3>
-            <form class="form-inline hf-policy-preview" method="get" action="@Url.To("/policies")">
-                <select name="preview" class="form-control input-sm" aria-label="@Strings.PoliciesPage_Title">
+            <form class="hf-policy-preview" method="get" action="@Url.To("/policies")">
+                <select name="preview" class="form-select form-select-sm" aria-label="@Strings.PoliciesPage_Title">
                     @foreach (SchedulePolicy policy in policies)
                     {
                         @Option(policy.Name, policy.Name == previewName)
                     }
                 </select>
-                <input type="text" name="cron" class="form-control input-sm" placeholder="0 9 * * *" value="@previewCron" aria-label="@Strings.RecurringJobsPage_Table_Cron"/>
-                <input type="text" name="tz" class="form-control input-sm" placeholder="UTC" value="@Query("tz")" aria-label="@Strings.RecurringJobsPage_Table_TimeZone"/>
-                <button type="submit" class="btn btn-sm btn-default">@Strings.PoliciesPage_Preview</button>
+                <input type="text" name="cron" class="form-control form-control-sm" placeholder="0 9 * * *" value="@previewCron" aria-label="@Strings.RecurringJobsPage_Table_Cron"/>
+                <input type="text" name="tz" class="form-control form-control-sm" placeholder="UTC" value="@Query("tz")" aria-label="@Strings.RecurringJobsPage_Table_TimeZone"/>
+                <button type="submit" class="btn btn-sm btn-outline-secondary">@Strings.PoliciesPage_Preview</button>
             </form>
             if (previewError != null)
             {
@@ -98,7 +98,7 @@
             else if (preview != null)
             {
                 <div class="table-responsive">
-                    <table class="table table-condensed" aria-describedby="preview">
+                    <table class="table table-sm" aria-describedby="preview">
                         <tbody>
                             @foreach (SchedulePolicyDecision decision in preview)
                             {
@@ -107,11 +107,11 @@
                                     <td class="min-width">
                                         @if (decision.Allowed)
                                         {
-                                            <span class="label label-success">@Strings.PoliciesPage_Allowed</span>
+                                            <span class="badge text-bg-success">@Strings.PoliciesPage_Allowed</span>
                                         }
                                         else
                                         {
-                                            <span class="label label-default">@Strings.PoliciesPage_Blocked</span>
+                                            <span class="badge text-bg-secondary">@Strings.PoliciesPage_Blocked</span>
                                         }
                                     </td>
                                     <td class="word-break text-muted">@decision.Reason</td>
@@ -129,27 +129,27 @@
             <form class="js-ajax-form hf-policy-editor" method="post" action="@Url.To("/policies/save")" data-redirect="@Url.To("/policies")">
                 <input type="hidden" name="revision" value="@(editing?.Revision ?? 0)"/>
                 <div class="row">
-                    <div class="form-group col-md-4">
+                    <div class="mb-3 col-lg-4">
                         <label for="policy-name">@Strings.PoliciesPage_Name</label>
                         @if (editing != null)
                         {
-                            <input id="policy-name" type="text" name="name" class="form-control input-sm" value="@editing.Name" readonly="readonly"/>
+                            <input id="policy-name" type="text" name="name" class="form-control form-control-sm" value="@editing.Name" readonly="readonly"/>
                         }
                         else
                         {
-                            <input id="policy-name" type="text" name="name" class="form-control input-sm" required="required"/>
+                            <input id="policy-name" type="text" name="name" class="form-control form-control-sm" required="required"/>
                         }
                     </div>
-                    <div class="form-group col-md-4">
+                    <div class="mb-3 col-lg-4">
                         <label for="policy-timezone">@Strings.RecurringJobsPage_Table_TimeZone</label>
-                        <input id="policy-timezone" type="text" name="timezone" class="form-control input-sm" placeholder="UTC" value="@editing?.TimeZoneId"/>
+                        <input id="policy-timezone" type="text" name="timezone" class="form-control form-control-sm" placeholder="UTC" value="@editing?.TimeZoneId"/>
                     </div>
-                    <div class="form-group col-md-4">
+                    <div class="mb-3 col-lg-4">
                         <label for="policy-description">@Strings.PoliciesPage_Description</label>
-                        <input id="policy-description" type="text" name="description" class="form-control input-sm" value="@editing?.Description"/>
+                        <input id="policy-description" type="text" name="description" class="form-control form-control-sm" value="@editing?.Description"/>
                     </div>
                 </div>
-                <div class="form-group">
+                <div class="mb-3">
                     <label>@Strings.PoliciesPage_Days</label>
                     <div>
                         @foreach (DayOfWeek day in new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday })
@@ -159,34 +159,34 @@
                     </div>
                 </div>
                 <div class="row">
-                    <div class="form-group col-md-6">
+                    <div class="mb-3 col-lg-6">
                         <label for="policy-windows">@Strings.PoliciesPage_Windows</label>
-                        <input id="policy-windows" type="text" name="windows" class="form-control input-sm" placeholder="09:00-17:00, 22:00-06:00" value="@(editing != null ? String.Join(", ", editing.Windows) : null)"/>
+                        <input id="policy-windows" type="text" name="windows" class="form-control form-control-sm" placeholder="09:00-17:00, 22:00-06:00" value="@(editing != null ? String.Join(", ", editing.Windows) : null)"/>
                     </div>
-                    <div class="form-group col-md-6">
+                    <div class="mb-3 col-lg-6">
                         <label for="policy-dates">@Strings.PoliciesPage_Excluded</label>
-                        <input id="policy-dates" type="text" name="dates" class="form-control input-sm" placeholder="2026-12-24, 12-25" value="@(editing != null ? DatesText(editing) : null)"/>
-                        <span class="help-block">@Strings.PoliciesPage_DatesHint</span>
+                        <input id="policy-dates" type="text" name="dates" class="form-control form-control-sm" placeholder="2026-12-24, 12-25" value="@(editing != null ? DatesText(editing) : null)"/>
+                        <span class="form-text">@Strings.PoliciesPage_DatesHint</span>
                     </div>
                 </div>
                 <div class="row">
-                    <div class="form-group col-md-4">
+                    <div class="mb-3 col-lg-4">
                         <label for="policy-providers">@Strings.PoliciesPage_Providers</label>
-                        <input id="policy-providers" type="text" name="providers" class="form-control input-sm" value="@(editing != null ? String.Join(", ", editing.DateProviders) : null)"/>
+                        <input id="policy-providers" type="text" name="providers" class="form-control form-control-sm" value="@(editing != null ? String.Join(", ", editing.DateProviders) : null)"/>
                     </div>
-                    <div class="form-group col-md-4">
+                    <div class="mb-3 col-lg-4">
                         <label for="policy-require">@Strings.PoliciesPage_Requires</label>
-                        <input id="policy-require" type="text" name="require" class="form-control input-sm" value="@(editing != null ? String.Join(", ", editing.Required) : null)"/>
+                        <input id="policy-require" type="text" name="require" class="form-control form-control-sm" value="@(editing != null ? String.Join(", ", editing.Required) : null)"/>
                     </div>
-                    <div class="form-group col-md-4">
+                    <div class="mb-3 col-lg-4">
                         <label for="policy-except">@Strings.PoliciesPage_ExceptWhen</label>
-                        <input id="policy-except" type="text" name="except" class="form-control input-sm" value="@(editing != null ? String.Join(", ", editing.Excepted) : null)"/>
+                        <input id="policy-except" type="text" name="except" class="form-control form-control-sm" value="@(editing != null ? String.Join(", ", editing.Excepted) : null)"/>
                     </div>
                 </div>
                 <button type="submit" class="btn btn-sm btn-primary">@Strings.RecurringJobsPage_Save</button>
                 @if (editing != null)
                 {
-                    <a class="btn btn-sm btn-default" href="@Url.To("/policies")">@Strings.RecurringJobsPage_Cancel</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="@Url.To("/policies")">@Strings.RecurringJobsPage_Cancel</a>
                 }
             </form>
         }

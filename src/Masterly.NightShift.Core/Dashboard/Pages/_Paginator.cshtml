@@ -12,22 +12,22 @@
                 switch (page.Type)
                 {
                     case Pager.ItemType.Page:
-                        <a href="@_pager.PageUrl(page.PageIndex)" class="btn btn-default @(_pager.CurrentPage == page.PageIndex ? "active" : null)">
+                        <a href="@_pager.PageUrl(page.PageIndex)" class="btn btn-outline-secondary @(_pager.CurrentPage == page.PageIndex ? "active" : null)">
                             @page.PageIndex  
                         </a>
                         break;
                     case Pager.ItemType.NextPage:
-                        <a href="@_pager.PageUrl(page.PageIndex)" class="btn btn-default @(page.Disabled ? "disabled" : null)">
+                        <a href="@_pager.PageUrl(page.PageIndex)" class="btn btn-outline-secondary @(page.Disabled ? "disabled" : null)">
                             @Strings.Paginator_Next
                         </a>
                         break;
                     case Pager.ItemType.PrevPage:
-                        <a href="@_pager.PageUrl(page.PageIndex)" class="btn btn-default @(page.Disabled ? "disabled" : null)">
+                        <a href="@_pager.PageUrl(page.PageIndex)" class="btn btn-outline-secondary @(page.Disabled ? "disabled" : null)">
                             @Strings.Paginator_Prev
                         </a>
                         break;
                     case Pager.ItemType.MorePage:
-                        <a href="#" class="btn btn-default disabled">
+                        <a href="#" class="btn btn-outline-secondary disabled">
                             …
                         </a>
                         break;

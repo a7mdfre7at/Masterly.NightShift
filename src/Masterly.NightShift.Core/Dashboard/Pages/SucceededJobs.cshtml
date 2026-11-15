@@ -21,7 +21,7 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="page-header">@Strings.SucceededJobsPage_Title</h1>
+        <h1 id="page-title" class="hf-page-header">@Strings.SucceededJobsPage_Title</h1>
 
         @if (pager.TotalPageCount == 0)
         {
@@ -33,17 +33,17 @@
         {
             <div class="js-jobs-list">
                 <div class="btn-toolbar btn-toolbar-top">
-                    <button type="button" class="btn btn-sm btn-default js-download" data-url="@Url.To("/jobs/succeeded/export")" data-filename="nightshift-succeeded-jobs.csv">
-                        <span class="glyphicon glyphicon-download-alt"></span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary js-download" data-url="@Url.To("/jobs/succeeded/export")" data-filename="nightshift-succeeded-jobs.csv">
+                        @Html.Icon("download")
                         @Strings.Common_DownloadCsv
                     </button>
                     @if (!IsReadOnly)
                     {
-                        <button class="btn btn-sm btn-default btn-delete-all"
+                        <button class="btn btn-sm btn-outline-secondary btn-delete-all"
                                 data-ajax="@Url.To("/jobs/succeeded/delete-all")"
                                 data-loading-text="@Strings.Common_Deleting"
                                 data-confirm="@Strings.Common_DeleteAllConfirm">
-                            <span class="glyphicon glyphicon-trash"></span>
+                            @Html.Icon("trash-fill")
                             @Strings.Common_DeleteAll
                         </button>
                     }
@@ -53,7 +53,7 @@
                                 data-url="@Url.To("/jobs/succeeded/requeue")"
                                 data-loading-text="@Strings.Common_Enqueueing"
                                 disabled="disabled">
-                            <span class="glyphicon glyphicon-repeat"></span>
+                            @Html.Icon("arrow-repeat")
                             @Strings.Common_RequeueJobs
                         </button>
                     }
@@ -101,7 +101,7 @@
                                         @Html.JobIdLink(job.Key)
                                         @if (job.Value != null && !job.Value.InSucceededState)
                                         {
-                                            <span title="@Strings.Common_JobStateChanged_Text" class="glyphicon glyphicon-question-sign"></span>
+                                            <span class="hf-icon" title="@Strings.Common_JobStateChanged_Text" role="img" aria-label="@Strings.Common_JobStateChanged_Text">@Html.Icon("question-circle-fill")</span>
                                         }
                                     </td>
 

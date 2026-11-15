@@ -221,7 +221,7 @@ public static class JobHistoryRenderer
         }
 
         StringBuilder builder = new();
-        builder.Append("<dl class=\"dl-horizontal\">");
+        builder.Append("<dl class=\"hf-dl-horizontal\">");
 
         foreach (KeyValuePair<string, string> item in stateData)
         {
@@ -237,7 +237,7 @@ public static class JobHistoryRenderer
     public static NonEscapedString? SucceededRenderer(HtmlHelper html, IDictionary<string, string> stateData)
     {
         StringBuilder builder = new();
-        builder.Append("<dl class=\"dl-horizontal\">");
+        builder.Append("<dl class=\"hf-dl-horizontal\">");
 
         bool itemsAdded = false;
 
@@ -297,7 +297,7 @@ public static class JobHistoryRenderer
     private static NonEscapedString ProcessingRenderer(HtmlHelper helper, IDictionary<string, string> stateData)
     {
         StringBuilder builder = new();
-        builder.Append("<dl class=\"dl-horizontal\">");
+        builder.Append("<dl class=\"hf-dl-horizontal\">");
 
         if (!stateData.TryGetValue("ServerId", out string? serverId))
         {
@@ -341,7 +341,7 @@ public static class JobHistoryRenderer
         if (!string.IsNullOrEmpty(queue) && !EnqueuedState.DefaultQueue.Equals(queue, StringComparison.OrdinalIgnoreCase))
         {
             return new NonEscapedString(
-                $"<dl class=\"dl-horizontal\"><dt>Queue:</dt><dd>{helper.QueueLabel(queue)}</dd></dl>");
+                $"<dl class=\"hf-dl-horizontal\"><dt>Queue:</dt><dd>{helper.QueueLabel(queue)}</dd></dl>");
         }
 
         return null;
@@ -353,7 +353,7 @@ public static class JobHistoryRenderer
         stateData.TryGetValue("Queue", out string? queue);
 
         StringBuilder sb = new();
-        sb.Append("<dl class=\"dl-horizontal\">");
+        sb.Append("<dl class=\"hf-dl-horizontal\">");
         sb.Append(FormattableString.Invariant($"<dt>Enqueue at:</dt><dd data-moment=\"{helper.HtmlEncode(JobHelper.ToTimestamp(enqueueAt).ToString(CultureInfo.InvariantCulture))}\">{helper.HtmlEncode(enqueueAt.ToString(CultureInfo.CurrentCulture))}</dd>"));
 
         if (!string.IsNullOrWhiteSpace(queue))
@@ -370,7 +370,7 @@ public static class JobHistoryRenderer
     {
         StringBuilder builder = new();
 
-        builder.Append("<dl class=\"dl-horizontal\">");
+        builder.Append("<dl class=\"hf-dl-horizontal\">");
 
         if (stateData.TryGetValue("ParentIds", out string? parentIds) && !string.IsNullOrEmpty(parentIds))
         {
@@ -382,7 +382,7 @@ public static class JobHistoryRenderer
                 : string.Empty;
             string mode = stateData.TryGetValue("Mode", out string? modeValue) ? modeValue : "All";
 
-            builder.Append(FormattableString.Invariant($"<dt>Parents</dt><dd>{string.Join(" ", links)}{more} <span class=\"label label-default\">{helper.HtmlEncode(mode)}</span></dd>"));
+            builder.Append(FormattableString.Invariant($"<dt>Parents</dt><dd>{string.Join(" ", links)}{more} <span class=\"badge text-bg-secondary\">{helper.HtmlEncode(mode)}</span></dd>"));
         }
         else if (stateData.TryGetValue("ParentId", out string? parentId))
         {

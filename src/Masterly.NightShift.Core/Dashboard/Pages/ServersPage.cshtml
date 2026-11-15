@@ -34,7 +34,7 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="page-header">@Strings.ServersPage_Title</h1>
+        <h1 id="page-title" class="hf-page-header">@Strings.ServersPage_Title</h1>
 
         @if (servers.Count == 0)
         {
@@ -74,18 +74,18 @@
                                 <td>
                                     @if (server.Heartbeat < now.Add(-possiblyAbortedThreshold))
                                     {
-                                        @:<span class="glyphicon glyphicon-alert text-danger" title="@Strings.ServersPage_Possibly_Aborted"></span>&nbsp;@Html.ServerId(server.Name)
+                                        @:<span class="hf-icon text-danger" title="@Strings.ServersPage_Possibly_Aborted" role="img" aria-label="@Strings.ServersPage_Possibly_Aborted">@Html.Icon("exclamation-triangle-fill")</span>&nbsp;@Html.ServerId(server.Name)
                                     }
                                     else
                                     {
-                                        @:<span class="glyphicon glyphicon-ok text-success" title="@Strings.ServersPage_Active"></span>&nbsp;@Html.ServerId(server.Name)
+                                        @:<span class="hf-icon text-success" title="@Strings.ServersPage_Active" role="img" aria-label="@Strings.ServersPage_Active">@Html.Icon("check-lg")</span>&nbsp;@Html.ServerId(server.Name)
                                     }
                                 </td>
                                 <td>
                                     @server.WorkersCount
                                     @if (drain.PausedServers.TryGetValue(server.Name, out string? serverPauseReason))
                                     {
-                                        <span class="label label-warning text-uppercase" title="@serverPauseReason">@Strings.ServersPage_Paused</span>
+                                        <span class="badge text-bg-warning text-uppercase" title="@serverPauseReason">@Strings.ServersPage_Paused</span>
                                     }
                                 </td>
                                 <td>@Html.Raw(String.Join(", ", server.Queues.Select(Html.QueueLabel)))</td>
@@ -101,14 +101,14 @@
                                     <td class="min-width">
                                         @if (drain.PausedServers.ContainsKey(server.Name))
                                         {
-                                            <button class="btn btn-xs btn-success" data-ajax="@Url.To("/servers/resume/" + RouteValues.Encode(server.Name))" data-loading-text="@Strings.ServersPage_Resume_Server">
-                                                <span class="glyphicon glyphicon-play"></span> @Strings.ServersPage_Resume_Server
+                                            <button class="btn hf-btn-xs btn-success" data-ajax="@Url.To("/servers/resume/" + RouteValues.Encode(server.Name))" data-loading-text="@Strings.ServersPage_Resume_Server">
+                                                @Html.Icon("play-fill") @Strings.ServersPage_Resume_Server
                                             </button>
                                         }
                                         else
                                         {
-                                            <button class="btn btn-xs btn-default" data-ajax="@Url.To("/servers/pause/" + RouteValues.Encode(server.Name))" data-loading-text="@Strings.ServersPage_Pause_Server" data-confirm="@Strings.ServersPage_PauseConfirm">
-                                                <span class="glyphicon glyphicon-pause"></span> @Strings.ServersPage_Pause_Server
+                                            <button class="btn hf-btn-xs btn-outline-secondary" data-ajax="@Url.To("/servers/pause/" + RouteValues.Encode(server.Name))" data-loading-text="@Strings.ServersPage_Pause_Server" data-confirm="@Strings.ServersPage_PauseConfirm">
+                                                @Html.Icon("pause-fill") @Strings.ServersPage_Pause_Server
                                             </button>
                                         }
                                     </td>
@@ -136,8 +136,8 @@
                             }
                             @if (!IsReadOnly)
                             {
-                                <button class="btn btn-xs btn-default" data-ajax="@Url.To("/servers/resume/" + RouteValues.Encode(serverId))" data-loading-text="@Strings.ServersPage_StalePauses_Clear">
-                                    <span class="glyphicon glyphicon-remove"></span> @Strings.ServersPage_StalePauses_Clear
+                                <button class="btn hf-btn-xs btn-outline-secondary" data-ajax="@Url.To("/servers/resume/" + RouteValues.Encode(serverId))" data-loading-text="@Strings.ServersPage_StalePauses_Clear">
+                                    @Html.Icon("x-lg") @Strings.ServersPage_StalePauses_Clear
                                 </button>
                             }
                         </li>
@@ -150,7 +150,7 @@
         @if (hostedByIis && keepAlive == null)
         {
             <div class="alert alert-warning">
-                <span class="glyphicon glyphicon-warning-sign"></span>
+                @Html.Icon("exclamation-triangle-fill")
                 @Html.Raw(Strings.ServersPage_Hosting_IisWarning_Html)
             </div>
         }
@@ -161,7 +161,7 @@
                     @currentProcess.ProcessName <span class="text-muted">#@currentProcess.Id</span>
                     @if (hostedByIis)
                     {
-                        <span class="label label-warning">@Strings.ServersPage_Hosting_Iis</span>
+                        <span class="badge text-bg-warning">@Strings.ServersPage_Hosting_Iis</span>
                     }
                 </span>
             </div>
@@ -174,22 +174,22 @@
                 <span class="hf-hosting-value">
                     @if (keepAlive == null)
                     {
-                        <span class="label label-default">@Strings.ServersPage_KeepAlive_NotConfigured</span>
+                        <span class="badge text-bg-secondary">@Strings.ServersPage_KeepAlive_NotConfigured</span>
                     }
                     else if (keepAlive.LastAttemptAt == null)
                     {
-                        <span class="label label-info">@Strings.ServersPage_KeepAlive_Pending</span>
+                        <span class="badge text-bg-info">@Strings.ServersPage_KeepAlive_Pending</span>
                         <span class="text-muted">@String.Format(Strings.ServersPage_KeepAlive_Every, Html.ToHumanDuration(keepAlive.Interval, false))</span>
                     }
                     else if (keepAlive.LastSucceeded == true)
                     {
-                        <span class="label label-success">@Strings.ServersPage_KeepAlive_Ok</span>
+                        <span class="badge text-bg-success">@Strings.ServersPage_KeepAlive_Ok</span>
                         @Html.RelativeTime(keepAlive.LastAttemptAt.Value)
                         <span class="text-muted">&middot; @String.Format(Strings.ServersPage_KeepAlive_Every, Html.ToHumanDuration(keepAlive.Interval, false)) &middot; <code>@keepAlive.Url</code></span>
                     }
                     else
                     {
-                        <span class="label label-danger" title="@keepAlive.LastError">@Strings.ServersPage_KeepAlive_Failed</span>
+                        <span class="badge text-bg-danger" title="@keepAlive.LastError">@Strings.ServersPage_KeepAlive_Failed</span>
                         @Html.RelativeTime(keepAlive.LastAttemptAt.Value)
                         <span class="text-muted">&middot; @keepAlive.LastError</span>
                     }
@@ -203,7 +203,7 @@
                 <div>
                     @if (drain.Active)
                     {
-                        <strong><span class="label label-warning text-uppercase">@Strings.ServersPage_Processing_Paused</span></strong>
+                        <strong><span class="badge text-bg-warning text-uppercase">@Strings.ServersPage_Processing_Paused</span></strong>
                         if (drain.Since.HasValue)
                         {
                             <span class="text-muted">@Html.Raw(String.Format(Strings.ServersPage_Paused_Since, Html.RelativeTime(drain.Since.Value)))</span>
@@ -218,7 +218,7 @@
                     }
                     else
                     {
-                        <strong><span class="label label-success text-uppercase">@Strings.ServersPage_Processing_Running</span></strong>
+                        <strong><span class="badge text-bg-success text-uppercase">@Strings.ServersPage_Processing_Running</span></strong>
                         <p class="text-muted">@String.Format(Strings.ServersPage_Pause_HeldHint, Html.ToHumanDuration(DrainMode.HoldInterval, false))</p>
                     }
                 </div>
@@ -227,15 +227,15 @@
                     if (drain.Active)
                     {
                         <button class="btn btn-sm btn-success" data-ajax="@Url.To("/maintenance/resume")" data-loading-text="@Strings.ServersPage_Resume">
-                            <span class="glyphicon glyphicon-play"></span> @Strings.ServersPage_Resume
+                            @Html.Icon("play-fill") @Strings.ServersPage_Resume
                         </button>
                     }
                     else
                     {
                         <form class="hf-drain-form js-drain-form" data-url="@Url.To("/maintenance/pause")">
-                            <input type="text" class="form-control input-sm" name="reason" placeholder="@Strings.ServersPage_Pause_Reason" maxlength="200" autocomplete="off" />
+                            <input type="text" class="form-control form-control-sm" name="reason" placeholder="@Strings.ServersPage_Pause_Reason" maxlength="200" autocomplete="off" />
                             <button type="submit" class="btn btn-sm btn-warning" data-loading-text="@Strings.ServersPage_Pause">
-                                <span class="glyphicon glyphicon-pause"></span> @Strings.ServersPage_Pause
+                                @Html.Icon("pause-fill") @Strings.ServersPage_Pause
                             </button>
                         </form>
                     }
@@ -252,8 +252,8 @@
                         <strong>@Strings.ServersPage_ClearJobs</strong>
                         <p class="text-muted">@Strings.ServersPage_ClearJobs_Hint</p>
                     </div>
-                    <button class="btn btn-sm btn-default" data-ajax="@Url.To("/maintenance/clear-jobs")" data-loading-text="@Strings.ServersPage_Clearing" data-confirm="@Strings.ServersPage_ClearJobsConfirm">
-                        <span class="glyphicon glyphicon-trash"></span> @Strings.ServersPage_ClearJobs
+                    <button class="btn btn-sm btn-outline-secondary" data-ajax="@Url.To("/maintenance/clear-jobs")" data-loading-text="@Strings.ServersPage_Clearing" data-confirm="@Strings.ServersPage_ClearJobsConfirm">
+                        @Html.Icon("trash-fill") @Strings.ServersPage_ClearJobs
                     </button>
                 </div>
                 <div class="hf-maintenance-row">
@@ -262,18 +262,18 @@
                         <p class="text-muted">@Strings.ServersPage_ResetStorage_Hint</p>
                     </div>
                     <button class="btn btn-sm btn-death" data-ajax="@Url.To("/maintenance/reset")" data-loading-text="@Strings.ServersPage_Clearing" data-confirm="@Strings.ServersPage_ResetStorageConfirm">
-                        <span class="glyphicon glyphicon-fire"></span> @Strings.ServersPage_ResetStorage
+                        @Html.Icon("fire") @Strings.ServersPage_ResetStorage
                     </button>
                 </div>
             </div>
         }
 
         <div class="invoker-stats text-muted" title="@Strings.ServersPage_Invokers_Hint">
-            <span class="glyphicon glyphicon-flash"></span>
+            @Html.Icon("lightning-fill")
             @Strings.ServersPage_Invokers:
-            <span class="label label-success">@invokers.Generated @Strings.ServersPage_Invokers_Generated</span>
-            <span class="label label-info">@invokers.Compiled @Strings.ServersPage_Invokers_Compiled</span>
-            <span class="label label-default">@invokers.Reflection @Strings.ServersPage_Invokers_Reflection</span>
+            <span class="badge text-bg-success">@invokers.Generated @Strings.ServersPage_Invokers_Generated</span>
+            <span class="badge text-bg-info">@invokers.Compiled @Strings.ServersPage_Invokers_Compiled</span>
+            <span class="badge text-bg-secondary">@invokers.Reflection @Strings.ServersPage_Invokers_Reflection</span>
             <span class="invoker-stats-registered">&middot; @invokers.Registered @Strings.ServersPage_Invokers_Registered</span>
         </div>
     </div>

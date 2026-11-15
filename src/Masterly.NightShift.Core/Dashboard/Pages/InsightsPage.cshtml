@@ -40,7 +40,7 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="page-header">@Strings.InsightsPage_Title</h1>
+        <h1 id="page-title" class="hf-page-header">@Strings.InsightsPage_Title</h1>
 
         @if (!supported)
         {
@@ -49,30 +49,30 @@
         else
         {
             <div class="row insights-summary">
-                <div class="col-sm-3">
+                <div class="col-md-3">
                     <div class="insights-tile">
                         <div class="insights-tile-value">@insights.Count</div>
                         <div class="insights-tile-label">@Strings.InsightsPage_Summary_Methods</div>
                     </div>
                 </div>
-                <div class="col-sm-3">
+                <div class="col-md-3">
                     <div class="insights-tile">
                         <div class="insights-tile-value">@totalRuns.ToString("N0")</div>
                         <div class="insights-tile-label">@Strings.InsightsPage_Summary_Runs</div>
                     </div>
                 </div>
-                <div class="col-sm-3">
+                <div class="col-md-3">
                     <div class="insights-tile @(totalRuns > 0 && totalFailed * 10 > totalRuns ? "insights-tile-danger" : null)">
                         <div class="insights-tile-value">@(totalRuns == 0 ? "–" : ((double)totalFailed / totalRuns).ToString("P1"))</div>
                         <div class="insights-tile-label">@Strings.InsightsPage_Summary_FailureRate</div>
                     </div>
                 </div>
-                <div class="col-sm-3">
+                <div class="col-md-3">
                     <div class="insights-tile" title="@Strings.InsightsPage_Summary_Invokers_Hint">
                         <div class="insights-tile-value">
-                            <span class="label label-success">@invokers.Generated</span>
-                            <span class="label label-info">@invokers.Compiled</span>
-                            <span class="label label-default">@invokers.Reflection</span>
+                            <span class="badge text-bg-success">@invokers.Generated</span>
+                            <span class="badge text-bg-info">@invokers.Compiled</span>
+                            <span class="badge text-bg-secondary">@invokers.Reflection</span>
                         </div>
                         <div class="insights-tile-label">@Strings.InsightsPage_Summary_Invokers</div>
                     </div>
@@ -85,7 +85,7 @@
                 <h3 id="insights-anomalies">@Strings.InsightsPage_Anomalies <small class="text-muted">@Strings.InsightsPage_Anomalies_Hint</small></h3>
                 if (anomalies.Count == 0)
                 {
-                    <div class="hf-card hf-anomalies hf-anomalies-ok"><span class="glyphicon glyphicon-ok-circle text-success"></span> @Strings.InsightsPage_Anomalies_None</div>
+                    <div class="hf-card hf-anomalies hf-anomalies-ok">@Html.Icon("check-circle", "text-success") @Strings.InsightsPage_Anomalies_None</div>
                 }
                 else
                 {
@@ -93,20 +93,20 @@
                         @foreach (JobInsight anomaly in anomalies)
                         {
                             <div class="hf-anomaly">
-                                <span class="glyphicon glyphicon-exclamation-sign text-warning"></span>
+                                @Html.Icon("exclamation-circle-fill", "text-warning")
                                 <code>@anomaly.Key</code>
                                 <span class="hf-anomaly-reasons">
                                     @if (anomaly.IsSlowingDown)
                                     {
-                                        <span class="label label-warning">@String.Format(Strings.InsightsPage_Anomaly_SlowingDown, Html.ToHumanDuration(TimeSpan.FromMilliseconds(anomaly.RecentMedianMs), false), Html.ToHumanDuration(TimeSpan.FromMilliseconds(anomaly.EarlierMedianMs), false))</span>
+                                        <span class="badge text-bg-warning">@String.Format(Strings.InsightsPage_Anomaly_SlowingDown, Html.ToHumanDuration(TimeSpan.FromMilliseconds(anomaly.RecentMedianMs), false), Html.ToHumanDuration(TimeSpan.FromMilliseconds(anomaly.EarlierMedianMs), false))</span>
                                     }
                                     @if (anomaly.HasHighFailureRate)
                                     {
-                                        <span class="label label-danger">@String.Format(Strings.InsightsPage_Anomaly_FailureRate, anomaly.FailureRate.ToString("P0"))</span>
+                                        <span class="badge text-bg-danger">@String.Format(Strings.InsightsPage_Anomaly_FailureRate, anomaly.FailureRate.ToString("P0"))</span>
                                     }
                                     @if (anomaly.LastRunWasSlow)
                                     {
-                                        <span class="label label-warning">@String.Format(Strings.InsightsPage_Anomaly_SlowRun, Html.ToHumanDuration(TimeSpan.FromMilliseconds(anomaly.LastDurationMs), false))</span>
+                                        <span class="badge text-bg-warning">@String.Format(Strings.InsightsPage_Anomaly_SlowRun, Html.ToHumanDuration(TimeSpan.FromMilliseconds(anomaly.LastDurationMs), false))</span>
                                     }
                                 </span>
                                 @if (anomaly.LastJobId != null)
@@ -173,13 +173,13 @@
                         <tbody>
                             @foreach (CircuitBreakerAttribute.CircuitState circuit in circuits)
                             {
-                                string labelClass = circuit.State == CircuitBreakerAttribute.OpenState ? "label-danger"
-                                    : circuit.State == CircuitBreakerAttribute.HalfOpenState ? "label-warning"
-                                    : "label-success";
+                                string labelClass = circuit.State == CircuitBreakerAttribute.OpenState ? "text-bg-danger"
+                                    : circuit.State == CircuitBreakerAttribute.HalfOpenState ? "text-bg-warning"
+                                    : "text-bg-success";
 
                                 <tr>
                                     <td class="word-break"><code>@circuit.Resource</code></td>
-                                    <td class="min-width"><span class="label @labelClass text-uppercase">@circuit.State</span></td>
+                                    <td class="min-width"><span class="badge @labelClass text-uppercase">@circuit.State</span></td>
                                     <td class="min-width">@circuit.Failures</td>
                                     <td class="min-width align-right">
                                         @if (circuit.OpenedAt > DateTime.MinValue)
@@ -192,8 +192,8 @@
                                         <td class="min-width">
                                             @if (circuit.State != CircuitBreakerAttribute.ClosedState || circuit.Failures > 0)
                                             {
-                                                <button class="btn btn-xs btn-default" data-ajax="@Url.To("/insights/circuits/reset/" + RouteValues.Encode(circuit.Resource))" data-loading-text="@Strings.InsightsPage_Circuits_Reset">
-                                                    <span class="glyphicon glyphicon-refresh"></span> @Strings.InsightsPage_Circuits_Reset
+                                                <button class="btn hf-btn-xs btn-outline-secondary" data-ajax="@Url.To("/insights/circuits/reset/" + RouteValues.Encode(circuit.Resource))" data-loading-text="@Strings.InsightsPage_Circuits_Reset">
+                                                    @Html.Icon("arrow-clockwise") @Strings.InsightsPage_Circuits_Reset
                                                 </button>
                                             }
                                         </td>
@@ -230,19 +230,19 @@
                         <tbody>
                             @foreach (JobInsight insight in insights)
                             {
-                                string failureClass = insight.FailureRate >= 0.25 ? "label-danger" : insight.FailureRate > 0 ? "label-warning" : "label-default";
+                                string failureClass = insight.FailureRate >= 0.25 ? "text-bg-danger" : insight.FailureRate > 0 ? "text-bg-warning" : "text-bg-secondary";
 
                                 <tr>
                                     <td class="word-break">
                                         <code>@insight.Key</code>
                                         @if (insight.LastRunWasSlow)
                                         {
-                                            <span class="glyphicon glyphicon-warning-sign text-warning" title="@Strings.InsightsPage_SlowRun_Tooltip"></span>
+                                            <span class="hf-icon text-warning" title="@Strings.InsightsPage_SlowRun_Tooltip" role="img" aria-label="@Strings.InsightsPage_SlowRun_Tooltip">@Html.Icon("exclamation-triangle-fill")</span>
                                         }
                                     </td>
                                     <td class="min-width align-right">@insight.Total.ToString("N0")</td>
                                     <td class="min-width align-right">
-                                        <span class="label @failureClass">@insight.Failed.ToString("N0") (@insight.FailureRate.ToString("P0"))</span>
+                                        <span class="badge @failureClass">@insight.Failed.ToString("N0") (@insight.FailureRate.ToString("P0"))</span>
                                     </td>
                                     <td class="min-width align-right">@Html.ToHumanDuration(TimeSpan.FromMilliseconds(insight.MedianMs), false)</td>
                                     <td class="min-width align-right">@Html.ToHumanDuration(TimeSpan.FromMilliseconds(insight.P95Ms), false)</td>
@@ -251,8 +251,8 @@
                                     <td class="min-width">
                                         @if (insight.Invoker != null)
                                         {
-                                            string invokerClass = insight.Invoker == "Generated" ? "label-success" : insight.Invoker == "Compiled" ? "label-info" : "label-default";
-                                            <span class="label @invokerClass">@insight.Invoker</span>
+                                            string invokerClass = insight.Invoker == "Generated" ? "text-bg-success" : insight.Invoker == "Compiled" ? "text-bg-info" : "text-bg-secondary";
+                                            <span class="badge @invokerClass">@insight.Invoker</span>
                                         }
                                     </td>
                                     <td class="min-width align-right">

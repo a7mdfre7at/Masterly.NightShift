@@ -18,7 +18,7 @@
         bool isJobs = String.Equals(itemValue.Url, jobsUrl, StringComparison.OrdinalIgnoreCase);
 
         <a href="@itemValue.Url" class="hf-nav-item @(itemValue.Active ? "active" : null)">
-            <span class="hf-nav-icon glyphicon glyphicon-@(itemValue.Icon ?? "chevron-right")" aria-hidden="true"></span>
+            @Html.Icon(DashboardIcons.Resolve(itemValue.Icon) ?? DashboardIcons.DefaultMenuIcon, "hf-nav-icon")
             <span class="hf-nav-text">@itemValue.Text</span>
             <span class="hf-nav-metrics">
                 @foreach (DashboardMetric metric in itemValue.GetAllMetrics())

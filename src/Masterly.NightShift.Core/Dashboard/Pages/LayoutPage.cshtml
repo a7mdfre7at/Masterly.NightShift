@@ -73,9 +73,9 @@
                     @if (DashboardOptions.DarkModeEnabled)
                     {
                         <div class="hf-theme js-theme" role="group" aria-label="@Strings.LayoutPage_Theme">
-                            <button type="button" data-theme-choice="system" title="@Strings.LayoutPage_Theme_System" aria-label="@Strings.LayoutPage_Theme_System" aria-pressed="false"><span class="glyphicon glyphicon-adjust" aria-hidden="true"></span></button>
-                            <button type="button" data-theme-choice="light" title="@Strings.LayoutPage_Theme_Light" aria-label="@Strings.LayoutPage_Theme_Light" aria-pressed="false"><span class="glyphicon glyphicon-certificate" aria-hidden="true"></span></button>
-                            <button type="button" data-theme-choice="dark" title="@Strings.LayoutPage_Theme_Dark" aria-label="@Strings.LayoutPage_Theme_Dark" aria-pressed="false"><span class="glyphicon glyphicon-star-empty" aria-hidden="true"></span></button>
+                            <button type="button" data-theme-choice="system" title="@Strings.LayoutPage_Theme_System" aria-label="@Strings.LayoutPage_Theme_System" aria-pressed="false">@Html.Icon("circle-half")</button>
+                            <button type="button" data-theme-choice="light" title="@Strings.LayoutPage_Theme_Light" aria-label="@Strings.LayoutPage_Theme_Light" aria-pressed="false">@Html.Icon("sun-fill")</button>
+                            <button type="button" data-theme-choice="dark" title="@Strings.LayoutPage_Theme_Dark" aria-label="@Strings.LayoutPage_Theme_Dark" aria-pressed="false">@Html.Icon("moon-stars")</button>
                         </div>
                     }
                     else
@@ -84,7 +84,7 @@
                     }
                     @if (AppPath != null)
                     {
-                        <a href="@AppPath" title="@Strings.LayoutPage_Back"><span class="glyphicon glyphicon-log-out"></span> @Strings.LayoutPage_Back</a>
+                        <a href="@AppPath" title="@Strings.LayoutPage_Back">@Html.Icon("box-arrow-left") @Strings.LayoutPage_Back</a>
                     }
                     else
                     {
@@ -95,7 +95,7 @@
 
             <div class="hf-main">
                 <header class="hf-topbar">
-                    <button type="button" class="hf-topbar-toggle js-sidebar-toggle" aria-label="@Strings.LayoutPage_Menu"><span class="glyphicon glyphicon-menu-hamburger"></span></button>
+                    <button type="button" class="hf-topbar-toggle js-sidebar-toggle" aria-label="@Strings.LayoutPage_Menu">@Html.Icon("list")</button>
                     <div class="hf-topbar-title">@Title</div>
                     <div class="hf-topbar-spacer"></div>
                     <span class="hf-pulse" title="@Strings.LayoutPage_Search_Hint">
@@ -103,10 +103,10 @@
                         <span class="hf-pulse-text js-pulse-text">@Strings.LayoutPage_Live</span>
                     </span>
                     <button type="button" class="hf-icon-button js-page-refresh" title="@Strings.LayoutPage_Refresh" aria-label="@Strings.LayoutPage_Refresh">
-                        <span class="glyphicon glyphicon-refresh"></span>
+                        @Html.Icon("arrow-clockwise")
                     </button>
                     <button type="button" class="hf-search js-palette-open" title="@Strings.LayoutPage_Search_Hint" aria-haspopup="dialog">
-                        <span class="glyphicon glyphicon-search"></span>
+                        @Html.Icon("search")
                         <span class="hf-search-text">@Strings.LayoutPage_Search</span>
                         <kbd>Ctrl</kbd><kbd>K</kbd>
                     </button>
@@ -140,23 +140,23 @@
                 @if (drainStatus != null && !drainStatus.Active && (drainStatus.PausedQueues.Count > 0 || pausedServers.Count > 0))
                 {
                     <div class="hf-drain-banner hf-drain-banner-queues" role="status">
-                        <span class="glyphicon glyphicon-pause"></span>
+                        @Html.Icon("pause-fill")
                         @if (drainStatus.PausedQueues.Count > 0)
                         {
                             <strong>@String.Format(Strings.LayoutPage_QueuesPaused, String.Join(", ", drainStatus.PausedQueues.Keys))</strong>
-                            <a class="btn btn-xs btn-default" href="@Url.To("/jobs/enqueued")">@Strings.LayoutPage_QueuesPaused_Link &rarr;</a>
+                            <a class="btn hf-btn-xs btn-outline-secondary" href="@Url.To("/jobs/enqueued")">@Strings.LayoutPage_QueuesPaused_Link &rarr;</a>
                         }
                         @if (pausedServers.Count > 0)
                         {
                             <strong>@String.Format(Strings.LayoutPage_ServersPaused, String.Join(", ", pausedServers))</strong>
-                            <a class="btn btn-xs btn-default" href="@Url.To("/servers")">@Strings.NavigationMenu_Servers &rarr;</a>
+                            <a class="btn hf-btn-xs btn-outline-secondary" href="@Url.To("/servers")">@Strings.NavigationMenu_Servers &rarr;</a>
                         }
                     </div>
                 }
                 @if (drainStatus != null && drainStatus.Active)
                 {
                     <div class="hf-drain-banner" role="status">
-                        <span class="glyphicon glyphicon-pause"></span>
+                        @Html.Icon("pause-fill")
                         <strong>@Strings.LayoutPage_Drain_Banner</strong>
                         @if (drainStatus.Since.HasValue)
                         {
@@ -168,8 +168,8 @@
                         }
                         @if (!IsReadOnly)
                         {
-                            <button type="button" class="btn btn-xs btn-success" data-ajax="@Url.To("/maintenance/resume")" data-loading-text="@Strings.LayoutPage_Drain_Resume">
-                                <span class="glyphicon glyphicon-play"></span> @Strings.LayoutPage_Drain_Resume
+                            <button type="button" class="btn hf-btn-xs btn-success" data-ajax="@Url.To("/maintenance/resume")" data-loading-text="@Strings.LayoutPage_Drain_Resume">
+                                @Html.Icon("play-fill") @Strings.LayoutPage_Drain_Resume
                             </button>
                         }
                     </div>
@@ -181,21 +181,21 @@
 
                 <footer class="hf-footer" id="footer">
                     <ul class="list-inline credit">
-                        <li>
+                        <li class="list-inline-item">
                             <span>Masterly.NightShift @($"{version.Major}.{version.Minor}.{version.Build}")</span>
                         </li>
                         @if(DashboardOptions.DisplayStorageConnectionString){
-                        <li>@Storage @($"{storageVersion.Major}.{storageVersion.Minor}.{storageVersion.Build}")</li>
+                        <li class="list-inline-item">@Storage @($"{storageVersion.Major}.{storageVersion.Minor}.{storageVersion.Build}")</li>
                         }
                         @if (StorageUtcNow.HasValue)
                         {
-                            <li>@Strings.LayoutPage_Footer_StorageTime @Html.LocalTime(StorageUtcNow.Value)</li>
+                            <li class="list-inline-item">@Strings.LayoutPage_Footer_StorageTime @Html.LocalTime(StorageUtcNow.Value)</li>
                         }
-                        <li>
+                        <li class="list-inline-item">
                             @if (TimeDifference.HasValue && Math.Abs(TimeDifference.Value.TotalSeconds) > 30)
                             {
                                 <span class="text-warning" title="@Strings.LayoutPage_Footer_TimeIsOutOfSync">
-                                    <span class="glyphicon glyphicon-warning-sign"></span>&nbsp;@Strings.LayoutPage_Footer_Time @Html.LocalTime(ApplicationUtcNow)
+                                    @Html.Icon("exclamation-triangle-fill")&nbsp;@Strings.LayoutPage_Footer_Time @Html.LocalTime(ApplicationUtcNow)
                                 </span>
                             }
                             else
@@ -203,7 +203,7 @@
                                 <span>@Strings.LayoutPage_Footer_Time @Html.LocalTime(ApplicationUtcNow)</span>
                             }
                         </li>
-                        <li>@String.Format(Strings.LayoutPage_Footer_Generatedms, GenerationTime.Elapsed.TotalMilliseconds.ToString("N"))</li>
+                        <li class="list-inline-item">@String.Format(Strings.LayoutPage_Footer_Generatedms, GenerationTime.Elapsed.TotalMilliseconds.ToString("N"))</li>
                     </ul>
                 </footer>
             </div>
@@ -213,6 +213,7 @@
              data-pollinterval="@DashboardOptions.StatsPollingInterval"
              data-pollurl="@(Url.To("/stats"))"
              data-liveurl="@(Url.To("/jobs/live"))"
+             data-icons-url="@(Url.To(DashboardIcons.Path))"
              data-text-refresh="@Strings.LayoutPage_Refresh"
              data-text-live="@Strings.LayoutPage_LiveToggle"
              data-text-live-hint="@Strings.LayoutPage_LiveToggle_Hint"

@@ -82,12 +82,12 @@ internal partial class AboutPage
     {
         string css = state switch
         {
-            JobMonitorState.Healthy => "label-success",
-            JobMonitorState.NeedsAttention => "label-danger",
-            JobMonitorState.Unknown => "label-warning",
-            _ => "label-default",
+            JobMonitorState.Healthy => "text-bg-success",
+            JobMonitorState.NeedsAttention => "text-bg-danger",
+            JobMonitorState.Unknown => "text-bg-warning",
+            _ => "text-bg-secondary",
         };
 
-        return new NonEscapedString($"<span class=\"label {css}\">{state}</span>");
+        return new NonEscapedString($"<span class=\"badge {css}\">{state}</span>");
     }
 }

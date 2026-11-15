@@ -16,10 +16,10 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="page-header">@Strings.AboutPage_Title</h1>
+        <h1 id="page-title" class="hf-page-header">@Strings.AboutPage_Title</h1>
 
         <h3 id="settings">@Strings.AboutPage_Settings</h3>
-        <table class="table table-condensed hf-definition" aria-describedby="settings">
+        <table class="table table-sm hf-definition" aria-describedby="settings">
             <tbody>
                 @foreach (KeyValuePair<string, string> setting in GetSettings())
                 {
@@ -30,7 +30,7 @@
 
         <h3 id="filters">@Strings.AboutPage_GlobalFilters</h3>
         <div class="table-responsive">
-            <table class="table table-condensed" aria-describedby="filters">
+            <table class="table table-sm" aria-describedby="filters">
                 <tbody>
                     @foreach (JobFilter filter in GlobalJobFilters.Filters.OrderBy(static x => x.Order))
                     {
@@ -48,7 +48,7 @@
         else
         {
             <div class="table-responsive">
-                <table class="table table-condensed" aria-describedby="functions">
+                <table class="table table-sm" aria-describedby="functions">
                     <tbody>
                         @foreach (JobFunction function in functions)
                         {
@@ -71,7 +71,7 @@
         else
         {
             <div class="table-responsive">
-                <table class="table table-condensed" aria-describedby="monitors">
+                <table class="table table-sm" aria-describedby="monitors">
                     <tbody>
                         @foreach (JobMonitorStatus monitor in monitors)
                         {

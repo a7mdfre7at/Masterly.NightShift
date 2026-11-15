@@ -37,7 +37,7 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 class="page-header">@title</h1>
+        <h1 class="hf-page-header">@title</h1>
 
         @if (job == null)
         {
@@ -81,7 +81,7 @@
             {
                 TimeSpan? deadlineMissed = SerializationHelper.Deserialize<TimeSpan?>(deadlineMissedValue, SerializationOption.User);
                 <div class="alert alert-danger">
-                    <span class="glyphicon glyphicon-time"></span>
+                    @Html.Icon("clock")
                     @String.Format(Strings.JobDetailsPage_DeadlineMissed, Html.ToHumanDuration(deadlineMissed, false))
                 </div>
             }
@@ -92,11 +92,11 @@
                 {
                     bool overdue = deadlineAt.Value < (StorageUtcNow ?? ApplicationUtcNow);
                     <div class="alert @(overdue ? "alert-danger" : "alert-info")">
-                        <span class="glyphicon glyphicon-time"></span>
+                        @Html.Icon("clock")
                         @Strings.Common_Deadline: @Html.RelativeTime(deadlineAt.Value)
                         @if (overdue)
                         {
-                            <span class="label label-danger text-uppercase">@Strings.Common_Overdue</span>
+                            <span class="badge text-bg-danger text-uppercase">@Strings.Common_Overdue</span>
                         }
                     </div>
                 }
@@ -123,27 +123,27 @@
 
                 <div class="job-snippet">
                     <div class="job-snippet-toolbar">
-                        <button type="button" class="btn btn-xs btn-default js-watch-toggle" data-id="@JobId" data-name="@title" data-state="@job.History[0].StateName"
+                        <button type="button" class="btn hf-btn-xs btn-outline-secondary js-watch-toggle" data-id="@JobId" data-name="@title" data-state="@job.History[0].StateName"
                                 data-text-watch="@Strings.JobDetailsPage_Watch" data-text-watching="@Strings.JobDetailsPage_Watching" title="@Strings.JobDetailsPage_Watch_Hint">
-                            <span class="glyphicon glyphicon-eye-open"></span> <span class="js-watch-label">@Strings.JobDetailsPage_Watch</span>
+                            @Html.Icon("eye-fill") <span class="js-watch-label">@Strings.JobDetailsPage_Watch</span>
                         </button>
-                        <button type="button" class="btn btn-xs btn-default js-download" data-url="@Url.To("/jobs/export/" + RouteValues.Encode(JobId))" data-filename="job-@(JobId).json" title="@Strings.JobDetailsPage_Export">
-                            <span class="glyphicon glyphicon-save"></span> @Strings.JobDetailsPage_Export
+                        <button type="button" class="btn hf-btn-xs btn-outline-secondary js-download" data-url="@Url.To("/jobs/export/" + RouteValues.Encode(JobId))" data-filename="job-@(JobId).json" title="@Strings.JobDetailsPage_Export">
+                            @Html.Icon("box-arrow-down") @Strings.JobDetailsPage_Export
                         </button>
                         @if (!IsReadOnly)
                         {
-                            <button type="button" class="btn btn-xs btn-default js-catalog-run"
+                            <button type="button" class="btn hf-btn-xs btn-outline-secondary js-catalog-run"
                                     data-source="@JobId"
                                     data-type="@JobMethodCallRenderer.GetNameWithoutGenericArity(job.Job.Type)"
                                     data-method="@job.Job.Method.Name"
                                     data-parameters="@DashboardJson.Serialize(runParameters)"
                                     data-queue="@GetRunAgainQueue(job)"
                                     title="@Strings.JobDetailsPage_RunAgain_Hint">
-                                <span class="glyphicon glyphicon-repeat"></span> @Strings.JobDetailsPage_RunAgain
+                                @Html.Icon("arrow-repeat") @Strings.JobDetailsPage_RunAgain
                             </button>
                         }
-                        <button type="button" class="btn btn-xs btn-default js-copy-code" data-code="@JobCodeRenderer.Render(job.Job)" data-copied="@Strings.JobDetailsPage_Copied" title="@Strings.JobDetailsPage_CopyAsCode_Hint">
-                            <span class="glyphicon glyphicon-copy"></span> @Strings.JobDetailsPage_CopyAsCode
+                        <button type="button" class="btn hf-btn-xs btn-outline-secondary js-copy-code" data-code="@JobCodeRenderer.Render(job.Job)" data-copied="@Strings.JobDetailsPage_Copied" title="@Strings.JobDetailsPage_CopyAsCode_Hint">
+                            @Html.Icon("copy") @Strings.JobDetailsPage_CopyAsCode
                         </button>
                     </div>
                     <div class="job-snippet-code">
@@ -166,7 +166,7 @@
 
                 <div class="alert alert-warning">
                     <h4 id="job-details-missing-method">@Strings.Common_CannotFindTargetMethod</h4>
-                    <table class="table table-condensed job-snippet-properties margin-bottom-0" aria-describedby="job-details-missing-method">
+                    <table class="table table-sm job-snippet-properties margin-bottom-0" aria-describedby="job-details-missing-method">
                         <tr>
                             <td>@Strings.JobDetailsPage_JobId</td>
                             <td><pre><code>@Html.JobId(JobId, false)</code></pre></td>
@@ -192,19 +192,19 @@
                 <div class="hf-tags" aria-label="@Strings.JobDetailsPage_Tags">
                     @if (chainId != null)
                     {
-                        <a class="hf-tag hf-tag-batch" href="@Url.To("/chains/" + RouteValues.Encode(chainId))"><span class="glyphicon glyphicon-link"></span> @String.Format(Strings.ChainDetailsPage_Title, chainId.Substring(0, Math.Min(8, chainId.Length)))</a>
+                        <a class="hf-tag hf-tag-batch" href="@Url.To("/chains/" + RouteValues.Encode(chainId))">@Html.Icon("link-45deg") @String.Format(Strings.ChainDetailsPage_Title, chainId.Substring(0, Math.Min(8, chainId.Length)))</a>
                     }
                     @if (batchId != null)
                     {
-                        <a class="hf-tag hf-tag-batch" href="@Url.To("/batches/" + RouteValues.Encode(batchId))"><span class="glyphicon glyphicon-th-large"></span> @Strings.JobDetailsPage_Batch @batchId</a>
+                        <a class="hf-tag hf-tag-batch" href="@Url.To("/batches/" + RouteValues.Encode(batchId))">@Html.Icon("grid-fill") @Strings.JobDetailsPage_Batch @batchId</a>
                     }
                     @if (batchContinuationOf != null)
                     {
-                        <a class="hf-tag hf-tag-batch" href="@Url.To("/batches/" + RouteValues.Encode(batchContinuationOf))"><span class="glyphicon glyphicon-th-large"></span> @Strings.JobDetailsPage_BatchContinuation @batchContinuationOf</a>
+                        <a class="hf-tag hf-tag-batch" href="@Url.To("/batches/" + RouteValues.Encode(batchContinuationOf))">@Html.Icon("grid-fill") @Strings.JobDetailsPage_BatchContinuation @batchContinuationOf</a>
                     }
                     @if (tags.Count > 0)
                     {
-                        <span class="glyphicon glyphicon-tag text-muted"></span>
+                        @Html.Icon("tag-fill", "text-muted")
                     }
                     @foreach (string tag in tags)
                     {
@@ -219,14 +219,14 @@
             {
                 <section class="hf-card hf-diagnosis" aria-labelledby="job-details-diagnosis">
                     <div class="hf-card-header">
-                        <h3 id="job-details-diagnosis"><span class="glyphicon glyphicon-search"></span> @Strings.Diagnostics_Title <small class="text-muted">@Strings.Diagnostics_Hint</small></h3>
+                        <h3 id="job-details-diagnosis">@Html.Icon("search") @Strings.Diagnostics_Title <small class="text-muted">@Strings.Diagnostics_Hint</small></h3>
                     </div>
                     <ul class="hf-diagnosis-list">
                         @foreach (JobDiagnostic finding in findings)
                         {
-                            string icon = finding.Severity == JobDiagnosticSeverity.Problem ? "remove-sign" : finding.Severity == JobDiagnosticSeverity.Warning ? "warning-sign" : "info-sign";
+                            string icon = finding.Severity == JobDiagnosticSeverity.Problem ? "x-circle-fill" : finding.Severity == JobDiagnosticSeverity.Warning ? "exclamation-triangle-fill" : "info-circle-fill";
                             <li class="hf-diagnosis-item hf-diagnosis-@finding.Severity.ToString().ToLowerInvariant()" data-code="@finding.Code">
-                                <span class="hf-diagnosis-icon glyphicon glyphicon-@icon" aria-hidden="true"></span>
+                                @Html.Icon(icon, "hf-diagnosis-icon")
                                 <span class="hf-diagnosis-text">
                                     @finding.Message
                                     @if (finding.Link != null)
@@ -246,10 +246,10 @@
             <section class="hf-card hf-notes" aria-labelledby="job-details-notes">
                 <div class="hf-card-header">
                     <h3 id="job-details-notes">
-                        <span class="glyphicon glyphicon-comment"></span> @Strings.JobDetailsPage_Notes <small class="text-muted">@Strings.JobDetailsPage_Notes_Hint</small>
+                        @Html.Icon("chat-left-text-fill") @Strings.JobDetailsPage_Notes <small class="text-muted">@Strings.JobDetailsPage_Notes_Hint</small>
                         @if (acknowledgement != null)
                         {
-                            <span class="label label-info hf-ack"><span class="glyphicon glyphicon-ok"></span> @Strings.JobDetailsPage_Notes_Acknowledged</span>
+                            <span class="badge text-bg-info hf-ack">@Html.Icon("check-lg") @Strings.JobDetailsPage_Notes_Acknowledged</span>
                         }
                     </h3>
                 </div>
@@ -264,7 +264,7 @@
                             <div class="hf-note-meta">
                                 @if (note.Acknowledges)
                                 {
-                                    <span class="glyphicon glyphicon-ok text-info"></span>
+                                    @Html.Icon("check-lg", "text-info")
                                 }
                                 <strong>@(note.User ?? Strings.Common_Anonymous)</strong>
                                 <span class="text-muted">@Html.RelativeTime(note.WrittenAt)</span>
@@ -285,10 +285,10 @@
                     <form class="hf-note-form js-note-form" data-url="@Url.To("/jobs/notes/add/" + RouteValues.Encode(JobId))">
                         <textarea class="form-control" name="text" rows="2" maxlength="2000" placeholder="@Strings.JobDetailsPage_Notes_Placeholder"></textarea>
                         <div class="hf-note-actions">
-                            <button type="submit" class="btn btn-sm btn-primary" data-loading-text="@Strings.RecurringJobsPage_Saving"><span class="glyphicon glyphicon-plus"></span> @Strings.JobDetailsPage_Notes_Add</button>
+                            <button type="submit" class="btn btn-sm btn-primary" data-loading-text="@Strings.RecurringJobsPage_Saving">@Html.Icon("plus-lg") @Strings.JobDetailsPage_Notes_Add</button>
                             @if (acknowledgement == null && currentState.StateName == FailedState.StateName)
                             {
-                                <button type="button" class="btn btn-sm btn-default js-note-ack" data-loading-text="@Strings.RecurringJobsPage_Saving"><span class="glyphicon glyphicon-ok"></span> @Strings.JobDetailsPage_Notes_Acknowledge</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary js-note-ack" data-loading-text="@Strings.RecurringJobsPage_Saving">@Html.Icon("check-lg") @Strings.JobDetailsPage_Notes_Acknowledge</button>
                             }
                         </div>
                     </form>
@@ -301,7 +301,7 @@
             {
                 <section class="hf-card hf-lineage" aria-labelledby="job-details-lineage">
                     <div class="hf-card-header">
-                        <h3 id="job-details-lineage"><span class="glyphicon glyphicon-random"></span> @Strings.JobDetailsPage_Lineage <small class="text-muted">@Strings.JobDetailsPage_Lineage_Hint</small></h3>
+                        <h3 id="job-details-lineage">@Html.Icon("shuffle") @Strings.JobDetailsPage_Lineage <small class="text-muted">@Strings.JobDetailsPage_Lineage_Hint</small></h3>
                         @if (lineage.Truncated)
                         {
                             <span class="text-muted">@Strings.JobDetailsPage_Lineage_Truncated</span>
@@ -331,9 +331,9 @@
             if (isProcessing || progress != null || consoleEntries.Count > 0)
             {
                 double percent = progress != null ? progress.Percent : (currentState.StateName == SucceededState.StateName ? 100 : 0);
-                string barClass = currentState.StateName == FailedState.StateName ? "progress-bar-danger"
-                    : currentState.StateName == SucceededState.StateName ? "progress-bar-success"
-                    : isProcessing ? "progress-bar-striped active" : "";
+                string barClass = currentState.StateName == FailedState.StateName ? "bg-danger"
+                    : currentState.StateName == SucceededState.StateName ? "bg-success"
+                    : isProcessing ? "progress-bar-striped progress-bar-animated" : "";
 
                 <div class="job-live" id="jobLive"
                      data-live-url="@Url.To("/jobs/live")"
@@ -345,7 +345,7 @@
                         @Strings.JobDetailsPage_Live
                         @if (isProcessing)
                         {
-                            <span class="label label-info job-live-indicator">@currentState.StateName</span>
+                            <span class="badge text-bg-info job-live-indicator">@currentState.StateName</span>
                         }
                         <small class="text-muted"><span class="js-live-elapsed">@(liveStartedAt.HasValue ? Html.ToHumanDuration((StorageUtcNow ?? ApplicationUtcNow) - liveStartedAt.Value, false) : null)</span> <span class="js-live-elapsed-label" style="@(liveStartedAt.HasValue ? null : "display: none")">@Strings.JobDetailsPage_Live_Elapsed</span></small>
                     </h3>
@@ -358,7 +358,7 @@
                     </div>
 
                     <div class="row">
-                        <div class="col-md-8">
+                        <div class="col-lg-8">
                             <h4>@Strings.JobDetailsPage_Console</h4>
                             <div class="job-console js-live-console" aria-live="polite">
                                 @if (consoleEntries.Count == 0)
@@ -370,7 +370,7 @@
                                     DateTime entryTime = JobConsole.FromTimestamp(entry.Timestamp);
                                     if (entry.Checkpoint != null)
                                     {
-                                        <div class="job-console-line job-console-checkpoint"><span class="job-console-time" data-live-time="@entry.Timestamp">@entryTime.ToString("HH:mm:ss")</span><span class="glyphicon glyphicon-flag"></span> @entry.Checkpoint</div>
+                                        <div class="job-console-line job-console-checkpoint"><span class="job-console-time" data-live-time="@entry.Timestamp">@entryTime.ToString("HH:mm:ss")</span>@Html.Icon("flag-fill") @entry.Checkpoint</div>
                                     }
                                     else
                                     {
@@ -379,7 +379,7 @@
                                 }
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-lg-4">
                             <h4>@Strings.JobDetailsPage_Checkpoints</h4>
                             <ol class="job-checkpoints js-live-checkpoints">
                                 @{
@@ -403,7 +403,7 @@
             if (displayParameters.Length > 0)
             {
                 <h3 id="job-details-parameters">@Strings.JobDetailsPage_Parameters</h3>
-                <table class="table table-condensed job-snippet-properties" aria-describedby="job-details-parameters">
+                <table class="table table-sm job-snippet-properties" aria-describedby="job-details-parameters">
                     @foreach (KeyValuePair<string, string> parameter in displayParameters)
                     {
                         <tr>
@@ -555,11 +555,11 @@
             <h3>
                 @if (job.History.Count > 1)
                 {
-                    <span class="job-snippet-buttons pull-right">
+                    <span class="job-snippet-buttons float-end">
                         @* A job that waits in its queue is enqueued already *@
                         @if (!IsReadOnly && job.History[0].StateName != EnqueuedState.StateName)
                         {
-                            <button class="btn btn-sm btn-default"
+                            <button class="btn btn-sm btn-outline-secondary"
                                     data-ajax="@Url.To("/jobs/actions/requeue/" + RouteValues.Encode(JobId))"
                                     data-loading-text="@Strings.Common_Enqueueing">
                                 @Strings.JobDetailsPage_Requeue
@@ -589,7 +589,7 @@
 
                 <div class="state-card @(cardCss != null ? "state-card-state-" + cardCss : null)">
                     <h4 class="state-card-title">
-                        <small class="pull-right text-muted">
+                        <small class="float-end text-muted">
                             @if (index == job.History.Count - 1)
                             {
                                 @Html.RelativeTime(entry.CreatedAt)

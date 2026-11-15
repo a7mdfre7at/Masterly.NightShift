@@ -9,7 +9,7 @@
             MenuItem itemValue = item(this);
             <a href="@itemValue.Url" class="list-group-item @(itemValue.Active ? "active" : null)">
                 @itemValue.Text
-                <span class="pull-right">
+                <span class="float-end">
                     @foreach (DashboardMetric metric in itemValue.GetAllMetrics())
                     {
                         @Html.InlineMetric(metric)

@@ -20,7 +20,7 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="page-header">@Strings.DeletedJobsPage_Title</h1>
+        <h1 id="page-title" class="hf-page-header">@Strings.DeletedJobsPage_Title</h1>
 
         @if (pager.TotalPageCount == 0)
         {
@@ -32,8 +32,8 @@
         {
             <div class="js-jobs-list">
                 <div class="btn-toolbar btn-toolbar-top">
-                    <button type="button" class="btn btn-sm btn-default js-download" data-url="@Url.To("/jobs/deleted/export")" data-filename="nightshift-deleted-jobs.csv">
-                        <span class="glyphicon glyphicon-download-alt"></span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary js-download" data-url="@Url.To("/jobs/deleted/export")" data-filename="nightshift-deleted-jobs.csv">
+                        @Html.Icon("download")
                         @Strings.Common_DownloadCsv
                     </button>
                     @if (!IsReadOnly)
@@ -42,7 +42,7 @@
                                 data-url="@Url.To("/jobs/deleted/requeue")"
                                 data-loading-text="@Strings.Common_Enqueueing"
                                 disabled="disabled">
-                            <span class="glyphicon glyphicon-repeat"></span>
+                            @Html.Icon("arrow-repeat")
                             @Strings.Common_RequeueJobs
                         </button>
                     }
@@ -84,7 +84,7 @@
                                         @Html.JobIdLink(job.Key)
                                         @if (job.Value != null && !job.Value.InDeletedState)
                                         {
-                                            <span title="@Strings.Common_JobStateChanged_Text" class="glyphicon glyphicon-question-sign"></span>
+                                            <span class="hf-icon" title="@Strings.Common_JobStateChanged_Text" role="img" aria-label="@Strings.Common_JobStateChanged_Text">@Html.Icon("question-circle-fill")</span>
                                         }
                                     </td>
 

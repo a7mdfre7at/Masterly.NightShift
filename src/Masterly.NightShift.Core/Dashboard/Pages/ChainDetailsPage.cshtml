@@ -16,7 +16,7 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="page-header">
+        <h1 id="page-title" class="hf-page-header">
             @Html.Breadcrumbs(title, new Dictionary<string, string> { { Strings.ChainsPage_Title, Url.To("/chains") } })
         </h1>
 
@@ -36,13 +36,13 @@
                     </div>
                     <div class="hf-batch-actions">
                         <span class="hf-flow-facts">
-                            <span class="hf-flow-pill"><span class="glyphicon glyphicon-trash"></span> @String.Format(Strings.ChainFlow_Deletion, chain.DeleteBehavior)</span>
+                            <span class="hf-flow-pill">@Html.Icon("trash-fill") @String.Format(Strings.ChainFlow_Deletion, chain.DeleteBehavior)</span>
                             <span class="text-muted">@String.Format(Strings.ChainFlow_Summary, chain.Steps.Count, chart.GroupCount)</span>
                         </span>
                         @if (!IsReadOnly && !chain.IsSettled)
                         {
-                            <button class="btn btn-sm btn-default" data-ajax="@Url.To("/chains/delete/" + RouteValues.Encode(chain.ChainId))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.ChainDetailsPage_DeleteConfirm">
-                                <span class="glyphicon glyphicon-remove"></span> @Strings.Common_Delete
+                            <button class="btn btn-sm btn-outline-secondary" data-ajax="@Url.To("/chains/delete/" + RouteValues.Encode(chain.ChainId))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.ChainDetailsPage_DeleteConfirm">
+                                @Html.Icon("x-lg") @Strings.Common_Delete
                             </button>
                         }
                     </div>
@@ -52,13 +52,13 @@
             @* The flowchart: one row per level, groups in boxes, each step a card *@
             <section class="hf-card hf-flow js-flow" aria-labelledby="chain-flow">
                 <div class="hf-card-header hf-flow-header">
-                    <h3 id="chain-flow"><span class="glyphicon glyphicon-random"></span> @Strings.ChainDetailsPage_Diagram</h3>
+                    <h3 id="chain-flow">@Html.Icon("shuffle") @Strings.ChainDetailsPage_Diagram</h3>
                     <div class="hf-flow-toolbar" role="toolbar">
-                        <button type="button" class="btn btn-xs btn-default js-flow-zoom" data-zoom="out" title="@Strings.ChainFlow_ZoomOut" aria-label="@Strings.ChainFlow_ZoomOut"><span class="glyphicon glyphicon-zoom-out"></span></button>
+                        <button type="button" class="btn hf-btn-xs btn-outline-secondary js-flow-zoom" data-zoom="out" title="@Strings.ChainFlow_ZoomOut" aria-label="@Strings.ChainFlow_ZoomOut">@Html.Icon("zoom-out")</button>
                         <span class="hf-flow-zoom-level js-flow-level">100%</span>
-                        <button type="button" class="btn btn-xs btn-default js-flow-zoom" data-zoom="in" title="@Strings.ChainFlow_ZoomIn" aria-label="@Strings.ChainFlow_ZoomIn"><span class="glyphicon glyphicon-zoom-in"></span></button>
-                        <button type="button" class="btn btn-xs btn-default js-flow-zoom" data-zoom="fit" title="@Strings.ChainFlow_Fit" aria-label="@Strings.ChainFlow_Fit"><span class="glyphicon glyphicon-resize-horizontal"></span></button>
-                        <button type="button" class="btn btn-xs btn-default js-flow-fullscreen" title="@Strings.ChainFlow_Fullscreen" aria-label="@Strings.ChainFlow_Fullscreen" aria-pressed="false"><span class="glyphicon glyphicon-fullscreen"></span></button>
+                        <button type="button" class="btn hf-btn-xs btn-outline-secondary js-flow-zoom" data-zoom="in" title="@Strings.ChainFlow_ZoomIn" aria-label="@Strings.ChainFlow_ZoomIn">@Html.Icon("zoom-in")</button>
+                        <button type="button" class="btn hf-btn-xs btn-outline-secondary js-flow-zoom" data-zoom="fit" title="@Strings.ChainFlow_Fit" aria-label="@Strings.ChainFlow_Fit">@Html.Icon("arrows")</button>
+                        <button type="button" class="btn hf-btn-xs btn-outline-secondary js-flow-fullscreen" title="@Strings.ChainFlow_Fullscreen" aria-label="@Strings.ChainFlow_Fullscreen" aria-pressed="false">@Html.Icon("arrows-fullscreen")</button>
                     </div>
                 </div>
                 @ChainFlowchartRenderer.Render(this, chart)
@@ -68,7 +68,7 @@
             {
                 <p class="text-muted">@String.Format(Strings.ChainFlow_Truncated, ChainFlowchart.MaxSteps)</p>
                 <div class="table-responsive">
-                    <table class="table table-condensed">
+                    <table class="table table-sm">
                         <tbody>
                             @foreach (JobChainStepInfo step in chart.Hidden)
                             {
@@ -86,7 +86,7 @@
 
             @* Every step's console, merged in time order *@
             <details class="hf-card hf-chain-logs"@(new NonEscapedString(chart.Logs.Count > 0 ? " open" : String.Empty))>
-                <summary class="hf-card-header"><h3><span class="glyphicon glyphicon-console"></span> @Strings.ChainLogs_Title</h3></summary>
+                <summary class="hf-card-header"><h3>@Html.Icon("terminal-fill") @Strings.ChainLogs_Title</h3></summary>
                 @if (chart.LogLineCount > chart.Logs.Count)
                 {
                     <p class="text-muted hf-chain-logs-note">@String.Format(Strings.ChainLogs_Truncated, ChainFlowchart.MaxLogLines)</p>
