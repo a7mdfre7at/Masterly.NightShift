@@ -760,6 +760,23 @@
         nightshift.snackbar.show({ text: text, kind: kind === 'failed' ? 'error' : kind === 'warning' ? 'warning' : null });
     };
 
+    // Takes parameters out of the address without a reload or a new history entry, so that a deep link
+    // (?edit=...) acts once: a reload, by the page or the user, no longer carries it
+    nightshift.forgetQueryParameters = function (names) {
+        if (!window.history || typeof window.history.replaceState !== 'function' || typeof window.URL !== 'function') return;
+        try {
+            var url = new URL(window.location.href);
+            var changed = false;
+            for (var i = 0; i < names.length; i++) {
+                if (url.searchParams.has(names[i])) {
+                    url.searchParams.delete(names[i]);
+                    changed = true;
+                }
+            }
+            if (changed) window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+        } catch (e) { /* the address stays as it is */ }
+    };
+
     // A polite announcement for screen readers, through one status region of the page
     nightshift.announce = function (text) {
         var region = $('.js-announcer');
@@ -834,9 +851,10 @@
     })();
 
     // The confirmation dialog: NightShift.confirm({ title, body, confirmLabel, cancelLabel, destructive,
-    // typeToConfirm }) shows a headline, what happens, Cancel and the confirming button (in the error colour when
+    // typeToConfirm, keepFocusOnConfirm }) shows a headline, what happens, Cancel and the confirming button (in the error colour when
     // destructive), and resolves its Promise with true or false. With typeToConfirm the confirming button works only
-    // once that text is typed.
+    // once that text is typed. With keepFocusOnConfirm the focus goes back to the opener only when it is cancelled:
+    // after a confirmation the caller moves it.
     nightshift.confirm = (function () {
         var modal = null;
         var pending = null;
@@ -882,6 +900,8 @@
         var finish = function (result) {
             if (!pending) return;
             var resolve = pending.resolve;
+            // The caller places the focus after a confirmation (Dialogs reads the flag when the dialog is hidden)
+            if (result && pending.options.keepFocusOnConfirm) modal.data('ns-keep-focus', true);
             pending = null;
             resolve(result);
             bootstrap.Modal.getOrCreateInstance(modal[0]).hide();
@@ -964,7 +984,8 @@
     // data-sheet-overline and data-sheet-url, or the template its data-sheet-content selector names, or else the
     // template.js-sheet-template of its row, with guard: true when it has data-sheet-guard="true". With guard: true,
     // input in a form of the sheet makes it ask "Discard changes?" before Esc, the close button or a Cancel
-    // (js-sheet-close) closes it, and a click on the scrim is ignored meanwhile; a submit means the input was used.
+    // (js-sheet-close) closes it, and a click on the scrim is ignored meanwhile, until NightShift.sheet.markClean()
+    // says the input was saved (a save that reloads the page needs nothing). It is hidden when its slide-out ends.
     nightshift.sheet = (function () {
         var sheet = null;
         var scrim = null;
@@ -1000,13 +1021,62 @@
                 trapTab(e, sheet[0]);
             });
 
-            // Input in a guarded sheet's form makes it dirty; a submit means the input was used
+            // Input in a guarded sheet's form makes it dirty until markClean(): a submit that the page's checks or
+            // the server refuse leaves the sheet open with the input still unsaved
             sheet.on('input change', 'form :input', function () {
                 if (state && state.guard) state.dirty = true;
             });
-            sheet.on('submit', 'form', function () {
-                if (state) state.dirty = false;
+        };
+
+        // The input of the sheet's form is saved: closing it no longer asks (a success that keeps the sheet open)
+        var markClean = function () {
+            if (state) state.dirty = false;
+        };
+
+        // The longest transition of the element as it is styled now, in milliseconds
+        var toMilliseconds = function (text) {
+            var value = parseFloat(text) || 0;
+            return /ms\s*$/.test(text) ? value : value * 1000;
+        };
+        var transitionTime = function (element) {
+            var style = window.getComputedStyle(element);
+            var durations = String(style.transitionDuration || '0s').split(',');
+            var delays = String(style.transitionDelay || '0s').split(',');
+            var longest = 0;
+            for (var i = 0; i < durations.length; i++) {
+                longest = Math.max(longest, toMilliseconds(durations[i]) + toMilliseconds(delays[i % delays.length]));
+            }
+            return longest;
+        };
+
+        // The sheet and the scrim are hidden once their slide-out and fade end: at the sheet's transitionend, or
+        // after their computed duration when that never comes (a transition that was cut short)
+        var pendingHide = null;
+        var cancelHide = function () {
+            pendingHide = null;
+            clearTimeout(hideTimer);
+            if (sheet) sheet.off('transitionend.nsSheet');
+        };
+        var hideAfterTransition = function () {
+            cancelHide();
+            var hide = function () {
+                if (pendingHide !== hide) return;
+                cancelHide();
+                sheet.prop('hidden', true);
+                scrim.prop('hidden', true);
+                nightshift.disposeTooltips(sheet.find('.ns-sheet-body, .ns-sheet-actions'));
+            };
+            pendingHide = hide;
+
+            var wait = nightshift.prefersReducedMotion() ? 0 : Math.max(transitionTime(sheet[0]), transitionTime(scrim[0]));
+            if (wait <= 0) {
+                hide();
+                return;
+            }
+            sheet.on('transitionend.nsSheet', function (e) {
+                if (e.target === sheet[0]) hide();
             });
+            hideTimer = setTimeout(hide, wait + 50);
         };
 
         // Closes the sheet, after asking when a guarded form holds unsaved input
@@ -1023,7 +1093,10 @@
                 body: TEXT.discardBody,
                 confirmLabel: TEXT.discard,
                 cancelLabel: TEXT.keepEditing,
-                destructive: true
+                destructive: true,
+                // Discarding closes the sheet, which gives the focus to its opener: the dialog doesn't give it back
+                // to the field of the closing sheet, whichever of the two ends first
+                keepFocusOnConfirm: true
             }).then(function (discard) {
                 asking = false;
                 if (!discard) return;
@@ -1078,7 +1151,7 @@
         var open = function (options) {
             options = options || {};
             if (!sheet) build();
-            clearTimeout(hideTimer);
+            cancelHide();
 
             var wasOpen = isOpen();
             var opener = options.opener || (wasOpen && state ? state.opener : document.activeElement);
@@ -1119,11 +1192,7 @@
             sheet.removeClass('show');
             scrim.removeClass('show');
             setInert(false);
-            hideTimer = setTimeout(function () {
-                sheet.prop('hidden', true);
-                scrim.prop('hidden', true);
-                nightshift.disposeTooltips(sheet.find('.ns-sheet-body, .ns-sheet-actions'));
-            }, nightshift.prefersReducedMotion() ? 0 : 250);
+            hideAfterTransition();
 
             var opener = closing && closing.opener;
             if (opener && document.contains(opener)) focusBack(opener);
@@ -1154,7 +1223,7 @@
             open(options);
         });
 
-        return { open: open, close: close, requestClose: requestClose, isOpen: isOpen };
+        return { open: open, close: close, requestClose: requestClose, isOpen: isOpen, markClean: markClean };
     })();
 
     // Outlined text fields: NightShift.fields(container) links each .ns-field's label, supporting and error text to
@@ -1212,10 +1281,12 @@
             return;
         }
 
+        // Read before the button says "Saving..."
+        var submitName = commandName(submit.first());
         nightshift.setLoading(submit, true);
         $.post(form.attr('action'), form.serialize())
             .done(function () {
-                nightshift.snackbar.showAfterReload({ text: format(TEXT.done, commandName(submit.first())) });
+                nightshift.snackbar.showAfterReload({ text: format(TEXT.done, submitName) });
                 var target = form.attr('data-redirect');
                 var anchor = '#policy-' + trim(name.val()).toLowerCase();
                 if (window.location.pathname + window.location.search === target) {
@@ -1243,7 +1314,7 @@
                     conflict.prop('hidden', false);
                     conflict.find('a').first().trigger('focus');
                 } else {
-                    nightshift.showRequestError(xhr, commandName(submit.first()), function () { form.trigger('submit'); });
+                    nightshift.showRequestError(xhr, submitName, function () { form.trigger('submit'); });
                 }
             });
     });
@@ -1256,6 +1327,7 @@
         var submit = form.find('[type=submit]');
         var result = form.nextAll('.js-policy-preview-result').first();
         var policy = form.find('[name=preview]').val();
+        var submitName = commandName(submit);
 
         nightshift.setLoading(submit, true);
         result.attr('aria-busy', 'true');
@@ -1276,7 +1348,7 @@
                 if (summary) nightshift.announce(summary);
             })
             .fail(function (xhr) {
-                nightshift.showRequestError(xhr, commandName(submit), function () { form.trigger('submit'); });
+                nightshift.showRequestError(xhr, submitName, function () { form.trigger('submit'); });
             })
             .always(function () {
                 nightshift.setLoading(submit, false);
@@ -1724,13 +1796,20 @@
 
             // Deep link: /recurring?edit=<id> opens the editor for that job (used by the command palette)
             var match = /[?&]edit=([^&]+)/.exec(window.location.search);
+            var editId = null;
             if (match) {
+                // A malformed address (a stray "%") opens nothing, rather than stopping the page's other scripts
+                try { editId = decodeURIComponent(match[1].replace(/\+/g, ' ')); } catch (e) { editId = null; }
+            }
+            if (editId !== null) {
                 var button = $('.js-recurring-edit').filter(function () {
-                    return $(this).attr('data-id') === decodeURIComponent(match[1].replace(/\+/g, ' '));
+                    return $(this).attr('data-id') === editId;
                 }).first();
 
                 if (button.length) {
                     this.open(button);
+                    // Once: neither the reload after Save nor F5 opens it again
+                    nightshift.forgetQueryParameters(['edit']);
                 }
             }
         }
@@ -1851,6 +1930,8 @@
         RecurringJobEditor.prototype._submit = function () {
             var self = this;
             var save = this._save;
+            // Read before the button says "Saving..."
+            var saveName = commandName(save);
 
             nightshift.setLoading(save, true);
             this._error.hide();
@@ -1862,7 +1943,7 @@
                 misfire: this._misfire.val()
             })
                 .done(function () {
-                    nightshift.snackbar.showAfterReload({ text: format(TEXT.done, commandName(save)) });
+                    nightshift.snackbar.showAfterReload({ text: format(TEXT.done, saveName) });
                     window.location.reload();
                 })
                 .fail(function (xhr) {
@@ -3480,6 +3561,8 @@
                     }
                     self._success.empty().append(message).show();
                     nightshift.announce(trim(message.text()));
+                    // The sheet stays open for another run: what was sent isn't lost when it closes
+                    nightshift.sheet.markClean();
                 })
                 .fail(function (xhr) {
                     nightshift.setLoading(self._submit, false);
@@ -4135,6 +4218,11 @@
 $(function () {
     NightShift.page = new NightShift.Page(NightShift.config);
 
-    // A link to the policies page with ?edit= or ?preview= opens that policy's editor or preview
-    $('.js-policy-autoopen').first().trigger('click');
+    // A link to the policies page with ?edit= or ?preview= opens that policy's editor or preview, once: neither the
+    // reload after a save nor F5 opens it again
+    var policyToOpen = $('.js-policy-autoopen').first();
+    if (policyToOpen.length) {
+        policyToOpen.trigger('click');
+        NightShift.forgetQueryParameters(['edit', 'preview', 'cron', 'tz']);
+    }
 });

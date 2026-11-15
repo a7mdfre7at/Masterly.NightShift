@@ -572,7 +572,8 @@ public class DashboardServerFacts
         string bundle = await app.GetStringAsync("/nightshift/js1");
 
         Assert.Contains("this._jobId = button.attr('data-id') || '';", bundle);
-        Assert.Contains("return $(this).attr('data-id') === decodeURIComponent(", bundle);
+        Assert.Contains("try { editId = decodeURIComponent(match[1].replace(/\\+/g, ' ')); } catch (e) { editId = null; }", bundle);
+        Assert.Contains("return $(this).attr('data-id') === editId;", bundle);
         Assert.Contains("self.toggle(button.attr('data-id') || '', button.attr('data-name') || '', button.attr('data-state'));", bundle);
         Assert.DoesNotContain(".data('id')", bundle);
         Assert.DoesNotContain(".data('name')", bundle);
