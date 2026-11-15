@@ -2104,4 +2104,22 @@
   <data name="RecurringJobDetailsPage_Definition" xml:space="preserve">
     <value>Definició</value>
   </data>
+  <data name="Common_Actions" xml:space="preserve">
+    <value>Accions</value>
+  </data>
+  <data name="Common_CopyJobId" xml:space="preserve">
+    <value>Copia l'identificador de la tasca {0}</value>
+  </data>
+  <data name="Common_Copied" xml:space="preserve">
+    <value>S'ha copiat al porta-retalls</value>
+  </data>
+  <data name="Common_RequeueJob" xml:space="preserve">
+    <value>Torna a posar la tasca {0} a la cua</value>
+  </data>
+  <data name="Common_DeleteJob" xml:space="preserve">
+    <value>Elimina la tasca {0}</value>
+  </data>
+  <data name="Common_EnqueueJob" xml:space="preserve">
+    <value>Posa la tasca {0} a la cua ara</value>
+  </data>
 </root>

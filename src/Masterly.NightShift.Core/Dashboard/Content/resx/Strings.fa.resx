@@ -2159,4 +2159,22 @@
   <data name="RecurringJobDetailsPage_Definition" xml:space="preserve">
     <value>تعریف</value>
   </data>
+  <data name="Common_Actions" xml:space="preserve">
+    <value>اقدامات</value>
+  </data>
+  <data name="Common_CopyJobId" xml:space="preserve">
+    <value>کپی شناسه کار {0}</value>
+  </data>
+  <data name="Common_Copied" xml:space="preserve">
+    <value>در کلیپ‌بورد کپی شد</value>
+  </data>
+  <data name="Common_RequeueJob" xml:space="preserve">
+    <value>ورود مجدد کار {0} به صف</value>
+  </data>
+  <data name="Common_DeleteJob" xml:space="preserve">
+    <value>حذف کار {0}</value>
+  </data>
+  <data name="Common_EnqueueJob" xml:space="preserve">
+    <value>وارد صف کردن کار {0} اکنون</value>
+  </data>
 </root>

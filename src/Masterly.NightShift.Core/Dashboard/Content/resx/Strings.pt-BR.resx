@@ -2168,4 +2168,22 @@
   <data name="RecurringJobDetailsPage_Definition" xml:space="preserve">
     <value>Definição</value>
   </data>
+  <data name="Common_Actions" xml:space="preserve">
+    <value>Ações</value>
+  </data>
+  <data name="Common_CopyJobId" xml:space="preserve">
+    <value>Copiar o ID da tarefa {0}</value>
+  </data>
+  <data name="Common_Copied" xml:space="preserve">
+    <value>Copiado para a área de transferência</value>
+  </data>
+  <data name="Common_RequeueJob" xml:space="preserve">
+    <value>Recolocar a tarefa {0} na fila</value>
+  </data>
+  <data name="Common_DeleteJob" xml:space="preserve">
+    <value>Remover a tarefa {0}</value>
+  </data>
+  <data name="Common_EnqueueJob" xml:space="preserve">
+    <value>Colocar a tarefa {0} na fila agora</value>
+  </data>
 </root>

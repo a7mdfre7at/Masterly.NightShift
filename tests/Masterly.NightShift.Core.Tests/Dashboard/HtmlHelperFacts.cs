@@ -219,6 +219,86 @@ public class HtmlHelperFacts
             "data-confirm=\"Delete {0} jobs?\" data-confirm-body=\"They &lt;move&gt;.\" data-confirm-label=\"Delete\" data-confirm-destructive=\"true\" data-confirm-type=\"reset\"",
             helper.ConfirmAttributes("Delete {0} jobs?", "They <move>.", "Delete", destructive: true, typeToConfirm: "reset").ToString());
     }
+    [Fact]
+    public void PageTitle_WritesTheHeadingWithTheOverlineTheTitleAndTheCount()
+    {
+        HtmlHelper helper = CreateHelper();
+
+        Assert.Equal(
+            "<h1 id=\"page-title\" class=\"hf-page-header\"><span class=\"ns-overline\">Queue</span><span class=\"ns-page-name\">a&lt;b&gt;</span> <span class=\"ns-count-chip js-list-count\">" + 1234.ToString("N0") + "</span></h1>",
+            helper.PageTitle("a<b>", "Queue", 1234).ToString());
+        Assert.Equal("<h1 id=\"page-title\" class=\"hf-page-header\"><span class=\"ns-page-name\">Failed</span></h1>", helper.PageTitle("Failed").ToString());
+    }
+
+    [Fact]
+    public void EmptyState_WritesTheTitleInAnH2_AndTheNextStepWhenGiven()
+    {
+        string html = new Pages.PageRenderer().Render(new IconPage(page => page.Html.EmptyState("inbox-fill", "No <jobs>", "Nothing waits.", "/jobs?a=1&b=2", "Queues")));
+
+        Assert.Equal(
+            $"<div class=\"ns-empty-state\">{DashboardMarkup.Icon("inbox-fill")}<h2 class=\"ns-empty-state-title\">No &lt;jobs&gt;</h2><p>Nothing waits.</p><a class=\"btn btn-sm ns-btn-tonal\" href=\"/jobs?a=1&amp;b=2\">Queues</a></div>",
+            html);
+        Assert.DoesNotContain("<a ", new Pages.PageRenderer().Render(new IconPage(page => page.Html.EmptyState("inbox-fill", "No jobs"))));
+    }
+
+    [Fact]
+    public void ActionsColumnHeader_IsNamedForScreenReadersOnly()
+    {
+        Assert.Equal(
+            $"<th scope=\"col\" class=\"ns-actions-cell\"><span class=\"visually-hidden\">{WebUtility.HtmlEncode(Strings.Common_Actions)}</span></th>",
+            CreateHelper().ActionsColumnHeader().ToString());
+    }
+
+    [Fact]
+    public void JobCommandButton_PostsTheJob_AndIsNamedAfterIt()
+    {
+        string html = new Pages.PageRenderer().Render(new IconPage(page => page.Html.JobCommandButton("/jobs/failed/requeue", "42", "arrow-repeat", "Requeue job {0}")));
+
+        Assert.Equal(
+            $"<button type=\"button\" class=\"ns-icon-button js-job-command\" data-url=\"/jobs/failed/requeue\" data-job=\"42\" aria-label=\"Requeue job #42\" title=\"Requeue job #42\">{DashboardMarkup.Icon("arrow-repeat")}</button>",
+            html);
+    }
+
+    [Fact]
+    public void JobDeleteButton_AsksFirst_InTheErrorColour()
+    {
+        string html = new Pages.PageRenderer().Render(new IconPage(page => page.Html.JobDeleteButton("/jobs/failed/delete", "a\"b")));
+
+        Assert.StartsWith("<button type=\"button\" class=\"ns-icon-button js-job-command ns-row-danger\" data-url=\"/jobs/failed/delete\" data-job=\"a&quot;b\"", html);
+        Assert.Contains($"data-confirm=\"{WebUtility.HtmlEncode(Strings.Common_DeleteSelected_TitleOne)}\"", html);
+        Assert.Contains("data-confirm-destructive=\"true\"", html);
+        Assert.Contains(DashboardMarkup.Icon("trash-fill"), html);
+    }
+
+    [Fact]
+    public void CopyJobIdButton_CopiesTheId_AndIsNamedAfterIt()
+    {
+        string html = new Pages.PageRenderer().Render(new IconPage(page => page.Html.CopyJobIdButton("42")));
+        string name = WebUtility.HtmlEncode(string.Format(Strings.Common_CopyJobId, "#42"));
+
+        Assert.Equal(
+            $"<button type=\"button\" class=\"ns-icon-button ns-copy-button js-copy\" data-copy=\"42\" aria-label=\"{name}\" title=\"{name}\">{DashboardMarkup.Icon("copy")}</button>",
+            html);
+    }
+
+    [Fact]
+    public void StateDot_TakesTheColourGroupOfTheState_AndIsHidden()
+    {
+        HtmlHelper helper = CreateHelper();
+
+        Assert.Equal("<span class=\"ns-dot ns-state-failed\" aria-hidden=\"true\"></span>", helper.StateDot(FailedState.StateName).ToString());
+        Assert.Equal("<span class=\"ns-dot\" aria-hidden=\"true\"></span>", helper.StateDot("Custom").ToString());
+        Assert.Equal("<span class=\"ns-dot\" aria-hidden=\"true\"></span>", helper.StateDot(null).ToString());
+    }
+
+    [Fact]
+    public void QueueChip_LinksToTheQueue()
+    {
+        string html = new Pages.PageRenderer().Render(new IconPage(page => page.Html.QueueChip("my queue")));
+
+        Assert.Equal($"<a class=\"ns-queue-chip\" href=\"/jobs/enqueued/my%20queue\">{DashboardMarkup.Icon("inbox-fill")}my queue</a>", html);
+    }
+
     private HtmlHelper CreateHelper()
     {
         return new HtmlHelper(_page.Object);

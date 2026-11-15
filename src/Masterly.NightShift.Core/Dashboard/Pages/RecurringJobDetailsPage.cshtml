@@ -43,13 +43,10 @@
         }
         else
         {
-            <header class="ns-detail-head">
-                <div class="ns-detail-title">
-                    <h1 id="page-title" class="hf-page-header">
-                        <span class="ns-overline">@Strings.RecurringJobDetailsPage_Kind</span>
-                        <span class="ns-detail-name">@Id</span>
-                    </h1>
-                    <div class="ns-detail-facts">
+            <header class="ns-page-head">
+                <div class="ns-page-heading">
+                    @Html.PageTitle(Id, Strings.RecurringJobDetailsPage_Kind)
+                    <div class="ns-page-facts">
                         @if (job.Paused)
                         {
                             <span class="ns-chip ns-chip-status ns-recurring-status ns-recurring-paused" title="@Strings.RecurringJobsPage_Paused_Tooltip">
@@ -88,7 +85,7 @@
                 </div>
                 @if (!IsReadOnly)
                 {
-                    <div class="ns-detail-actions">
+                    <div class="ns-page-actions">
                         <a class="btn btn-sm btn-outline-secondary" href="@Url.To("/recurring?edit=" + Uri.EscapeDataString(Id))">
                             @Html.Icon("pencil-fill") @Strings.RecurringJobsPage_EditSchedule
                         </a>
@@ -119,7 +116,7 @@
                 </div>
             }
 
-            <div class="ns-recurring-summary">
+            <div class="ns-summary">
                 <section class="ns-summary-tile" aria-labelledby="summary-schedule">
                     <h2 id="summary-schedule" class="ns-summary-label">@Html.Icon("clock") @Strings.RecurringJobsPage_Schedule</h2>
                     <p class="ns-summary-value">@(cronDescription ?? job.Cron ?? Strings.Common_NotAvailable)</p>

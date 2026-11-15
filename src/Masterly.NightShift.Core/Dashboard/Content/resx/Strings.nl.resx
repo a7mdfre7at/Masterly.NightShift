@@ -2126,4 +2126,22 @@
   <data name="RecurringJobDetailsPage_Definition" xml:space="preserve">
     <value>Definitie</value>
   </data>
+  <data name="Common_Actions" xml:space="preserve">
+    <value>Acties</value>
+  </data>
+  <data name="Common_CopyJobId" xml:space="preserve">
+    <value>ID van taak {0} kopiëren</value>
+  </data>
+  <data name="Common_Copied" xml:space="preserve">
+    <value>Naar het klembord gekopieerd</value>
+  </data>
+  <data name="Common_RequeueJob" xml:space="preserve">
+    <value>Taak {0} opnieuw in de wachtrij plaatsen</value>
+  </data>
+  <data name="Common_DeleteJob" xml:space="preserve">
+    <value>Taak {0} verwijderen</value>
+  </data>
+  <data name="Common_EnqueueJob" xml:space="preserve">
+    <value>Taak {0} nu in de wachtrij plaatsen</value>
+  </data>
 </root>

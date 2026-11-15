@@ -232,8 +232,13 @@ public class HtmlHelper
     public NonEscapedString JobCheckbox([NotNull] string jobId)
     {
         ArgumentNullException.ThrowIfNull(jobId);
-        string shown = Guid.TryParse(jobId, out _) ? string.Concat(jobId.AsSpan(0, 8), "…") : $"#{jobId}";
-        return JobCheckbox(jobId, string.Format(CultureInfo.CurrentCulture, Strings.Common_SelectJob, shown));
+        return JobCheckbox(jobId, string.Format(CultureInfo.CurrentCulture, Strings.Common_SelectJob, ShortJobId(jobId)));
+    }
+
+    // A job's id as the lists show it: "#42", or the start of a GUID
+    internal static string ShortJobId(string jobId)
+    {
+        return Guid.TryParse(jobId, out _) ? string.Concat(jobId.AsSpan(0, 8), "…") : $"#{jobId}";
     }
 
     /// <summary>
@@ -309,6 +314,169 @@ public class HtmlHelper
         }
 
         return Raw(html.ToString());
+    }
+
+    /// <summary>
+    /// Renders the heading of a page header (<c>ns-page-head</c>): an <c>h1</c> with the id <c>page-title</c> that
+    /// holds the kind of item in an overline, the title, and the number of items in a count chip
+    /// (<c>ns-count-chip js-list-count</c>, which a list's live refresh updates).
+    /// </summary>
+    /// <param name="title">The title of the page.</param>
+    /// <param name="overline">The kind of item the page shows, such as "Queue", or <c>null</c>.</param>
+    /// <param name="count">The number of items, or <c>null</c> for no count chip.</param>
+    public NonEscapedString PageTitle([NotNull] string title, [CanBeNull] string? overline = null, long? count = null)
+    {
+        ArgumentNullException.ThrowIfNull(title);
+
+        StringBuilder html = new("<h1 id=\"page-title\" class=\"hf-page-header\">");
+        if (!string.IsNullOrEmpty(overline))
+        {
+            html.Append("<span class=\"ns-overline\">").Append(HtmlEncode(overline)).Append("</span>");
+        }
+
+        html.Append("<span class=\"ns-page-name\">").Append(HtmlEncode(title)).Append("</span>");
+        if (count.HasValue)
+        {
+            html.Append(" <span class=\"ns-count-chip js-list-count\">")
+                .Append(HtmlEncode(count.Value.ToString("N0", CultureInfo.CurrentCulture)))
+                .Append("</span>");
+        }
+
+        return Raw(html.Append("</h1>").ToString());
+    }
+
+    /// <summary>
+    /// Renders an empty state (<c>ns-empty-state</c>): an icon, a title in an <c>h2</c>, a sentence and a link to
+    /// what to do next.
+    /// </summary>
+    /// <param name="icon">The name of the icon, as for <see cref="Icon(string)"/>.</param>
+    /// <param name="title">What is empty, such as "No failed jobs".</param>
+    /// <param name="text">A sentence that explains it, or <c>null</c>.</param>
+    /// <param name="actionUrl">The address of the next step, or <c>null</c> for none.</param>
+    /// <param name="actionLabel">The label of the link to the next step.</param>
+    public NonEscapedString EmptyState(
+        [NotNull] string icon,
+        [NotNull] string title,
+        [CanBeNull] string? text = null,
+        [CanBeNull] string? actionUrl = null,
+        [CanBeNull] string? actionLabel = null)
+    {
+        ArgumentNullException.ThrowIfNull(icon);
+        ArgumentNullException.ThrowIfNull(title);
+
+        StringBuilder html = new("<div class=\"ns-empty-state\">");
+        html.Append(Icon(icon)).Append("<h2 class=\"ns-empty-state-title\">").Append(HtmlEncode(title)).Append("</h2>");
+        if (!string.IsNullOrEmpty(text))
+        {
+            html.Append("<p>").Append(HtmlEncode(text)).Append("</p>");
+        }
+
+        if (!string.IsNullOrEmpty(actionUrl) && !string.IsNullOrEmpty(actionLabel))
+        {
+            html.Append("<a class=\"btn btn-sm ns-btn-tonal\" href=\"").Append(HtmlEncode(actionUrl)).Append("\">")
+                .Append(HtmlEncode(actionLabel)).Append("</a>");
+        }
+
+        return Raw(html.Append("</div>").ToString());
+    }
+
+    /// <summary>
+    /// Renders the header cell of a list's row actions column: its name is there for screen readers only.
+    /// </summary>
+    public NonEscapedString ActionsColumnHeader()
+    {
+        return Raw($"<th scope=\"col\" class=\"ns-actions-cell\"><span class=\"visually-hidden\">{HtmlEncode(Strings.Common_Actions)}</span></th>");
+    }
+
+    /// <summary>
+    /// Renders a row action of a job list (<c>js-job-command</c>): an icon button that posts the job, as
+    /// <c>jobs[]</c>, to one of the list's commands, such as <c>/jobs/failed/requeue</c>, and reloads the page. Put
+    /// it in a <c>ns-row-actions</c> container, which shows its buttons while the row is hovered or has the focus.
+    /// </summary>
+    /// <param name="url">The command's address.</param>
+    /// <param name="jobId">The id of the job.</param>
+    /// <param name="icon">The name of the icon, as for <see cref="Icon(string)"/>.</param>
+    /// <param name="label">
+    /// The accessible name and tooltip of the button, where <c>{0}</c> is replaced by the job's id, such as
+    /// "Requeue job {0}".
+    /// </param>
+    public NonEscapedString JobCommandButton([NotNull] string url, [NotNull] string jobId, [NotNull] string icon, [NotNull] string label)
+    {
+        return JobCommandButton(url, jobId, icon, label, null);
+    }
+
+    /// <summary>
+    /// Renders the row action that deletes a job (<c>js-job-command</c>, like <see cref="JobCommandButton(string, string, string, string)"/>):
+    /// in the error colour, after a confirmation.
+    /// </summary>
+    /// <param name="url">The list's delete command, such as <c>/jobs/failed/delete</c>.</param>
+    /// <param name="jobId">The id of the job.</param>
+    public NonEscapedString JobDeleteButton([NotNull] string url, [NotNull] string jobId)
+    {
+        return JobCommandButton(
+            url,
+            jobId,
+            "trash-fill",
+            Strings.Common_DeleteJob,
+            ConfirmAttributes(Strings.Common_DeleteSelected_TitleOne, Strings.Common_DeleteConfirm, Strings.Common_Delete, destructive: true));
+    }
+
+    private NonEscapedString JobCommandButton(string url, string jobId, string icon, string label, NonEscapedString? confirm)
+    {
+        ArgumentNullException.ThrowIfNull(url);
+        ArgumentNullException.ThrowIfNull(jobId);
+        ArgumentNullException.ThrowIfNull(icon);
+        ArgumentNullException.ThrowIfNull(label);
+
+        string name = HtmlEncode(string.Format(CultureInfo.CurrentCulture, label, ShortJobId(jobId)));
+        string css = confirm != null ? "ns-icon-button js-job-command ns-row-danger" : "ns-icon-button js-job-command";
+        string attributes = confirm != null ? " " + confirm : string.Empty;
+
+        return Raw($"<button type=\"button\" class=\"{css}\" data-url=\"{HtmlEncode(url)}\" data-job=\"{HtmlEncode(jobId)}\" aria-label=\"{name}\" title=\"{name}\"{attributes}>{Icon(icon)}</button>");
+    }
+
+    /// <summary>
+    /// Renders a copy button (<c>js-copy</c>): an icon button that copies <paramref name="text"/> to the clipboard
+    /// and says so in a snackbar.
+    /// </summary>
+    /// <param name="text">The text copied.</param>
+    /// <param name="label">The accessible name and tooltip of the button.</param>
+    public NonEscapedString CopyButton([NotNull] string text, [NotNull] string label)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(label);
+
+        string name = HtmlEncode(label);
+        return Raw($"<button type=\"button\" class=\"ns-icon-button ns-copy-button js-copy\" data-copy=\"{HtmlEncode(text)}\" aria-label=\"{name}\" title=\"{name}\">{Icon("copy")}</button>");
+    }
+
+    /// <summary>Renders the copy button (<see cref="CopyButton"/>) of a job's id, named "Copy the ID of job #42".</summary>
+    /// <param name="jobId">The id of the job.</param>
+    public NonEscapedString CopyJobIdButton([NotNull] string jobId)
+    {
+        ArgumentNullException.ThrowIfNull(jobId);
+        return CopyButton(jobId, string.Format(CultureInfo.CurrentCulture, Strings.Common_CopyJobId, ShortJobId(jobId)));
+    }
+
+    /// <summary>Renders a job's queue as a small chip that links to the queue's page (<c>ns-queue-chip</c>).</summary>
+    /// <param name="queue">The name of the queue.</param>
+    public NonEscapedString QueueChip([NotNull] string queue)
+    {
+        ArgumentNullException.ThrowIfNull(queue);
+        return Raw($"<a class=\"ns-queue-chip\" href=\"{HtmlEncode(Page.Url.Queue(queue))}\">{Icon("inbox-fill")}{HtmlEncode(queue)}</a>");
+    }
+
+    /// <summary>
+    /// Renders a small dot in the colour of a job state (<c>ns-dot ns-state-{group}</c>), hidden from screen readers:
+    /// the accent of a row in a list of one state.
+    /// </summary>
+    /// <param name="stateName">The name of the state.</param>
+    public NonEscapedString StateDot([CanBeNull] string? stateName)
+    {
+        string? group = string.IsNullOrWhiteSpace(stateName) ? null : JobHistoryRenderer.GetStateColorGroup(stateName);
+        return Raw(group != null
+            ? $"<span class=\"ns-dot ns-state-{HtmlEncode(group)}\" aria-hidden=\"true\"></span>"
+            : "<span class=\"ns-dot\" aria-hidden=\"true\"></span>");
     }
 
     /// <summary>

@@ -2128,4 +2128,22 @@ Vous devriez les remettre en file d'attente ou les supprimer manuellement, ou ap
   <data name="RecurringJobDetailsPage_Definition" xml:space="preserve">
     <value>Définition</value>
   </data>
+  <data name="Common_Actions" xml:space="preserve">
+    <value>Actions</value>
+  </data>
+  <data name="Common_CopyJobId" xml:space="preserve">
+    <value>Copier l'identifiant de la tâche {0}</value>
+  </data>
+  <data name="Common_Copied" xml:space="preserve">
+    <value>Copié dans le presse-papiers</value>
+  </data>
+  <data name="Common_RequeueJob" xml:space="preserve">
+    <value>Remettre la tâche {0} en file d'attente</value>
+  </data>
+  <data name="Common_DeleteJob" xml:space="preserve">
+    <value>Supprimer la tâche {0}</value>
+  </data>
+  <data name="Common_EnqueueJob" xml:space="preserve">
+    <value>Mettre la tâche {0} en file d'attente maintenant</value>
+  </data>
 </root>

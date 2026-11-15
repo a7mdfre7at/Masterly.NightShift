@@ -2165,4 +2165,22 @@
   <data name="RecurringJobDetailsPage_Definition" xml:space="preserve">
     <value>Definisjon</value>
   </data>
+  <data name="Common_Actions" xml:space="preserve">
+    <value>Handlinger</value>
+  </data>
+  <data name="Common_CopyJobId" xml:space="preserve">
+    <value>Kopier ID-en til jobb {0}</value>
+  </data>
+  <data name="Common_Copied" xml:space="preserve">
+    <value>Kopiert til utklippstavlen</value>
+  </data>
+  <data name="Common_RequeueJob" xml:space="preserve">
+    <value>Sett jobb {0} tilbake i kø</value>
+  </data>
+  <data name="Common_DeleteJob" xml:space="preserve">
+    <value>Slett jobb {0}</value>
+  </data>
+  <data name="Common_EnqueueJob" xml:space="preserve">
+    <value>Sett jobb {0} i kø nå</value>
+  </data>
 </root>

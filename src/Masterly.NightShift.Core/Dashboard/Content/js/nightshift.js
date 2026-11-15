@@ -314,6 +314,7 @@
             serverResponded: configText('server-responded', 'The server responded with {0}.'),
             noAnswer: configText('no-answer', "The server didn't answer."),
             viewJob: configText('view-job', 'View job {0}'),
+            copied: configText('copied', 'Copied to the clipboard'),
             listUpdated: configText('list-updated', 'List updated'),
             listUpdatedNew: configText('list-updated-new', 'List updated · {0} new'),
             selectedCount: configText('selected-count', '{0} selected'),
@@ -944,10 +945,178 @@
         });
     };
 
-    // The name of a command button for messages: its text without icons or progress
+    // The name of a command button for messages: its text without icons or progress, or the accessible name of an
+    // icon button
     var commandName = function (button) {
-        return trim($(button).clone().find('.ns-progress-circular, .visually-hidden').remove().end().text()).replace(/\s+/g, ' ');
+        var text = trim($(button).clone().find('.ns-progress-circular, .visually-hidden').remove().end().text()).replace(/\s+/g, ' ');
+        return text || trim($(button).attr('aria-label'));
     };
+
+    // The side sheet: an MD3 modal side sheet at the end of the window (full screen below 600px) for the details of
+    // an item without leaving the page. NightShift.sheet.open({ title, overline, content, url, wide, opener,
+    // onClose }) shows it with the title in its h2 and content (HTML, a node or a jQuery object) or the HTML of url,
+    // loaded with a skeleton meanwhile; an element of the content with the class js-sheet-actions has its children
+    // moved to the sheet's footer. The rest of the page is inert while it is open; Tab stays inside, Esc, the close
+    // button and the scrim close it (NightShift.sheet.close()), and the focus goes back to the opener (the focused
+    // element by default). A button with the class js-sheet-open opens it from its data-sheet-title,
+    // data-sheet-overline and data-sheet-url, or the template its data-sheet-content selector names, or else the
+    // template.js-sheet-template of its row.
+    nightshift.sheet = (function () {
+        var sheet = null;
+        var scrim = null;
+        var state = null;
+        var hideTimer = null;
+        var request = null;
+
+        var build = function () {
+            scrim = $('<div class="ns-sheet-scrim js-sheet-scrim" hidden>').appendTo('body').on('click', function () { close(); });
+            sheet = $('<div class="ns-sheet" role="dialog" aria-modal="true" aria-labelledby="nsSheetTitle" tabindex="-1" hidden>')
+                .append($('<div class="ns-sheet-header">')
+                    .append($('<div class="ns-sheet-heading">')
+                        .append('<p class="ns-sheet-overline" id="nsSheetOverline" hidden></p>')
+                        .append('<h2 class="ns-sheet-title" id="nsSheetTitle"></h2>'))
+                    .append($('<button type="button" class="ns-icon-button js-sheet-close">')
+                        .attr({ 'aria-label': TEXT.close, title: TEXT.close }).html(nightshift.icon('x-lg'))))
+                // The body scrolls on its own, so it takes the focus for the keyboard to scroll it
+                .append('<div class="ns-sheet-body" tabindex="0"></div>')
+                .append('<div class="ns-sheet-actions" hidden></div>')
+                .appendTo('body');
+
+            sheet.on('click', '.js-sheet-close', function () { close(); });
+            sheet.on('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    close();
+                    return;
+                }
+                trapTab(e, sheet[0]);
+            });
+        };
+
+        var setContent = function (content) {
+            var body = sheet.find('.ns-sheet-body');
+            var actions = sheet.find('.ns-sheet-actions');
+            nightshift.disposeTooltips(body);
+            nightshift.disposeTooltips(actions);
+            body.empty().append(content === undefined || content === null ? '' : content);
+
+            var footer = body.find('.js-sheet-actions').first();
+            actions.empty().append(footer.children()).prop('hidden', !footer.length || !actions.children().length);
+            footer.remove();
+
+            if (nightshift.page) nightshift.page.updateRelativeDates();
+            nightshift.tooltips(sheet);
+            nightshift.fields(sheet);
+        };
+
+        var skeleton = function () {
+            var lines = $('<div class="ns-sheet-skeleton" aria-hidden="true">');
+            for (var i = 0; i < 6; i++) lines.append('<span class="ns-skeleton"></span>');
+            return lines;
+        };
+
+        var load = function (url) {
+            if (request) request.abort();
+            sheet.attr('aria-busy', 'true');
+            request = $.ajax({ url: url, cache: false, dataType: 'html' })
+                .done(function (html) { setContent($.parseHTML(html, document, false)); })
+                .fail(function (xhr, status) {
+                    if (status === 'abort') return;
+                    setContent($('<div class="ns-error-state">').append(nightshift.icon('exclamation-circle-fill'))
+                        .append($('<p>').text(nightshift.describeRequestError(xhr))));
+                })
+                .always(function () { request = null; sheet.removeAttr('aria-busy'); });
+        };
+
+        var isOpen = function () {
+            return !!sheet && sheet.hasClass('show');
+        };
+
+        var setInert = function (inert) {
+            $('#wrap').each(function () { this.inert = inert; });
+        };
+
+        var open = function (options) {
+            options = options || {};
+            if (!sheet) build();
+            clearTimeout(hideTimer);
+
+            var wasOpen = isOpen();
+            var opener = options.opener || (wasOpen && state ? state.opener : document.activeElement);
+            state = { opener: opener, onClose: options.onClose };
+
+            sheet.find('#nsSheetTitle').text(options.title || '');
+            sheet.find('#nsSheetOverline').text(options.overline || '').prop('hidden', !options.overline);
+            sheet.attr('aria-describedby', options.overline ? 'nsSheetOverline' : null);
+            sheet.toggleClass('ns-sheet-wide', !!options.wide);
+
+            if (options.url) {
+                setContent(skeleton());
+                load(options.url);
+            } else {
+                setContent(options.content);
+            }
+
+            if (!wasOpen) {
+                scrim.prop('hidden', false);
+                sheet.prop('hidden', false);
+                // The closed position is drawn first, so the sheet slides in
+                void sheet[0].offsetWidth;
+                scrim.addClass('show');
+                sheet.addClass('show');
+                setInert(true);
+            }
+
+            sheet.trigger('focus');
+            return nightshift.sheet;
+        };
+
+        var close = function () {
+            if (!isOpen()) return;
+            var closing = state;
+            state = null;
+            if (request) request.abort();
+
+            sheet.removeClass('show');
+            scrim.removeClass('show');
+            setInert(false);
+            hideTimer = setTimeout(function () {
+                sheet.prop('hidden', true);
+                scrim.prop('hidden', true);
+                nightshift.disposeTooltips(sheet.find('.ns-sheet-body, .ns-sheet-actions'));
+            }, nightshift.prefersReducedMotion() ? 0 : 250);
+
+            var opener = closing && closing.opener;
+            if (opener && document.contains(opener)) focusBack(opener);
+            else focusBack(document.getElementById('content'));
+            if (closing && typeof closing.onClose === 'function') closing.onClose();
+        };
+
+        $(document).on('click', '.js-sheet-open', function (e) {
+            e.preventDefault();
+            var button = $(this);
+            var options = {
+                title: button.attr('data-sheet-title') || commandName(button),
+                overline: button.attr('data-sheet-overline') || null,
+                wide: button.attr('data-sheet-wide') === 'true',
+                opener: this
+            };
+
+            if (button.attr('data-sheet-url')) {
+                options.url = button.attr('data-sheet-url');
+            } else {
+                var selector = button.attr('data-sheet-content');
+                var template = selector ? $(selector) : button.closest('tr, li, .ns-sheet-scope').find('template.js-sheet-template').first();
+                if (!template.length) return;
+                options.content = template[0].content ? document.importNode(template[0].content, true) : $(template.html());
+            }
+
+            open(options);
+        });
+
+        return { open: open, close: close, isOpen: isOpen };
+    })();
 
     // Outlined text fields: NightShift.fields(container) links each .ns-field's label, supporting and error text to
     // its control (for, aria-describedby); NightShift.fieldError(control, message) shows or clears the error
@@ -2039,7 +2208,7 @@
                             .appendTo(bar);
                     });
 
-                    var anchor = $(container).find('.table-responsive, table').first();
+                    var anchor = $(container).find('.ns-table-card, .table-responsive, table').first();
                     if (anchor.length) bar.insertBefore(anchor); else bar.prependTo(container);
                 }
 
@@ -2589,15 +2758,19 @@
 
             // Never pull the rug from under a selection or an open dialog, unless asked by hand; and don't load a
             // tab nobody looks at
-            if (!manual && (document.hidden || this._container.find('.js-jobs-list-checkbox:checked').length || $('.modal.show').length)) {
+            if (!manual && (document.hidden || this._container.find('.js-jobs-list-checkbox:checked').length || $('.modal.show').length || nightshift.sheet.isOpen())) {
                 this._schedule();
                 return;
             }
+
+            // A request that takes a while shows the bar along the top of the table
+            var busy = setTimeout(function () { self._container.addClass('ns-list-busy'); }, 250);
 
             $.ajax({ url: LiveTable.listUrl(window.location.href), cache: false })
                 .done(function (html) {
                     var nodes = $($.parseHTML(html, document, false));
                     var fresh = nodes.filter('.js-jobs-list').add(nodes.find('.js-jobs-list')).first();
+                    self._updateCount(nodes);
 
                     if (fresh.length) {
                         var added = self._patch(fresh);
@@ -2616,9 +2789,21 @@
                     }
                 })
                 .always(function () {
+                    clearTimeout(busy);
+                    self._container.removeClass('ns-list-busy');
                     self._refreshButton.removeClass('spinning');
                     if (self._enabled) self._schedule();
                 });
+        };
+
+        // The count chip of the page's header (Html.PageTitle) takes the number of the fresh page
+        LiveTable.prototype._updateCount = function (nodes) {
+            var fresh = nodes.filter('.js-list-count').add(nodes.find('.js-list-count')).first();
+            var chip = $('.js-list-count').first();
+            if (!fresh.length || !chip.length || chip.text() === fresh.text()) return;
+            chip.text(fresh.text()).removeClass('ns-count-changed');
+            void chip[0].offsetWidth;
+            chip.addClass('ns-count-changed');
         };
 
         // The key of a row: its data-job-id, else the job its checkbox or its link names
@@ -3087,6 +3272,8 @@
     // Small operator actions: pausing processing with a reason, copying a job as C#, failure clusters,
     // recurring job manifests, the tag filter
     nightshift.Operations = (function () {
+        var NOTE_PREFIX = 'nightshift.note:';
+
         function Operations() {
             this._initClusters();
             this._initManifest();
@@ -3101,6 +3288,36 @@
                 $.post(form.data('url'), form.serialize())
                     .done(function () { window.location.reload(); })
                     .fail(function (xhr) { nightshift.setLoading(button, false); nightshift.showRequestError(xhr, commandName(button), function () { form.trigger('submit'); }); });
+            });
+
+            // A copy button (Html.CopyButton): its data-copy goes to the clipboard, and a snackbar says so
+            $(document).on('click', '.js-copy', function (e) {
+                e.preventDefault();
+                var text = $(this).attr('data-copy') || '';
+                var done = function () { nightshift.snackbar.show({ text: TEXT.copied }); };
+
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(done, function () { Operations.fallbackCopy(text); done(); });
+                } else {
+                    Operations.fallbackCopy(text);
+                    done();
+                }
+            });
+
+            // A note that can be dismissed (ns-note js-note with data-note, a key) stays away in this browser
+            $('.js-note[data-note]').each(function () {
+                try {
+                    if (window.localStorage.getItem(NOTE_PREFIX + $(this).attr('data-note')) === 'dismissed') $(this).prop('hidden', true);
+                } catch (err) { /* no storage: the note shows */ }
+            });
+
+            $(document).on('click', '.js-note-dismiss', function (e) {
+                e.preventDefault();
+                var note = $(this).closest('.js-note');
+                nightshift.disposeTooltips(note);
+                note.prop('hidden', true);
+                try { window.localStorage.setItem(NOTE_PREFIX + note.attr('data-note'), 'dismissed'); } catch (err) { /* hidden until the page is left */ }
+                focusBack(document.getElementById('content'));
             });
 
             $(document).on('click', '.js-copy-code', function (e) {
@@ -3123,11 +3340,13 @@
             });
         }
 
+        // A cluster's commands post its jobs (data-jobs, JSON); a row action (js-job-command, Html.JobCommandButton)
+        // posts its job (data-job)
         Operations.prototype._initClusters = function () {
-            $(document).on('click', '.js-cluster-command', function (e) {
+            $(document).on('click', '.js-cluster-command, .js-job-command', function (e) {
                 e.preventDefault();
                 var button = $(this);
-                var jobs = button.data('jobs') || [];
+                var jobs = button.attr('data-job') !== undefined ? [button.attr('data-job')] : (button.data('jobs') || []);
                 nightshift.confirmButton(button, jobs.length).then(function (confirmed) {
                     if (!confirmed) return;
                     var name = commandName(button);
@@ -3432,6 +3651,7 @@
 
             $(document).on('keydown', function (e) {
                 if (e.key === 'Escape' && self._overlay && self._overlay.is(':visible')) { self.toggle(); return; }
+                if (nightshift.sheet.isOpen()) return;
                 if ($(e.target).is('input, textarea, select, [contenteditable]')) return;
                 if (e.ctrlKey || e.metaKey || e.altKey) return;
                 if ($('.hf-palette:visible').length) return;
@@ -3445,7 +3665,7 @@
                     case 'k': if (rows.length) { self._move(rows, -1); e.preventDefault(); } break;
                     case 'x': if (self._current(rows).length) { self._current(rows).find('.js-jobs-list-checkbox').trigger('click'); e.preventDefault(); } break;
                     case 'Enter': if (self._current(rows).length) { var link = self._current(rows).find('a[href*="/jobs/details/"]').first(); if (link.length) window.location.href = link.attr('href'); } break;
-                    case 'r': self._command('.js-jobs-list-command.btn-primary'); break;
+                    case 'r': self._command('.js-jobs-list-command[data-list-primary], .js-jobs-list-command.btn-primary'); break;
                     case 'd': self._command('.js-jobs-list-command[data-url$="/delete"]'); break;
                 }
             });

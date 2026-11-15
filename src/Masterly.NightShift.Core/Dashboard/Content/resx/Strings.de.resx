@@ -2106,4 +2106,22 @@
   <data name="RecurringJobDetailsPage_Definition" xml:space="preserve">
     <value>Definition</value>
   </data>
+  <data name="Common_Actions" xml:space="preserve">
+    <value>Aktionen</value>
+  </data>
+  <data name="Common_CopyJobId" xml:space="preserve">
+    <value>ID von Job {0} kopieren</value>
+  </data>
+  <data name="Common_Copied" xml:space="preserve">
+    <value>In die Zwischenablage kopiert</value>
+  </data>
+  <data name="Common_RequeueJob" xml:space="preserve">
+    <value>Job {0} wieder in die Warteschlange</value>
+  </data>
+  <data name="Common_DeleteJob" xml:space="preserve">
+    <value>Job {0} löschen</value>
+  </data>
+  <data name="Common_EnqueueJob" xml:space="preserve">
+    <value>Job {0} jetzt in die Warteschlange einfügen</value>
+  </data>
 </root>

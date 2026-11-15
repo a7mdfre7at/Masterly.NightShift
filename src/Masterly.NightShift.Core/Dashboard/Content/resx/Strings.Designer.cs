@@ -6364,5 +6364,59 @@ namespace Masterly.NightShift.Dashboard.Resources {
                 return ResourceManager.GetString("RecurringJobDetailsPage_Definition", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Actions.
+        /// </summary>
+        public static string Common_Actions {
+            get {
+                return ResourceManager.GetString("Common_Actions", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Copy the ID of job {0}.
+        /// </summary>
+        public static string Common_CopyJobId {
+            get {
+                return ResourceManager.GetString("Common_CopyJobId", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Copied to the clipboard.
+        /// </summary>
+        public static string Common_Copied {
+            get {
+                return ResourceManager.GetString("Common_Copied", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Requeue job {0}.
+        /// </summary>
+        public static string Common_RequeueJob {
+            get {
+                return ResourceManager.GetString("Common_RequeueJob", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Delete job {0}.
+        /// </summary>
+        public static string Common_DeleteJob {
+            get {
+                return ResourceManager.GetString("Common_DeleteJob", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enqueue job {0} now.
+        /// </summary>
+        public static string Common_EnqueueJob {
+            get {
+                return ResourceManager.GetString("Common_EnqueueJob", resourceCulture);
+            }
+        }
     }
 }

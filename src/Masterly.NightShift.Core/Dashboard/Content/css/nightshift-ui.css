@@ -184,6 +184,9 @@
     /* A state layer: rgba(var(--ns-sl-rgb), var(--ns-sl-o)) laid over a component's container */
     --ns-sl-rgb: var(--md-sys-color-on-surface-rgb);
     --ns-sl-o: 0;
+
+    /* The brand's teal-to-mint gradient, for progress and utilization bars only */
+    --ns-brand-gradient: linear-gradient(90deg, #0f6e80, #5fe0c8);
 }
 
 /* Base
@@ -969,7 +972,19 @@ body.hf-app .small {
         flex: 0 0 auto;
     }
 
-    .hf-app:not(.hf-sidebar-open) .hf-brand-text,
+    /* The brand's name stays the link's accessible name: its tooltip took the title */
+    .hf-app:not(.hf-sidebar-open) .hf-brand-text {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
     .hf-app:not(.hf-sidebar-open) .hf-nav-section,
     .hf-app:not(.hf-sidebar-open) .hf-nav-sub,
     .hf-app:not(.hf-sidebar-open) .hf-watchlist,
@@ -5401,12 +5416,13 @@ body.hf-app .alert a {
     text-underline-offset: .15em;
 }
 
-/* Detail pages
+/* Page templates
    ------------------------------------------------------------------
-   A header with the item's kind and name, its status chips and its actions; summary tiles under it; cards with an
-   h2 each. The recurring job's page uses it first. */
+   What list and detail pages share: a header with the item's kind, the title, a count and status chips, and the
+   actions (one filled primary; a destructive action in the error colour, set apart by a divider); summary tiles
+   under it; sections and cards with an h2 each. Html.PageTitle writes the heading. */
 
-.ns-detail-head {
+.ns-page-head {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
@@ -5415,13 +5431,17 @@ body.hf-app .alert a {
     margin-bottom: var(--md-sys-spacing-6);
 }
 
-.ns-detail-title {
+.ns-page-heading {
     flex: 1 1 24rem;
     min-width: 0;
 }
 
-.hf-app .ns-detail-head .hf-page-header {
+.hf-app .ns-page-head .hf-page-header {
     margin-bottom: var(--md-sys-spacing-3);
+}
+
+.hf-app .ns-page-head .hf-page-header:last-child {
+    margin-bottom: 0;
 }
 
 .ns-overline {
@@ -5432,29 +5452,74 @@ body.hf-app .alert a {
     color: var(--md-sys-color-on-surface-variant);
 }
 
-.ns-detail-name {
-    display: block;
+.ns-page-name {
     overflow-wrap: anywhere;
 }
 
-.ns-detail-facts {
+.ns-overline + .ns-page-name {
+    display: inline;
+}
+
+/* The number of items, beside the title */
+.ns-count-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    min-height: 1.75rem;
+    margin-left: var(--md-sys-spacing-2);
+    padding: 0 var(--md-sys-spacing-3);
+    border-radius: var(--md-sys-shape-corner-full);
+    background-color: var(--md-sys-color-secondary-container);
+    color: var(--md-sys-color-on-secondary-container);
+    font: var(--md-sys-typescale-label-large);
+    font-variant-numeric: tabular-nums;
+    vertical-align: .2em;
+    transition: background-color var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard);
+}
+
+.ns-count-chip.ns-count-changed {
+    animation: ns-count-changed var(--md-sys-motion-duration-long2) var(--md-sys-motion-easing-standard);
+}
+
+@keyframes ns-count-changed {
+    from { background-color: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
+}
+
+.ns-page-subtitle {
+    margin: 0 0 var(--md-sys-spacing-3);
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ns-page-facts {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: var(--md-sys-spacing-2);
 }
 
-.hf-app .ns-detail-facts code {
+.hf-app .ns-page-facts code {
     padding: 0;
     background: transparent;
     color: inherit;
     font-size: .75rem;
 }
 
-.ns-detail-actions {
+.ns-page-actions {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: var(--md-sys-spacing-2);
+}
+
+/* Sets a destructive action apart from the others */
+.ns-actions-divider {
+    align-self: stretch;
+    width: 1px;
+    min-height: 24px;
+    margin: var(--md-sys-spacing-1) var(--md-sys-spacing-1);
+    background-color: var(--md-sys-color-outline-variant);
 }
 
 /* Status chips of a recurring job: active, paused, retired, declared in code */
@@ -5481,8 +5546,10 @@ body.hf-app .alert a {
     color: var(--md-sys-color-on-secondary-container);
 }
 
-/* Summary tiles: what the item is and when it acts, read at a glance */
-.ns-recurring-summary {
+/* Summary tiles: what the item is and how it is doing, read at a glance. A tile with a state's colour group
+   (ns-state-*) has that colour on its left edge; ns-meter is a thin bar in the brand gradient (utilization,
+   progress). A tile that is a link rises on hover. */
+.ns-summary {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
     gap: var(--md-sys-spacing-3);
@@ -5490,11 +5557,34 @@ body.hf-app .alert a {
 }
 
 .ns-summary-tile {
+    position: relative;
     min-width: 0;
     padding: var(--md-sys-spacing-4);
     border: 1px solid var(--md-sys-color-outline-variant);
     border-radius: var(--md-sys-shape-corner-medium);
     background-color: var(--ns-surface-card);
+    overflow: hidden;
+    transition: box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+}
+
+.ns-summary-tile[class*="ns-state-"]::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 4px;
+    background-color: var(--ns-state-color);
+}
+
+a.ns-summary-tile {
+    display: block;
+    color: inherit;
+    text-decoration: none !important;
+}
+
+a.ns-summary-tile:hover {
+    box-shadow: var(--md-sys-elevation-level1);
 }
 
 .hf-app .ns-summary-label {
@@ -5515,6 +5605,7 @@ body.hf-app .alert a {
     margin: 0;
     font: var(--md-sys-typescale-title-large);
     color: var(--md-sys-color-on-surface);
+    font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
 }
 
@@ -5530,6 +5621,22 @@ body.hf-app .alert a {
     margin: var(--md-sys-spacing-2) 0 0;
     font: var(--md-sys-typescale-body-small);
     color: var(--md-sys-color-on-surface-variant);
+}
+
+.ns-meter {
+    height: 4px;
+    margin-top: var(--md-sys-spacing-3);
+    border-radius: var(--md-sys-shape-corner-full);
+    background-color: var(--ns-surface-inset);
+    overflow: hidden;
+}
+
+.ns-meter > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background-image: var(--ns-brand-gradient);
+    transition: width var(--md-sys-motion-duration-medium4) var(--md-sys-motion-easing-emphasized-decelerate);
 }
 
 /* Definition beside the next runs on large windows, one above the other below */
@@ -5627,15 +5734,26 @@ body.hf-app .alert a {
     font-size: 1.75rem;
 }
 
-/* A table that fills a card takes the card's outline */
-.hf-app .ns-recurring-runs > .table-responsive {
+/* A table that fills a card takes the card's outline: the runs of a recurring job, the lists of jobs (ns-table-card) */
+.hf-app .ns-recurring-runs > .table-responsive,
+.hf-app .ns-table-card > .table-responsive {
     margin-bottom: 0;
 }
 
-.hf-app .ns-recurring-runs .table {
+.hf-app .ns-recurring-runs .table,
+.hf-app .ns-table-card .table {
     border: 0;
     border-radius: 0 0 var(--md-sys-shape-corner-medium) var(--md-sys-shape-corner-medium);
     background-color: transparent;
+}
+
+.hf-app .ns-table-card {
+    overflow: hidden;
+    overflow: clip;
+}
+
+.hf-app .ns-table-card > .table-responsive:first-child .table {
+    border-radius: var(--md-sys-shape-corner-medium);
 }
 
 .ns-tabular {
@@ -5658,9 +5776,780 @@ body.hf-app .alert a {
     color: var(--md-sys-color-on-surface-variant);
 }
 
+/* A section of a page with its h2 and a hint beside it */
+.ns-section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--md-sys-spacing-1) var(--md-sys-spacing-3);
+    margin: 0 0 var(--md-sys-spacing-3);
+}
+
+.hf-app .ns-section-head h2 {
+    margin: 0;
+    font: var(--md-sys-typescale-title-medium);
+}
+
+.ns-section-hint {
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+/* A quiet note: what a page wants the reader to know, on a tonal surface, with a dismiss button when it can go */
+.ns-note {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--md-sys-spacing-3);
+    margin: 0 0 var(--md-sys-spacing-5);
+    padding: var(--md-sys-spacing-3) var(--md-sys-spacing-2) var(--md-sys-spacing-3) var(--md-sys-spacing-4);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background-color: var(--md-sys-color-surface-container-low);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.ns-note[hidden] {
+    display: none;
+}
+
+.ns-note > .bi {
+    flex: 0 0 auto;
+    margin-top: .125rem;
+    font-size: 1.125rem;
+    color: var(--md-sys-color-primary);
+}
+
+.ns-note-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    align-self: center;
+}
+
+.ns-note-text strong {
+    color: var(--md-sys-color-on-surface);
+}
+
+.hf-app .ns-note code {
+    overflow-wrap: anywhere;
+}
+
+.ns-note > .ns-icon-button {
+    margin: calc(-1 * var(--md-sys-spacing-2)) 0;
+}
+
+.ns-note > .btn {
+    flex: 0 0 auto;
+    align-self: center;
+}
+
+/* Lists of jobs
+   ------------------------------------------------------------------
+   One template for every list of jobs: the page header, a toolbar (the commands for the selected rows; the
+   position, Refresh and Live on the right), the selection bar, rows of two lines in a card (the job and, under it,
+   its id, queue and facts; the columns the list needs; the time; the row actions) and the pagination footer.
+   Below 600px each row is a two-line item. */
+
+.hf-app .ns-list-toolbar {
+    margin-bottom: var(--md-sys-spacing-3);
+}
+
+.ns-list-commands {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--md-sys-spacing-2);
+}
+
+.hf-app .ns-job-table > thead > tr > th.ns-select-cell,
+.hf-app .ns-job-table > tbody > tr > td.ns-select-cell {
+    width: 1%;
+    padding-right: 0;
+}
+
+.hf-app .table td.ns-job-cell {
+    min-width: 14rem;
+}
+
+.ns-job-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--md-sys-spacing-1) var(--md-sys-spacing-2);
+    min-width: 0;
+}
+
+.hf-app .ns-job-title .job-method {
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+.ns-job-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--md-sys-spacing-1) var(--md-sys-spacing-3);
+    margin-top: 2px;
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ns-job-meta > * {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-1);
+    min-width: 0;
+}
+
+.hf-app .ns-job-meta .badge {
+    min-height: 18px;
+}
+
+.ns-job-id {
+    font: var(--md-sys-typescale-code-small);
+    font-variant-numeric: tabular-nums;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+/* The queue of a job, as a small chip that links to the queue */
+.ns-queue-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-1);
+    min-height: 20px;
+    padding: 0 var(--md-sys-spacing-2);
+    border-radius: var(--md-sys-shape-corner-small);
+    background-color: var(--ns-surface-chip);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+    text-decoration: none !important;
+}
+
+.hf-app a.ns-queue-chip {
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.hf-app a.ns-queue-chip:hover {
+    color: var(--md-sys-color-on-surface);
+    box-shadow: inset 0 0 0 100vmax rgba(var(--md-sys-color-on-surface-rgb), var(--md-sys-state-hover-state-layer-opacity));
+}
+
+/* A dot in a state's colour: the accent of a row in a list of one state */
+.ns-dot {
+    display: inline-block;
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--ns-state-color, var(--md-sys-color-outline));
+}
+
+.obsolete-data .ns-dot {
+    background-color: var(--md-sys-color-outline-variant);
+}
+
+/* The error of a failed job, under its name: the exception's type and its message */
+.ns-job-error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--md-sys-spacing-2);
+    margin-top: var(--md-sys-spacing-1);
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.hf-app .ns-exception-type {
+    padding: 0;
+    background: none;
+    font: var(--md-sys-typescale-code-small);
+    font-weight: 600;
+    color: var(--md-sys-color-error);
+    overflow-wrap: anywhere;
+}
+
+.ns-job-error-message {
+    flex: 1 1 12rem;
+    min-width: 0;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow-wrap: anywhere;
+}
+
+.hf-app .ns-job-error .btn {
+    --bs-btn-padding-y: 0;
+    min-height: 24px;
+    height: auto;
+    padding-left: var(--md-sys-spacing-2);
+    padding-right: var(--md-sys-spacing-2);
+}
+
+.hf-app .table td.ns-time-cell {
+    width: 1%;
+    white-space: nowrap;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.hf-app .table th.ns-time-cell {
+    text-align: right;
+}
+
+/* Row actions: icon buttons at the end of a row, shown while the row is hovered or holds the focus, so they stay
+   reachable with Tab; always shown on touch screens and below 600px */
+.hf-app .table th.ns-actions-cell,
+.hf-app .table td.ns-actions-cell {
+    width: 1%;
+    padding-left: var(--md-sys-spacing-1);
+    padding-right: var(--md-sys-spacing-2);
+    white-space: nowrap;
+}
+
+.ns-row-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity var(--md-sys-motion-duration-short3) var(--md-sys-motion-easing-standard);
+}
+
+.ns-row-actions .ns-icon-button {
+    width: 36px;
+    height: 36px;
+    font-size: 1.0625rem;
+}
+
+tr:hover .ns-row-actions,
+tr:focus-within .ns-row-actions,
+tr.hf-row-focus .ns-row-actions,
+.ns-list-item:hover .ns-row-actions,
+.ns-list-item:focus-within .ns-row-actions,
+.ns-row-actions:focus-within {
+    opacity: 1;
+}
+
+@media (hover: none), (pointer: coarse) {
+    .ns-row-actions {
+        opacity: 1;
+    }
+}
+
+.ns-icon-button.ns-row-danger {
+    --ns-sl-rgb: var(--md-sys-color-error-rgb);
+}
+
+.ns-icon-button.ns-row-danger:hover {
+    color: var(--md-sys-color-error);
+}
+
+/* A text button in the error colour: a destructive action beside others (a cluster's Delete, a sheet's Delete) */
+.hf-app .ns-btn-text.ns-btn-text-error {
+    --ns-sl-rgb: var(--md-sys-color-error-rgb);
+    --bs-btn-color: var(--md-sys-color-error);
+    --bs-btn-hover-color: var(--md-sys-color-error);
+    --bs-btn-active-color: var(--md-sys-color-error);
+}
+
+/* A busy icon button shows the circular progress in place of its icon */
+.ns-icon-button[aria-busy="true"] > .bi {
+    display: none;
+}
+
+/* The selected row's actions sit on the secondary container */
+.hf-app .table > tbody > tr[aria-selected="true"] .ns-icon-button {
+    color: inherit;
+}
+
+/* A list refreshing (Live, Refresh): a thin bar in the brand gradient runs along the top of the table after a
+   quarter of a second, without moving anything */
+/* A table's box contains what is positioned in it (the busy bar, the visually hidden name of a header cell), so
+   nothing in a table that scrolls sideways widens the page */
+.hf-app .table-responsive {
+    position: relative;
+}
+
+.js-jobs-list.ns-list-busy .table-responsive::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 3;
+    height: 3px;
+    background-image: var(--ns-brand-gradient);
+    background-size: 200% 100%;
+    animation: ns-list-busy 1.2s linear infinite;
+}
+
+@keyframes ns-list-busy {
+    from { background-position: 100% 0; }
+    to { background-position: -100% 0; }
+}
+
+/* Skeleton: bars in the shape of the content that is on its way (a side sheet that loads) */
+.ns-skeleton {
+    display: block;
+    height: .875rem;
+    margin: var(--md-sys-spacing-3) 0;
+    border-radius: var(--md-sys-shape-corner-extra-small);
+    background-color: var(--ns-surface-inset);
+    animation: ns-skeleton 1.4s var(--md-sys-motion-easing-standard) infinite alternate;
+}
+
+.ns-skeleton:nth-child(2n) {
+    width: 72%;
+}
+
+.ns-skeleton:nth-child(3n) {
+    width: 86%;
+}
+
+@keyframes ns-skeleton {
+    to { opacity: .45; }
+}
+
 @media (max-width: 599.98px) {
-    .ns-detail-actions {
+    .hf-app .ns-job-table.ns-table-reflow > tbody > tr {
+        align-items: flex-start;
+    }
+
+    .hf-app .ns-job-table.ns-table-reflow > tbody > tr > td.ns-select-cell {
+        order: -2;
+        width: auto;
+    }
+
+    .hf-app .ns-job-table.ns-table-reflow > tbody > tr > td.ns-job-cell {
+        order: -1;
+        flex: 1 1 calc(100% - 3.5rem);
+        min-width: 0;
+        font: inherit;
+    }
+
+    .hf-app .ns-job-table.ns-table-reflow > tbody > tr > td:empty {
+        display: none;
+    }
+
+    .hf-app .ns-job-table.ns-table-reflow > tbody > tr > td[data-label]::before {
+        content: attr(data-label) " ";
+        color: var(--md-sys-color-on-surface-variant);
+        font: var(--md-sys-typescale-label-medium);
+    }
+
+    .hf-app .ns-job-table.ns-table-reflow > tbody > tr > td.ns-time-cell {
+        width: auto;
+        text-align: left;
+        color: var(--md-sys-color-on-surface-variant);
+        font: var(--md-sys-typescale-body-small);
+        align-self: center;
+    }
+
+    .hf-app .ns-job-table.ns-table-reflow > tbody > tr > td.ns-actions-cell {
+        width: auto;
+        margin-left: auto;
+        padding: 0;
+    }
+}
+
+/* Failure clusters: one card per cluster in a grid that never leaves a hole */
+.ns-clusters {
+    margin-bottom: var(--md-sys-spacing-5);
+}
+
+.hf-app .ns-clusters .hf-cluster-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+    gap: var(--md-sys-spacing-3);
+    background: none;
+}
+
+.hf-app .ns-clusters .hf-cluster {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: 1fr auto;
+    gap: var(--md-sys-spacing-2) var(--md-sys-spacing-3);
+    padding: var(--md-sys-spacing-3) var(--md-sys-spacing-4) var(--md-sys-spacing-3) var(--md-sys-spacing-5);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background-color: var(--ns-surface-card);
+    overflow: hidden;
+    transition: box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+}
+
+.hf-app .ns-clusters .hf-cluster::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 4px;
+    background-color: var(--ns-state-failed);
+}
+
+.hf-app .ns-clusters .hf-cluster:hover {
+    box-shadow: var(--md-sys-elevation-level1);
+}
+
+.hf-app .ns-clusters .hf-cluster-count {
+    min-width: 40px;
+    height: 40px;
+    border-radius: var(--md-sys-shape-corner-medium);
+    background-color: var(--ns-state-failed-container);
+    color: var(--ns-state-on-failed-container);
+    font: var(--md-sys-typescale-title-medium);
+    font-variant-numeric: tabular-nums;
+}
+
+.hf-app .ns-clusters .hf-cluster-title {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-weight: 400;
+}
+
+.hf-app .ns-clusters .hf-cluster-exception {
+    color: var(--md-sys-color-error);
+    font: var(--md-sys-typescale-title-small);
+    overflow-wrap: anywhere;
+}
+
+.hf-app .ns-clusters .hf-cluster-method {
+    margin: 0;
+    padding: 0;
+    background: none;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-code-small);
+    overflow-wrap: anywhere;
+}
+
+.hf-app .ns-clusters .hf-cluster-message {
+    margin-top: var(--md-sys-spacing-1);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.hf-app .ns-clusters .hf-cluster-meta {
+    margin-top: var(--md-sys-spacing-1);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.hf-app .ns-clusters .hf-cluster-actions {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--md-sys-spacing-2);
+    width: auto;
+}
+
+/* A queue nobody takes jobs from */
+.ns-chip.ns-queue-stalled {
+    border-color: transparent;
+    background-color: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
+}
+
+/* Queues: one card per queue */
+.ns-queue-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr));
+    gap: var(--md-sys-spacing-4);
+    margin-bottom: var(--md-sys-spacing-5);
+}
+
+.hf-app .ns-queue-grid > .hf-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    margin: 0;
+    transition: box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+}
+
+.hf-app .ns-queue-grid > .hf-card:hover {
+    box-shadow: var(--md-sys-elevation-level1);
+}
+
+.hf-app .ns-queue-card.hf-queue-paused {
+    border-color: var(--ns-state-processing);
+}
+
+.hf-app .ns-queue-card .hf-card-header h2 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--md-sys-spacing-2);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.ns-queue-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(5rem, 1fr));
+    gap: var(--md-sys-spacing-3);
+    margin: 0;
+    padding: var(--md-sys-spacing-4);
+    border-bottom: 1px solid var(--ns-divider);
+}
+
+.hf-app .ns-queue-stats dt {
+    margin: 0 0 2px;
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.hf-app .ns-queue-stats dd {
+    margin: 0;
+    font: var(--md-sys-typescale-title-medium);
+    font-variant-numeric: tabular-nums;
+    color: var(--md-sys-color-on-surface);
+}
+
+.hf-app .ns-queue-stats dd .text-muted {
+    font: var(--md-sys-typescale-body-small);
+}
+
+.ns-queue-next {
+    flex: 1 1 auto;
+    padding: var(--md-sys-spacing-3) 0 var(--md-sys-spacing-2);
+}
+
+.hf-app .ns-queue-next h3 {
+    margin: 0 var(--md-sys-spacing-4) var(--md-sys-spacing-1);
+    font: var(--md-sys-typescale-label-large);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ns-queue-next > p {
+    margin: 0;
+    padding: var(--md-sys-spacing-2) var(--md-sys-spacing-4);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ns-queue-card .ns-card-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--md-sys-spacing-2);
+    padding: var(--md-sys-spacing-2) var(--md-sys-spacing-4) var(--md-sys-spacing-3);
+    border-top: 1px solid var(--ns-divider);
+}
+
+/* A list of two-line items (the next jobs of a queue) */
+.ns-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ns-list-item {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-3);
+    padding: var(--md-sys-spacing-2) var(--md-sys-spacing-4);
+}
+
+.ns-list-item + .ns-list-item {
+    border-top: 1px solid var(--ns-divider);
+}
+
+.ns-list-item:hover {
+    background-color: rgba(var(--md-sys-color-on-surface-rgb), var(--md-sys-state-hover-state-layer-opacity));
+}
+
+.ns-list-item-body {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.ns-list-item-end {
+    flex: 0 0 auto;
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+    white-space: nowrap;
+}
+
+.hf-app .ns-list-item.obsolete-data .job-method {
+    color: var(--ns-text-muted);
+}
+
+/* Side sheet: an MD3 modal side sheet at the end of the window (full screen below 600px), for the details of a row
+   without leaving the list (NightShift.sheet). Esc and the scrim close it; the focus goes back to its opener. */
+.ns-sheet-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: var(--ns-z-drawer-scrim);
+    background-color: rgba(var(--md-sys-color-scrim-rgb), .32);
+    opacity: 0;
+    transition: opacity var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard);
+}
+
+.ns-sheet-scrim[hidden] {
+    display: none;
+}
+
+.ns-sheet-scrim.show {
+    opacity: 1;
+}
+
+.ns-sheet {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: var(--ns-z-drawer);
+    display: flex;
+    flex-direction: column;
+    width: min(36rem, calc(100vw - 56px));
+    max-width: 100vw;
+    border-radius: var(--md-sys-shape-corner-large) 0 0 var(--md-sys-shape-corner-large);
+    background-color: var(--md-sys-color-surface-container-low);
+    color: var(--md-sys-color-on-surface);
+    box-shadow: var(--md-sys-elevation-level1);
+    transform: translateX(100%);
+    transition: transform var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-emphasized-accelerate);
+}
+
+.ns-sheet[hidden] {
+    display: none;
+}
+
+.ns-sheet.show {
+    transform: none;
+    transition: transform var(--md-sys-motion-duration-medium4) var(--md-sys-motion-easing-emphasized-decelerate);
+}
+
+.ns-sheet.ns-sheet-wide {
+    width: min(52rem, calc(100vw - 56px));
+}
+
+.ns-sheet:focus {
+    outline: none;
+}
+
+.ns-sheet-header {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--md-sys-spacing-3);
+    padding: var(--md-sys-spacing-5) var(--md-sys-spacing-3) var(--md-sys-spacing-3) var(--md-sys-spacing-6);
+}
+
+.ns-sheet-heading {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.ns-sheet-overline {
+    margin: 0 0 var(--md-sys-spacing-1);
+    font: var(--md-sys-typescale-label-large);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ns-sheet-overline[hidden] {
+    display: none;
+}
+
+.hf-app .ns-sheet-title {
+    margin: 0;
+    font: var(--md-sys-typescale-headline-small);
+    overflow-wrap: anywhere;
+}
+
+.ns-sheet-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 0 var(--md-sys-spacing-6) var(--md-sys-spacing-6);
+    overflow: auto;
+    overscroll-behavior: contain;
+}
+
+.hf-app .ns-sheet-body h3 {
+    margin: var(--md-sys-spacing-5) 0 var(--md-sys-spacing-2);
+    font: var(--md-sys-typescale-title-small);
+}
+
+.hf-app .ns-sheet-body .stack-trace {
+    max-height: none;
+    margin: 0;
+    font: var(--md-sys-typescale-code-small);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.ns-sheet-lead {
+    margin: 0 0 var(--md-sys-spacing-4);
+    font: var(--md-sys-typescale-body-large);
+    overflow-wrap: anywhere;
+}
+
+.ns-sheet-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--md-sys-spacing-2);
+    padding: var(--md-sys-spacing-3) var(--md-sys-spacing-6) var(--md-sys-spacing-5);
+    border-top: 1px solid var(--ns-divider);
+}
+
+.ns-sheet-actions[hidden] {
+    display: none;
+}
+
+/* Danger zone: the destructive operations of a page, in one error-outlined card, each with what it does */
+.ns-danger-zone {
+    margin-bottom: var(--md-sys-spacing-5);
+    border: 1px solid var(--md-sys-color-error);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background-color: var(--ns-surface-card);
+}
+
+.hf-app .ns-danger-zone > .hf-card-header h2 {
+    color: var(--md-sys-color-error);
+}
+
+.ns-danger-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--md-sys-spacing-3) var(--md-sys-spacing-4);
+    padding: var(--md-sys-spacing-4);
+}
+
+.ns-danger-row + .ns-danger-row {
+    border-top: 1px solid var(--ns-divider);
+}
+
+.ns-danger-text {
+    flex: 1 1 20rem;
+    min-width: 0;
+}
+
+.ns-danger-text > :first-child {
+    display: block;
+    font: var(--md-sys-typescale-title-small);
+    color: var(--md-sys-color-on-surface);
+}
+
+.ns-danger-text p {
+    margin: var(--md-sys-spacing-1) 0 0;
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+@media (max-width: 599.98px) {
+    .ns-page-actions {
         width: 100%;
+    }
+
+    .ns-page-actions > .btn {
+        flex: 1 1 auto;
+    }
+
+    .ns-actions-divider {
+        display: none;
     }
 
     /* Two-line runs: id, state and times on the first line, the server and the reason under them */
@@ -5678,11 +6567,28 @@ body.hf-app .alert a {
         font: var(--md-sys-typescale-body-small);
     }
 
-    .ns-recurring-summary .ns-summary-tile {
+    .ns-summary .ns-summary-tile {
         padding: var(--md-sys-spacing-3);
     }
 
-    .ns-detail-actions > .btn {
-        flex: 1 1 auto;
+    .ns-row-actions {
+        opacity: 1;
+    }
+
+    .ns-sheet {
+        width: 100vw;
+        border-radius: 0;
+    }
+
+    .ns-sheet-header {
+        padding-left: var(--md-sys-spacing-4);
+    }
+
+    .ns-sheet-body {
+        padding: 0 var(--md-sys-spacing-4) var(--md-sys-spacing-5);
+    }
+
+    .ns-sheet-actions {
+        padding: var(--md-sys-spacing-3) var(--md-sys-spacing-4) var(--md-sys-spacing-4);
     }
 }

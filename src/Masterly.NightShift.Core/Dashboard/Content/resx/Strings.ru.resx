@@ -2153,4 +2153,22 @@
   <data name="RecurringJobDetailsPage_Definition" xml:space="preserve">
     <value>Определение</value>
   </data>
+  <data name="Common_Actions" xml:space="preserve">
+    <value>Действия</value>
+  </data>
+  <data name="Common_CopyJobId" xml:space="preserve">
+    <value>Скопировать ID задачи {0}</value>
+  </data>
+  <data name="Common_Copied" xml:space="preserve">
+    <value>Скопировано в буфер обмена</value>
+  </data>
+  <data name="Common_RequeueJob" xml:space="preserve">
+    <value>Заново поместить задачу {0} в очередь</value>
+  </data>
+  <data name="Common_DeleteJob" xml:space="preserve">
+    <value>Удалить задачу {0}</value>
+  </data>
+  <data name="Common_EnqueueJob" xml:space="preserve">
+    <value>Поместить задачу {0} в очередь сейчас</value>
+  </data>
 </root>

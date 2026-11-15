@@ -2103,4 +2103,22 @@
   <data name="RecurringJobDetailsPage_Definition" xml:space="preserve">
     <value>定義</value>
   </data>
+  <data name="Common_Actions" xml:space="preserve">
+    <value>動作</value>
+  </data>
+  <data name="Common_CopyJobId" xml:space="preserve">
+    <value>複製工作 {0} 的 ID</value>
+  </data>
+  <data name="Common_Copied" xml:space="preserve">
+    <value>已複製到剪貼簿</value>
+  </data>
+  <data name="Common_RequeueJob" xml:space="preserve">
+    <value>將工作 {0} 重新加入佇列</value>
+  </data>
+  <data name="Common_DeleteJob" xml:space="preserve">
+    <value>刪除工作 {0}</value>
+  </data>
+  <data name="Common_EnqueueJob" xml:space="preserve">
+    <value>立即將工作 {0} 加入佇列</value>
+  </data>
 </root>
