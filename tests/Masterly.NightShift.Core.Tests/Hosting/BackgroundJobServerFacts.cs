@@ -297,6 +297,10 @@ public class BackgroundJobServerFacts
                 // doesn't says so, and then the test knows that the worker had its turn
                 Assert.True(SpinWait.SpinUntil(() => cluster.Fetches > 0 || Logged(recording, "is fenced: it takes no jobs"), WaitTimeout));
 
+                // The gate closes and that line is logged before the pause is written; a stop that came in between
+                // would leave no pause to take back, so wait for it as the restart test does
+                Assert.True(SpinWait.SpinUntil(() => cluster.Fetches > 0 || cluster.PausedServers.Length == 1, WaitTimeout));
+
                 server.SendStop();
                 Assert.True(server.WaitForShutdown(WaitTimeout));
             }
