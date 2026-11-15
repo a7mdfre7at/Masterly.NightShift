@@ -1,6 +1,7 @@
-/* Bootstrap 5 defaults that differ from the Bootstrap 3 ones the pages were designed with. These rules have the
-   specificity of Bootstrap's own and come right after it, so the dashboard's styles below override them as they
-   overrode Bootstrap 3.
+/* Bootstrap 5 defaults that differ from the Bootstrap 3 ones the pages were written for, and the small classes the
+   pages and extensions still use. These rules have the specificity of Bootstrap's own and come right after it, so
+   the MD3 styles of nightshift-ui.css override them. Every colour comes from the tokens (nightshift-tokens.css).
+   Sizes of text are in rem: 1rem is the browser's font size (16px by default).
 -------------------------------------------------- */
 
 a {
@@ -8,26 +9,26 @@ a {
 }
 
 h1, h2, h3, h4, h5, h6 {
-    font-weight: 500;
-    line-height: 1.1;
+    font-weight: 600;
+    line-height: 1.2;
 }
 
 h1, h2, h3 {
-    margin-top: 20px;
-    margin-bottom: 10px;
+    margin-top: 1.25rem;
+    margin-bottom: .625rem;
 }
 
 h4, h5, h6 {
-    margin-top: 10px;
-    margin-bottom: 10px;
+    margin-top: .625rem;
+    margin-bottom: .625rem;
 }
 
-h1 { font-size: 36px; }
-h2 { font-size: 30px; }
-h3 { font-size: 24px; }
-h4 { font-size: 18px; }
-h5 { font-size: 14px; }
-h6 { font-size: 12px; }
+h1 { font-size: var(--md-sys-typescale-headline-large-size); }
+h2 { font-size: var(--md-sys-typescale-headline-small-size); }
+h3 { font-size: var(--md-sys-typescale-title-large-size); }
+h4 { font-size: var(--md-sys-typescale-title-medium-size); }
+h5 { font-size: var(--md-sys-typescale-title-small-size); }
+h6 { font-size: var(--md-sys-typescale-label-medium-size); }
 
 h1 small, h2 small, h3 small {
     font-size: 65%;
@@ -41,25 +42,25 @@ h4 small, h5 small, h6 small {
     line-height: 1;
 }
 
-small, .small {
-    font-size: 85%;
-}
-
 p {
-    margin: 0 0 10px;
+    margin: 0 0 .625rem;
 }
 
 ul, ol {
-    margin-bottom: 10px;
+    margin-bottom: .625rem;
 }
 
 dl {
     margin-top: 0;
-    margin-bottom: 20px;
+    margin-bottom: 1.25rem;
 }
 
 dt, dd {
     line-height: 1.42857143;
+}
+
+dt {
+    font-weight: 600;
 }
 
 dd {
@@ -67,16 +68,16 @@ dd {
 }
 
 hr {
-    margin-top: 20px;
-    margin-bottom: 20px;
+    margin-top: 1.25rem;
+    margin-bottom: 1.25rem;
     opacity: 1;
 }
 
 pre {
-    padding: 9.5px;
-    margin: 0 0 10px;
-    font-size: 13px;
-    line-height: 1.42857143;
+    padding: .625rem .75rem;
+    margin: 0 0 .625rem;
+    font-size: .8125rem;
+    line-height: 1.5;
     word-break: break-all;
     word-wrap: break-word;
 }
@@ -86,17 +87,11 @@ pre code {
     word-break: inherit;
 }
 
-input[type="checkbox"]:not(.form-check-input),
-input[type="radio"]:not(.form-check-input) {
-    margin: 4px 0 0;
-    line-height: normal;
-}
-
 label {
     display: inline-block;
     max-width: 100%;
-    margin-bottom: 5px;
-    font-weight: 700;
+    margin-bottom: .25rem;
+    font-weight: 500;
 }
 
 /* Bootstrap 3's dl-horizontal, which Bootstrap 5 dropped; dl-horizontal is kept for pages written for it */
@@ -126,82 +121,69 @@ label {
 }
 
 .list-inline {
-    margin-left: -5px;
+    margin-left: -.25rem;
 }
 
 .list-inline > .list-inline-item {
-    padding-right: 5px;
-    padding-left: 5px;
+    padding-right: .25rem;
+    padding-left: .25rem;
     margin-right: 0;
 }
 
 .row {
-    --bs-gutter-x: 30px;
+    --bs-gutter-x: 1.5rem;
+}
+
+.row > * {
+    min-height: 2px;
 }
 
 .btn {
-    --bs-btn-line-height: 1.42857143;
     white-space: nowrap;
-}
-
-.btn-sm {
-    --bs-btn-line-height: 1.5;
-}
-
-.form-control,
-.form-select {
-    padding: 6px 12px;
-    line-height: 1.42857143;
-}
-
-.form-select {
-    padding-right: 36px;
-    background-position: right 12px center;
 }
 
 .form-text {
     display: block;
-    margin-top: 5px;
-    margin-bottom: 10px;
-    font-size: inherit;
+    margin-top: .25rem;
+    margin-bottom: .625rem;
 }
 
 .alert {
-    margin-bottom: 20px;
-}
-
-.table {
-    margin-bottom: 20px;
-    --bs-table-bg: transparent;
-    --bs-table-color: inherit;
-    --bs-table-border-color: var(--hf-border);
-    --bs-table-striped-color: inherit;
-    --bs-table-striped-bg: var(--hf-surface-2);
-    --bs-table-hover-color: inherit;
-    --bs-table-hover-bg: var(--hf-surface-2);
+    margin-bottom: 1.25rem;
 }
 
 /* Bootstrap 3 drew one line above each row; Bootstrap 5 draws one under each cell */
+.table {
+    margin-bottom: 1.25rem;
+    --bs-table-bg: transparent;
+    --bs-table-color: inherit;
+    --bs-table-border-color: var(--ns-divider);
+    --bs-table-striped-color: inherit;
+    --bs-table-striped-bg: var(--ns-surface-inset);
+    --bs-table-hover-color: inherit;
+    --bs-table-hover-bg: rgba(var(--md-sys-color-on-surface-rgb), var(--md-sys-state-hover-state-layer-opacity));
+}
+
 .table > :not(caption) > * > * {
-    padding: 8px;
+    padding: .5rem;
     line-height: 1.42857143;
     border-bottom-width: 0;
 }
 
 .table > tbody > tr > td,
 .table > tbody > tr > th {
-    border-top: 1px solid var(--hf-border);
+    border-top: 1px solid var(--ns-divider);
 }
 
 .table-sm > :not(caption) > * > * {
-    padding: 5px;
+    padding: .3125rem;
 }
 
-/* On a phone a wide table keeps its rows on one line and scrolls sideways, as with Bootstrap 3 */
+/* On a phone a wide table keeps its rows on one line and scrolls sideways */
 @media (max-width: 767px) {
     .table-responsive {
         width: 100%;
-        margin-bottom: 15px;
+        margin-bottom: 1rem;
         overflow-y: hidden;
     }
 
@@ -220,138 +202,50 @@ label {
 }
 
 .progress {
-    --bs-progress-height: 20px;
-    --bs-progress-font-size: 12px;
-    --bs-progress-bg: var(--hf-neutral-soft);
-    --bs-progress-bar-bg: var(--hf-primary);
-    margin-bottom: 20px;
+    --bs-progress-height: 1.25rem;
+    margin-bottom: 1.25rem;
 }
 
 .breadcrumb {
-    --bs-breadcrumb-item-padding-x: 5px;
-    --bs-breadcrumb-divider-color: var(--hf-border-strong);
-    --bs-breadcrumb-item-active-color: var(--hf-muted);
-}
-
-.modal {
-    --bs-modal-width: 600px;
-    --bs-modal-padding: 15px;
-    --bs-modal-header-padding: 15px;
-    --bs-modal-footer-gap: 5px;
-    --bs-modal-margin: 10px;
-}
-
-@media (min-width: 768px) {
-    .modal {
-        --bs-modal-margin: 30px;
-    }
-}
-
-.tooltip {
-    --bs-tooltip-color: #fff;
-    --bs-tooltip-bg: #000;
-    --bs-tooltip-font-size: 12px;
-    --bs-tooltip-arrow-width: 10px;
-    --bs-tooltip-arrow-height: 5px;
-    --bs-tooltip-opacity: .9;
-}
-
-/* Sticky footer styles
--------------------------------------------------- */
-
-html, body {
-  height: 100%;
-  /* The html and body elements cannot have any padding or margin. */
-}
-
-body {
-    /* 75px to make the container go all the way to the bottom of the topbar */
-    padding-top: 75px;
-}
-
-.row > * {
-    min-height: 2px !important;
-}
-
-/* Wrapper for page content to push down footer */
-#wrap {
-  min-height: 100%;
-  height: auto !important;
-  height: 100%;
-  /* Negative indent footer by its height */
-  margin: 0 auto -60px;
-  /* Pad bottom by footer height */
-  padding: 0 0 60px;
-}
-
-/* Set the fixed height of the footer here */
-#footer {
-  background-color: #f5f5f5;
-}
-
-
-/* Custom page CSS
--------------------------------------------------- */
-
-.container .credit {
-  margin: 20px 0;
-  word-break: break-word;
-}
-
-.hf-page-header,
-.page-header {
-    margin-top: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-}
-
-.btn-death {
-    background-color: #777;
-    border-color: #666;
-    color: #fff;
-}
-
-.btn-death:hover {
-    background-color: #666;
-    border-color: #555;
-    color: #fff;
-}
-
-.list-group .list-group-item .bi {
-    margin-right: 3px;
-}
-
-.breadcrumb {
-    margin-bottom: 10px;
+    --bs-breadcrumb-item-padding-x: .375rem;
+    --bs-breadcrumb-divider-color: var(--md-sys-color-on-surface-variant);
+    --bs-breadcrumb-item-active-color: var(--md-sys-color-on-surface-variant);
+    margin-bottom: .625rem;
     background-color: inherit;
     padding: 0;
-}
-
-.btn-toolbar-label {
-    padding: 7px 0;
-    vertical-align: middle;
-    display: inline-block;
-    margin-left: 5px;
-}
-
-.btn-toolbar-label-sm {
-    padding: 5px 0;
-}
-
-.btn-toolbar-spacer {
-    width: 5px;
-    display: inline-block;
-    height: 1px;
 }
 
 .tooltip {
     word-break: break-word;
 }
 
-a:hover .label-hover {
-    background-color: #2a6496!important;
-    color: #fff!important;
+/* Small classes of the pages
+-------------------------------------------------- */
+
+.hf-page-header,
+.page-header {
+    margin-top: 0;
+}
+
+.btn-toolbar-label {
+    padding: .4375rem 0;
+    vertical-align: middle;
+    display: inline-block;
+    margin-left: .3125rem;
+}
+
+.btn-toolbar-label-sm {
+    padding: .3125rem 0;
+}
+
+.btn-toolbar-spacer {
+    width: .3125rem;
+    display: inline-block;
+    height: 1px;
+}
+
+.btn-toolbar-top {
+    margin-bottom: .625rem;
 }
 
 .expander {
@@ -363,7 +257,7 @@ a:hover .label-hover {
 }
 
 .table-inner {
-    margin-bottom: 7px;
+    margin-bottom: .4375rem;
     font-size: 90%;
 }
 
@@ -392,323 +286,24 @@ a:hover .label-hover {
     width: 30%;
 }
 
-.hf-icon-sm {
-    font-size: 10px;
+.width-200 {
+    width: 200px;
 }
 
 @media (max-width: 991px) {
     .width-30 { width: 15%; }
 }
 
+.hf-icon-sm {
+    font-size: .6875rem;
+}
+
 .align-right {
     text-align: right;
 }
 
-.table>tbody>tr.hover:hover>td, .table>tbody>tr.hover:hover>th {
-    background-color: #f9f9f9;
-}
-
-.table>tbody>tr.highlight>td, .table>tbody>tr.highlight>th {
-    background-color: #fcf8e3;
-    border-color: #fbeed5;
-}
-
-.table>tbody>tr.highlight:hover>td, .table>tbody>tr.highlight:hover>th {
-    background-color: #f6f2dd;
-    border-color: #f5e8ce;
-}
-
 .word-break {
     word-break: break-all;
-}
-
-/* Statistics widget
--------------------------------------------------- */
-
-#stats .list-group-item {
-    border-color: #e7e7e7;
-    background-color: #f8f8f8;
-}
-
-#stats a.list-group-item {
-    color: #777;
-}
-
-#stats a.list-group-item:hover,
-#stats a.list-group-item:focus {
-    color: #333;
-}
-
-#stats .list-group-item.active,
-#stats .list-group-item.active:hover,
-#stats .list-group-item.active:focus {
-    color: #555;
-    background-color: #e7e7e7;
-    border-color: #e7e7e7;
-}
-
-.table td.failed-job-details {
-    padding-top: 0;
-    padding-bottom: 0;
-    border-top: none;
-    background-color: #f5f5f5;
-}
-
-.obsolete-data, .obsolete-data a, .obsolete-data pre, .obsolete-data .badge {
-    color: #999;
-}
-
-.obsolete-data pre, .obsolete-data .badge {
-    background-color: #999;
-    color: #fff;
-}
-
-.obsolete-data .hf-icon {
-    font-size: 80%;
-    color: #999;
-}
-
-.stack-trace {
-    padding: 10px;
-    border: none;   
-}
-
-.st-type {
-    font-weight: bold;
-}
-
-.st-param-name {
-    color: #666;
-}
-
-.st-file {
-    color: #999;
-}
-
-.st-method {
-    color: #00008B;
-    font-weight: bold;
-}
-
-.st-line {
-    color: #8B008B;
-}
-
-.width-200 {
-    width: 200px;
-}
-
-.btn-toolbar-top {
-    margin-bottom: 10px;
-}
-
-.paginator .btn {
-    color: #428bca;
-}
-
-.paginator .btn.active {
-    color: #333;
-}
-
-/* Job Snippet styles */
-
-.job-snippet {
-    margin-bottom: 20px;
-    padding: 15px;
-    display: table;
-    width: 100%;
-    -ms-border-radius: 4px;
-    border-radius: 4px;
-    background-color: #f5f5f5;
-}
-
-.job-snippet > * {
-    display: table-cell;
-    vertical-align: top;
-}
-
-.job-snippet-code {
-    vertical-align: top;
-}
-
-.job-snippet-code pre {
-    border: none;
-    margin: 0;
-    background: inherit;
-    padding: 0;
-    -ms-border-radius: 0;
-    border-radius: 0;
-    font-size: 14px;
-}
-
-.job-snippet-code code {
-    display: block; 
-    color: black;
-}
-
-.job-snippet-code pre .comment {
-    color: rgb(0, 128, 0);
-}
-
-.job-snippet-code pre .keyword {
-    color: rgb(0, 0, 255);
-}
-
-.job-snippet-code pre .string {
-    color: rgb(163, 21, 21);
-}
-
-.job-snippet-code pre .type {
-    color: rgb(43, 145, 175);
-}
-
-.job-snippet-code pre .xmldoc {
-    color: rgb(128, 128, 128);
-}
-
-.job-snippet-properties pre {
-    background-color: inherit;
-    -webkit-box-shadow: none;
-    -ms-box-shadow: none;
-    padding: 2px 4px;
-    border: none;
-    margin: 0;
-    overflow: hidden;
-}
-
-.job-snippet-properties code {
-    color: rgb(163, 21, 21);
-}
-
-.alert-warning .table td {
-    border-color: rgb(229, 220, 195);
-}
-
-.alert-fixed {
-    border-radius: 0;
-    margin-bottom: -1px;
-    padding-left: 0;
-    padding-right: 0;
-    border-left: none;
-    border-right: none;
-}
-
-.state-card {
-    position: relative;
-    display: block;
-    margin-bottom: 7px;
-    padding: 12px;
-    background-color: #fff;
-    border: 1px solid #e5e5e5;
-    border-radius: 3px;
-}
-
-.state-card-title {
-    margin-bottom: 0;
-}
-
-.state-card-title .float-end {
-    margin-top: 3px;
-}
-
-.state-card-text {
-    margin-top: 5px;
-    margin-bottom: 0;
-}
-
-.state-card h4 {
-    margin-top: 0;
-}
-
-.state-card-body {
-    padding: 10px;
-    margin: 10px -12px -12px -12px;
-    border-bottom-left-radius: 3px;
-    border-bottom-right-radius: 3px;
-    background-color: #f5f5f5;
-}
-
-.state-card-body dl {
-    margin-top: 5px;
-    margin-bottom: 0;
-}
-
-.state-card-body dd {
-    word-break: break-all;
-}
-
-.state-card-body pre {
-    white-space: pre-wrap;       /* CSS 3 */
-    word-wrap: break-word;       /* Internet Explorer 5.5+ */
-    background: transparent;
-    padding: 0;
-}
-
-.state-card-body .stack-trace {
-    background-color: transparent;
-    padding: 0 20px;
-    margin-bottom: 0px;
-}
-
-.state-card-body .exception-type {
-    margin-top: 0;
-}
-
-/* Job History styles */
-.job-history {
-    margin-bottom: 10px;
-    opacity: 0.8;
-}
-
-.job-history.job-history-current {
-    opacity: 1.0;
-}
-
-.job-history-heading {
-    padding: 5px 10px;
-    color: #666;
-    -ms-border-top-left-radius: 4px;
-    border-top-left-radius: 4px;
-    -ms-border-top-right-radius: 4px;
-    border-top-right-radius: 4px;
-}
-
-.job-history-body {
-    background-color: #f5f5f5;
-    padding: 10px;
-}
-
-.job-history-title {
-    margin-top: 0;
-    margin-bottom: 2px;
-}
-
-.job-history dl {
-    margin-top: 5px;
-    margin-bottom: 5px;
-}
-
-.job-history .stack-trace {
-    background-color: transparent;
-    padding: 0 20px;
-    margin-bottom: 5px;
-}
-
-.job-history .exception-type {
-    margin-top: 0;
-}
-
-.job-history-current .job-history-heading,
-.job-history-current small {
-    color: white;
-}
-
-a.job-method {
-    color: inherit;    
-}
-
-.list-group .bi {
-    top: 2px;
 }
 
 .text-decoration-none {
@@ -723,53 +318,144 @@ a.job-method {
     display: block;
 }
 
-.margin-top-2p {
-    margin-top: 2px;
-}
-
 .margin-bottom-0 {
     margin-bottom: 0;
 }
 
-.margin-bottom-20p {
-    margin-bottom: 20px;
+.obsolete-data,
+.obsolete-data a,
+.obsolete-data pre {
+    color: var(--ns-text-muted);
 }
 
-.margin-right-14p {
-    margin-right: 14px;
+.obsolete-data .hf-icon {
+    font-size: 80%;
+    color: var(--ns-text-muted);
 }
+
+.stack-trace {
+    padding: .625rem;
+    border: none;
+}
+
+a.job-method {
+    color: inherit;
+}
+
+.list-group .bi {
+    margin-right: .1875rem;
+}
+
+/* Job snippet */
+
+.job-snippet {
+    margin-bottom: 1.25rem;
+    padding: 1rem;
+    display: table;
+    width: 100%;
+    border-radius: var(--md-sys-shape-corner-medium);
+    background-color: var(--ns-surface-card);
+}
+
+.job-snippet > * {
+    display: table-cell;
+    vertical-align: top;
+}
+
+.job-snippet-code pre {
+    border: none;
+    margin: 0;
+    background: inherit;
+    padding: 0;
+    border-radius: 0;
+    font: var(--md-sys-typescale-code-large);
+}
+
+.job-snippet-code code {
+    display: block;
+    color: var(--md-sys-color-on-surface);
+}
+
+.job-snippet-properties pre {
+    background-color: inherit;
+    padding: .125rem .25rem;
+    border: none;
+    margin: 0;
+    overflow: hidden;
+}
+
+/* State cards of the job page */
+
+.state-card {
+    position: relative;
+    display: block;
+    margin-bottom: .5rem;
+    padding: .75rem;
+    background-color: var(--ns-surface-card);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+}
+
+.state-card-title {
+    margin-bottom: 0;
+}
+
+.state-card-title .float-end {
+    margin-top: .1875rem;
+}
+
+.state-card-text {
+    margin-top: .3125rem;
+    margin-bottom: 0;
+}
+
+.state-card h4 {
+    margin-top: 0;
+}
+
+.state-card-body {
+    padding: .625rem .75rem;
+    margin: .625rem 0 0;
+    border-radius: var(--md-sys-shape-corner-small);
+    background-color: var(--ns-surface-inset);
+}
+
+.state-card-body dl {
+    margin-top: .3125rem;
+    margin-bottom: 0;
+}
+
+.state-card-body dd {
+    word-break: break-all;
+}
+
+.state-card-body pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    background: transparent;
+    border: 0;
+    padding: 0;
+}
+
+.state-card-body .stack-trace {
+    background-color: transparent;
+    padding: 0 1.25rem;
+    margin-bottom: 0;
+}
+
+.state-card-body .exception-type {
+    margin-top: 0;
+}
+
+/* Metrics: inline counters and the tiles of the home page (their MD3 look is in nightshift-ui.css) */
 
 span.metric {
     display: inline-block;
     min-width: 10px;
-    padding: 2px 6px;
-    font-size: 12px;
-    line-height: 1;
     text-align: center;
     white-space: nowrap;
     vertical-align: baseline;
-    background-color: transparent;
-    border-radius: 10px;
-    border: solid 1px;
-    -webkit-transition: color .1s ease-out, background .1s ease-out, border .1s ease-out;
-    -moz-transition: color .1s ease-out, background .1s ease-out, border .1s ease-out;
-    -ms-transition: color .1s ease-out, background .1s ease-out, border .1s ease-out;
-    -o-transition: color .1s ease-out, background .1s ease-out, border .1s ease-out;
-    transition: color .1s ease-out, background .1s ease-out, border .1s ease-out;
-}
-
-span.metric.highlighted {
-    font-weight: bold;
-    color: #fff!important;
-}
-
-span.metric-default {
-    color: #777;
-    border-color: #777;
-}
-
-span.metric-default.highlighted {
-    background-color: #777;
+    transition: color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard), background-color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
 }
 
 .clickable-metric, .clickable-metric:hover, .clickable-metric:active, .clickable-metric:visited, .clickable-metric:focus {
@@ -778,69 +464,7 @@ span.metric-default.highlighted {
 }
 
 div.metric {
-    border: solid 1px transparent;
-    border-radius: 4px;
-    -webkit-box-shadow: 0 1px 1px rgba(0,0,0,.05);
-    box-shadow: 0 1px 1px rgba(0,0,0,.05);
-    margin-bottom: 20px;
-    transition: color .1s ease-out, background .1s ease-out, border .1s ease-out;
-}
-
-div.metric .metric-body {
-    padding: 15px 15px 0;
-    font-size: 26px;
-    text-align: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-div.metric .metric-description {
-    padding: 0 15px 15px;
-    text-align: center;
-}
-
-div.metric.metric-default {
-    border-color: #ddd;
-}
-
-div.metric-info,
-span.metric-info {
-    color: #2563eb;
-    border-color: #2563eb;
-}
-
-span.metric-info.highlighted {
-    background-color: #2563eb;
-}
-
-div.metric-warning,
-span.metric-warning {
-    color: #c2410c;
-    border-color: #c2410c;
-}
-
-span.metric-warning.highlighted {
-    background-color: #c2410c;
-}
-
-div.metric-success,
-span.metric-success {
-    color: #047857;
-    border-color: #047857;
-}
-
-span.metric-success.highlighted {
-    background-color: #047857;
-}
-
-div.metric-danger,
-span.metric-danger {
-    color: #e11d48;
-    border-color: #e11d48;
-}
-
-span.metric-danger.highlighted {
-    background-color: #e11d48;
+    margin-bottom: 1.25rem;
 }
 
 span.metric-null,
@@ -848,20 +472,7 @@ div.metric-null {
     display: none;
 }
 
-@media (min-width: 992px) {
-    #stats {
-        position: fixed;
-        width: 220px
-    }
-}
-
-@media (min-width: 1200px) {
-    #stats {
-        width: 262.5px;
-    }
-}
-
-/* Recurring Jobs Page */
+/* Recurring jobs */
 
 .cron-badge {
     display: inline-block;
@@ -870,47 +481,14 @@ div.metric-null {
     word-break: break-word;
 }
 
-/* Full width styles */
-
-@media (min-width: 768px) {
-    .container {
-        width: 100%;
-        padding-left: 25px;
-        padding-right: 25px;
-    }
-}
-
-@media (min-width: 992px) {
-    #wrap > .container > .row > .col-md-3 {
-        width: 251px;
-    }
-
-    #wrap > .container > .row > .col-md-9 {
-        width: calc(100% - 251px);
-    }
-}
-
-@media (min-width: 1200px) {
-    #wrap > .container > .row > .col-md-3 {
-        width: 293px;
-    }
-
-    #wrap > .container > .row > .col-md-9 {
-        width: calc(100% - 293px);
-    }
-}
-
-/* Recurring job schedule editor
--------------------------------------------------- */
-
 .js-recurring-edit {
     white-space: nowrap;
 }
 
 .cron-preview {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid #eee;
+    margin-top: .625rem;
+    padding-top: .625rem;
+    border-top: 1px solid var(--ns-divider);
 }
 
 .cron-preview h5 {
@@ -918,7 +496,7 @@ div.metric-null {
 }
 
 .cron-preview h5 code {
-    margin-left: 6px;
+    margin-left: .375rem;
     font-weight: normal;
 }
 
@@ -927,8 +505,8 @@ div.metric-null {
 }
 
 .cron-preview li {
-    padding: 3px 0;
-    border-bottom: 1px dashed #eee;
+    padding: .1875rem 0;
+    border-bottom: 1px dashed var(--ns-divider);
 }
 
 .cron-preview li:last-child {
@@ -936,51 +514,59 @@ div.metric-null {
 }
 
 .cron-preview li .text-muted {
-    margin-left: 8px;
+    margin-left: .5rem;
     font-size: 90%;
 }
 
 .cron-preview .alert {
-    margin: 10px 0 0;
+    margin: .625rem 0 0;
 }
 
-/* Live job view: progress, console, checkpoints
--------------------------------------------------- */
+/* Live job view: progress, console, checkpoints */
 
 .job-live {
-    margin-bottom: 20px;
+    margin-bottom: 1.25rem;
+    background-color: var(--ns-surface-card);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    padding: 1rem;
+}
+
+.job-live h3 {
+    margin-top: 0;
 }
 
 .job-live-indicator {
     vertical-align: middle;
     font-size: 55%;
-    margin-left: 6px;
+    margin-left: .375rem;
 }
 
 .job-live-progress .progress {
-    height: 22px;
-    margin-bottom: 6px;
+    height: 1.375rem;
+    margin-bottom: .375rem;
 }
 
 .job-live-progress .progress-bar {
-    line-height: 22px;
+    line-height: 1.375rem;
     font-weight: 600;
-    transition: width .4s ease;
+    transition: width var(--md-sys-motion-duration-medium4) var(--md-sys-motion-easing-standard);
 }
 
 .job-live-progress p {
-    min-height: 20px;
-    margin-bottom: 8px;
+    min-height: 1.25rem;
+    margin-bottom: .5rem;
 }
 
+/* The console: JetBrains Mono on the inset surface, levels in the state colours of the theme */
 .job-console {
-    font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
-    font-size: 12px;
+    font: var(--md-sys-typescale-code-small);
     line-height: 1.5;
-    background-color: #1e1e1e;
-    color: #d4d4d4;
-    border-radius: 4px;
-    padding: 8px 10px;
+    background-color: var(--ns-surface-inset);
+    color: var(--md-sys-color-on-surface);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-small);
+    padding: .5rem .75rem;
     max-height: 420px;
     overflow: auto;
     white-space: pre-wrap;
@@ -992,23 +578,23 @@ div.metric-null {
 }
 
 .job-console-time {
-    color: #7f8c8d;
-    margin-right: 10px;
+    color: var(--ns-text-muted);
+    margin-right: .625rem;
     user-select: none;
 }
 
-.job-console-debug { color: #9aa0a6; }
-.job-console-warning { color: #f1c40f; }
-.job-console-error { color: #ff6b6b; }
+.job-console-debug { color: var(--ns-text-muted); }
+.job-console-warning { color: var(--ns-state-processing); }
+.job-console-error { color: var(--md-sys-color-error); }
 
 .job-console-checkpoint {
-    color: #6fcd6d;
+    color: var(--ns-state-succeeded);
     font-weight: 600;
 }
 
 .job-console-checkpoint .bi {
-    margin-right: 6px;
-    font-size: 11px;
+    margin-right: .375rem;
+    font-size: .6875rem;
 }
 
 .job-console-empty {
@@ -1016,13 +602,13 @@ div.metric-null {
 }
 
 .job-checkpoints {
-    padding-left: 20px;
+    padding-left: 1.25rem;
     margin: 0;
 }
 
 .job-checkpoints li {
-    padding: 3px 0;
-    border-bottom: 1px dashed #eee;
+    padding: .1875rem 0;
+    border-bottom: 1px dashed var(--ns-divider);
 }
 
 .job-checkpoints li:last-child {
@@ -1039,51 +625,48 @@ div.metric-null {
 }
 
 .job-live-progress-sm {
-    height: 8px;
-    margin: 4px 0 2px;
+    height: .5rem;
+    margin: .25rem 0 .125rem;
 }
 
 .job-live-progress-sm .progress-bar {
-    transition: width .4s ease;
+    transition: width var(--md-sys-motion-duration-medium4) var(--md-sys-motion-easing-standard);
 }
 
-/* Insights page
--------------------------------------------------- */
+/* Insights page */
 
 .insights-summary {
-    margin-bottom: 20px;
+    margin-bottom: 1.25rem;
 }
 
 .insights-tile {
-    border: 1px solid #e3e3e3;
-    border-radius: 6px;
-    padding: 14px 16px;
-    margin-bottom: 10px;
-    background-color: #fafafa;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    padding: .875rem 1rem;
+    margin-bottom: .625rem;
+    background-color: var(--ns-surface-card);
 }
 
 .insights-tile-value {
-    font-size: 26px;
-    font-weight: 600;
-    line-height: 1.2;
+    font: var(--md-sys-typescale-headline-medium);
 }
 
 .insights-tile-value .badge {
-    font-size: 14px;
+    font-size: .875rem;
     vertical-align: middle;
 }
 
 .insights-tile-label {
-    color: #777;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    margin-top: 4px;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+    letter-spacing: var(--md-sys-typescale-label-medium-tracking);
+    margin-top: .25rem;
 }
 
 .insights-tile-danger {
-    border-color: #ebccd1;
-    background-color: #f2dede;
+    border-color: transparent;
+    background-color: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
 }
 
 .insights-table td {
@@ -1095,37 +678,34 @@ div.metric-null {
 }
 
 .sparkline polyline {
-    stroke: #337ab7;
+    stroke: var(--md-sys-color-primary);
 }
 
 .sparkline .sparkline-last {
-    fill: #62B35F;
+    fill: var(--ns-state-succeeded);
 }
 
 .sparkline .sparkline-last-failed {
-    fill: #D55251;
+    fill: var(--ns-state-failed);
 }
 
-/* Deadlines and invoker statistics
--------------------------------------------------- */
+/* Deadlines and invoker statistics */
 
 .table > tbody > tr.overdue > td {
-    background-color: #fdf2f2;
-}
-
-.table > tbody > tr.overdue.hover:hover > td {
-    background-color: #fbe6e6;
+    background-color: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
 }
 
 .invoker-stats {
-    margin: 10px 0 20px;
-    font-size: 13px;
+    margin: .625rem 0 1.25rem;
+    font-size: .8125rem;
+    color: var(--md-sys-color-on-surface-variant);
 }
 
 .invoker-stats .badge {
-    margin-right: 4px;
+    margin-right: .25rem;
 }
 
 .invoker-stats .bi {
-    margin-right: 4px;
+    margin-right: .25rem;
 }

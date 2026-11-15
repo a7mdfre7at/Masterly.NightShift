@@ -59,6 +59,7 @@ public static class DashboardRoutes
         Assembly executingAssembly = typeof(DashboardRoutes).GetTypeInfo().Assembly;
 
         AddStylesheet(executingAssembly, GetContentResourceName("css", "bootstrap.min.css"));
+        AddStylesheet(executingAssembly, GetContentResourceName("css", "nightshift-tokens.css"));
         AddStylesheet(executingAssembly, GetContentResourceName("css", "nightshift.css"));
         AddStylesheet(executingAssembly, GetContentResourceName("css", "nightshift-ui.css"));
 

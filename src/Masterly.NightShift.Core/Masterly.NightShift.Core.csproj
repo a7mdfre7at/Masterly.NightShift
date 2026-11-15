@@ -35,6 +35,7 @@
   
   <ItemGroup>
     <EmbeddedResource Include="Dashboard\Content\css\bootstrap.min.css" />
+    <EmbeddedResource Include="Dashboard\Content\css\nightshift-tokens.css" />
     <EmbeddedResource Include="Dashboard\Content\css\nightshift.css" />
     <EmbeddedResource Include="Dashboard\Content\css\nightshift-ui.css" />
     <EmbeddedResource Include="Dashboard\Content\css\nightshift-dark.css" />
