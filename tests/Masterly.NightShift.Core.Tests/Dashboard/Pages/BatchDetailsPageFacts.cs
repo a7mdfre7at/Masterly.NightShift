@@ -28,7 +28,7 @@ public class BatchDetailsPageFacts
 
         Assert.Contains(H(string.Format(Strings.BatchDetailsPage_Expired, BatchId)), html);
         Assert.Contains(H(string.Format(Strings.BatchDetailsPage_Title, BatchId)), html);
-        Assert.DoesNotContain("hf-batch-summary", html);
+        Assert.DoesNotContain("ns-summary", html);
     }
 
     [Fact]
@@ -45,18 +45,21 @@ public class BatchDetailsPageFacts
         string html = _renderer.Render(new BatchDetailsPage(BatchId));
 
         Assert.Contains("Nightly import", html);
-        Assert.Contains("badge text-bg-info text-uppercase\">" + H(Strings.BatchesPage_State_Running), html);
-        Assert.Contains("<code class=\"hf-batch-id\">b-1</code>", html);
-        Assert.Contains(H(Strings.BatchesPage_Table_Created) + " <span data-moment=", html);
-        Assert.Contains("hf-batch-seg-success\" style=\"width: 33.3%\"", html);
-        Assert.Contains("hf-batch-seg-processing\" style=\"width: 33.3%\"", html);
-        Assert.Contains("hf-batch-seg-failed\" style=\"width: 0%\"", html);
-        Assert.Contains("<span class=\"hf-batch-stat-value\">3</span>", html);
-        Assert.Equal(3, CountOf(html, "class=\"hf-batch-stat\""));
+        Assert.Contains("<span class=\"ns-overline\">" + H(Strings.JobDetailsPage_Batch) + "</span><span class=\"ns-page-name\">Nightly import</span>", html);
+        Assert.Contains("ns-state-chip ns-state-processing\">" + DashboardMarkup.Icon("play-circle-fill") + "<span>" + H(Strings.BatchesPage_State_Running) + "</span>", html);
+        Assert.Contains("<code class=\"ns-job-id\">b-1</code>", html);
+        Assert.Contains("<h2 id=\"summary-created\" class=\"ns-summary-label\">", html);
+        Assert.Contains("<h2 id=\"summary-pending\" class=\"ns-summary-label\">" + DashboardMarkup.Icon("hourglass-split") + " " + H(Strings.BatchDetailsPage_Pending) + "</h2>", html);
+        Assert.Equal(5, CountOf(html, "class=\"ns-summary-tile"));
+        Assert.Contains("aria-valuenow=\"33\">", html);
+        Assert.Contains("<span style=\"width: 33.3%\"></span>", html);
+        Assert.Contains("<span class=\"ns-dot ns-state-succeeded\" aria-hidden=\"true\"></span>", html);
         Assert.Contains("href=\"/jobs/details/11\"", html);
         Assert.Contains("SampleJobs", html);
         Assert.Contains("href=\"/jobs/details/12\"", html);
-        Assert.Contains("<td colspan=\"3\"><em>" + H(Strings.Common_JobExpired) + "</em></td>", html);
+        Assert.Contains("<div class=\"ns-job-meta\"><em>" + H(Strings.Common_JobExpired) + "</em></div>", html);
+        Assert.Contains("<h2 id=\"batch-jobs\">", html);
+        Assert.DoesNotContain("data-ajax=\"/jobs/actions/requeue/", html);
         Assert.DoesNotContain("id=\"batch-continuations\"", html);
         Assert.DoesNotContain("/batches/requeue-failed/", html);
         Assert.Contains("data-ajax=\"/batches/delete/b-1\"", html);
@@ -81,8 +84,8 @@ public class BatchDetailsPageFacts
 
         string html = _renderer.Render(new BatchDetailsPage(BatchId));
 
-        Assert.Contains("badge text-bg-success text-uppercase\">" + H(Strings.BatchesPage_State_Finished), html);
-        Assert.Contains("hf-batch-actions", html);
+        Assert.Contains("ns-state-chip ns-state-succeeded\">" + DashboardMarkup.Icon("check-circle-fill") + "<span>" + H(Strings.BatchesPage_State_Finished) + "</span>", html);
+        Assert.DoesNotContain("ns-page-actions", html);
         Assert.DoesNotContain("/batches/requeue-failed/", html);
         Assert.DoesNotContain("/batches/delete/", html);
     }
@@ -94,10 +97,31 @@ public class BatchDetailsPageFacts
 
         string html = _renderer.Render(new BatchDetailsPage(BatchId));
 
-        Assert.Contains("badge text-bg-danger text-uppercase\">" + H(Strings.BatchesPage_State_Failed), html);
-        Assert.Contains("data-ajax=\"/batches/requeue-failed/b-1\"", html);
+        Assert.Contains("ns-state-chip ns-state-failed\">" + DashboardMarkup.Icon("x-circle-fill") + "<span>" + H(Strings.BatchesPage_State_Failed) + "</span>", html);
+        Assert.Contains("<button class=\"btn btn-sm btn-primary\" data-ajax=\"/batches/requeue-failed/b-1\"", html);
+        Assert.Contains("<button class=\"btn btn-sm ns-btn-outlined-error\" data-ajax=\"/batches/delete/b-1\"", html);
+        Assert.Contains("<span class=\"ns-actions-divider\" aria-hidden=\"true\"></span>", html);
+        Assert.True(html.IndexOf("/batches/delete/b-1", StringComparison.Ordinal) < html.IndexOf("/batches/requeue-failed/b-1", StringComparison.Ordinal));
+        Assert.Contains("<section class=\"ns-summary-tile ns-state-failed\" aria-labelledby=\"summary-failed\">", html);
         Assert.Contains(H(string.Format(Strings.BatchDetailsPage_RequeueFailed, 1)), html);
         Assert.Contains(H(string.Format(Strings.BatchDetailsPage_DeletePending, 1)), html);
+    }
+
+    [Fact]
+    public void Render_OffersRequeue_OnlyOnTheRowsOfFailedJobs()
+    {
+        SetupBatch([], total: 2, counts: new Dictionary<string, long> { { SucceededState.StateName, 1 }, { FailedState.StateName, 1 } });
+        SetupJobs("31", "32");
+        SetupJob("31", FailedState.StateName);
+        SetupJob("32", SucceededState.StateName);
+
+        string html = _renderer.Render(new BatchDetailsPage(BatchId));
+
+        Assert.Contains("data-ajax=\"/jobs/actions/requeue/31\"", html);
+        Assert.Contains("aria-label=\"" + H(string.Format(Strings.Common_RequeueJob, "#31")) + "\"", html);
+        Assert.DoesNotContain("data-ajax=\"/jobs/actions/requeue/32\"", html);
+        Assert.Contains("data-copy=\"32\"", html);
+        Assert.Contains("<th scope=\"col\" class=\"ns-actions-cell\"><span class=\"visually-hidden\">" + H(Strings.Common_Actions) + "</span></th>", html);
     }
 
     [Fact]
@@ -108,7 +132,7 @@ public class BatchDetailsPageFacts
 
         string html = _renderer.Render(new BatchDetailsPage(BatchId));
 
-        Assert.DoesNotContain("hf-batch-actions", html);
+        Assert.DoesNotContain("ns-page-actions", html);
         Assert.DoesNotContain("/batches/requeue-failed/", html);
     }
 
@@ -125,7 +149,8 @@ public class BatchDetailsPageFacts
         Assert.Contains("href=\"/jobs/details/21\"", html);
         Assert.Contains(">" + AwaitingState.StateName + "</span>", html);
         Assert.Contains("href=\"/jobs/details/22\"", html);
-        Assert.Contains("<td colspan=\"2\"><em>" + H(Strings.Common_JobExpired) + "</em></td>", html);
+        Assert.Contains("<td class=\"ns-job-cell\" colspan=\"2\">", html);
+        Assert.Contains("<h2 id=\"batch-continuations\">", html);
     }
 
     [Fact]
@@ -156,6 +181,21 @@ public class BatchDetailsPageFacts
 
         Assert.Contains(H(string.Format(Strings.BatchDetailsPage_MoreJobs, 250)), html);
         Assert.DoesNotContain("class=\"ns-pagination-pages\"", html);
+    }
+
+    [Fact]
+    public void Render_KeepsTheHeadingsInOrder_AndNamesEveryHeaderCell()
+    {
+        SetupBatch(new Dictionary<string, string> { { "Description", "Nightly import" } }, total: 2, counts: new Dictionary<string, long> { { FailedState.StateName, 1 } });
+        SetupJobs("11");
+        SetupJob("11", FailedState.StateName);
+        _renderer.Connection.Setup(x => x.GetAllItemsFromSet(BatchJob.GetContinuationsKey(BatchId))).Returns(["21"]);
+
+        string html = _renderer.Render(new BatchDetailsPage(BatchId));
+
+        PageStructure.AssertHeadingsInOrder(html);
+        PageStructure.AssertNoEmptyHeaderCells(html);
+        PageStructure.AssertHeadingsInOrder(_renderer.Render(new BatchesPage()));
     }
 
     private void SetupBatch(Dictionary<string, string> hash, long total, Dictionary<string, long> counts)

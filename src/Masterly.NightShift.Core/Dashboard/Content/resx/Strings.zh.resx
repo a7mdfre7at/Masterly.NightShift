@@ -2150,4 +2150,37 @@
   <data name="JobDetailsPage_StateDetails" xml:space="preserve">
     <value>详细信息</value>
   </data>
+  <data name="ChainDetailsPage_RetryConfirm" xml:space="preserve">
+    <value>要从此步骤重试链吗？</value>
+  </data>
+  <data name="ChainDetailsPage_RetryConfirm_Body" xml:space="preserve">
+    <value>此步骤及其后的所有步骤将再次运行。之前的步骤保留其结果。</value>
+  </data>
+  <data name="ChainsPage_EmptyTitle" xml:space="preserve">
+    <value>还没有链</value>
+  </data>
+  <data name="ChainsPage_EmptyText" xml:space="preserve">
+    <value>使用 JobChain.StartWith(...) 启动一个链，它将以流程图的形式显示在这里。</value>
+  </data>
+  <data name="ChainsPage_DeleteChain" xml:space="preserve">
+    <value>删除链 {0} 中未完成的步骤</value>
+  </data>
+  <data name="BatchesPage_EmptyTitle" xml:space="preserve">
+    <value>还没有批次</value>
+  </data>
+  <data name="BatchesPage_RequeueFailed" xml:space="preserve">
+    <value>将批次 {0} 中失败的作业重新排队</value>
+  </data>
+  <data name="BatchesPage_DeletePending" xml:space="preserve">
+    <value>删除批次 {0} 中未完成的作业</value>
+  </data>
+  <data name="BatchDetailsPage_Pending" xml:space="preserve">
+    <value>待处理</value>
+  </data>
+  <data name="TagsPage_EmptyTitle" xml:space="preserve">
+    <value>还没有标签</value>
+  </data>
+  <data name="TagsPage_ForgetTag" xml:space="preserve">
+    <value>忘记标签 {0}</value>
+  </data>
 </root>

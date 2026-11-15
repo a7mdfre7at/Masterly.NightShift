@@ -121,7 +121,11 @@ public class NewPagesFacts
     [Fact]
     public void Chains_SaysThereAreNone()
     {
-        Assert.Contains("No chains.", _renderer.Render(new ChainsPage()), StringComparison.Ordinal);
+        string html = _renderer.Render(new ChainsPage());
+
+        Assert.Contains("<h2 class=\"ns-empty-state-title\">No chains yet</h2>", html, StringComparison.Ordinal);
+        Assert.Contains("JobChain.StartWith(...)", html, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"ns-count-chip js-list-count\">0</span>", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -134,7 +138,10 @@ public class NewPagesFacts
 
         Assert.Contains("/chains/c1", list, StringComparison.Ordinal);
         Assert.Contains("<tr class=\"hover hf-row-link\" data-href=\"/chains/c1\">", list, StringComparison.Ordinal);
-        Assert.Contains("Finished with failures", list, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"ns-state-chip ns-state-failed\">" + DashboardMarkup.Icon("x-circle-fill") + "<span>Finished with failures</span></span>", list, StringComparison.Ordinal);
+        Assert.Contains("<a class=\"job-method\" href=\"/chains/c1\">", list, StringComparison.Ordinal);
+        Assert.Contains("aria-valuenow=\"100\"", list, StringComparison.Ordinal);
+        Assert.DoesNotContain("/chains/delete/", list, StringComparison.Ordinal);
         Assert.Contains("href=\"/jobs/details/job-1\"", details, StringComparison.Ordinal);
         Assert.Contains("href=\"/jobs/details/job-2\"", details, StringComparison.Ordinal);
         Assert.Contains("/chains/retry/c1/job-2", details, StringComparison.Ordinal);
@@ -183,7 +190,10 @@ public class NewPagesFacts
 
         string list = _renderer.Render(new ChainsPage());
 
-        Assert.Contains("text-bg-secondary text-uppercase\">Waiting<", list, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"ns-state-chip ns-state-awaiting\">" + DashboardMarkup.Icon("hourglass-split") + "<span>Waiting</span></span>", list, StringComparison.Ordinal);
+        Assert.Contains("data-ajax=\"/chains/delete/c1\"", list, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"Delete the unfinished steps of chain c1\"", list, StringComparison.Ordinal);
+        Assert.Contains("data-confirm-destructive=\"true\"", list, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -304,6 +314,83 @@ public class NewPagesFacts
         string list = _renderer.Render(new ChainsPage());
 
         Assert.True(list.IndexOf("/chains/new", StringComparison.Ordinal) < list.IndexOf("/chains/old", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ChainDetails_HasAHeader_SummaryTiles_AndEveryStepInAList()
+    {
+        SetUpChain();
+
+        string details = _renderer.Render(new ChainDetailsPage("c1"));
+
+        Assert.Contains("<header class=\"ns-page-head\">", details, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"ns-job-state\"><span class=\"ns-state-chip ns-state-failed\">", details, StringComparison.Ordinal);
+        Assert.Contains("<h2 id=\"summary-steps\" class=\"ns-summary-label\">", details, StringComparison.Ordinal);
+        Assert.Contains("<section class=\"ns-summary-tile ns-state-failed\" aria-labelledby=\"summary-failed\">", details, StringComparison.Ordinal);
+        Assert.Contains("aria-valuenow=\"100\"", details, StringComparison.Ordinal);
+        Assert.Contains("<h2 id=\"chain-steps\">", details, StringComparison.Ordinal);
+        Assert.Contains("<code class=\"ns-step-key\">0.0</code>", details, StringComparison.Ordinal);
+        Assert.Contains("<code class=\"ns-step-key\">1.0</code>", details, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"ns-dot ns-state-failed\" aria-hidden=\"true\"></span>", details, StringComparison.Ordinal);
+        Assert.Contains("data-copy=\"job-2\"", details, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ChainDetails_AsksBeforeRetryingFromAStep_InTheFlowchartAndInTheList()
+    {
+        SetUpChain();
+
+        string details = _renderer.Render(new ChainDetailsPage("c1"));
+
+        Assert.Equal(2, Count(details, "data-ajax=\"/chains/retry/c1/job-2\""));
+        Assert.Equal(2, Count(details, "data-confirm=\"Retry the chain from this step?\""));
+        Assert.Contains("data-confirm-body=\"This step runs again with every step after it. The steps before it keep their outcome.\"", details, StringComparison.Ordinal);
+        Assert.Contains("data-confirm-label=\"Retry from here\"", details, StringComparison.Ordinal);
+        Assert.Contains("<button type=\"button\" class=\"ns-icon-button\" data-ajax=\"/chains/retry/c1/job-2\"", details, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ChainDetails_SetsDeleteApart_InTheErrorColour_WhileTheChainRuns()
+    {
+        SetUpChain();
+        _renderer.Connection.Setup(x => x.GetStateData("job-2")).Returns(new StateData { Name = "Processing" });
+
+        string details = _renderer.Render(new ChainDetailsPage("c1"));
+
+        Assert.Contains("<button class=\"btn btn-sm ns-btn-outlined-error\" data-ajax=\"/chains/delete/c1\"", details, StringComparison.Ordinal);
+        Assert.Contains("data-confirm-destructive=\"true\"", details, StringComparison.Ordinal);
+        Assert.DoesNotContain("/chains/retry/", details, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ChainPages_KeepTheHeadingsInOrder_AndNameEveryHeaderCell()
+    {
+        SetUpChain();
+
+        foreach (string html in new[] { _renderer.Render(new ChainsPage()), _renderer.Render(new ChainDetailsPage("c1")), _renderer.Render(new ChainDetailsPage("gone")) })
+        {
+            PageStructure.AssertHeadingsInOrder(html);
+            PageStructure.AssertNoEmptyHeaderCells(html);
+        }
+    }
+
+    [Fact]
+    public void Chains_ShowsNoRowActions_ForReadOnlyUsers()
+    {
+        SetUpChain();
+        _renderer.Connection.Setup(x => x.GetStateData("job-2")).Returns(new StateData { Name = "Processing" });
+        _renderer.Options = new DashboardOptions { IsReadOnlyFunc = static _ => true };
+
+        string list = _renderer.Render(new ChainsPage());
+
+        Assert.Contains("/chains/c1", list, StringComparison.Ordinal);
+        Assert.DoesNotContain("/chains/delete/", list, StringComparison.Ordinal);
+        Assert.DoesNotContain("ns-actions-cell", list, StringComparison.Ordinal);
+    }
+
+    private static int Count(string html, string fragment)
+    {
+        return (html.Length - html.Replace(fragment, string.Empty, StringComparison.Ordinal).Length) / fragment.Length;
     }
 
     private void SetUpRecord(string chainId, DateTime createdAt)

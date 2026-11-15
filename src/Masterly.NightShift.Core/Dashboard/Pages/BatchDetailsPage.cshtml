@@ -62,135 +62,206 @@
 <div class="row">
     <div class="col-md-12">
         @Html.Breadcrumbs(title, new Dictionary<string, string> { { Strings.BatchesPage_Title, Url.To("/batches") } })
-        <h1 id="page-title" class="hf-page-header">@title</h1>
 
         @if (batch == null)
         {
+            @Html.PageTitle(title)
             <div class="alert alert-warning">@String.Format(Strings.BatchDetailsPage_Expired, Id)</div>
         }
         else
         {
-            long total = Math.Max(1, batch.Total);
-            string stateCss = batch.IsFinished ? "text-bg-success" : batch.IsStuck ? "text-bg-danger" : "text-bg-info";
-            string stateText = batch.IsFinished ? Strings.BatchesPage_State_Finished : batch.IsStuck ? Strings.BatchesPage_State_Failed : Strings.BatchesPage_State_Running;
+            string encodedId = RouteValues.Encode(batch.Id);
+            double percent = BatchDetailsPage.FinishedPercent(batch);
+            bool canRequeue = !IsReadOnly && batch.Failed > 0;
+            bool canDelete = !IsReadOnly && batch.Pending + batch.Failed > 0;
 
-            <section class="hf-card hf-batch-summary">
-                <div class="hf-batch-head">
-                    <div>
-                        <span class="badge @stateCss text-uppercase">@stateText</span>
-                        <code class="hf-batch-id">@batch.Id</code>
-                        @if (batch.CreatedAt.HasValue)
+            <header class="ns-page-head">
+                <div class="ns-page-heading">
+                    @Html.PageTitle(title, Strings.JobDetailsPage_Batch)
+                    <div class="ns-page-facts">
+                        <span class="ns-job-state">@StatusLabel(Html, batch)</span>
+                        <code class="ns-job-id">@batch.Id</code>
+                    </div>
+                </div>
+                @if (canRequeue || canDelete)
+                {
+                    <div class="ns-page-actions">
+                        @if (canDelete)
                         {
-                            <span class="text-muted">&middot; @Strings.BatchesPage_Table_Created @Html.RelativeTime(batch.CreatedAt.Value)</span>
+                            <button class="btn btn-sm ns-btn-outlined-error" data-ajax="@Url.To("/batches/delete/" + encodedId)" data-loading-text="@Strings.Common_Deleting"
+                                    @Html.ConfirmAttributes(Strings.BatchDetailsPage_DeletePendingConfirm, null, Strings.Common_Delete, destructive: true)>
+                                @Html.Icon("trash-fill") @String.Format(Strings.BatchDetailsPage_DeletePending, batch.Pending + batch.Failed)
+                            </button>
+                        }
+                        @if (canDelete && canRequeue)
+                        {
+                            <span class="ns-actions-divider" aria-hidden="true"></span>
+                        }
+                        @if (canRequeue)
+                        {
+                            <button class="btn btn-sm btn-primary" data-ajax="@Url.To("/batches/requeue-failed/" + encodedId)" data-loading-text="@Strings.Common_Enqueueing">
+                                @Html.Icon("arrow-repeat") @String.Format(Strings.BatchDetailsPage_RequeueFailed, batch.Failed)
+                            </button>
                         }
                     </div>
-                    @if (!IsReadOnly)
-                    {
-                        <div class="hf-batch-actions">
-                            @if (batch.Failed > 0)
-                            {
-                                <button class="btn btn-sm btn-primary" data-ajax="@Url.To("/batches/requeue-failed/" + RouteValues.Encode(batch.Id))" data-loading-text="@Strings.Common_Enqueueing">
-                                    @Html.Icon("arrow-repeat") @String.Format(Strings.BatchDetailsPage_RequeueFailed, batch.Failed)
-                                </button>
-                            }
-                            @if (batch.Pending + batch.Failed > 0)
-                            {
-                                <button class="btn btn-sm btn-outline-secondary" data-ajax="@Url.To("/batches/delete/" + RouteValues.Encode(batch.Id))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.BatchDetailsPage_DeletePendingConfirm" data-confirm-destructive="true">
-                                    @Html.Icon("x-lg") @String.Format(Strings.BatchDetailsPage_DeletePending, batch.Pending + batch.Failed)
-                                </button>
-                            }
-                        </div>
-                    }
-                </div>
+                }
+            </header>
 
-                <div class="hf-batch-bar hf-batch-bar-lg">
-                    <span class="hf-batch-seg hf-batch-seg-success" style="width: @((100.0 * batch.Succeeded / total).ToString("0.#", CultureInfo.InvariantCulture))%"></span>
-                    <span class="hf-batch-seg hf-batch-seg-failed" style="width: @((100.0 * batch.Failed / total).ToString("0.#", CultureInfo.InvariantCulture))%"></span>
-                    <span class="hf-batch-seg hf-batch-seg-processing" style="width: @((100.0 * batch.Processing / total).ToString("0.#", CultureInfo.InvariantCulture))%"></span>
-                    <span class="hf-batch-seg hf-batch-seg-deleted" style="width: @((100.0 * batch.Deleted / total).ToString("0.#", CultureInfo.InvariantCulture))%"></span>
-                </div>
-
-                <div class="hf-batch-stats">
-                    <div class="hf-batch-stat"><span class="hf-batch-stat-value">@batch.Total</span><span class="hf-batch-stat-label">@Strings.BatchesPage_Table_Jobs</span></div>
-                    @foreach (string state in BatchJob.TrackedStates)
+            <div class="ns-summary">
+                <section class="ns-summary-tile" aria-labelledby="summary-jobs">
+                    <h2 id="summary-jobs" class="ns-summary-label">@Html.Icon("grid-fill") @Strings.BatchesPage_Table_Jobs</h2>
+                    <p class="ns-summary-value">@batch.Total.ToString(CultureInfo.CurrentCulture)</p>
+                    <div class="ns-meter" role="progressbar" aria-label="@Strings.BatchesPage_Table_Progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@percent.ToString("0", CultureInfo.InvariantCulture)">
+                        <span style="width: @percent.ToString("0.#", CultureInfo.InvariantCulture)%"></span>
+                    </div>
+                </section>
+                <section class="ns-summary-tile ns-state-succeeded" aria-labelledby="summary-succeeded">
+                    <h2 id="summary-succeeded" class="ns-summary-label">@Html.Icon(JobHistoryRenderer.GetStateIcon(SucceededState.StateName)) @SucceededState.StateName</h2>
+                    <p class="ns-summary-value">@batch.Succeeded.ToString(CultureInfo.CurrentCulture)</p>
+                </section>
+                <section class="ns-summary-tile@(batch.Failed > 0 ? " ns-state-failed" : null)" aria-labelledby="summary-failed">
+                    <h2 id="summary-failed" class="ns-summary-label">@Html.Icon(JobHistoryRenderer.GetStateIcon(FailedState.StateName)) @FailedState.StateName</h2>
+                    <p class="ns-summary-value">@batch.Failed.ToString(CultureInfo.CurrentCulture)</p>
+                </section>
+                <section class="ns-summary-tile" aria-labelledby="summary-pending">
+                    <h2 id="summary-pending" class="ns-summary-label">@Html.Icon("hourglass-split") @Strings.BatchDetailsPage_Pending</h2>
+                    <p class="ns-summary-value">@batch.Pending.ToString(CultureInfo.CurrentCulture)</p>
+                    @if (batch.Processing > 0 || batch.Deleted > 0)
                     {
-                        long count = batch.Count(state);
-                        if (count == 0) continue;
-                        <div class="hf-batch-stat"><span class="hf-batch-stat-value">@count</span><span class="hf-batch-stat-label">@Html.StateLabel(state)</span></div>
+                        <p class="ns-summary-sub">
+                            @if (batch.Processing > 0)
+                            {
+                                <span>@ProcessingState.StateName @batch.Processing.ToString(CultureInfo.CurrentCulture)</span>
+                            }
+                            @if (batch.Deleted > 0)
+                            {
+                                <span>@DeletedState.StateName @batch.Deleted.ToString(CultureInfo.CurrentCulture)</span>
+                            }
+                        </p>
                     }
-                </div>
-            </section>
+                </section>
+                @if (batch.CreatedAt.HasValue)
+                {
+                    <section class="ns-summary-tile" aria-labelledby="summary-created">
+                        <h2 id="summary-created" class="ns-summary-label">@Html.Icon("calendar3") @Strings.BatchesPage_Table_Created</h2>
+                        <p class="ns-summary-value">@Html.RelativeTime(batch.CreatedAt.Value)</p>
+                        <p class="ns-summary-sub">@Html.LocalTime(batch.CreatedAt.Value)</p>
+                    </section>
+                }
+            </div>
 
             if (continuations.Count > 0)
             {
-                <h3 id="batch-continuations">@Strings.BatchDetailsPage_Continuations <small class="text-muted">@Strings.BatchDetailsPage_Continuations_Hint</small></h3>
+                <section class="hf-card ns-table-card" aria-labelledby="batch-continuations">
+                    <div class="hf-card-header">
+                        <h2 id="batch-continuations">@Strings.BatchDetailsPage_Continuations</h2>
+                        <span class="ns-section-hint">@Strings.BatchDetailsPage_Continuations_Hint</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table ns-job-table ns-table-reflow" aria-labelledby="batch-continuations">
+                            <thead>
+                                <tr>
+                                    <th scope="col">@Strings.Common_Job</th>
+                                    <th scope="col" class="min-width">@Strings.Common_State</th>
+                                    @Html.ActionsColumnHeader()
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (KeyValuePair<string, JobData?> continuation in continuations)
+                                {
+                                    <tr class="hover@(continuation.Value == null ? " obsolete-data" : null)">
+                                        @if (continuation.Value == null)
+                                        {
+                                            <td class="ns-job-cell" colspan="2">
+                                                <div class="ns-job-title">@Html.JobIdLink(continuation.Key)</div>
+                                                <div class="ns-job-meta"><em>@Strings.Common_JobExpired</em></div>
+                                            </td>
+                                        }
+                                        else
+                                        {
+                                            <td class="ns-job-cell">
+                                                <div class="ns-job-title">
+                                                    @Html.StateDot(continuation.Value.State)
+                                                    @Html.JobNameLink(continuation.Key, continuation.Value.Job, false)
+                                                </div>
+                                                <div class="ns-job-meta"><span class="ns-job-id">@Html.JobId(continuation.Key)</span></div>
+                                            </td>
+                                            <td class="min-width">@Html.StateLabel(continuation.Value.State)</td>
+                                        }
+                                        <td class="ns-actions-cell"><div class="ns-row-actions">@Html.CopyJobIdButton(continuation.Key)</div></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            }
+
+            <section class="hf-card ns-table-card" aria-labelledby="batch-jobs">
+                <div class="hf-card-header">
+                    <h2 id="batch-jobs">@Strings.BatchDetailsPage_JobsInBatch</h2>
+                    @if (pager != null && pager.TotalPageCount > 1)
+                    {
+                        @Html.PerPageSelector(pager)
+                    }
+                </div>
                 <div class="table-responsive">
-                    <table class="table" aria-describedby="batch-continuations">
+                    <table class="table ns-job-table ns-table-reflow" aria-labelledby="batch-jobs">
                         <thead>
                             <tr>
-                                <th scope="col" class="min-width">@Strings.Common_Id</th>
-                                <th scope="col" class="min-width">@Strings.Common_State</th>
                                 <th scope="col">@Strings.Common_Job</th>
+                                <th scope="col" class="min-width">@Strings.Common_State</th>
+                                <th scope="col" class="ns-time-cell">@Strings.Common_Created</th>
+                                @Html.ActionsColumnHeader()
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (KeyValuePair<string, JobData?> continuation in continuations)
+                            @foreach (KeyValuePair<string, JobData?> job in jobs)
                             {
-                                <tr>
-                                    <td class="min-width">@Html.JobIdLink(continuation.Key)</td>
-                                    @if (continuation.Value == null)
+                                <tr class="hover@(job.Value == null ? " obsolete-data" : null)">
+                                    @if (job.Value == null)
                                     {
-                                        <td colspan="2"><em>@Strings.Common_JobExpired</em></td>
+                                        <td class="ns-job-cell" colspan="3">
+                                            <div class="ns-job-title">@Html.JobIdLink(job.Key)</div>
+                                            <div class="ns-job-meta"><em>@Strings.Common_JobExpired</em></div>
+                                        </td>
                                     }
                                     else
                                     {
-                                        <td class="min-width">@Html.StateLabel(continuation.Value.State)</td>
-                                        <td class="word-break">@Html.JobNameLink(continuation.Key, continuation.Value.Job)</td>
+                                        <td class="ns-job-cell">
+                                            <div class="ns-job-title">
+                                                @Html.StateDot(job.Value.State)
+                                                @Html.JobNameLink(job.Key, job.Value.Job, false)
+                                            </div>
+                                            <div class="ns-job-meta">
+                                                <span class="ns-job-id">@Html.JobId(job.Key)</span>
+                                                @if (job.Value.Job?.Queue != null)
+                                                {
+                                                    @Html.QueueChip(job.Value.Job.Queue)
+                                                }
+                                            </div>
+                                        </td>
+                                        <td class="min-width">@Html.StateLabel(job.Value.State)</td>
+                                        <td class="ns-time-cell">@Html.RelativeTime(job.Value.CreatedAt)</td>
                                     }
+                                    <td class="ns-actions-cell">
+                                        <div class="ns-row-actions">
+                                            @if (!IsReadOnly && job.Value != null && job.Value.State == FailedState.StateName)
+                                            {
+                                                string requeueName = String.Format(Strings.Common_RequeueJob, HtmlHelper.ShortJobId(job.Key));
+                                                <button type="button" class="ns-icon-button" data-ajax="@Url.To("/jobs/actions/requeue/" + RouteValues.Encode(job.Key))" data-loading-text="@Strings.Common_Enqueueing" aria-label="@requeueName" title="@requeueName">
+                                                    @Html.Icon("arrow-repeat")
+                                                </button>
+                                            }
+                                            @Html.CopyJobIdButton(job.Key)
+                                        </div>
+                                    </td>
                                 </tr>
                             }
                         </tbody>
                     </table>
                 </div>
-            }
-
-            <h3 id="batch-jobs">@Strings.BatchDetailsPage_JobsInBatch</h3>
-            if (pager != null && pager.TotalPageCount > 1)
-            {
-                <div class="btn-toolbar btn-toolbar-top">
-                    @Html.PerPageSelector(pager)
-                </div>
-            }
-            <div class="table-responsive">
-                <table class="table" aria-describedby="batch-jobs">
-                    <thead>
-                        <tr>
-                            <th scope="col" class="min-width">@Strings.Common_Id</th>
-                            <th scope="col" class="min-width">@Strings.Common_State</th>
-                            <th scope="col">@Strings.Common_Job</th>
-                            <th scope="col" class="align-right">@Strings.Common_Created</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (KeyValuePair<string, JobData?> job in jobs)
-                        {
-                            <tr class="hover">
-                                <td class="min-width">@Html.JobIdLink(job.Key)</td>
-                                @if (job.Value == null)
-                                {
-                                    <td colspan="3"><em>@Strings.Common_JobExpired</em></td>
-                                }
-                                else
-                                {
-                                    <td class="min-width">@Html.StateLabel(job.Value.State)</td>
-                                    <td class="word-break">@Html.JobNameLink(job.Key, job.Value.Job)</td>
-                                    <td class="align-right">@Html.RelativeTime(job.Value.CreatedAt)</td>
-                                }
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
+            </section>
             if (pager != null)
             {
                 @Html.Paginator(pager)

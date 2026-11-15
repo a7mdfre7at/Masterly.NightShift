@@ -13,8 +13,10 @@ public class BatchesPageFacts
     {
         string html = _renderer.Render(new BatchesPage());
 
-        Assert.Contains($"{Encode(Strings.BatchesPage_Title)} <small class=\"text-muted\">{Encode(Strings.BatchesPage_Hint)}</small>", html);
-        Assert.Contains($"<div class=\"alert alert-info\">{Strings.BatchesPage_NoBatches_Html}</div>", html);
+        Assert.Contains($"<span class=\"ns-page-name\">{Encode(Strings.BatchesPage_Title)}</span> <span class=\"ns-count-chip js-list-count\">0</span></h1>", html);
+        Assert.Contains($"<p class=\"ns-page-subtitle\">{Encode(Strings.BatchesPage_Hint)}</p>", html);
+        Assert.Contains($"<h2 class=\"ns-empty-state-title\">{Encode(Strings.BatchesPage_EmptyTitle)}</h2>", html);
+        Assert.Contains($"<p>{Strings.BatchesPage_NoBatches_Html}</p>", html);
         Assert.DoesNotContain("hf-batches", html);
     }
 
@@ -26,14 +28,17 @@ public class BatchesPageFacts
 
         string html = _renderer.Render(new BatchesPage());
 
-        Assert.Contains("<a class=\"hf-batch-link\" href=\"/batches/nightly\">", html);
-        Assert.Contains($"<span class=\"badge text-bg-success text-uppercase\">{Encode(Strings.BatchesPage_State_Finished)}</span>", html);
-        Assert.Contains("<strong>Nightly &lt;import&gt;</strong>", html);
-        Assert.Contains("<code class=\"hf-batch-id\">nightly</code>", html);
-        Assert.Contains("<span class=\"hf-batch-seg hf-batch-seg-success\" style=\"width: 100%\"></span>", html);
-        Assert.Contains("<span class=\"hf-batch-seg hf-batch-seg-failed\" style=\"width: 0%\"></span>", html);
-        Assert.Contains($"<div class=\"hf-batch-counts text-muted\">{Encode(string.Format(Strings.BatchesPage_Counts, 4, 0, 0))}</div>", html);
-        Assert.Contains("<td class=\"align-right\">4</td>", html);
+        Assert.Contains("<tr class=\"hover hf-row-link\" data-href=\"/batches/nightly\">", html);
+        Assert.Contains("<a class=\"job-method\" href=\"/batches/nightly\">Nightly &lt;import&gt;</a>", html);
+        Assert.Contains(Chip("succeeded", "check-circle-fill", Strings.BatchesPage_State_Finished), html);
+        Assert.Contains("<span class=\"ns-dot ns-state-succeeded\" aria-hidden=\"true\"></span>", html);
+        Assert.Contains("<code class=\"ns-job-id\">nightly</code>", html);
+        Assert.Contains("aria-valuenow=\"100\">", html);
+        Assert.Contains("<span style=\"width: 100%\"></span>", html);
+        Assert.Contains($"<div class=\"ns-progress-text\"><span>{Encode(string.Format(Strings.BatchesPage_Counts, 4, 0, 0))}</span></div>", html);
+        Assert.Contains("<td class=\"align-right ns-tabular\">4</td>", html);
+        Assert.DoesNotContain("/batches/requeue-failed/", html);
+        Assert.DoesNotContain("/batches/delete/", html);
         Assert.Contains("<span data-moment=", html);
     }
 
@@ -45,11 +50,15 @@ public class BatchesPageFacts
 
         string html = _renderer.Render(new BatchesPage());
 
-        Assert.Contains($"<span class=\"badge text-bg-danger text-uppercase\">{Encode(Strings.BatchesPage_State_Failed)}</span>", html);
-        Assert.Contains("<strong>b-2</strong>", html);
-        Assert.DoesNotContain("hf-batch-id", html);
-        Assert.Contains("<span class=\"hf-batch-seg hf-batch-seg-success\" style=\"width: 75%\"></span>", html);
-        Assert.Contains("<span class=\"hf-batch-seg hf-batch-seg-failed\" style=\"width: 25%\"></span>", html);
+        Assert.Contains(Chip("failed", "x-circle-fill", Strings.BatchesPage_State_Failed), html);
+        Assert.Contains("<a class=\"job-method\" href=\"/batches/b-2\">b-2</a>", html);
+        Assert.DoesNotContain("<code class=\"ns-job-id\">", html);
+        Assert.Contains("<span style=\"width: 100%\"></span>", html);
+        Assert.Contains("data-ajax=\"/batches/requeue-failed/b-2\"", html);
+        Assert.Contains($"aria-label=\"{Encode(string.Format(Strings.BatchesPage_RequeueFailed, "b-2"))}\"", html);
+        Assert.Contains("data-ajax=\"/batches/delete/b-2\"", html);
+        Assert.Contains($"aria-label=\"{Encode(string.Format(Strings.BatchesPage_DeletePending, "b-2"))}\"", html);
+        Assert.Contains($"data-confirm=\"{Encode(Strings.BatchDetailsPage_DeletePendingConfirm)}\"", html);
         Assert.DoesNotContain("<span data-moment=", html);
     }
 
@@ -61,9 +70,9 @@ public class BatchesPageFacts
 
         string html = _renderer.Render(new BatchesPage());
 
-        Assert.Contains($"<span class=\"badge text-bg-info text-uppercase\">{Encode(Strings.BatchesPage_State_Running)}</span>", html);
-        Assert.Contains("<span class=\"hf-batch-seg hf-batch-seg-processing\" style=\"width: 33.3%\"></span>", html);
-        Assert.Contains("<span class=\"hf-batch-seg hf-batch-seg-deleted\" style=\"width: 33.3%\"></span>", html);
+        Assert.Contains(Chip("processing", "play-circle-fill", Strings.BatchesPage_State_Running), html);
+        Assert.Contains("aria-valuenow=\"67\">", html);
+        Assert.Contains("<span style=\"width: 66.7%\"></span>", html);
         Assert.Contains(Encode(string.Format(Strings.BatchesPage_Counts, 1, 0, 1)), html);
     }
 
@@ -75,8 +84,8 @@ public class BatchesPageFacts
 
         string html = _renderer.Render(new BatchesPage());
 
-        Assert.Contains($"<span class=\"badge text-bg-info text-uppercase\">{Encode(Strings.BatchesPage_State_Running)}</span>", html);
-        Assert.Contains("<span class=\"hf-batch-seg hf-batch-seg-success\" style=\"width: 0%\"></span>", html);
+        Assert.Contains(Chip("processing", "play-circle-fill", Strings.BatchesPage_State_Running), html);
+        Assert.Contains("<span style=\"width: 0%\"></span>", html);
     }
 
     [Fact]
@@ -113,6 +122,24 @@ public class BatchesPageFacts
         _renderer.Connection.Setup(x => x.GetCounter(BatchJob.GetStateKey(id, ProcessingState.StateName))).Returns(processing);
         _renderer.Connection.Setup(x => x.GetCounter(BatchJob.GetStateKey(id, DeletedState.StateName))).Returns(deleted);
     }
+
+    [Fact]
+    public void Render_WhenReadOnly_ShowsNoRowActions()
+    {
+        _renderer.Options = new DashboardOptions { IsReadOnlyFunc = static _ => true };
+        SetupIndex("b-2");
+        SetupBatch("b-2", null, null, total: 4, succeeded: 3, failed: 1);
+
+        string html = _renderer.Render(new BatchesPage());
+
+        Assert.Contains("/batches/b-2", html);
+        Assert.DoesNotContain("/batches/requeue-failed/", html);
+        Assert.DoesNotContain("/batches/delete/", html);
+        Assert.DoesNotContain("ns-actions-cell", html);
+    }
+
+    private static string Chip(string group, string icon, string text) =>
+        $"<span class=\"ns-state-chip ns-state-{group}\">{DashboardMarkup.Icon(icon)}<span>{Encode(text)}</span></span>";
 
     private static string Encode(string value) => WebUtility.HtmlEncode(value);
 }

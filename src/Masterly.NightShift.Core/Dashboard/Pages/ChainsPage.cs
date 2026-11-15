@@ -37,9 +37,33 @@ internal partial class ChainsPage
         return pager == null ? [.. chains.OrderByDescending(static x => x.CreatedAt)] : chains;
     }
 
-    internal static NonEscapedString StatusLabel(JobChainInfo chain)
+    /// <summary>The chain's status as a chip in the colours of the state it stands for.</summary>
+    internal static NonEscapedString StatusLabel(HtmlHelper html, JobChainInfo chain)
     {
-        ChainFlowStatus status = ChainFlowchart.StatusOf(chain);
-        return new NonEscapedString($"<span class=\"badge {ChainFlowchart.StatusCss(status)} text-uppercase\">{System.Net.WebUtility.HtmlEncode(ChainFlowchart.StatusText(status))}</span>");
+        return ChainFlowchart.StatusLabel(html, ChainFlowchart.StatusOf(chain));
     }
+
+    /// <summary>How many steps the chain has, how many succeeded and failed, and how many finished in any way.</summary>
+    internal static ChainStepCounts CountSteps(JobChainInfo chain)
+    {
+        ArgumentNullException.ThrowIfNull(chain);
+
+        int succeeded = chain.Steps.Count(static x => SucceededState.StateName.Equals(x.StateOrOutcome, StringComparison.OrdinalIgnoreCase));
+        int finished = chain.Steps.Count(static x => JobChains.IsSettledState(x.State));
+        return new ChainStepCounts(chain.Steps.Count, succeeded, chain.FailedCount, finished);
+    }
+}
+
+/// <summary>The steps of a chain by outcome (see <see cref="ChainsPage.CountSteps"/>).</summary>
+/// <param name="Total">How many steps the chain has.</param>
+/// <param name="Succeeded">How many succeeded.</param>
+/// <param name="Failed">How many failed.</param>
+/// <param name="Finished">How many finished in any way, or whose job expired.</param>
+internal readonly record struct ChainStepCounts(int Total, int Succeeded, int Failed, int Finished)
+{
+    /// <summary>How many steps haven't finished.</summary>
+    public int Pending => Total - Finished;
+
+    /// <summary>The share of the steps that finished, from 0 to 100.</summary>
+    public double Percent => Total == 0 ? 0 : 100.0 * Finished / Total;
 }

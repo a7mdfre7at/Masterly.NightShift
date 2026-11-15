@@ -2197,4 +2197,37 @@
   <data name="JobDetailsPage_StateDetails" xml:space="preserve">
     <value>Detalhes</value>
   </data>
+  <data name="ChainDetailsPage_RetryConfirm" xml:space="preserve">
+    <value>Repetir a cadeia a partir deste passo?</value>
+  </data>
+  <data name="ChainDetailsPage_RetryConfirm_Body" xml:space="preserve">
+    <value>Este passo é executado novamente com todos os passos seguintes. Os passos anteriores mantêm o seu resultado.</value>
+  </data>
+  <data name="ChainsPage_EmptyTitle" xml:space="preserve">
+    <value>Ainda não há cadeias</value>
+  </data>
+  <data name="ChainsPage_EmptyText" xml:space="preserve">
+    <value>Inicie uma com JobChain.StartWith(...) e ela aparece aqui, desenhada como um fluxograma.</value>
+  </data>
+  <data name="ChainsPage_DeleteChain" xml:space="preserve">
+    <value>Eliminar os passos não concluídos da cadeia {0}</value>
+  </data>
+  <data name="BatchesPage_EmptyTitle" xml:space="preserve">
+    <value>Ainda não há lotes</value>
+  </data>
+  <data name="BatchesPage_RequeueFailed" xml:space="preserve">
+    <value>Recolocar na fila as tarefas falhadas do lote {0}</value>
+  </data>
+  <data name="BatchesPage_DeletePending" xml:space="preserve">
+    <value>Eliminar as tarefas não concluídas do lote {0}</value>
+  </data>
+  <data name="BatchDetailsPage_Pending" xml:space="preserve">
+    <value>Pendentes</value>
+  </data>
+  <data name="TagsPage_EmptyTitle" xml:space="preserve">
+    <value>Ainda não há etiquetas</value>
+  </data>
+  <data name="TagsPage_ForgetTag" xml:space="preserve">
+    <value>Esquecer a etiqueta {0}</value>
+  </data>
 </root>

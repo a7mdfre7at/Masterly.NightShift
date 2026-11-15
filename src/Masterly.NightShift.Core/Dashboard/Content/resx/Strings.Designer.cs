@@ -6472,5 +6472,104 @@ namespace Masterly.NightShift.Dashboard.Resources {
                 return ResourceManager.GetString("JobDetailsPage_StateDetails", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Retry the chain from this step?.
+        /// </summary>
+        public static string ChainDetailsPage_RetryConfirm {
+            get {
+                return ResourceManager.GetString("ChainDetailsPage_RetryConfirm", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This step runs again with every step after it. The steps before it keep their outcome..
+        /// </summary>
+        public static string ChainDetailsPage_RetryConfirm_Body {
+            get {
+                return ResourceManager.GetString("ChainDetailsPage_RetryConfirm_Body", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No chains yet.
+        /// </summary>
+        public static string ChainsPage_EmptyTitle {
+            get {
+                return ResourceManager.GetString("ChainsPage_EmptyTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Start one with JobChain.StartWith(...) and it shows here, drawn as a flowchart..
+        /// </summary>
+        public static string ChainsPage_EmptyText {
+            get {
+                return ResourceManager.GetString("ChainsPage_EmptyText", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Delete the unfinished steps of chain {0}.
+        /// </summary>
+        public static string ChainsPage_DeleteChain {
+            get {
+                return ResourceManager.GetString("ChainsPage_DeleteChain", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No batches yet.
+        /// </summary>
+        public static string BatchesPage_EmptyTitle {
+            get {
+                return ResourceManager.GetString("BatchesPage_EmptyTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Requeue the failed jobs of batch {0}.
+        /// </summary>
+        public static string BatchesPage_RequeueFailed {
+            get {
+                return ResourceManager.GetString("BatchesPage_RequeueFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Delete the unfinished jobs of batch {0}.
+        /// </summary>
+        public static string BatchesPage_DeletePending {
+            get {
+                return ResourceManager.GetString("BatchesPage_DeletePending", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Pending.
+        /// </summary>
+        public static string BatchDetailsPage_Pending {
+            get {
+                return ResourceManager.GetString("BatchDetailsPage_Pending", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No tags yet.
+        /// </summary>
+        public static string TagsPage_EmptyTitle {
+            get {
+                return ResourceManager.GetString("TagsPage_EmptyTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Forget the tag {0}.
+        /// </summary>
+        public static string TagsPage_ForgetTag {
+            get {
+                return ResourceManager.GetString("TagsPage_ForgetTag", resourceCulture);
+            }
+        }
     }
 }

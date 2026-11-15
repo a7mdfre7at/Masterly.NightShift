@@ -2203,4 +2203,37 @@
   <data name="JobDetailsPage_StateDetails" xml:space="preserve">
     <value>Detaljer</value>
   </data>
+  <data name="ChainDetailsPage_RetryConfirm" xml:space="preserve">
+    <value>Köra kedjan igen från det här steget?</value>
+  </data>
+  <data name="ChainDetailsPage_RetryConfirm_Body" xml:space="preserve">
+    <value>Det här steget körs igen tillsammans med alla steg efter det. Stegen före behåller sitt resultat.</value>
+  </data>
+  <data name="ChainsPage_EmptyTitle" xml:space="preserve">
+    <value>Inga kedjor ännu</value>
+  </data>
+  <data name="ChainsPage_EmptyText" xml:space="preserve">
+    <value>Starta en med JobChain.StartWith(...) så visas den här som ett flödesschema.</value>
+  </data>
+  <data name="ChainsPage_DeleteChain" xml:space="preserve">
+    <value>Ta bort de oavslutade stegen i kedja {0}</value>
+  </data>
+  <data name="BatchesPage_EmptyTitle" xml:space="preserve">
+    <value>Inga batcher ännu</value>
+  </data>
+  <data name="BatchesPage_RequeueFailed" xml:space="preserve">
+    <value>Köa om de misslyckade jobben i batch {0}</value>
+  </data>
+  <data name="BatchesPage_DeletePending" xml:space="preserve">
+    <value>Ta bort de oavslutade jobben i batch {0}</value>
+  </data>
+  <data name="BatchDetailsPage_Pending" xml:space="preserve">
+    <value>Väntande</value>
+  </data>
+  <data name="TagsPage_EmptyTitle" xml:space="preserve">
+    <value>Inga taggar ännu</value>
+  </data>
+  <data name="TagsPage_ForgetTag" xml:space="preserve">
+    <value>Glöm taggen {0}</value>
+  </data>
 </root>

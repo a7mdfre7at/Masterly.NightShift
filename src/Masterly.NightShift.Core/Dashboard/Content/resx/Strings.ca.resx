@@ -2140,4 +2140,37 @@
   <data name="JobDetailsPage_StateDetails" xml:space="preserve">
     <value>Detalls</value>
   </data>
+  <data name="ChainDetailsPage_RetryConfirm" xml:space="preserve">
+    <value>Voleu tornar a executar la cadena des d'aquest pas?</value>
+  </data>
+  <data name="ChainDetailsPage_RetryConfirm_Body" xml:space="preserve">
+    <value>Aquest pas es torna a executar amb tots els passos posteriors. Els passos anteriors conserven el seu resultat.</value>
+  </data>
+  <data name="ChainsPage_EmptyTitle" xml:space="preserve">
+    <value>Encara no hi ha cadenes</value>
+  </data>
+  <data name="ChainsPage_EmptyText" xml:space="preserve">
+    <value>Inicieu-ne una amb JobChain.StartWith(...) i apareixerà aquí, dibuixada com un diagrama de flux.</value>
+  </data>
+  <data name="ChainsPage_DeleteChain" xml:space="preserve">
+    <value>Suprimeix els passos no acabats de la cadena {0}</value>
+  </data>
+  <data name="BatchesPage_EmptyTitle" xml:space="preserve">
+    <value>Encara no hi ha lots</value>
+  </data>
+  <data name="BatchesPage_RequeueFailed" xml:space="preserve">
+    <value>Torna a posar a la cua les tasques fallides del lot {0}</value>
+  </data>
+  <data name="BatchesPage_DeletePending" xml:space="preserve">
+    <value>Suprimeix les tasques no acabades del lot {0}</value>
+  </data>
+  <data name="BatchDetailsPage_Pending" xml:space="preserve">
+    <value>Pendents</value>
+  </data>
+  <data name="TagsPage_EmptyTitle" xml:space="preserve">
+    <value>Encara no hi ha etiquetes</value>
+  </data>
+  <data name="TagsPage_ForgetTag" xml:space="preserve">
+    <value>Oblida l'etiqueta {0}</value>
+  </data>
 </root>

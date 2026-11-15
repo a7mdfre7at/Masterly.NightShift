@@ -198,13 +198,21 @@ internal sealed class ChainFlowchart
         _ => Strings.ChainsPage_Status_Running,
     };
 
-    public static string StatusCss(ChainFlowStatus status) => status switch
+    /// <summary>The built-in state whose colours and icon a status chip takes (see <see cref="StatusLabel"/>).</summary>
+    public static string StatusState(ChainFlowStatus status) => status switch
     {
-        ChainFlowStatus.Waiting => "text-bg-secondary",
-        ChainFlowStatus.Done => "text-bg-success",
-        ChainFlowStatus.FinishedWithFailures => "text-bg-danger",
-        _ => "text-bg-info",
+        ChainFlowStatus.Waiting => AwaitingState.StateName,
+        ChainFlowStatus.Done => SucceededState.StateName,
+        ChainFlowStatus.FinishedWithFailures => FailedState.StateName,
+        _ => ProcessingState.StateName,
     };
+
+    /// <summary>A chip with the status's text, in the colours of the state it stands for.</summary>
+    public static NonEscapedString StatusLabel(HtmlHelper html, ChainFlowStatus status)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        return html.StateLabel(StatusState(status), StatusText(status));
+    }
 
     /// <summary>What a step waits for, as its card says it.</summary>
     public static string DescribeCondition(JobChainStepInfo step)
@@ -402,7 +410,9 @@ internal sealed class ChainFlowchart
 internal static class ChainFlowchartRenderer
 {
     internal const int CardWidth = 256;
-    internal const int CardHeight = 162;
+    // Tall enough for every line of a card at its full height: the name, the arguments, the start condition, the
+    // progress and the footer with Retry from here
+    internal const int CardHeight = 184;
     private const int Gap = 20;
     private const int BoxPadding = 18;
     private const int BoxHeader = 44;
@@ -439,7 +449,7 @@ internal static class ChainFlowchartRenderer
 
         foreach (Block block in blocks.Where(static x => x.Level.IsBoxed))
         {
-            AppendBox(html, block);
+            AppendBox(html, page, block);
         }
 
         html.Append(FormattableString.Invariant($"<svg class=\"hf-flow-lines\" width=\"{width}\" height=\"{height}\" viewBox=\"0 0 {width} {height}\" aria-hidden=\"true\">"));
@@ -504,7 +514,7 @@ internal static class ChainFlowchartRenderer
         return new NonEscapedString(html.ToString());
     }
 
-    private static void AppendBox(StringBuilder html, Block block)
+    private static void AppendBox(StringBuilder html, RazorPage page, Block block)
     {
         ChainFlowLevel level = block.Level;
         ChainFlowStatus status = ChainFlowchart.StatusOf(level.Steps);
@@ -512,7 +522,7 @@ internal static class ChainFlowchartRenderer
 
         html.Append(FormattableString.Invariant($"<div class=\"hf-flow-box hf-flow-box-{(level.Kind == ChainLevelKind.Branches ? "group" : "outcomes")}\" style=\"left: {block.X}px; top: {block.Y}px; width: {block.Width}px; height: {block.Height}px\">"));
         html.Append("<div class=\"hf-flow-box-head\"><span class=\"hf-flow-box-title\">").Append(Encode(title)).Append("</span>");
-        html.Append("<span class=\"badge ").Append(ChainFlowchart.StatusCss(status)).Append(" text-uppercase\">").Append(Encode(ChainFlowchart.StatusText(status))).Append("</span></div>");
+        html.Append(ChainFlowchart.StatusLabel(page.Html, status).ToString()).Append("</div>");
 
         if (level.Kind == ChainLevelKind.Branches)
         {
@@ -648,13 +658,32 @@ internal static class ChainFlowchartRenderer
         }
 
         // With the chain in the address: a step whose job expired no longer says what chain it belongs to
-        if (retryChain != null && (FailedState.StateName.Equals(info.StateOrOutcome, StringComparison.OrdinalIgnoreCase) || DeletedState.StateName.Equals(info.StateOrOutcome, StringComparison.OrdinalIgnoreCase)))
+        if (retryChain != null && CanRetryFrom(info))
         {
-            html.Append("<button class=\"btn hf-btn-xs btn-primary\" data-ajax=\"").Append(Encode(page.Url.To("/chains/retry/" + RouteValues.Encode(retryChain) + "/" + RouteValues.Encode(info.JobId)))).Append("\" data-loading-text=\"").Append(Encode(Strings.ChainDetailsPage_Retrying)).Append("\">");
+            html.Append("<button class=\"btn hf-btn-xs btn-primary\" data-ajax=\"").Append(Encode(RetryUrl(page, retryChain, info.JobId))).Append("\" data-loading-text=\"").Append(Encode(Strings.ChainDetailsPage_Retrying)).Append("\" ")
+                .Append(RetryConfirm(page).ToString()).Append('>');
             html.Append(page.Html.Icon("arrow-repeat")).Append(' ').Append(Encode(Strings.ChainDetailsPage_RetryFromHere)).Append("</button>");
         }
 
         html.Append("</span></div></div>");
+    }
+
+    /// <summary>The address that retries the chain from a step: with the chain in it, as a step whose job expired no longer says what chain it belongs to.</summary>
+    internal static string RetryUrl(RazorPage page, string chainId, string jobId)
+    {
+        return page.Url.To("/chains/retry/" + RouteValues.Encode(chainId) + "/" + RouteValues.Encode(jobId));
+    }
+
+    /// <summary>The confirmation a retry from a step asks for first.</summary>
+    internal static NonEscapedString RetryConfirm(RazorPage page)
+    {
+        return page.Html.ConfirmAttributes(Strings.ChainDetailsPage_RetryConfirm, Strings.ChainDetailsPage_RetryConfirm_Body, Strings.ChainDetailsPage_RetryFromHere);
+    }
+
+    /// <summary>Whether a step can be retried from, in a chain that can be (<see cref="Render"/>): it failed or was deleted.</summary>
+    internal static bool CanRetryFrom(JobChainStepInfo step)
+    {
+        return FailedState.StateName.Equals(step.StateOrOutcome, StringComparison.OrdinalIgnoreCase) || DeletedState.StateName.Equals(step.StateOrOutcome, StringComparison.OrdinalIgnoreCase);
     }
 
     internal static string StepName(RazorPage page, JobChainStepInfo step)

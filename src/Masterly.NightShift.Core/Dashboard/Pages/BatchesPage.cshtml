@@ -27,71 +27,104 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="hf-page-header">@Strings.BatchesPage_Title <small class="text-muted">@Strings.BatchesPage_Hint</small></h1>
+        <header class="ns-page-head">
+            <div class="ns-page-heading">
+                @Html.PageTitle(Strings.BatchesPage_Title, null, pager.TotalRecordCount)
+                <p class="ns-page-subtitle">@Strings.BatchesPage_Hint</p>
+            </div>
+        </header>
 
         @if (batches.Count == 0)
         {
-            <div class="alert alert-info">@Html.Raw(Strings.BatchesPage_NoBatches_Html)</div>
+            <div class="ns-empty-state">
+                @Html.Icon("grid-fill")
+                <h2 class="ns-empty-state-title">@Strings.BatchesPage_EmptyTitle</h2>
+                <p>@Html.Raw(Strings.BatchesPage_NoBatches_Html)</p>
+            </div>
         }
         else
         {
             <div class="js-jobs-list">
-                <div class="btn-toolbar btn-toolbar-top">
+                <div class="btn-toolbar btn-toolbar-top ns-list-toolbar">
                     @Html.PerPageSelector(pager)
                 </div>
 
-                <div class="table-responsive">
-                    <table class="table hf-batches" aria-describedby="page-title">
-                        <thead>
-                            <tr>
-                                <th scope="col">@Strings.BatchesPage_Table_Batch</th>
-                                <th scope="col" class="hf-batch-progress-col">@Strings.BatchesPage_Table_Progress</th>
-                                <th scope="col" class="min-width align-right">@Strings.BatchesPage_Table_Jobs</th>
-                                <th scope="col" class="min-width align-right">@Strings.BatchesPage_Table_Created</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (JobBatch batch in batches)
-                            {
-                                long total = Math.Max(1, batch.Total);
-                                double successPercent = 100.0 * batch.Succeeded / total;
-                                double failedPercent = 100.0 * batch.Failed / total;
-                                double processingPercent = 100.0 * batch.Processing / total;
-                                double deletedPercent = 100.0 * batch.Deleted / total;
-                                string stateCss = batch.IsFinished ? "text-bg-success" : batch.IsStuck ? "text-bg-danger" : "text-bg-info";
-                                string stateText = batch.IsFinished ? Strings.BatchesPage_State_Finished : batch.IsStuck ? Strings.BatchesPage_State_Failed : Strings.BatchesPage_State_Running;
-
-                                <tr class="hover">
-                                    <td>
-                                        <a class="hf-batch-link" href="@Url.To("/batches/" + RouteValues.Encode(batch.Id))">
-                                            <span class="badge @stateCss text-uppercase">@stateText</span>
-                                            <strong>@(batch.Description ?? batch.Id)</strong>
-                                            @if (batch.Description != null)
-                                            {
-                                                <code class="hf-batch-id">@batch.Id</code>
-                                            }
-                                        </a>
-                                    </td>
-                                    <td>
-                                        <div class="hf-batch-bar" title="@String.Format(Strings.BatchesPage_Counts, batch.Succeeded, batch.Failed, batch.Pending)">
-                                            <span class="hf-batch-seg hf-batch-seg-success" style="width: @successPercent.ToString("0.#", CultureInfo.InvariantCulture)%"></span>
-                                            <span class="hf-batch-seg hf-batch-seg-failed" style="width: @failedPercent.ToString("0.#", CultureInfo.InvariantCulture)%"></span>
-                                            <span class="hf-batch-seg hf-batch-seg-processing" style="width: @processingPercent.ToString("0.#", CultureInfo.InvariantCulture)%"></span>
-                                            <span class="hf-batch-seg hf-batch-seg-deleted" style="width: @deletedPercent.ToString("0.#", CultureInfo.InvariantCulture)%"></span>
-                                        </div>
-                                        <div class="hf-batch-counts text-muted">@String.Format(Strings.BatchesPage_Counts, batch.Succeeded, batch.Failed, batch.Pending)</div>
-                                    </td>
-                                    <td class="align-right">@batch.Total</td>
-                                    <td class="align-right min-width">
-                                        @if (batch.CreatedAt.HasValue)
-                                        {
-                                            @Html.RelativeTime(batch.CreatedAt.Value)
-                                        }
-                                    </td>
+                <div class="hf-card ns-table-card">
+                    <div class="table-responsive">
+                        <table class="table ns-job-table ns-table-reflow hf-batches" aria-describedby="page-title">
+                            <thead>
+                                <tr>
+                                    <th scope="col">@Strings.BatchesPage_Table_Batch</th>
+                                    <th scope="col" class="ns-progress-cell">@Strings.BatchesPage_Table_Progress</th>
+                                    <th scope="col" class="min-width align-right">@Strings.BatchesPage_Table_Jobs</th>
+                                    <th scope="col" class="ns-time-cell">@Strings.BatchesPage_Table_Created</th>
+                                    @if (!IsReadOnly)
+                                    {
+                                        @Html.ActionsColumnHeader()
+                                    }
                                 </tr>
-                            }
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                @foreach (JobBatch batch in batches)
+                                {
+                                    string url = Url.To("/batches/" + RouteValues.Encode(batch.Id));
+                                    double percent = BatchDetailsPage.FinishedPercent(batch);
+                                    string counts = String.Format(Strings.BatchesPage_Counts, batch.Succeeded, batch.Failed, batch.Pending);
+
+                                    <tr class="hover hf-row-link" data-href="@url">
+                                        <td class="ns-job-cell">
+                                            <div class="ns-job-title">
+                                                @Html.StateDot(BatchDetailsPage.StatusState(batch))
+                                                <a class="job-method" href="@url">@(batch.Description ?? batch.Id)</a>
+                                            </div>
+                                            <div class="ns-job-meta">
+                                                @if (batch.Description != null)
+                                                {
+                                                    <code class="ns-job-id">@batch.Id</code>
+                                                }
+                                                @BatchDetailsPage.StatusLabel(Html, batch)
+                                            </div>
+                                        </td>
+                                        <td class="ns-progress-cell">
+                                            <div class="ns-progress-text"><span>@counts</span></div>
+                                            <div class="ns-meter" role="progressbar" aria-label="@Strings.BatchesPage_Table_Progress" aria-valuetext="@counts" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@percent.ToString("0", CultureInfo.InvariantCulture)">
+                                                <span style="width: @percent.ToString("0.#", CultureInfo.InvariantCulture)%"></span>
+                                            </div>
+                                        </td>
+                                        <td class="align-right ns-tabular">@batch.Total</td>
+                                        <td class="ns-time-cell">
+                                            @if (batch.CreatedAt.HasValue)
+                                            {
+                                                @Html.RelativeTime(batch.CreatedAt.Value)
+                                            }
+                                        </td>
+                                        @if (!IsReadOnly)
+                                        {
+                                            <td class="ns-actions-cell">
+                                                <div class="ns-row-actions">
+                                                    @if (batch.Failed > 0)
+                                                    {
+                                                        string requeueName = String.Format(Strings.BatchesPage_RequeueFailed, batch.Description ?? batch.Id);
+                                                        <button type="button" class="ns-icon-button" data-ajax="@Url.To("/batches/requeue-failed/" + RouteValues.Encode(batch.Id))" data-loading-text="@Strings.Common_Enqueueing" aria-label="@requeueName" title="@requeueName">
+                                                            @Html.Icon("arrow-repeat")
+                                                        </button>
+                                                    }
+                                                    @if (batch.Pending + batch.Failed > 0)
+                                                    {
+                                                        string deleteName = String.Format(Strings.BatchesPage_DeletePending, batch.Description ?? batch.Id);
+                                                        <button type="button" class="ns-icon-button ns-row-danger" data-ajax="@Url.To("/batches/delete/" + RouteValues.Encode(batch.Id))" data-loading-text="@Strings.Common_Deleting" aria-label="@deleteName" title="@deleteName"
+                                                                @Html.ConfirmAttributes(Strings.BatchDetailsPage_DeletePendingConfirm, null, Strings.Common_Delete, destructive: true)>
+                                                            @Html.Icon("trash-fill")
+                                                        </button>
+                                                    }
+                                                </div>
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
                 @Html.Paginator(pager)

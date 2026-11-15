@@ -2164,4 +2164,37 @@ Vous devriez les remettre en file d'attente ou les supprimer manuellement, ou ap
   <data name="JobDetailsPage_StateDetails" xml:space="preserve">
     <value>Détails</value>
   </data>
+  <data name="ChainDetailsPage_RetryConfirm" xml:space="preserve">
+    <value>Relancer la chaîne à partir de cette étape ?</value>
+  </data>
+  <data name="ChainDetailsPage_RetryConfirm_Body" xml:space="preserve">
+    <value>Cette étape s'exécute à nouveau avec toutes les étapes suivantes. Les étapes précédentes gardent leur résultat.</value>
+  </data>
+  <data name="ChainsPage_EmptyTitle" xml:space="preserve">
+    <value>Aucune chaîne pour l'instant</value>
+  </data>
+  <data name="ChainsPage_EmptyText" xml:space="preserve">
+    <value>Démarrez-en une avec JobChain.StartWith(...) : elle apparaît ici sous forme d'organigramme.</value>
+  </data>
+  <data name="ChainsPage_DeleteChain" xml:space="preserve">
+    <value>Supprimer les étapes non terminées de la chaîne {0}</value>
+  </data>
+  <data name="BatchesPage_EmptyTitle" xml:space="preserve">
+    <value>Aucun lot pour l'instant</value>
+  </data>
+  <data name="BatchesPage_RequeueFailed" xml:space="preserve">
+    <value>Remettre en file les tâches en échec du lot {0}</value>
+  </data>
+  <data name="BatchesPage_DeletePending" xml:space="preserve">
+    <value>Supprimer les tâches non terminées du lot {0}</value>
+  </data>
+  <data name="BatchDetailsPage_Pending" xml:space="preserve">
+    <value>En attente</value>
+  </data>
+  <data name="TagsPage_EmptyTitle" xml:space="preserve">
+    <value>Aucune étiquette pour l'instant</value>
+  </data>
+  <data name="TagsPage_ForgetTag" xml:space="preserve">
+    <value>Oublier l'étiquette {0}</value>
+  </data>
 </root>

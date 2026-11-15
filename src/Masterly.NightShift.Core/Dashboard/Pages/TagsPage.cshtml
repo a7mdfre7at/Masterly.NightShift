@@ -42,17 +42,26 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="hf-page-header">@Strings.TagsPage_Title <small class="text-muted">@Strings.TagsPage_Hint</small></h1>
+        <header class="ns-page-head">
+            <div class="ns-page-heading">
+                @Html.PageTitle(Strings.TagsPage_Title, null, allTags)
+                <p class="ns-page-subtitle">@Strings.TagsPage_Hint</p>
+            </div>
+        </header>
 
         @if (allTags == 0)
         {
-            <div class="alert alert-info">@Html.Raw(Strings.TagsPage_NoTags_Html)</div>
+            <div class="ns-empty-state">
+                @Html.Icon("tag-fill")
+                <h2 class="ns-empty-state-title">@Strings.TagsPage_EmptyTitle</h2>
+                <p>@Html.Raw(Strings.TagsPage_NoTags_Html)</p>
+            </div>
         }
         else
         {
             <div class="hf-catalog-toolbar">
                 <form method="get" class="hf-tags-filter-form" role="search">
-                    <input type="search" name="filter" value="@filter" class="form-control js-tags-filter" placeholder="@Strings.TagsPage_Search" autocomplete="off" spellcheck="false" />
+                    <input type="search" name="filter" value="@filter" class="form-control js-tags-filter" placeholder="@Strings.TagsPage_Search" aria-label="@Strings.TagsPage_Search" autocomplete="off" spellcheck="false" />
                     <input type="hidden" name="count" value="@pager.RecordsPerPage" />
                 </form>
                 <span class="hf-catalog-summary text-muted">@pager.TotalRecordCount @Strings.TagsPage_Title.ToLowerInvariant()</span>
@@ -61,49 +70,57 @@
 
             if (tags.Count == 0)
             {
-                <div class="alert alert-info">@String.Format(Strings.TagsPage_NoMatch, filter)</div>
+                @Html.EmptyState("search", String.Format(Strings.TagsPage_NoMatch, filter), null, Url.To("/tags"), Strings.TagsPage_Title)
             }
+            else
+            {
+                <div class="ns-tags-cloud">
+                    @foreach (JobTagSummary tag in tags)
+                    {
+                        <a class="ns-chip ns-chip-assist ns-tag-chip js-tag" href="@Url.To("/tags/" + RouteValues.Encode(tag.Tag))" data-tag="@tag.Tag" style="--ns-weight: @(((double)tag.Count / largest).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))">
+                            @Html.Icon("tag-fill") @tag.Tag <span class="ns-tag-count">@tag.Count</span>
+                        </a>
+                    }
+                </div>
 
-            <div class="hf-tags-cloud">
-                @foreach (JobTagSummary tag in tags)
-                {
-                    <a class="hf-tag hf-tag-lg js-tag" href="@Url.To("/tags/" + RouteValues.Encode(tag.Tag))" data-tag="@tag.Tag" style="--hf-weight: @(((double)tag.Count / largest).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))">
-                        @Html.Icon("tag-fill") @tag.Tag <span class="hf-tag-count">@tag.Count</span>
-                    </a>
-                }
-            </div>
-
-            <div class="table-responsive hf-card">
-                <table class="table hf-tags-table" aria-describedby="page-title">
-                    <thead>
-                        <tr>
-                            <th scope="col">@Strings.TagsPage_Table_Tag</th>
-                            <th scope="col" class="min-width align-right">@Strings.TagsPage_Table_Jobs</th>
-                            @if (!IsReadOnly)
-                            {
-                                <th scope="col" class="min-width"><span class="visually-hidden">@Strings.Common_Actions</span></th>
-                            }
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (JobTagSummary tag in tags)
-                        {
-                            <tr class="js-tag-row" data-tag="@tag.Tag">
-                                <td><a href="@Url.To("/tags/" + RouteValues.Encode(tag.Tag))" class="hf-tag">@Html.Icon("tag-fill") @tag.Tag</a></td>
-                                <td class="align-right">@tag.Count</td>
-                                @if (!IsReadOnly)
+                <div class="hf-card ns-table-card">
+                    <div class="table-responsive">
+                        <table class="table ns-job-table hf-tags-table" aria-describedby="page-title">
+                            <thead>
+                                <tr>
+                                    <th scope="col">@Strings.TagsPage_Table_Tag</th>
+                                    <th scope="col" class="min-width align-right">@Strings.TagsPage_Table_Jobs</th>
+                                    @if (!IsReadOnly)
+                                    {
+                                        @Html.ActionsColumnHeader()
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (JobTagSummary tag in tags)
                                 {
-                                    <td>
-                                        <button class="btn hf-btn-xs btn-outline-secondary" data-ajax="@Url.To("/tags/forget/" + RouteValues.Encode(tag.Tag))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.TagsPage_ForgetConfirm" data-confirm-destructive="true">
-                                            @Html.Icon("x-lg") @Strings.TagsPage_Forget
-                                        </button>
-                                    </td>
+                                    <tr class="hover js-tag-row" data-tag="@tag.Tag">
+                                        <td><a href="@Url.To("/tags/" + RouteValues.Encode(tag.Tag))" class="ns-chip ns-chip-assist ns-tag-chip">@Html.Icon("tag-fill") @tag.Tag</a></td>
+                                        <td class="align-right ns-tabular">@tag.Count</td>
+                                        @if (!IsReadOnly)
+                                        {
+                                            string forgetName = String.Format(Strings.TagsPage_ForgetTag, tag.Tag);
+                                            <td class="ns-actions-cell">
+                                                <div class="ns-row-actions">
+                                                    <button type="button" class="ns-icon-button ns-row-danger" data-ajax="@Url.To("/tags/forget/" + RouteValues.Encode(tag.Tag))" data-loading-text="@Strings.Common_Deleting" aria-label="@forgetName" title="@forgetName"
+                                                            @Html.ConfirmAttributes(Strings.TagsPage_ForgetConfirm, null, Strings.TagsPage_Forget, destructive: true)>
+                                                        @Html.Icon("x-lg")
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        }
+                                    </tr>
                                 }
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
 
             @Html.Paginator(pager)
         }

@@ -2201,4 +2201,37 @@
   <data name="JobDetailsPage_StateDetails" xml:space="preserve">
     <value>Detaljer</value>
   </data>
+  <data name="ChainDetailsPage_RetryConfirm" xml:space="preserve">
+    <value>Kjøre kjeden på nytt fra dette trinnet?</value>
+  </data>
+  <data name="ChainDetailsPage_RetryConfirm_Body" xml:space="preserve">
+    <value>Dette trinnet kjøres på nytt sammen med alle trinnene etter det. Trinnene før beholder resultatet sitt.</value>
+  </data>
+  <data name="ChainsPage_EmptyTitle" xml:space="preserve">
+    <value>Ingen kjeder ennå</value>
+  </data>
+  <data name="ChainsPage_EmptyText" xml:space="preserve">
+    <value>Start en med JobChain.StartWith(...), så vises den her som et flytskjema.</value>
+  </data>
+  <data name="ChainsPage_DeleteChain" xml:space="preserve">
+    <value>Slett trinnene som ikke er ferdige i kjede {0}</value>
+  </data>
+  <data name="BatchesPage_EmptyTitle" xml:space="preserve">
+    <value>Ingen batcher ennå</value>
+  </data>
+  <data name="BatchesPage_RequeueFailed" xml:space="preserve">
+    <value>Sett de mislykkede jobbene i batch {0} tilbake i kø</value>
+  </data>
+  <data name="BatchesPage_DeletePending" xml:space="preserve">
+    <value>Slett jobbene som ikke er ferdige i batch {0}</value>
+  </data>
+  <data name="BatchDetailsPage_Pending" xml:space="preserve">
+    <value>Venter</value>
+  </data>
+  <data name="TagsPage_EmptyTitle" xml:space="preserve">
+    <value>Ingen tagger ennå</value>
+  </data>
+  <data name="TagsPage_ForgetTag" xml:space="preserve">
+    <value>Glem taggen {0}</value>
+  </data>
 </root>

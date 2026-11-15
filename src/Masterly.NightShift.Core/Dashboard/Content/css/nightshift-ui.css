@@ -4187,25 +4187,6 @@ label.ns-required::after {
     color: var(--hf-text-2);
 }
 
-.hf-flow-facts {
-    display: inline-flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-    margin-right: 6px;
-}
-
-.hf-flow-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 3px 10px;
-    border: 1px solid var(--hf-border);
-    border-radius: 999px;
-    font-size: 0.75rem;
-    color: var(--hf-text-2);
-}
-
 .hf-flow-viewport {
     overflow: auto;
     max-height: 78vh;
@@ -4505,68 +4486,6 @@ label.ns-required::after {
 /* Tags
    ------------------------------------------------------------------ */
 
-.hf-tags {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    margin: -6px 0 18px;
-}
-
-.hf-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 2px 10px;
-    border-radius: 999px;
-    background: var(--hf-primary-soft);
-    color: var(--hf-primary-strong);
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-decoration: none;
-    line-height: 1.6;
-}
-
-.hf-tag:hover,
-.hf-tag:focus {
-    background: var(--hf-primary);
-    color: var(--hf-on-color);
-    text-decoration: none;
-}
-
-.hf-tag .bi {
-    font-size: 0.6875rem;
-}
-
-.hf-tag-lg {
-    font-size: 0.8125rem;
-    padding: 4px 14px;
-}
-
-.hf-tag-count {
-    background: rgba(255, 255, 255, .7);
-    color: var(--hf-text-2);
-    border-radius: 999px;
-    padding: 0 7px;
-    font-size: 0.6875rem;
-}
-
-:root[data-theme="dark"] .hf-tag-count {
-    background: rgba(0, 0, 0, .3);
-    color: var(--hf-text);
-}
-
-.hf-tags-cloud {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin: 0 0 20px;
-}
-
-.hf-tags-cloud .hf-tag-lg {
-    font-size: calc(12px + 6px * var(--hf-weight, 0));
-}
-
 .hf-tags-table {
     margin-bottom: 0;
 }
@@ -4698,65 +4617,8 @@ label.ns-required::after {
     padding-left: 18px;
 }
 
-/* Batches
+/* Batches (the header of a schedule policy's card)
    ------------------------------------------------------------------ */
-
-.hf-batch-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--hf-text);
-    text-decoration: none;
-}
-
-.hf-batch-link:hover strong {
-    color: var(--hf-primary);
-}
-
-.hf-batch-id {
-    font-size: 0.6875rem;
-    color: var(--hf-muted);
-    background: transparent;
-    padding: 0;
-}
-
-.hf-batch-progress-col {
-    width: 40%;
-}
-
-.hf-batch-bar {
-    display: flex;
-    height: 10px;
-    border-radius: 999px;
-    overflow: hidden;
-    background: var(--hf-neutral-soft);
-}
-
-.hf-batch-bar-lg {
-    height: 16px;
-    margin: 14px 0 4px;
-}
-
-.hf-batch-seg {
-    display: block;
-    height: 100%;
-    transition: width .3s ease;
-}
-
-.hf-batch-seg-success { background: var(--hf-success); }
-.hf-batch-seg-failed { background: var(--hf-danger); }
-.hf-batch-seg-processing { background: var(--hf-primary); background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, .25) 0 6px, transparent 6px 12px); }
-.hf-batch-seg-deleted { background: var(--hf-border-strong); }
-
-.hf-batch-counts {
-    font-size: 0.75rem;
-    margin-top: 4px;
-}
-
-.hf-batch-summary {
-    padding: 16px 18px;
-    margin-bottom: 20px;
-}
 
 .hf-batch-head {
     display: flex;
@@ -4769,35 +4631,6 @@ label.ns-required::after {
 .hf-batch-actions {
     display: flex;
     gap: 6px;
-}
-
-.hf-batch-stats {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 22px;
-    margin-top: 12px;
-}
-
-.hf-batch-stat {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.hf-batch-stat-value {
-    font-size: 1.25rem;
-    font-weight: 700;
-    line-height: 1.1;
-}
-
-.hf-batch-stat-label {
-    font-size: 0.75rem;
-    color: var(--hf-muted);
-}
-
-.hf-tag-batch {
-    background: var(--hf-info-soft);
-    color: var(--hf-info);
 }
 
 /* Queue health and per-queue pause
@@ -7048,7 +6881,255 @@ tr.hf-row-focus .ns-row-actions,
     }
 }
 
+/* Batches, chains and tags
+   ------------------------------------------------------------------
+   Lists in the job list template: two-line rows (the item with its status dot, then its id and status chip), the
+   progress of each in the brand gradient with its counts, and row actions. A batch's and a chain's page have the
+   page header, summary tiles and their jobs or steps as two-line rows. */
+
+.hf-app .table th.ns-progress-cell,
+.hf-app .table td.ns-progress-cell {
+    width: 30%;
+    min-width: 11rem;
+}
+
+.ns-progress-text {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--md-sys-spacing-2);
+    font: var(--md-sys-typescale-body-small);
+    font-variant-numeric: tabular-nums;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ns-progress-cell .ns-meter {
+    margin-top: var(--md-sys-spacing-1);
+}
+
+.ns-summary-tile .ns-meter {
+    margin-top: var(--md-sys-spacing-3);
+}
+
+.hf-app .ns-step-key {
+    padding: 0 var(--md-sys-spacing-1);
+    border-radius: var(--md-sys-shape-corner-extra-small);
+    background-color: var(--ns-surface-chip);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-code-small);
+}
+
+.hf-app .ns-step-args {
+    max-width: 24rem;
+    overflow: hidden;
+    padding: 0;
+    background: none;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-code-small);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ns-step-outcome {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--md-sys-spacing-1);
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.hf-app .ns-page-facts > .ns-job-id {
+    font: var(--md-sys-typescale-code-small);
+    color: var(--md-sys-color-on-surface-variant);
+    overflow-wrap: anywhere;
+}
+
+/* Tags: a chip per tag, tinted by how many jobs it has, with the count beside its name */
+.ns-tags-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--md-sys-spacing-2);
+    margin: 0 0 var(--md-sys-spacing-5);
+}
+
+.ns-tags-cloud .ns-tag-chip {
+    background-color: color-mix(in srgb, var(--md-sys-color-secondary-container) calc(var(--ns-weight, 0) * 100%), transparent);
+    color: var(--md-sys-color-on-surface);
+}
+
+.ns-tag-chip {
+    max-width: 100%;
+}
+
+.ns-tag-chip > :not(.bi) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ns-tag-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5rem;
+    height: 1.25rem;
+    padding: 0 var(--md-sys-spacing-1);
+    border-radius: var(--md-sys-shape-corner-full);
+    background-color: var(--md-sys-color-surface-container-highest);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-small);
+    font-variant-numeric: tabular-nums;
+}
+
+.hf-app .hf-tags-table td .ns-tag-chip {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+/* The flowchart in the theme's roles: the cards on the container surface, the text in on-surface roles, so every
+   label keeps its contrast in both themes; a step that won't run is dashed instead of faded */
+.hf-app .hf-flow-viewport {
+    background-color: var(--md-sys-color-surface-container-lowest, var(--ns-surface-card));
+    background-image: radial-gradient(var(--md-sys-color-outline-variant) 1px, transparent 1px);
+    border-top-color: var(--ns-divider);
+}
+
+.hf-app .hf-flow-box {
+    border-color: var(--md-sys-color-outline-variant);
+    background-color: var(--md-sys-color-surface-container-low);
+}
+
+.hf-app .hf-flow-box-outcomes {
+    background-color: transparent;
+}
+
+.hf-app .hf-flow-box-head,
+.hf-app .hf-flow-box-foot,
+.hf-app .hf-flow-box-title {
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.hf-app .hf-flow-box-foot {
+    border-top-color: var(--ns-divider);
+}
+
+.hf-app .hf-flow-edge {
+    stroke: var(--md-sys-color-outline);
+}
+
+.hf-app .hf-flow-edge-taken {
+    stroke: var(--md-sys-color-primary);
+}
+
+.hf-app .hf-flow-edge-alert {
+    stroke: var(--md-sys-color-error);
+}
+
+.hf-app .hf-flow-card {
+    border-color: var(--md-sys-color-outline-variant);
+    border-left-color: var(--hf-state, var(--md-sys-color-outline));
+    background-color: var(--md-sys-color-surface-container);
+    box-shadow: none;
+    color: var(--md-sys-color-on-surface);
+    transition: box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard), border-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+}
+
+.hf-app .hf-flow-card:hover {
+    border-color: var(--md-sys-color-outline);
+    border-left-color: var(--hf-state, var(--md-sys-color-outline));
+    box-shadow: var(--md-sys-elevation-level1);
+}
+
+.hf-app .hf-flow-active {
+    box-shadow: 0 0 0 2px var(--ns-state-processing-container);
+}
+
+.hf-app .hf-flow-card > * {
+    flex-shrink: 0;
+}
+
+.hf-app .hf-flow-dim {
+    opacity: 1;
+    border-style: dashed;
+    border-left-style: solid;
+    background-color: var(--md-sys-color-surface-container-low);
+}
+
+.hf-app .hf-flow-name {
+    color: var(--md-sys-color-on-surface);
+}
+
+.hf-app .hf-flow-name:hover,
+.hf-app .hf-flow-name:focus {
+    color: var(--md-sys-color-primary);
+}
+
+.hf-app .hf-flow-state {
+    color: var(--md-sys-color-on-surface);
+}
+
+.hf-app .hf-flow-args,
+.hf-app .hf-flow-caption,
+.hf-app .hf-flow-progress-label,
+.hf-app .hf-flow-foot,
+.hf-app .hf-flow-zoom-level,
+.hf-app .hf-flow-cond-value {
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.hf-app .hf-flow-chip {
+    background-color: var(--ns-surface-chip);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.hf-app .hf-flow-chip-met {
+    background-color: var(--ns-state-succeeded-container);
+    color: var(--ns-state-on-succeeded-container);
+}
+
+.hf-app .hf-flow-chip-skipped {
+    background-color: var(--ns-state-processing-container);
+    color: var(--ns-state-on-processing-container);
+}
+
+.hf-app .hf-flow-bar {
+    background-color: var(--ns-surface-inset);
+}
+
+.hf-app .hf-flow-bar > div {
+    background-color: transparent;
+    background-image: var(--ns-brand-gradient);
+}
+
+.hf-app .hf-flow-retries {
+    color: var(--ns-state-processing);
+}
+
+.hf-app .hf-flow-box-head .ns-state-chip {
+    min-height: 20px;
+}
+
 /* Links inside a diagnosis sentence are underlined: their colour alone doesn't set them apart */
 .hf-app .hf-diagnosis-text a {
     text-decoration: underline;
+}
+
+.hf-app .hf-chain-logs > summary h2 {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-2);
+    margin: 0;
+    font: var(--md-sys-typescale-title-medium);
+}
+
+@media (max-width: 599.98px) {
+    .hf-app .table td.ns-progress-cell {
+        flex: 1 1 100%;
+        width: auto;
+        min-width: 0;
+        order: 1;
+    }
+
+    .hf-app .ns-step-args {
+        max-width: 100%;
+    }
 }

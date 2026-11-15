@@ -2189,4 +2189,37 @@
   <data name="JobDetailsPage_StateDetails" xml:space="preserve">
     <value>Подробности</value>
   </data>
+  <data name="ChainDetailsPage_RetryConfirm" xml:space="preserve">
+    <value>Повторить цепочку с этого шага?</value>
+  </data>
+  <data name="ChainDetailsPage_RetryConfirm_Body" xml:space="preserve">
+    <value>Этот шаг и все следующие за ним шаги выполнятся снова. Предыдущие шаги сохранят свой результат.</value>
+  </data>
+  <data name="ChainsPage_EmptyTitle" xml:space="preserve">
+    <value>Цепочек пока нет</value>
+  </data>
+  <data name="ChainsPage_EmptyText" xml:space="preserve">
+    <value>Запустите цепочку с помощью JobChain.StartWith(...), и она появится здесь в виде блок-схемы.</value>
+  </data>
+  <data name="ChainsPage_DeleteChain" xml:space="preserve">
+    <value>Удалить незавершённые шаги цепочки {0}</value>
+  </data>
+  <data name="BatchesPage_EmptyTitle" xml:space="preserve">
+    <value>Пакетов пока нет</value>
+  </data>
+  <data name="BatchesPage_RequeueFailed" xml:space="preserve">
+    <value>Снова поставить в очередь неудачные задачи пакета {0}</value>
+  </data>
+  <data name="BatchesPage_DeletePending" xml:space="preserve">
+    <value>Удалить незавершённые задачи пакета {0}</value>
+  </data>
+  <data name="BatchDetailsPage_Pending" xml:space="preserve">
+    <value>В ожидании</value>
+  </data>
+  <data name="TagsPage_EmptyTitle" xml:space="preserve">
+    <value>Тегов пока нет</value>
+  </data>
+  <data name="TagsPage_ForgetTag" xml:space="preserve">
+    <value>Забыть тег {0}</value>
+  </data>
 </root>

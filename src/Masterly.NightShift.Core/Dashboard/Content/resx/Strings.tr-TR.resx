@@ -2173,4 +2173,37 @@
   <data name="JobDetailsPage_StateDetails" xml:space="preserve">
     <value>Ayrıntılar</value>
   </data>
+  <data name="ChainDetailsPage_RetryConfirm" xml:space="preserve">
+    <value>Zincir bu adımdan yeniden denensin mi?</value>
+  </data>
+  <data name="ChainDetailsPage_RetryConfirm_Body" xml:space="preserve">
+    <value>Bu adım, sonraki tüm adımlarla birlikte yeniden çalışır. Önceki adımlar sonuçlarını korur.</value>
+  </data>
+  <data name="ChainsPage_EmptyTitle" xml:space="preserve">
+    <value>Henüz zincir yok</value>
+  </data>
+  <data name="ChainsPage_EmptyText" xml:space="preserve">
+    <value>JobChain.StartWith(...) ile bir zincir başlatın; burada akış şeması olarak görünür.</value>
+  </data>
+  <data name="ChainsPage_DeleteChain" xml:space="preserve">
+    <value>{0} zincirinin tamamlanmamış adımlarını sil</value>
+  </data>
+  <data name="BatchesPage_EmptyTitle" xml:space="preserve">
+    <value>Henüz toplu iş yok</value>
+  </data>
+  <data name="BatchesPage_RequeueFailed" xml:space="preserve">
+    <value>{0} toplu işinin başarısız işlerini yeniden sıraya al</value>
+  </data>
+  <data name="BatchesPage_DeletePending" xml:space="preserve">
+    <value>{0} toplu işinin tamamlanmamış işlerini sil</value>
+  </data>
+  <data name="BatchDetailsPage_Pending" xml:space="preserve">
+    <value>Bekleyen</value>
+  </data>
+  <data name="TagsPage_EmptyTitle" xml:space="preserve">
+    <value>Henüz etiket yok</value>
+  </data>
+  <data name="TagsPage_ForgetTag" xml:space="preserve">
+    <value>{0} etiketini unut</value>
+  </data>
 </root>

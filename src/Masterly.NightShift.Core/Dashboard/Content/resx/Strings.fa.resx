@@ -2195,4 +2195,37 @@
   <data name="JobDetailsPage_StateDetails" xml:space="preserve">
     <value>جزئیات</value>
   </data>
+  <data name="ChainDetailsPage_RetryConfirm" xml:space="preserve">
+    <value>زنجیره از این مرحله دوباره اجرا شود؟</value>
+  </data>
+  <data name="ChainDetailsPage_RetryConfirm_Body" xml:space="preserve">
+    <value>این مرحله همراه با همه مراحل بعد از آن دوباره اجرا می‌شود. مراحل قبلی نتیجه خود را حفظ می‌کنند.</value>
+  </data>
+  <data name="ChainsPage_EmptyTitle" xml:space="preserve">
+    <value>هنوز زنجیره‌ای نیست</value>
+  </data>
+  <data name="ChainsPage_EmptyText" xml:space="preserve">
+    <value>یکی را با JobChain.StartWith(...) شروع کنید تا اینجا به صورت نمودار جریان نمایش داده شود.</value>
+  </data>
+  <data name="ChainsPage_DeleteChain" xml:space="preserve">
+    <value>حذف مراحل ناتمام زنجیره {0}</value>
+  </data>
+  <data name="BatchesPage_EmptyTitle" xml:space="preserve">
+    <value>هنوز دسته‌ای نیست</value>
+  </data>
+  <data name="BatchesPage_RequeueFailed" xml:space="preserve">
+    <value>قرار دادن دوباره کارهای ناموفق دسته {0} در صف</value>
+  </data>
+  <data name="BatchesPage_DeletePending" xml:space="preserve">
+    <value>حذف کارهای ناتمام دسته {0}</value>
+  </data>
+  <data name="BatchDetailsPage_Pending" xml:space="preserve">
+    <value>در انتظار</value>
+  </data>
+  <data name="TagsPage_EmptyTitle" xml:space="preserve">
+    <value>هنوز برچسبی نیست</value>
+  </data>
+  <data name="TagsPage_ForgetTag" xml:space="preserve">
+    <value>فراموش کردن برچسب {0}</value>
+  </data>
 </root>

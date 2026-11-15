@@ -13,9 +13,11 @@ public class TagsPageFacts
     {
         string html = _renderer.Render(new TagsPage());
 
-        Assert.Contains($"{Encode(Strings.TagsPage_Title)} <small class=\"text-muted\">{Encode(Strings.TagsPage_Hint)}</small>", html);
-        Assert.Contains($"<div class=\"alert alert-info\">{Strings.TagsPage_NoTags_Html}</div>", html);
-        Assert.DoesNotContain("hf-tags-cloud", html);
+        Assert.Contains($"<span class=\"ns-page-name\">{Encode(Strings.TagsPage_Title)}</span> <span class=\"ns-count-chip js-list-count\">0</span></h1>", html);
+        Assert.Contains($"<p class=\"ns-page-subtitle\">{Encode(Strings.TagsPage_Hint)}</p>", html);
+        Assert.Contains($"<h2 class=\"ns-empty-state-title\">{Encode(Strings.TagsPage_EmptyTitle)}</h2>", html);
+        Assert.Contains($"<p>{Strings.TagsPage_NoTags_Html}</p>", html);
+        Assert.DoesNotContain("ns-tags-cloud", html);
     }
 
     [Fact]
@@ -27,9 +29,12 @@ public class TagsPageFacts
 
         Assert.Contains($"placeholder=\"{Encode(Strings.TagsPage_Search)}\"", html);
         Assert.Contains($"<span class=\"hf-catalog-summary text-muted\">2 {Encode(Strings.TagsPage_Title.ToLowerInvariant())}</span>", html);
-        Assert.Contains("<a class=\"hf-tag hf-tag-lg js-tag\" href=\"/tags/billing\" data-tag=\"billing\" style=\"--hf-weight: 1.00\">", html);
-        Assert.Contains("<a class=\"hf-tag hf-tag-lg js-tag\" href=\"/tags/urgent\" data-tag=\"urgent\" style=\"--hf-weight: 0.50\">", html);
-        Assert.Contains(DashboardMarkup.Icon("tag-fill") + " billing <span class=\"hf-tag-count\">4</span>", html);
+        Assert.Contains($"aria-label=\"{Encode(Strings.TagsPage_Search)}\"", html);
+        Assert.Contains("<span class=\"ns-count-chip js-list-count\">2</span>", html);
+        Assert.Contains("<a class=\"ns-chip ns-chip-assist ns-tag-chip js-tag\" href=\"/tags/billing\" data-tag=\"billing\" style=\"--ns-weight: 1.00\">", html);
+        Assert.Contains("<a class=\"ns-chip ns-chip-assist ns-tag-chip js-tag\" href=\"/tags/urgent\" data-tag=\"urgent\" style=\"--ns-weight: 0.50\">", html);
+        Assert.Contains(DashboardMarkup.Icon("tag-fill") + " billing <span class=\"ns-tag-count\">4</span>", html);
+        Assert.DoesNotContain("hf-tag\"", html);
         Assert.True(html.IndexOf("data-tag=\"billing\"", StringComparison.Ordinal) < html.IndexOf("data-tag=\"urgent\"", StringComparison.Ordinal));
     }
 
@@ -40,10 +45,13 @@ public class TagsPageFacts
 
         string html = _renderer.Render(new TagsPage());
 
-        Assert.Contains("<tr class=\"js-tag-row\" data-tag=\"on call\">", html);
-        Assert.Contains("<td><a href=\"/tags/on%20call\" class=\"hf-tag\">" + DashboardMarkup.Icon("tag-fill") + " on call</a></td>", html);
-        Assert.Contains("<td class=\"align-right\">1</td>", html);
-        Assert.Contains("data-ajax=\"/tags/forget/on%20call\"", html);
+        Assert.Contains("<tr class=\"hover js-tag-row\" data-tag=\"on call\">", html);
+        Assert.Contains("<td><a href=\"/tags/on%20call\" class=\"ns-chip ns-chip-assist ns-tag-chip\">" + DashboardMarkup.Icon("tag-fill") + " on call</a></td>", html);
+        Assert.Contains("<td class=\"align-right ns-tabular\">1</td>", html);
+        Assert.Contains("<td class=\"ns-actions-cell\">", html);
+        Assert.Contains("class=\"ns-icon-button ns-row-danger\" data-ajax=\"/tags/forget/on%20call\"", html);
+        Assert.Contains($"aria-label=\"{Encode(string.Format(Strings.TagsPage_ForgetTag, "on call"))}\"", html);
+        Assert.Contains($"<span class=\"visually-hidden\">{Encode(Strings.Common_Actions)}</span>", html);
         Assert.Contains($"data-confirm=\"{Encode(Strings.TagsPage_ForgetConfirm)}\"", html);
     }
 
@@ -55,7 +63,8 @@ public class TagsPageFacts
 
         string html = _renderer.Render(new TagsPage());
 
-        Assert.Contains("<tr class=\"js-tag-row\" data-tag=\"urgent\">", html);
+        Assert.Contains("<tr class=\"hover js-tag-row\" data-tag=\"urgent\">", html);
+        Assert.DoesNotContain("ns-actions-cell", html);
         Assert.DoesNotContain("/tags/forget/", html);
         Assert.DoesNotContain(Encode(Strings.TagsPage_Forget), html);
     }
@@ -67,7 +76,7 @@ public class TagsPageFacts
 
         string html = _renderer.Render(new TagsPage());
 
-        Assert.Contains("data-tag=\"stale\" style=\"--hf-weight: 0.00\"", html);
+        Assert.Contains("data-tag=\"stale\" style=\"--ns-weight: 0.00\"", html);
     }
 
     [Fact]
@@ -97,8 +106,8 @@ public class TagsPageFacts
         string html = _renderer.Render(new TagsPage());
 
         Assert.DoesNotContain("data-tag=\"t19\"", html);
-        Assert.Contains("data-tag=\"t24\" style=\"--hf-weight: 1.00\"", html);
-        Assert.Contains("data-tag=\"t20\" style=\"--hf-weight: 0.83\"", html);
+        Assert.Contains("data-tag=\"t24\" style=\"--ns-weight: 1.00\"", html);
+        Assert.Contains("data-tag=\"t20\" style=\"--ns-weight: 0.83\"", html);
         _renderer.Connection.Verify(x => x.GetSetCount(JobTags.GetKey("t00")), Times.Never);
     }
 
@@ -143,10 +152,24 @@ public class TagsPageFacts
 
         string html = _renderer.Render(new TagsPage());
 
-        Assert.Contains(Encode(string.Format(Strings.TagsPage_NoMatch, "nope")), html);
+        Assert.Contains("<h2 class=\"ns-empty-state-title\">" + Encode(string.Format(Strings.TagsPage_NoMatch, "nope")) + "</h2>", html);
+        Assert.Contains("href=\"/tags\">" + Encode(Strings.TagsPage_Title) + "</a>", html);
         Assert.Contains("name=\"filter\" value=\"nope\"", html);
         Assert.DoesNotContain(Strings.TagsPage_NoTags_Html, html);
         Assert.DoesNotContain("data-tag=\"urgent\"", html);
+    }
+
+    [Fact]
+    public void Render_KeepsTheHeadingsInOrder_AndNamesEveryHeaderCell()
+    {
+        string empty = _renderer.Render(new TagsPage());
+        SetupTags(("urgent", 1));
+
+        string html = _renderer.Render(new TagsPage());
+
+        PageStructure.AssertHeadingsInOrder(empty);
+        PageStructure.AssertHeadingsInOrder(html);
+        PageStructure.AssertNoEmptyHeaderCells(html);
     }
 
     private void SetupTags(params (string Tag, long Count)[] tags)

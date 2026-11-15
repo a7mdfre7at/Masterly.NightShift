@@ -2162,4 +2162,37 @@
   <data name="JobDetailsPage_StateDetails" xml:space="preserve">
     <value>Details</value>
   </data>
+  <data name="ChainDetailsPage_RetryConfirm" xml:space="preserve">
+    <value>De keten vanaf deze stap opnieuw uitvoeren?</value>
+  </data>
+  <data name="ChainDetailsPage_RetryConfirm_Body" xml:space="preserve">
+    <value>Deze stap wordt opnieuw uitgevoerd met alle stappen erna. De stappen ervoor behouden hun uitkomst.</value>
+  </data>
+  <data name="ChainsPage_EmptyTitle" xml:space="preserve">
+    <value>Nog geen ketens</value>
+  </data>
+  <data name="ChainsPage_EmptyText" xml:space="preserve">
+    <value>Start er een met JobChain.StartWith(...) en hij verschijnt hier als stroomdiagram.</value>
+  </data>
+  <data name="ChainsPage_DeleteChain" xml:space="preserve">
+    <value>De onvoltooide stappen van keten {0} verwijderen</value>
+  </data>
+  <data name="BatchesPage_EmptyTitle" xml:space="preserve">
+    <value>Nog geen batches</value>
+  </data>
+  <data name="BatchesPage_RequeueFailed" xml:space="preserve">
+    <value>De mislukte taken van batch {0} opnieuw in de wachtrij plaatsen</value>
+  </data>
+  <data name="BatchesPage_DeletePending" xml:space="preserve">
+    <value>De onvoltooide taken van batch {0} verwijderen</value>
+  </data>
+  <data name="BatchDetailsPage_Pending" xml:space="preserve">
+    <value>In behandeling</value>
+  </data>
+  <data name="TagsPage_EmptyTitle" xml:space="preserve">
+    <value>Nog geen tags</value>
+  </data>
+  <data name="TagsPage_ForgetTag" xml:space="preserve">
+    <value>Tag {0} vergeten</value>
+  </data>
 </root>
