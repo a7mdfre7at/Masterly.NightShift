@@ -196,6 +196,23 @@
     --hf-shadow-lg: 0 2px 4px rgba(10, 37, 48, .04), 0 24px 48px -16px rgba(10, 37, 48, .2);
     --hf-focus: 0 0 0 3px rgba(18, 140, 150, .35);
 
+    /* The same colors as "r, g, b", for the Bootstrap variables that take them (rgba(var(--bs-...-rgb), .05)) */
+    --hf-text-rgb: 10, 37, 48;
+    --hf-bg-rgb: 244, 249, 249;
+    --hf-surface-2-rgb: 247, 251, 251;
+    --hf-muted-rgb: 95, 120, 130;
+    --hf-neutral-soft-rgb: 234, 243, 243;
+    --hf-primary-rgb: 15, 110, 128;
+    --hf-primary-strong-rgb: 10, 77, 90;
+    --hf-success-rgb: 4, 120, 87;
+    --hf-warning-rgb: 194, 65, 12;
+    --hf-danger-rgb: 225, 29, 72;
+    --hf-info-rgb: 37, 99, 235;
+    /* The arrow of a select, and the mark of a checked box or radio button in the color on a fill */
+    --hf-select-arrow: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%233d5560' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+    --hf-check-mark: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/%3e%3c/svg%3e");
+    --hf-radio-dot: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='2' fill='%23fff'/%3e%3c/svg%3e");
+
     color-scheme: light;
 }
 
@@ -216,6 +233,62 @@
     --bs-border-color: var(--hf-border);
     --bs-heading-color: inherit;
     --bs-code-color: var(--hf-text);
+
+    /* What cards, list groups, tables, forms, dropdowns, modals, alerts and progress bars mix their colors from */
+    --bs-body-color-rgb: var(--hf-text-rgb);
+    --bs-body-bg-rgb: var(--hf-bg-rgb);
+    --bs-emphasis-color-rgb: var(--hf-text-rgb);
+    --bs-secondary-color-rgb: var(--hf-muted-rgb);
+    --bs-secondary-bg-rgb: var(--hf-neutral-soft-rgb);
+    --bs-tertiary-color-rgb: var(--hf-muted-rgb);
+    --bs-tertiary-bg-rgb: var(--hf-surface-2-rgb);
+    --bs-border-color-translucent: var(--hf-border);
+    --bs-link-color: var(--hf-primary);
+    --bs-link-color-rgb: var(--hf-primary-rgb);
+    --bs-link-hover-color: var(--hf-primary-strong);
+    --bs-link-hover-color-rgb: var(--hf-primary-strong-rgb);
+    --bs-highlight-color: var(--hf-text);
+    --bs-highlight-bg: var(--hf-warning-soft);
+    --bs-box-shadow: var(--hf-shadow);
+    --bs-box-shadow-sm: var(--hf-shadow-sm);
+    --bs-box-shadow-lg: var(--hf-shadow-lg);
+    --bs-focus-ring-color: rgba(var(--hf-primary-rgb), .35);
+    --bs-form-valid-color: var(--hf-success);
+    --bs-form-valid-border-color: var(--hf-success);
+    --bs-form-invalid-color: var(--hf-danger);
+    --bs-form-invalid-border-color: var(--hf-danger);
+
+    /* The theme colors, for the bg-*, text-*, border-* and link-* utilities and the alerts */
+    --bs-primary: var(--hf-primary);
+    --bs-primary-rgb: var(--hf-primary-rgb);
+    --bs-secondary: var(--hf-muted);
+    --bs-secondary-rgb: var(--hf-muted-rgb);
+    --bs-success: var(--hf-success);
+    --bs-success-rgb: var(--hf-success-rgb);
+    --bs-warning: var(--hf-warning);
+    --bs-warning-rgb: var(--hf-warning-rgb);
+    --bs-danger: var(--hf-danger);
+    --bs-danger-rgb: var(--hf-danger-rgb);
+    --bs-info: var(--hf-info);
+    --bs-info-rgb: var(--hf-info-rgb);
+    --bs-primary-text-emphasis: var(--hf-primary);
+    --bs-secondary-text-emphasis: var(--hf-text-2);
+    --bs-success-text-emphasis: var(--hf-success);
+    --bs-warning-text-emphasis: var(--hf-warning);
+    --bs-danger-text-emphasis: var(--hf-danger);
+    --bs-info-text-emphasis: var(--hf-info);
+    --bs-primary-bg-subtle: var(--hf-primary-soft);
+    --bs-secondary-bg-subtle: var(--hf-neutral-soft);
+    --bs-success-bg-subtle: var(--hf-success-soft);
+    --bs-warning-bg-subtle: var(--hf-warning-soft);
+    --bs-danger-bg-subtle: var(--hf-danger-soft);
+    --bs-info-bg-subtle: var(--hf-info-soft);
+    --bs-primary-border-subtle: var(--hf-border-strong);
+    --bs-secondary-border-subtle: var(--hf-border-strong);
+    --bs-success-border-subtle: var(--hf-border-strong);
+    --bs-warning-border-subtle: var(--hf-border-strong);
+    --bs-danger-border-subtle: var(--hf-border-strong);
+    --bs-info-border-subtle: var(--hf-border-strong);
 }
 
 /* Bootstrap 5 sizes its components in rem, which is relative to the font size of html: 14px, the size of the
@@ -254,6 +327,20 @@ html {
     --hf-shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px -8px rgba(0, 0, 0, .5);
     --hf-shadow-lg: 0 2px 4px rgba(0, 0, 0, .3), 0 24px 48px -16px rgba(0, 0, 0, .6);
     --hf-focus: 0 0 0 3px rgba(95, 224, 200, .42);
+    --hf-text-rgb: 234, 246, 244;
+    --hf-bg-rgb: 6, 26, 34;
+    --hf-surface-2-rgb: 14, 45, 56;
+    --hf-muted-rgb: 119, 149, 151;
+    --hf-neutral-soft-rgb: 18, 52, 63;
+    --hf-primary-rgb: 95, 224, 200;
+    --hf-primary-strong-rgb: 134, 232, 214;
+    --hf-success-rgb: 52, 211, 153;
+    --hf-warning-rgb: 255, 158, 115;
+    --hf-danger-rgb: 251, 113, 133;
+    --hf-info-rgb: 147, 197, 253;
+    --hf-select-arrow: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23a6c1c3' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+    --hf-check-mark: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%2304131a' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/%3e%3c/svg%3e");
+    --hf-radio-dot: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='2' fill='%2304131a'/%3e%3c/svg%3e");
     color-scheme: dark;
 }
 
@@ -287,6 +374,20 @@ html {
         --hf-shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px -8px rgba(0, 0, 0, .5);
         --hf-shadow-lg: 0 2px 4px rgba(0, 0, 0, .3), 0 24px 48px -16px rgba(0, 0, 0, .6);
         --hf-focus: 0 0 0 3px rgba(95, 224, 200, .42);
+        --hf-text-rgb: 234, 246, 244;
+        --hf-bg-rgb: 6, 26, 34;
+        --hf-surface-2-rgb: 14, 45, 56;
+        --hf-muted-rgb: 119, 149, 151;
+        --hf-neutral-soft-rgb: 18, 52, 63;
+        --hf-primary-rgb: 95, 224, 200;
+        --hf-primary-strong-rgb: 134, 232, 214;
+        --hf-success-rgb: 52, 211, 153;
+        --hf-warning-rgb: 255, 158, 115;
+        --hf-danger-rgb: 251, 113, 133;
+        --hf-info-rgb: 147, 197, 253;
+        --hf-select-arrow: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23a6c1c3' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+        --hf-check-mark: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%2304131a' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/%3e%3c/svg%3e");
+        --hf-radio-dot: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='2' fill='%2304131a'/%3e%3c/svg%3e");
         color-scheme: dark;
     }
 }
@@ -1295,6 +1396,100 @@ body.hf-app hr {
     background-color: var(--hf-primary);
     border-color: var(--hf-primary);
     color: var(--hf-on-color);
+}
+
+/* Bootstrap 5 components extensions use; the pages themselves don't. Their variables are set on each component, so
+   they are given the tokens here. */
+.hf-app .card {
+    --bs-card-color: var(--hf-text);
+    --bs-card-bg: var(--hf-surface);
+    --bs-card-border-color: var(--hf-border);
+    --bs-card-border-radius: var(--hf-radius);
+    --bs-card-inner-border-radius: calc(var(--hf-radius) - 1px);
+    --bs-card-cap-bg: var(--hf-surface-2);
+    --bs-card-cap-color: var(--hf-text);
+    box-shadow: var(--hf-shadow-sm);
+}
+
+.hf-app .dropdown-menu {
+    --bs-dropdown-color: var(--hf-text);
+    --bs-dropdown-bg: var(--hf-surface);
+    --bs-dropdown-border-color: var(--hf-border);
+    --bs-dropdown-border-radius: var(--hf-radius-sm);
+    --bs-dropdown-divider-bg: var(--hf-border);
+    --bs-dropdown-box-shadow: var(--hf-shadow);
+    --bs-dropdown-link-color: var(--hf-text);
+    --bs-dropdown-link-hover-color: var(--hf-text);
+    --bs-dropdown-link-hover-bg: var(--hf-neutral-soft);
+    --bs-dropdown-link-active-color: var(--hf-on-color);
+    --bs-dropdown-link-active-bg: var(--hf-primary);
+    --bs-dropdown-link-disabled-color: var(--hf-muted);
+    --bs-dropdown-header-color: var(--hf-muted);
+}
+
+/* The items are links, which the dashboard colors as links */
+.hf-app .dropdown-item { color: var(--bs-dropdown-link-color); }
+.hf-app .dropdown-item:hover,
+.hf-app .dropdown-item:focus { color: var(--bs-dropdown-link-hover-color); }
+.hf-app .dropdown-item.active,
+.hf-app .dropdown-item:active { color: var(--bs-dropdown-link-active-color); }
+.hf-app .dropdown-item.disabled,
+.hf-app .dropdown-item:disabled { color: var(--bs-dropdown-link-disabled-color); }
+
+.hf-app .list-group {
+    --bs-list-group-active-bg: var(--hf-primary);
+    --bs-list-group-active-border-color: var(--hf-primary);
+    --bs-list-group-active-color: var(--hf-on-color);
+    --bs-list-group-action-color: var(--hf-text-2);
+    --bs-list-group-action-hover-color: var(--hf-text);
+}
+
+.hf-app .nav {
+    --bs-nav-link-color: var(--hf-primary);
+    --bs-nav-link-hover-color: var(--hf-primary-strong);
+    --bs-nav-link-disabled-color: var(--hf-muted);
+}
+
+.hf-app .nav-tabs {
+    --bs-nav-tabs-border-color: var(--hf-border);
+    --bs-nav-tabs-link-hover-border-color: var(--hf-border) var(--hf-border) var(--hf-border);
+    --bs-nav-tabs-link-active-color: var(--hf-text);
+    --bs-nav-tabs-link-active-bg: var(--hf-surface);
+    --bs-nav-tabs-link-active-border-color: var(--hf-border) var(--hf-border) var(--hf-surface);
+}
+
+.hf-app .nav-pills {
+    --bs-nav-pills-link-active-color: var(--hf-on-color);
+    --bs-nav-pills-link-active-bg: var(--hf-primary);
+}
+
+.hf-app .progress,
+.hf-app .progress-stacked {
+    --bs-progress-bg: var(--hf-neutral-soft);
+    --bs-progress-bar-bg: var(--hf-primary);
+    --bs-progress-bar-color: var(--hf-on-color);
+}
+
+.hf-app .form-select {
+    --bs-form-select-bg-img: var(--hf-select-arrow);
+}
+
+.hf-app .form-check-input:checked[type=checkbox] {
+    --bs-form-check-bg-image: var(--hf-check-mark);
+}
+
+.hf-app .form-check-input:checked[type=radio] {
+    --bs-form-check-bg-image: var(--hf-radio-dot);
+}
+
+/* text-bg-* outside a badge: the fills are light in dark mode, so the text has the color made for them */
+.hf-app .text-bg-primary,
+.hf-app .text-bg-secondary,
+.hf-app .text-bg-success,
+.hf-app .text-bg-warning,
+.hf-app .text-bg-danger,
+.hf-app .text-bg-info {
+    color: var(--hf-on-color) !important;
 }
 
 .hf-app .tooltip-inner {
