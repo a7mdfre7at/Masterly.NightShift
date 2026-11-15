@@ -19,7 +19,7 @@ internal partial class AboutPage
         string none = Resources.Strings.AboutPage_None;
         (string? current, long? currentOrder) = ReadCurrentDeployment();
 
-        return new Dictionary<string, string>(StringComparer.Ordinal)
+        Dictionary<string, string> settings = new(StringComparer.Ordinal)
         {
             ["Masterly.NightShift"] = version,
             ["JobStorage"] = Storage.ToString() ?? string.Empty,
@@ -33,6 +33,14 @@ internal partial class AboutPage
             ["UseScheduleDateProvider"] = ScheduleDateProviders.Names.Count > 0 ? string.Join(", ", ScheduleDateProviders.Names) : none,
             ["JobMonitors.CheckInterval"] = JobMonitors.CheckInterval.ToString(),
         };
+
+        // What the storage says about itself can hold its connection string: shown only where the footer shows it
+        if (!DashboardOptions.DisplayStorageConnectionString)
+        {
+            settings.Remove("JobStorage");
+        }
+
+        return settings;
     }
 
     /// <summary>

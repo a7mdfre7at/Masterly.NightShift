@@ -53,7 +53,11 @@
                     <h2 id="storage">@Strings.AboutPage_Storage</h2>
                 </div>
                 <div class="hf-card-body">
-                    <p class="ns-about-storage">@Storage.ToString()</p>
+                    @* What the storage says about itself can hold its connection string: shown only where the footer shows it *@
+                    @if (DashboardOptions.DisplayStorageConnectionString)
+                    {
+                        <p class="ns-about-storage">@Storage.ToString()</p>
+                    }
                     <h3 class="ns-about-subhead">@Strings.AboutPage_Features</h3>
                     <ul class="ns-about-features">
                         @foreach (KeyValuePair<string, bool> feature in GetStorageFeatures())

@@ -466,6 +466,27 @@ public class NewPagesFacts
     }
 
     [Fact]
+    public void About_DescribesTheStorage_OnlyWhenTheOptionsShowItsConnectionString()
+    {
+        _renderer.Storage.Setup(x => x.ToString()).Returns("Server=db;Password=<secret>");
+        _renderer.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Connection.GetUtcDateTime)).Returns(true);
+
+        _renderer.Options = new DashboardOptions { DisplayStorageConnectionString = true };
+        string shown = _renderer.Render(new AboutPage());
+        _renderer.Options = new DashboardOptions { DisplayStorageConnectionString = false };
+        string hidden = _renderer.Render(new AboutPage());
+
+        Assert.Contains("<p class=\"ns-about-storage\">Server=db;Password=&lt;secret&gt;</p>", shown, StringComparison.Ordinal);
+        Assert.Contains("<dt><code>JobStorage</code></dt>", shown, StringComparison.Ordinal);
+        Assert.DoesNotContain("Password", hidden, StringComparison.Ordinal);
+        Assert.DoesNotContain("ns-about-storage", hidden, StringComparison.Ordinal);
+        Assert.DoesNotContain("<dt><code>JobStorage</code></dt>", hidden, StringComparison.Ordinal);
+        Assert.Contains("<dt><code>UseStaleRestartLimit</code></dt>", hidden, StringComparison.Ordinal);
+        // The storage's features stay
+        Assert.Contains("<code>Connection.GetUtcDateTime</code>", hidden, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void NavigationMenu_LinksToTheNewPages()
     {
         string html = _renderer.Render(new AboutPage());
