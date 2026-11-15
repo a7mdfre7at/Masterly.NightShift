@@ -2341,4 +2341,37 @@
   <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
     <value>{0} tillåtna, {1} blockerade</value>
   </data>
+  <data name="RecurringJobsPage_TriggerJob" xml:space="preserve">
+    <value>Utlös {0} nu</value>
+  </data>
+  <data name="RecurringJobsPage_PauseJob" xml:space="preserve">
+    <value>Pausa {0}</value>
+  </data>
+  <data name="RecurringJobsPage_ResumeJob" xml:space="preserve">
+    <value>Återuppta {0}</value>
+  </data>
+  <data name="RecurringJobsPage_EditJob" xml:space="preserve">
+    <value>Redigera schemat för {0}</value>
+  </data>
+  <data name="RecurringJobsPage_DeleteJob" xml:space="preserve">
+    <value>Ta bort {0}</value>
+  </data>
+  <data name="RecurringJobsPage_DeleteConfirmOne" xml:space="preserve">
+    <value>Ta bort det återkommande jobbet {0}?</value>
+  </data>
+  <data name="RecurringJobsPage_EmptyTitle" xml:space="preserve">
+    <value>Inga återkommande jobb</value>
+  </data>
+  <data name="RecurringJobsPage_Empty" xml:space="preserve">
+    <value>Registrera dem i koden med AddOrUpdate eller AddNightShiftRecurringJobs, importera ett manifest eller skapa ett från en metod i katalogen.</value>
+  </data>
+  <data name="RecurringJobsPage_Group_When" xml:space="preserve">
+    <value>När det körs</value>
+  </data>
+  <data name="RecurringJobsPage_Group_How" xml:space="preserve">
+    <value>Hur det körs</value>
+  </data>
+  <data name="RecurringJobsPage_QueueHint" xml:space="preserve">
+    <value>Lämna tomt för standardkön.</value>
+  </data>
 </root>

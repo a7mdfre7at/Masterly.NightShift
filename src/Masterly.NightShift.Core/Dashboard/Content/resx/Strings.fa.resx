@@ -2333,4 +2333,37 @@
   <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
     <value>{0} مجاز، {1} مسدود</value>
   </data>
+  <data name="RecurringJobsPage_TriggerJob" xml:space="preserve">
+    <value>اجرای {0} همین حالا</value>
+  </data>
+  <data name="RecurringJobsPage_PauseJob" xml:space="preserve">
+    <value>توقف موقت {0}</value>
+  </data>
+  <data name="RecurringJobsPage_ResumeJob" xml:space="preserve">
+    <value>ازسرگیری {0}</value>
+  </data>
+  <data name="RecurringJobsPage_EditJob" xml:space="preserve">
+    <value>ویرایش زمان‌بندی {0}</value>
+  </data>
+  <data name="RecurringJobsPage_DeleteJob" xml:space="preserve">
+    <value>حذف {0}</value>
+  </data>
+  <data name="RecurringJobsPage_DeleteConfirmOne" xml:space="preserve">
+    <value>کار تکرارشونده {0} حذف شود؟</value>
+  </data>
+  <data name="RecurringJobsPage_EmptyTitle" xml:space="preserve">
+    <value>هیچ کار تکرارشونده‌ای نیست</value>
+  </data>
+  <data name="RecurringJobsPage_Empty" xml:space="preserve">
+    <value>آن‌ها را در کد با AddOrUpdate یا AddNightShiftRecurringJobs ثبت کنید، یک مانیفست وارد کنید، یا از یک متد کاتالوگ یکی بسازید.</value>
+  </data>
+  <data name="RecurringJobsPage_Group_When" xml:space="preserve">
+    <value>زمان اجرا</value>
+  </data>
+  <data name="RecurringJobsPage_Group_How" xml:space="preserve">
+    <value>نحوهٔ اجرا</value>
+  </data>
+  <data name="RecurringJobsPage_QueueHint" xml:space="preserve">
+    <value>برای صف پیش‌فرض خالی بگذارید.</value>
+  </data>
 </root>

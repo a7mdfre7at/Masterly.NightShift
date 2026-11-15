@@ -35,14 +35,24 @@ internal partial class RecurringJobsPage
         }
     }
 
-    // The edit button carries what the schedule editor opens with. The row's button and the hidden one that
-    // /recurring?edit={id} adds for a job of another page are the same.
+    // A row action that posts to one of the job's commands (/recurring/trigger-one/{id} and the others), named after
+    // what it does to that job, such as "Trigger nightly now"
+    private NonEscapedString RowAction(string path, string icon, string label, string jobId, string loadingText)
+    {
+        string name = WebUtility.HtmlEncode(string.Format(CultureInfo.CurrentCulture, label, jobId));
+        return new NonEscapedString(
+            $"<button type=\"button\" class=\"ns-icon-button\" data-ajax=\"{WebUtility.HtmlEncode(Url.To(path))}\" data-loading-text=\"{WebUtility.HtmlEncode(loadingText)}\" aria-label=\"{name}\" title=\"{name}\">{Html.Icon(icon)}</button>");
+    }
+
+    // The edit button carries what the schedule editor opens with: a row action, and the hidden button that
+    // /recurring?edit={id} adds for a job of another page
     private NonEscapedString EditButton(RecurringJobDto job, bool hidden)
     {
+        string name = string.Format(CultureInfo.CurrentCulture, Strings.RecurringJobsPage_EditJob, job.Id);
         StringBuilder builder = new();
-        builder.Append("<button type=\"button\" class=\"btn hf-btn-xs btn-outline-secondary js-recurring-edit").Append(hidden ? " d-none" : null).Append('"');
-        AppendAttribute(builder, "title", Strings.RecurringJobsPage_EditSchedule);
-        AppendAttribute(builder, "aria-label", Strings.RecurringJobsPage_EditSchedule);
+        builder.Append("<button type=\"button\" class=\"ns-icon-button js-recurring-edit").Append(hidden ? " d-none" : null).Append("\" aria-haspopup=\"dialog\"");
+        AppendAttribute(builder, "title", name);
+        AppendAttribute(builder, "aria-label", name);
         AppendAttribute(builder, "data-id", job.Id);
         AppendAttribute(builder, "data-cron", job.Cron);
         AppendAttribute(builder, "data-timezone", job.TimeZoneId ?? TimeZoneInfo.Utc.Id);
@@ -50,9 +60,7 @@ internal partial class RecurringJobsPage
         AppendAttribute(builder, "data-misfire", job.MisfireHandling.ToString());
         AppendAttribute(builder, "data-start-at", job.StartAt.HasValue ? ToUnixMilliseconds(job.StartAt.Value) : null);
         AppendAttribute(builder, "data-end-at", job.EndAt.HasValue ? ToUnixMilliseconds(job.EndAt.Value) : null);
-        builder.Append('>').Append(Html.Icon("pencil-fill")).Append(" <span class=\"d-none d-md-inline\">")
-            .Append(WebUtility.HtmlEncode(Strings.RecurringJobsPage_Edit))
-            .Append("</span></button>");
+        builder.Append('>').Append(Html.Icon("pencil-fill")).Append("</button>");
 
         return new NonEscapedString(builder.ToString());
     }

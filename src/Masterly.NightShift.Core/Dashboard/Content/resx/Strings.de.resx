@@ -2280,4 +2280,37 @@
   <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
     <value>{0} erlaubt, {1} gesperrt</value>
   </data>
+  <data name="RecurringJobsPage_TriggerJob" xml:space="preserve">
+    <value>{0} jetzt auslösen</value>
+  </data>
+  <data name="RecurringJobsPage_PauseJob" xml:space="preserve">
+    <value>{0} pausieren</value>
+  </data>
+  <data name="RecurringJobsPage_ResumeJob" xml:space="preserve">
+    <value>{0} fortsetzen</value>
+  </data>
+  <data name="RecurringJobsPage_EditJob" xml:space="preserve">
+    <value>Zeitplan von {0} bearbeiten</value>
+  </data>
+  <data name="RecurringJobsPage_DeleteJob" xml:space="preserve">
+    <value>{0} löschen</value>
+  </data>
+  <data name="RecurringJobsPage_DeleteConfirmOne" xml:space="preserve">
+    <value>Wiederkehrenden Job {0} löschen?</value>
+  </data>
+  <data name="RecurringJobsPage_EmptyTitle" xml:space="preserve">
+    <value>Keine wiederkehrenden Jobs</value>
+  </data>
+  <data name="RecurringJobsPage_Empty" xml:space="preserve">
+    <value>Registrieren Sie sie im Code mit AddOrUpdate oder AddNightShiftRecurringJobs, importieren Sie ein Manifest oder erstellen Sie einen aus einer Methode des Katalogs.</value>
+  </data>
+  <data name="RecurringJobsPage_Group_When" xml:space="preserve">
+    <value>Wann er läuft</value>
+  </data>
+  <data name="RecurringJobsPage_Group_How" xml:space="preserve">
+    <value>Wie er läuft</value>
+  </data>
+  <data name="RecurringJobsPage_QueueHint" xml:space="preserve">
+    <value>Leer lassen für die Standardwarteschlange.</value>
+  </data>
 </root>

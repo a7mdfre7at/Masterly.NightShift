@@ -2311,4 +2311,37 @@
   <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
     <value>{0} izinli, {1} engelli</value>
   </data>
+  <data name="RecurringJobsPage_TriggerJob" xml:space="preserve">
+    <value>{0} işini şimdi tetikle</value>
+  </data>
+  <data name="RecurringJobsPage_PauseJob" xml:space="preserve">
+    <value>{0} işini duraklat</value>
+  </data>
+  <data name="RecurringJobsPage_ResumeJob" xml:space="preserve">
+    <value>{0} işini sürdür</value>
+  </data>
+  <data name="RecurringJobsPage_EditJob" xml:space="preserve">
+    <value>{0} zamanlamasını düzenle</value>
+  </data>
+  <data name="RecurringJobsPage_DeleteJob" xml:space="preserve">
+    <value>{0} işini sil</value>
+  </data>
+  <data name="RecurringJobsPage_DeleteConfirmOne" xml:space="preserve">
+    <value>Yinelenen iş {0} silinsin mi?</value>
+  </data>
+  <data name="RecurringJobsPage_EmptyTitle" xml:space="preserve">
+    <value>Yinelenen iş yok</value>
+  </data>
+  <data name="RecurringJobsPage_Empty" xml:space="preserve">
+    <value>Bunları kodda AddOrUpdate veya AddNightShiftRecurringJobs ile kaydedin, bir bildirim dosyası içe aktarın ya da Katalog'daki bir yöntemden oluşturun.</value>
+  </data>
+  <data name="RecurringJobsPage_Group_When" xml:space="preserve">
+    <value>Ne zaman çalışır</value>
+  </data>
+  <data name="RecurringJobsPage_Group_How" xml:space="preserve">
+    <value>Nasıl çalışır</value>
+  </data>
+  <data name="RecurringJobsPage_QueueHint" xml:space="preserve">
+    <value>Varsayılan kuyruk için boş bırakın.</value>
+  </data>
 </root>

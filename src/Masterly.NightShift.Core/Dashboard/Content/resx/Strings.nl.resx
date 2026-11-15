@@ -2300,4 +2300,37 @@
   <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
     <value>{0} toegestaan, {1} geblokkeerd</value>
   </data>
+  <data name="RecurringJobsPage_TriggerJob" xml:space="preserve">
+    <value>{0} nu starten</value>
+  </data>
+  <data name="RecurringJobsPage_PauseJob" xml:space="preserve">
+    <value>{0} pauzeren</value>
+  </data>
+  <data name="RecurringJobsPage_ResumeJob" xml:space="preserve">
+    <value>{0} hervatten</value>
+  </data>
+  <data name="RecurringJobsPage_EditJob" xml:space="preserve">
+    <value>Schema van {0} bewerken</value>
+  </data>
+  <data name="RecurringJobsPage_DeleteJob" xml:space="preserve">
+    <value>{0} verwijderen</value>
+  </data>
+  <data name="RecurringJobsPage_DeleteConfirmOne" xml:space="preserve">
+    <value>Terugkerende job {0} verwijderen?</value>
+  </data>
+  <data name="RecurringJobsPage_EmptyTitle" xml:space="preserve">
+    <value>Geen terugkerende jobs</value>
+  </data>
+  <data name="RecurringJobsPage_Empty" xml:space="preserve">
+    <value>Registreer ze in code met AddOrUpdate of AddNightShiftRecurringJobs, importeer een manifest of maak er een van een methode uit de catalogus.</value>
+  </data>
+  <data name="RecurringJobsPage_Group_When" xml:space="preserve">
+    <value>Wanneer hij draait</value>
+  </data>
+  <data name="RecurringJobsPage_Group_How" xml:space="preserve">
+    <value>Hoe hij draait</value>
+  </data>
+  <data name="RecurringJobsPage_QueueHint" xml:space="preserve">
+    <value>Laat leeg voor de standaardwachtrij.</value>
+  </data>
 </root>

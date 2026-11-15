@@ -2278,4 +2278,37 @@
   <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
     <value>{0} permeses, {1} bloquejades</value>
   </data>
+  <data name="RecurringJobsPage_TriggerJob" xml:space="preserve">
+    <value>Executa {0} ara</value>
+  </data>
+  <data name="RecurringJobsPage_PauseJob" xml:space="preserve">
+    <value>Posa en pausa {0}</value>
+  </data>
+  <data name="RecurringJobsPage_ResumeJob" xml:space="preserve">
+    <value>Reprèn {0}</value>
+  </data>
+  <data name="RecurringJobsPage_EditJob" xml:space="preserve">
+    <value>Edita la planificació de {0}</value>
+  </data>
+  <data name="RecurringJobsPage_DeleteJob" xml:space="preserve">
+    <value>Suprimeix {0}</value>
+  </data>
+  <data name="RecurringJobsPage_DeleteConfirmOne" xml:space="preserve">
+    <value>Voleu suprimir la tasca recurrent {0}?</value>
+  </data>
+  <data name="RecurringJobsPage_EmptyTitle" xml:space="preserve">
+    <value>No hi ha tasques recurrents</value>
+  </data>
+  <data name="RecurringJobsPage_Empty" xml:space="preserve">
+    <value>Registreu-les al codi amb AddOrUpdate o AddNightShiftRecurringJobs, importeu un manifest o creeu-ne una a partir d'un mètode del Catàleg.</value>
+  </data>
+  <data name="RecurringJobsPage_Group_When" xml:space="preserve">
+    <value>Quan s'executa</value>
+  </data>
+  <data name="RecurringJobsPage_Group_How" xml:space="preserve">
+    <value>Com s'executa</value>
+  </data>
+  <data name="RecurringJobsPage_QueueHint" xml:space="preserve">
+    <value>Deixeu-ho buit per a la cua per defecte.</value>
+  </data>
 </root>

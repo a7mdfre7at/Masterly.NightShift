@@ -2327,4 +2327,37 @@
   <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
     <value>разрешено: {0}, заблокировано: {1}</value>
   </data>
+  <data name="RecurringJobsPage_TriggerJob" xml:space="preserve">
+    <value>Запустить {0} сейчас</value>
+  </data>
+  <data name="RecurringJobsPage_PauseJob" xml:space="preserve">
+    <value>Приостановить {0}</value>
+  </data>
+  <data name="RecurringJobsPage_ResumeJob" xml:space="preserve">
+    <value>Возобновить {0}</value>
+  </data>
+  <data name="RecurringJobsPage_EditJob" xml:space="preserve">
+    <value>Изменить расписание {0}</value>
+  </data>
+  <data name="RecurringJobsPage_DeleteJob" xml:space="preserve">
+    <value>Удалить {0}</value>
+  </data>
+  <data name="RecurringJobsPage_DeleteConfirmOne" xml:space="preserve">
+    <value>Удалить повторяющееся задание {0}?</value>
+  </data>
+  <data name="RecurringJobsPage_EmptyTitle" xml:space="preserve">
+    <value>Нет повторяющихся заданий</value>
+  </data>
+  <data name="RecurringJobsPage_Empty" xml:space="preserve">
+    <value>Зарегистрируйте их в коде с помощью AddOrUpdate или AddNightShiftRecurringJobs, импортируйте манифест или создайте задание из метода каталога.</value>
+  </data>
+  <data name="RecurringJobsPage_Group_When" xml:space="preserve">
+    <value>Когда выполняется</value>
+  </data>
+  <data name="RecurringJobsPage_Group_How" xml:space="preserve">
+    <value>Как выполняется</value>
+  </data>
+  <data name="RecurringJobsPage_QueueHint" xml:space="preserve">
+    <value>Оставьте пустым для очереди по умолчанию.</value>
+  </data>
 </root>

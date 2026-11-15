@@ -2302,4 +2302,37 @@ Vous devriez les remettre en file d'attente ou les supprimer manuellement, ou ap
   <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
     <value>{0} autorisées, {1} bloquées</value>
   </data>
+  <data name="RecurringJobsPage_TriggerJob" xml:space="preserve">
+    <value>Déclencher {0} maintenant</value>
+  </data>
+  <data name="RecurringJobsPage_PauseJob" xml:space="preserve">
+    <value>Mettre {0} en pause</value>
+  </data>
+  <data name="RecurringJobsPage_ResumeJob" xml:space="preserve">
+    <value>Reprendre {0}</value>
+  </data>
+  <data name="RecurringJobsPage_EditJob" xml:space="preserve">
+    <value>Modifier la planification de {0}</value>
+  </data>
+  <data name="RecurringJobsPage_DeleteJob" xml:space="preserve">
+    <value>Supprimer {0}</value>
+  </data>
+  <data name="RecurringJobsPage_DeleteConfirmOne" xml:space="preserve">
+    <value>Supprimer la tâche récurrente {0} ?</value>
+  </data>
+  <data name="RecurringJobsPage_EmptyTitle" xml:space="preserve">
+    <value>Aucune tâche récurrente</value>
+  </data>
+  <data name="RecurringJobsPage_Empty" xml:space="preserve">
+    <value>Enregistrez-les dans le code avec AddOrUpdate ou AddNightShiftRecurringJobs, importez un manifeste ou créez-en une à partir d'une méthode du Catalogue.</value>
+  </data>
+  <data name="RecurringJobsPage_Group_When" xml:space="preserve">
+    <value>Quand elle s'exécute</value>
+  </data>
+  <data name="RecurringJobsPage_Group_How" xml:space="preserve">
+    <value>Comment elle s'exécute</value>
+  </data>
+  <data name="RecurringJobsPage_QueueHint" xml:space="preserve">
+    <value>Laissez vide pour la file d'attente par défaut.</value>
+  </data>
 </root>

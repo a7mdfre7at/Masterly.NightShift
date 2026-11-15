@@ -5232,15 +5232,18 @@ body.hf-app.hf-wallboard {
 }
 
 /* The editor in the side sheet: the name, description and time zone, then a fieldset for when jobs may start (the
-   days as filter chips) and one for the other policies; a change made meanwhile shows the conflict note */
-.ns-policy-fieldset {
+   days as filter chips) and one for the other policies; a change made meanwhile shows the conflict note. A form of
+   another sheet groups its fields the same way with ns-fieldset. */
+.ns-policy-fieldset,
+.ns-fieldset {
     min-width: 0;
     margin: var(--md-sys-spacing-5) 0 0;
     padding: 0;
     border: 0;
 }
 
-.hf-app .ns-policy-fieldset > legend {
+.hf-app .ns-policy-fieldset > legend,
+.hf-app .ns-fieldset > legend {
     float: none;
     width: auto;
     margin: 0 0 var(--md-sys-spacing-3);
@@ -7686,4 +7689,92 @@ body.hf-app.hf-wallboard {
 .hf-app code.ns-server-id {
     padding: 0;
     background: transparent;
+}
+
+/* The recurring jobs list
+   ------------------------------------------------------------------
+   Two lines per job: its id (a link to its page) and method, then its schedule in words with the CRON code, its
+   time zone, queue and status chips (policy, from code, paused, retired); the next and the last execution as chips
+   with the time under them; Trigger now, Pause or Resume, Edit and, set apart, Delete as row actions. Its error,
+   when the scheduler couldn't handle it, opens in the side sheet. */
+.hf-app .ns-recurring-table td.ns-job-cell {
+    min-width: 18rem;
+}
+
+.ns-recurring-method {
+    font: var(--md-sys-typescale-code-small);
+    color: var(--md-sys-color-on-surface-variant);
+    overflow-wrap: anywhere;
+}
+
+.ns-recurring-schedule {
+    flex-wrap: wrap;
+    color: var(--md-sys-color-on-surface);
+}
+
+.hf-app .ns-recurring-schedule .cron-badge {
+    padding: 0 var(--md-sys-spacing-1);
+}
+
+.ns-job-meta .ns-chip {
+    min-height: 22px;
+    gap: var(--md-sys-spacing-1);
+    padding: 0 var(--md-sys-spacing-2);
+}
+
+.hf-app .ns-recurring-when .ns-chip {
+    min-height: 24px;
+    gap: var(--md-sys-spacing-1);
+    padding: 0 var(--md-sys-spacing-2);
+}
+
+.ns-recurring-muted {
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ns-chip.ns-recurring-late,
+.ns-chip.ns-recurring-error {
+    border-color: transparent;
+    background-color: var(--ns-state-failed-container);
+    color: var(--ns-state-on-failed-container);
+}
+
+.ns-chip.ns-recurring-retrying {
+    border-color: transparent;
+    background-color: var(--ns-state-processing-container);
+    color: var(--ns-state-on-processing-container);
+}
+
+.hf-app a.ns-recurring-last {
+    display: inline-flex;
+    text-decoration: none;
+}
+
+.ns-row-actions .ns-actions-divider {
+    align-self: center;
+    height: 20px;
+    min-height: 0;
+}
+
+/* The schedule editor in the side sheet: grouped fields, then the next runs as the schedule is typed */
+.hf-app .ns-sheet-form > .ns-fieldset:first-child {
+    margin-top: 0;
+}
+
+.hf-app .ns-recurring-preview h3 code {
+    margin-left: var(--md-sys-spacing-1);
+}
+
+.ns-next-runs > li.ns-next-runs-empty::before {
+    content: none;
+}
+
+@media (max-width: 599.98px) {
+    .hf-app .ns-recurring-table td.ns-job-cell {
+        min-width: 0;
+    }
+
+    .hf-app .ns-job-table.ns-table-reflow > tbody > tr > td.ns-recurring-when {
+        white-space: normal;
+    }
 }

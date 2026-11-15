@@ -6886,5 +6886,104 @@ namespace Masterly.NightShift.Dashboard.Resources {
                 return ResourceManager.GetString("PoliciesPage_PreviewSummary", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Trigger {0} now.
+        /// </summary>
+        public static string RecurringJobsPage_TriggerJob {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_TriggerJob", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pause {0}.
+        /// </summary>
+        public static string RecurringJobsPage_PauseJob {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_PauseJob", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Resume {0}.
+        /// </summary>
+        public static string RecurringJobsPage_ResumeJob {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_ResumeJob", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Edit the schedule of {0}.
+        /// </summary>
+        public static string RecurringJobsPage_EditJob {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_EditJob", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete {0}.
+        /// </summary>
+        public static string RecurringJobsPage_DeleteJob {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_DeleteJob", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete recurring job {0}?.
+        /// </summary>
+        public static string RecurringJobsPage_DeleteConfirmOne {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_DeleteConfirmOne", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No recurring jobs.
+        /// </summary>
+        public static string RecurringJobsPage_EmptyTitle {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_EmptyTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Register them in code with AddOrUpdate or AddNightShiftRecurringJobs, import a manifest, or make one from a method of the Catalog..
+        /// </summary>
+        public static string RecurringJobsPage_Empty {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Empty", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to When it runs.
+        /// </summary>
+        public static string RecurringJobsPage_Group_When {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Group_When", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to How it runs.
+        /// </summary>
+        public static string RecurringJobsPage_Group_How {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Group_How", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Leave it empty for the default queue..
+        /// </summary>
+        public static string RecurringJobsPage_QueueHint {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_QueueHint", resourceCulture);
+            }
+        }
     }
 }

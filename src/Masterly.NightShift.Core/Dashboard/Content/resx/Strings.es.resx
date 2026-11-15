@@ -2278,4 +2278,37 @@
   <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
     <value>{0} permitidas, {1} bloqueadas</value>
   </data>
+  <data name="RecurringJobsPage_TriggerJob" xml:space="preserve">
+    <value>Ejecutar {0} ahora</value>
+  </data>
+  <data name="RecurringJobsPage_PauseJob" xml:space="preserve">
+    <value>Pausar {0}</value>
+  </data>
+  <data name="RecurringJobsPage_ResumeJob" xml:space="preserve">
+    <value>Reanudar {0}</value>
+  </data>
+  <data name="RecurringJobsPage_EditJob" xml:space="preserve">
+    <value>Editar la programación de {0}</value>
+  </data>
+  <data name="RecurringJobsPage_DeleteJob" xml:space="preserve">
+    <value>Eliminar {0}</value>
+  </data>
+  <data name="RecurringJobsPage_DeleteConfirmOne" xml:space="preserve">
+    <value>¿Eliminar el trabajo recurrente {0}?</value>
+  </data>
+  <data name="RecurringJobsPage_EmptyTitle" xml:space="preserve">
+    <value>No hay trabajos recurrentes</value>
+  </data>
+  <data name="RecurringJobsPage_Empty" xml:space="preserve">
+    <value>Regístrelos en el código con AddOrUpdate o AddNightShiftRecurringJobs, importe un manifiesto o cree uno a partir de un método del Catálogo.</value>
+  </data>
+  <data name="RecurringJobsPage_Group_When" xml:space="preserve">
+    <value>Cuándo se ejecuta</value>
+  </data>
+  <data name="RecurringJobsPage_Group_How" xml:space="preserve">
+    <value>Cómo se ejecuta</value>
+  </data>
+  <data name="RecurringJobsPage_QueueHint" xml:space="preserve">
+    <value>Déjelo vacío para la cola predeterminada.</value>
+  </data>
 </root>

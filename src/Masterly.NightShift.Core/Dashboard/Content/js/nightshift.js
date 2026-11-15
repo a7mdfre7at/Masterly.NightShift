@@ -962,7 +962,9 @@
     // button and the scrim close it (NightShift.sheet.close()), and the focus goes back to the opener (the focused
     // element by default). A button with the class js-sheet-open opens it from its data-sheet-title,
     // data-sheet-overline and data-sheet-url, or the template its data-sheet-content selector names, or else the
-    // template.js-sheet-template of its row.
+    // template.js-sheet-template of its row. With guard: true, input in a form of the sheet makes it ask "Discard
+    // changes?" before Esc, the close button or a Cancel (js-sheet-close) closes it, and a click on the scrim is
+    // ignored meanwhile; a submit means the input was used.
     nightshift.sheet = (function () {
         var sheet = null;
         var scrim = null;
@@ -971,7 +973,10 @@
         var request = null;
 
         var build = function () {
-            scrim = $('<div class="ns-sheet-scrim js-sheet-scrim" hidden>').appendTo('body').on('click', function () { close(); });
+            scrim = $('<div class="ns-sheet-scrim js-sheet-scrim" hidden>').appendTo('body').on('click', function () {
+                if (state && state.dirty) return;
+                close();
+            });
             sheet = $('<div class="ns-sheet" role="dialog" aria-modal="true" aria-labelledby="nsSheetTitle" tabindex="-1" hidden>')
                 .append($('<div class="ns-sheet-header">')
                     .append($('<div class="ns-sheet-heading">')
@@ -984,15 +989,46 @@
                 .append('<div class="ns-sheet-actions" hidden></div>')
                 .appendTo('body');
 
-            sheet.on('click', '.js-sheet-close', function () { close(); });
+            sheet.on('click', '.js-sheet-close', function () { requestClose(); });
             sheet.on('keydown', function (e) {
                 if (e.key === 'Escape') {
                     e.preventDefault();
                     e.stopPropagation();
-                    close();
+                    requestClose();
                     return;
                 }
                 trapTab(e, sheet[0]);
+            });
+
+            // Input in a guarded sheet's form makes it dirty; a submit means the input was used
+            sheet.on('input change', 'form :input', function () {
+                if (state && state.guard) state.dirty = true;
+            });
+            sheet.on('submit', 'form', function () {
+                if (state) state.dirty = false;
+            });
+        };
+
+        // Closes the sheet, after asking when a guarded form holds unsaved input
+        var asking = false;
+        var requestClose = function () {
+            if (!state || !state.dirty) {
+                close();
+                return;
+            }
+            if (asking) return;
+            asking = true;
+            nightshift.confirm({
+                title: TEXT.discardTitle,
+                body: TEXT.discardBody,
+                confirmLabel: TEXT.discard,
+                cancelLabel: TEXT.keepEditing,
+                destructive: true
+            }).then(function (discard) {
+                asking = false;
+                if (!discard) return;
+                if (state) state.dirty = false;
+                close();
             });
         };
 
@@ -1046,7 +1082,7 @@
 
             var wasOpen = isOpen();
             var opener = options.opener || (wasOpen && state ? state.opener : document.activeElement);
-            state = { opener: opener, onClose: options.onClose };
+            state = { opener: opener, onClose: options.onClose, guard: !!options.guard, dirty: false };
 
             sheet.find('#nsSheetTitle').text(options.title || '');
             sheet.find('#nsSheetOverline').text(options.overline || '').prop('hidden', !options.overline);
@@ -1117,7 +1153,7 @@
             open(options);
         });
 
-        return { open: open, close: close, isOpen: isOpen };
+        return { open: open, close: close, requestClose: requestClose, isOpen: isOpen };
     })();
 
     // Outlined text fields: NightShift.fields(container) links each .ns-field's label, supporting and error text to
@@ -1659,22 +1695,18 @@
         return StatisticsPoller;
     })();
 
+    // The schedule editor of the recurring jobs page, in the side sheet: a copy of its template
+    // (js-recurring-edit-template, in #recurringJobEditor, which holds the addresses) filled from the edit button,
+    // a preview of the next runs as the schedule is typed (a schedule the server can't read is shown at its field),
+    // and Save, which reloads the page. Unsaved input asks before the sheet closes.
     nightshift.RecurringJobEditor = (function () {
-        function RecurringJobEditor(modal) {
-            this._modal = $(modal);
-            this._form = this._modal.find('.js-recurring-edit-form');
-            this._cron = this._modal.find('.js-recurring-edit-cron');
-            this._timezone = this._modal.find('.js-recurring-edit-timezone');
-            this._queue = this._modal.find('.js-recurring-edit-queue');
-            this._misfire = this._modal.find('.js-recurring-edit-misfire');
-            this._preview = this._modal.find('.js-recurring-edit-preview');
-            this._description = this._modal.find('.js-recurring-edit-description');
-            this._resolved = this._modal.find('.js-recurring-edit-resolved');
-            this._error = this._modal.find('.js-recurring-edit-error');
-            this._save = this._modal.find('.js-recurring-edit-save');
-            this._previewUrl = this._modal.data('preview-url');
-            this._updateUrl = this._modal.data('update-url');
-            this._previewUnavailable = this._modal.data('preview-unavailable');
+        function RecurringJobEditor(holder) {
+            this._holder = $(holder);
+            this._template = this._holder.find('template.js-recurring-edit-template')[0];
+            this._previewUrl = this._holder.attr('data-preview-url');
+            this._updateUrl = this._holder.attr('data-update-url');
+            this._previewUnavailable = this._holder.attr('data-preview-unavailable');
+            this._title = this._holder.attr('data-text-title');
             this._jobId = null;
             this._previewTimer = null;
             this._previewRequest = null;
@@ -1687,15 +1719,6 @@
                 e.preventDefault();
                 e.stopPropagation();
                 self.open($(this));
-            });
-
-            this._cron.add(this._timezone).on('input change', function () {
-                self._schedulePreview();
-            });
-
-            this._form.on('submit', function (e) {
-                e.preventDefault();
-                self._submit();
             });
 
             // Deep link: /recurring?edit=<id> opens the editor for that job (used by the command palette)
@@ -1712,10 +1735,25 @@
         }
 
         RecurringJobEditor.prototype.open = function (button) {
+            if (!this._template) return;
+            var self = this;
+            var content = $(document.importNode(this._template.content, true).children);
+            var find = function (selector) { return content.find(selector).add(content.filter(selector)); };
+
+            this._form = find('.js-recurring-edit-form');
+            this._cron = find('.js-recurring-edit-cron');
+            this._timezone = find('.js-recurring-edit-timezone');
+            this._queue = find('.js-recurring-edit-queue');
+            this._misfire = find('.js-recurring-edit-misfire');
+            this._preview = find('.js-recurring-edit-preview');
+            this._description = find('.js-recurring-edit-description');
+            this._resolved = find('.js-recurring-edit-resolved');
+            this._error = find('.js-recurring-edit-error');
+            this._save = find('.js-recurring-edit-save');
+
             // .attr, not .data: jQuery's .data() converts the text, so the id "[7]" read as the array [7] and
             // the update was posted for the job "7"
             this._jobId = button.attr('data-id') || '';
-            this._modal.find('.js-recurring-edit-id').text(this._jobId);
             this._cron.val(button.attr('data-cron') || '');
             // The list holds the host's own zones. A job's zone can be missing there (an IANA id on Windows, a
             // Windows id on Linux, an id only a custom resolver knows), so it's added rather than left unselected,
@@ -1727,15 +1765,26 @@
             this._timezone.val(timezone);
             this._queue.val(button.attr('data-queue') || '');
             this._misfire.val(button.attr('data-misfire') || 'Relaxed');
-            this._startAt = button.data('start-at') || '';
-            this._endAt = button.data('end-at') || '';
-            this._error.hide().text('');
-            this._preview.empty();
-            this._description.text('');
-            this._resolved.text('');
-            var cron = this._cron;
-            this._modal[0].addEventListener('shown.bs.modal', function () { cron.trigger('focus'); }, { once: true });
-            bootstrap.Modal.getOrCreateInstance(this._modal[0]).show();
+            this._startAt = button.attr('data-start-at') || '';
+            this._endAt = button.attr('data-end-at') || '';
+
+            this._cron.add(this._timezone).on('input change', function () {
+                self._schedulePreview();
+            });
+
+            this._form.on('submit', function (e) {
+                e.preventDefault();
+                self._submit();
+            });
+
+            nightshift.sheet.open({
+                title: this._jobId,
+                overline: this._title,
+                content: content,
+                opener: button.is(':visible') ? button[0] : document.activeElement,
+                guard: true
+            });
+            this._cron.trigger('focus');
             this._refreshPreview();
         };
 
@@ -1757,6 +1806,7 @@
                 this._preview.empty();
                 this._description.text('');
                 this._resolved.text('');
+                nightshift.fieldError(this._cron, null);
                 return;
             }
 
@@ -1767,16 +1817,17 @@
                     if (data.error) {
                         self._resolved.text('');
                         self._description.text('');
-                        self._showError(data.error);
+                        nightshift.fieldError(self._cron, data.error);
                         return;
                     }
 
+                    nightshift.fieldError(self._cron, null);
                     self._error.hide();
                     self._resolved.text(data.cron);
                     self._description.text(data.description || '');
 
                     if (!data.next || data.next.length === 0) {
-                        self._preview.append($('<li>').addClass('text-muted').text(self._previewUnavailable));
+                        self._preview.append($('<li>').addClass('ns-next-runs-empty').text(self._previewUnavailable));
                         return;
                     }
 
@@ -1785,8 +1836,8 @@
                     for (var i = 0; i < data.next.length; i++) {
                         var time = data.next[i] * 1000;
                         self._preview.append($('<li>')
-                            .append($('<span>').text(NightShiftIntl.format(time, format)))
-                            .append($('<span>').addClass('text-muted').text(NightShiftIntl.fromNow(time))));
+                            .append($('<span>').addClass('ns-next-runs-time').text(NightShiftIntl.format(time, format)))
+                            .append($('<span>').addClass('ns-next-runs-relative').text(NightShiftIntl.fromNow(time))));
                     }
                 })
                 .fail(function (xhr, status) {
@@ -1802,7 +1853,6 @@
 
             nightshift.setLoading(save, true);
             this._error.hide();
-
             $.post(this._updateUrl + nightshift.routeValue(this._jobId), {
                 cron: trim(this._cron.val()),
                 timezone: this._timezone.val(),
@@ -1810,7 +1860,10 @@
                 queue: trim(this._queue.val()),
                 misfire: this._misfire.val()
             })
-                .done(function () { window.location.reload(); })
+                .done(function () {
+                    nightshift.snackbar.showAfterReload({ text: format(TEXT.done, commandName(save)) });
+                    window.location.reload();
+                })
                 .fail(function (xhr) {
                     nightshift.setLoading(save, false);
                     var message = xhr.responseJSON && xhr.responseJSON.error
@@ -1826,7 +1879,6 @@
 
         return RecurringJobEditor;
     })();
-
     nightshift.LiveJobs = (function () {
         function LiveJobs(pollInterval) {
             this._pollInterval = Math.max(pollInterval || 2000, 1000);

@@ -17,6 +17,13 @@ internal static class PageStructure
         }
     }
 
+    // The page as the browser shows it before a script runs: the content of a template (a side sheet's, which has
+    // the sheet's h2 above it) is left out
+    public static string WithoutTemplates(string html)
+    {
+        return Regex.Replace(html, "<template[^>]*>.*?</template>", string.Empty, RegexOptions.Singleline);
+    }
+
     // Every header cell has a name, for screen readers at least
     public static void AssertNoEmptyHeaderCells(string html)
     {

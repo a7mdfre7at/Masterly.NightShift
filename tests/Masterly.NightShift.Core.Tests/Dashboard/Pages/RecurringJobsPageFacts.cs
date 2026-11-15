@@ -1,4 +1,5 @@
 using System.Net;
+using Masterly.NightShift.Dashboard;
 using Masterly.NightShift.Dashboard.Pages;
 using Masterly.NightShift.Dashboard.Resources;
 
@@ -20,8 +21,12 @@ public class RecurringJobsPageFacts
     {
         string html = _renderer.Render(new RecurringJobsPage());
 
-        Assert.Contains(H(Strings.RecurringJobsPage_NoJobs), html);
+        Assert.Contains("<div class=\"ns-empty-state\">", html);
+        Assert.Contains("<h2 class=\"ns-empty-state-title\">" + H(Strings.RecurringJobsPage_EmptyTitle) + "</h2>", html);
+        Assert.Contains("<p>" + H(Strings.RecurringJobsPage_Empty) + "</p>", html);
+        Assert.Contains("href=\"/catalog\">" + H(Strings.NavigationMenu_Catalog) + "</a>", html);
         Assert.DoesNotContain("js-jobs-list", html);
+        Assert.DoesNotContain("/recurring/remove-all", html);
         Assert.Contains("id=\"recurringJobEditor\"", html);
         Assert.Contains("data-preview-url=\"/recurring/preview\"", html);
         Assert.Contains("<option value=\"" + H(TimeZoneInfo.Utc.Id) + "\">", html);
@@ -75,8 +80,11 @@ public class RecurringJobsPageFacts
         Assert.DoesNotContain("/recurring/remove-all", html);
         Assert.DoesNotContain("/recurring/trigger", html);
         Assert.DoesNotContain("js-jobs-list-checkbox", html);
-        Assert.DoesNotContain("js-recurring-edit\"", html);
-        Assert.Contains("<td colspan=\"6\" class=\"failed-job-details\">", html);
+        Assert.DoesNotContain("js-recurring-edit", html);
+        Assert.DoesNotContain("ns-row-actions", html);
+        Assert.DoesNotContain("ns-actions-cell", html);
+        Assert.Contains("<template class=\"js-sheet-template\">", html);
+        Assert.Contains("<pre class=\"stack-trace\"><code>Boom</code></pre>", html);
     }
 
     [Fact]
@@ -117,12 +125,14 @@ public class RecurringJobsPageFacts
 
         Assert.Contains("title=\"" + H(Strings.RecurringJobsPage_Paused_Tooltip) + "\">" + H(Strings.RecurringJobsPage_Paused) + "</span>", html);
         Assert.Contains("title=\"" + H(Strings.RecurringJobsPage_RecurringJobDisabled_Tooltip) + "\">" + H(Strings.Common_Disabled) + "</span>", html);
-        Assert.Contains("<span class=\"badge text-bg-danger text-uppercase\">" + H(Strings.Common_Error) + "</span>", html);
-        Assert.Contains("<span class=\"badge text-bg-warning\"><span data-moment=", html);
+        Assert.Contains("<span class=\"ns-chip ns-chip-status ns-recurring-error\">" + DashboardMarkup.Icon("exclamation-circle-fill") + " " + H(Strings.Common_Error) + "</span>", html);
+        Assert.Contains("<span class=\"ns-chip ns-chip-status ns-recurring-retrying\">" + DashboardMarkup.Icon("arrow-repeat") + " <span data-moment=", html);
         Assert.DoesNotContain(H(string.Format(Strings.RecurringJobsPage_LateSummary, 1)), html);
-        Assert.Contains("<td rowspan=\"2\">", html);
-        Assert.Contains("<td colspan=\"8\" class=\"failed-job-details\">", html);
-        Assert.Contains("Cron went away", html);
+        // The error is a line under the job; the whole of it opens in the side sheet
+        Assert.Contains("<span class=\"ns-job-error-message\">System.InvalidOperationException: Cron went away</span>", html);
+        Assert.Contains("data-sheet-title=\"errored\" data-sheet-overline=\"" + H(Strings.Common_Error) + "\">" + H(Strings.Common_MoreDetails) + "</button>", html);
+        Assert.DoesNotContain("failed-job-details", html);
+        Assert.DoesNotContain("rowspan", html);
     }
 
     [Fact]
@@ -159,7 +169,7 @@ public class RecurringJobsPageFacts
 
         string html = _renderer.Render(new RecurringJobsPage());
 
-        Assert.Contains("class=\"btn hf-btn-xs btn-outline-secondary js-recurring-edit d-none\"", html);
+        Assert.Contains("class=\"ns-icon-button js-recurring-edit d-none\" aria-haspopup=\"dialog\"", html);
         Assert.Contains("data-id=\"elsewhere\" data-cron=\"0 5 * * *\"", html);
         Assert.Contains("data-queue=\"reports\"", html);
         Assert.Equal(2, CountOf(html, "data-misfire="));
@@ -251,7 +261,7 @@ public class RecurringJobsPageFacts
         string html = _renderer.Render(new RecurringJobsPage());
 
         Assert.Contains(H(Strings.RecurringJobsPage_Paused_Tooltip), html);
-        Assert.Contains("<span class=\"badge text-bg-danger text-uppercase\">" + H(Strings.Common_Error) + "</span>", html);
+        Assert.Contains("<span class=\"ns-chip ns-chip-status ns-recurring-error\">" + DashboardMarkup.Icon("exclamation-circle-fill") + " " + H(Strings.Common_Error) + "</span>", html);
         Assert.DoesNotContain(H(Strings.RecurringJobsPage_Ended_Tooltip), html);
     }
 
@@ -298,13 +308,14 @@ public class RecurringJobsPageFacts
 
         Assert.Contains("SampleJobs.Work", html);
         Assert.Contains("Missing.Assembly", html);
-        Assert.Contains("<em>" + H(Strings.Common_NotAvailable) + "</em>", html);
+        Assert.Contains("<em class=\"ns-recurring-method\">" + H(Strings.Common_NotAvailable) + "</em>", html);
     }
 
     [Fact]
     public void Render_ColoursTheLastExecution_ByTheStateOfTheLastJob()
     {
-        string lastExecution = JobHelper.SerializeDateTime(DateTime.UtcNow.AddHours(-1));
+        DateTime lastAt = DateTime.UtcNow.AddHours(-1);
+        string lastExecution = JobHelper.SerializeDateTime(lastAt);
         AddJob("succeeded", "0 * * * *", Next(TimeSpan.FromMinutes(30)), new Dictionary<string, string> { { "LastExecution", lastExecution }, { "LastJobId", "101" } });
         AddJob("custom", "0 * * * *", Next(TimeSpan.FromMinutes(30)), new Dictionary<string, string> { { "LastExecution", lastExecution }, { "LastJobId", "102" } });
         AddJob("canceled", "0 * * * *", Next(TimeSpan.FromMinutes(30)), new Dictionary<string, string> { { "LastExecution", lastExecution } });
@@ -314,15 +325,14 @@ public class RecurringJobsPageFacts
 
         string html = _renderer.Render(new RecurringJobsPage());
 
-        Assert.Contains("href=\"/jobs/details/101\"", html);
-        Assert.Contains("label-state-success", html);
-        Assert.Contains("href=\"/jobs/details/102\"", html);
-        Assert.Contains("<span class=\"badge text-bg-secondary label-hover\">", html);
-        Assert.DoesNotContain("label-state-inherit", html);
-        Assert.Contains("label-state-inactive\" title=\"" + H(Strings.RecurringJobsPage_Canceled) + "\"", html);
-        Assert.Contains("<em>N/A</em>", html);
-        Assert.Contains("<em>" + H(Strings.Common_NotAvailable) + "</em>", html);
-        Assert.Equal(1, CountOf(html, "label-state-inactive\" title="));
+        Assert.Contains("<a class=\"ns-recurring-last\" href=\"/jobs/details/101\"><span class=\"ns-state-chip ns-state-succeeded label-hover\" data-state=\"Succeeded\">", html);
+        Assert.Contains("<a class=\"ns-recurring-last\" href=\"/jobs/details/102\"><span class=\"ns-state-chip label-hover\" data-state=\"Custom\">", html);
+        Assert.Contains("<span>Custom</span>", html);
+        Assert.Contains("<span class=\"ns-recurring-last\" title=\"" + H(Strings.RecurringJobsPage_Canceled) + "\"><span class=\"ns-state-chip ns-state-deleted\" data-state=\"Deleted\">", html);
+        Assert.Equal(1, CountOf(html, "<span class=\"ns-recurring-last\" title="));
+        // The last execution is relative and exact
+        Assert.Equal(3, CountOf(html, "<span class=\"ns-time-exact\"><span data-moment=\"" + JobHelper.ToTimestamp(lastAt)));
+        Assert.Contains("<span class=\"ns-recurring-muted\">" + H(Strings.Common_NotAvailable) + "</span>", html);
     }
 
     [Fact]
@@ -337,8 +347,8 @@ public class RecurringJobsPageFacts
 
         Assert.Contains("value=\"legacy\"", html);
         Assert.DoesNotContain("ns-pagination-pages", html);
-        Assert.Contains("<code title=\"", html);
-        Assert.Contains("0 0 * * *", html);
+        Assert.Contains("<span>" + H(Cron.TryDescribe("0 0 * * *")) + "</span>", html);
+        Assert.Contains("<code class=\"cron-badge\">0 0 * * *</code>", html);
     }
 
     [Fact]
@@ -352,6 +362,138 @@ public class RecurringJobsPageFacts
         Assert.Contains("href=\"/recurring/details/a~2Fb\"", html);
         Assert.Contains("href=\"/recurring/details/a~252Fb\"", html);
     }
+
+    [Fact]
+    public void Render_HasTheSharedHeader_WithTheCount_AndRemoveAllSetApart()
+    {
+        AddJob("daily", "0 0 * * *", Next(TimeSpan.FromHours(1)));
+        AddJob("hourly", "0 * * * *", Next(TimeSpan.FromMinutes(30)));
+
+        string html = _renderer.Render(new RecurringJobsPage());
+
+        Assert.Contains("<header class=\"ns-page-head\">", html);
+        Assert.Contains("<span class=\"ns-page-name\">" + H(Strings.RecurringJobsPage_Title) + "</span> <span class=\"ns-count-chip js-list-count\">2</span></h1>", html);
+        Assert.Contains("<button class=\"btn btn-sm ns-btn-outlined-error btn-delete-all\"", html);
+        Assert.True(html.IndexOf("btn-delete-all", StringComparison.Ordinal) < html.IndexOf("<span class=\"ns-actions-divider\"", StringComparison.Ordinal));
+        Assert.True(html.IndexOf("<span class=\"ns-actions-divider\"", StringComparison.Ordinal) < html.IndexOf("href=\"/recurring/forecast\"", StringComparison.Ordinal));
+        Assert.Contains("data-list-primary=\"true\"", html);
+        PageStructure.AssertHeadingsInOrder(PageStructure.WithoutTemplates(html));
+        PageStructure.AssertNoEmptyHeaderCells(html);
+    }
+
+    [Fact]
+    public void Render_ShowsEachJob_OnTwoLines_WithItsScheduleInWords_TimeZone_Queue_AndStatusChips()
+    {
+        AddJob("report", "0 9 * * 1-5", Next(TimeSpan.FromHours(2)), new Dictionary<string, string>
+        {
+            { "Queue", "reports" },
+            { "TimeZoneId", TimeZoneInfo.Utc.Id },
+            { RecurringJobEntity.PolicyField, "business-hours" },
+            { RecurringJobSet.DeclaredField, RecurringJobSet.UnnamedMark },
+            { RecurringJobSet.RetiredField, "1" },
+            { "Paused", "1" },
+        });
+
+        string html = _renderer.Render(new RecurringJobsPage());
+
+        Assert.Contains("<a class=\"job-method\" href=\"/recurring/details/report\">report</a>", html);
+        Assert.Matches("<span class=\"ns-recurring-method\">[^<]*SampleJobs.Work</span>", html);
+        Assert.Contains("<span>" + H(Cron.TryDescribe("0 9 * * 1-5")) + "</span>", html);
+        Assert.Contains("<code class=\"cron-badge\">0 9 * * 1-5</code>", html);
+        Assert.Contains("<a class=\"ns-queue-chip\" href=\"/jobs/enqueued/reports\">", html);
+        Assert.Contains("<a class=\"ns-chip ns-chip-assist\" href=\"/policies#policy-business-hours\"", html);
+        Assert.Contains("ns-recurring-declared\" title=\"" + H(Strings.RecurringJobDetailsPage_Declared_Tooltip) + "\">", html);
+        Assert.Contains("ns-recurring-paused\" title=\"" + H(Strings.RecurringJobsPage_Paused_Tooltip) + "\">", html);
+        Assert.Contains("ns-recurring-retired\">", html);
+        Assert.Contains("<tr class=\"js-jobs-list-row hover ns-recurring-row-paused\">", html);
+    }
+
+    [Fact]
+    public void Render_ShowsTheNextExecution_AsAChip_WithTheExactTimeUnderIt()
+    {
+        DateTime next = Next(TimeSpan.FromHours(2));
+        AddJob("report", "0 9 * * 1-5", next);
+
+        string html = _renderer.Render(new RecurringJobsPage());
+
+        Assert.Contains("<span class=\"ns-chip ns-chip-status\">" + DashboardMarkup.Icon("hourglass-split") + " <span data-moment=\"" + JobHelper.ToTimestamp(next) + "\">", html);
+        Assert.Contains("<span class=\"ns-time-exact\"><span data-moment-local=\"" + JobHelper.ToTimestamp(next) + "\">", html);
+    }
+
+    [Fact]
+    public void Render_OffersTriggerPauseEditAndDelete_AsRowActions_WithDeleteSetApart_AndConfirmed()
+    {
+        AddJob("a/b", "0 0 * * *", Next(TimeSpan.FromHours(1)));
+        AddJob("paused", "0 0 * * *", Next(TimeSpan.FromHours(1)), new Dictionary<string, string> { { "Paused", "1" } });
+
+        string html = _renderer.Render(new RecurringJobsPage());
+
+        Assert.Contains(Html.ActionsColumnHeader().ToString(), html);
+        string trigger = H(string.Format(Strings.RecurringJobsPage_TriggerJob, "a/b"));
+        Assert.Contains("<button type=\"button\" class=\"ns-icon-button\" data-ajax=\"/recurring/trigger-one/a~2Fb\" data-loading-text=\"" + H(Strings.RecurringJobsPage_Triggering) + "\" aria-label=\"" + trigger + "\" title=\"" + trigger + "\">", html);
+        Assert.Contains("data-ajax=\"/recurring/pause-one/a~2Fb\"", html);
+        Assert.Contains("data-ajax=\"/recurring/resume-one/paused\"", html);
+        Assert.DoesNotContain("data-ajax=\"/recurring/resume-one/a~2Fb\"", html);
+        Assert.DoesNotContain("data-ajax=\"/recurring/pause-one/paused\"", html);
+        Assert.Contains("aria-label=\"" + H(string.Format(Strings.RecurringJobsPage_EditJob, "a/b")) + "\" data-id=\"a/b\"", html);
+
+        string delete = H(string.Format(Strings.RecurringJobsPage_DeleteJob, "a/b"));
+        int edit = html.IndexOf("data-id=\"a/b\" data-cron=", StringComparison.Ordinal);
+        int divider = html.IndexOf("<span class=\"ns-actions-divider\" aria-hidden=\"true\"></span>", edit, StringComparison.Ordinal);
+        int remove = html.IndexOf("class=\"ns-icon-button ns-row-danger js-job-command\" data-url=\"/recurring/remove\" data-job=\"a/b\"", StringComparison.Ordinal);
+        Assert.True(edit > 0 && divider > edit && remove > divider, $"{edit} {divider} {remove}");
+        Assert.Contains("aria-label=\"" + delete + "\" title=\"" + delete + "\"", html);
+        Assert.Contains("data-confirm=\"" + H(string.Format(Strings.RecurringJobsPage_DeleteConfirmOne, "a/b")) + "\" data-confirm-body=\"" + H(Strings.RecurringJobsPage_RemoveAllConfirm) + "\" data-confirm-label=\"" + H(Strings.Common_Delete) + "\" data-confirm-destructive=\"true\"", html);
+    }
+
+    [Fact]
+    public void Render_ShowsTheListWithoutCommands_ToReadOnlyUsers()
+    {
+        _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
+        AddJob("daily", "0 0 * * *", Next(TimeSpan.FromHours(1)));
+
+        string html = _renderer.Render(new RecurringJobsPage());
+
+        Assert.Contains("<a class=\"job-method\" href=\"/recurring/details/daily\">daily</a>", html);
+        Assert.DoesNotContain("btn-delete-all", html);
+        Assert.DoesNotContain("ns-actions-divider", html);
+        Assert.DoesNotContain("data-ajax=", html);
+        Assert.DoesNotContain("ns-list-commands", html);
+        Assert.DoesNotContain(H(Strings.Common_Actions), html);
+        Assert.Contains("js-manifest-export", html);
+        PageStructure.AssertHeadingsInOrder(PageStructure.WithoutTemplates(html));
+        PageStructure.AssertNoEmptyHeaderCells(html);
+    }
+
+    [Fact]
+    public void Render_PutsTheScheduleEditor_InATemplateForTheSideSheet_WithGroupedLabelledFields()
+    {
+        string html = _renderer.Render(new RecurringJobsPage());
+
+        Assert.Contains("<div id=\"recurringJobEditor\" hidden=\"hidden\"", html);
+        Assert.Contains("data-update-url=\"/recurring/update/\"", html);
+        Assert.Contains("data-text-title=\"" + H(Strings.RecurringJobsPage_EditSchedule) + "\"", html);
+        Assert.Contains("<template class=\"js-recurring-edit-template\">", html);
+        Assert.Contains("<form id=\"recurringJobEditorForm\" class=\"ns-sheet-form js-recurring-edit-form\" novalidate=\"novalidate\">", html);
+        Assert.Contains("<legend>" + H(Strings.RecurringJobsPage_Group_When) + "</legend>", html);
+        Assert.Contains("<legend>" + H(Strings.RecurringJobsPage_Group_How) + "</legend>", html);
+        foreach (string field in (string[])["Cron", "TimeZone", "Queue", "Misfire"])
+        {
+            Assert.Contains("<label for=\"recurringJobEditor" + field + "\">", html);
+            Assert.Contains("id=\"recurringJobEditor" + field + "\"", html);
+        }
+
+        Assert.Contains("name=\"cron\"", html);
+        Assert.Contains("name=\"timezone\"", html);
+        Assert.Contains("name=\"queue\"", html);
+        Assert.Contains("name=\"misfire\"", html);
+        Assert.Contains("<h3 id=\"recurringJobEditorNextRuns\">", html);
+        Assert.Contains("<button type=\"submit\" form=\"recurringJobEditorForm\" class=\"btn btn-sm btn-primary js-recurring-edit-save\"", html);
+        Assert.DoesNotContain("class=\"modal fade\" id=\"recurringJobEditor\"", html);
+        Assert.Contains("<h2 class=\"modal-title\" id=\"manifestImportTitle\">", html);
+    }
+
+    private static HtmlHelper Html => new(new RecurringJobsPage());
 
     private void AddJob(string id, string cron, DateTime? nextExecution, Dictionary<string, string> extra = null)
     {
