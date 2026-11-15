@@ -2097,4 +2097,13 @@
   <data name="LayoutPage_Watchlist_Remove" xml:space="preserve">
     <value>Job {0} nicht mehr beobachten</value>
   </data>
+  <data name="RecurringJobDetailsPage_Kind" xml:space="preserve">
+    <value>Wiederkehrender Job</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Active" xml:space="preserve">
+    <value>Aktiv</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Definition" xml:space="preserve">
+    <value>Definition</value>
+  </data>
 </root>

@@ -2158,4 +2158,13 @@
   <data name="LayoutPage_Watchlist_Remove" xml:space="preserve">
     <value>Sluta bevaka jobb {0}</value>
   </data>
+  <data name="RecurringJobDetailsPage_Kind" xml:space="preserve">
+    <value>Återkommande jobb</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Active" xml:space="preserve">
+    <value>Aktivt</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Definition" xml:space="preserve">
+    <value>Definition</value>
+  </data>
 </root>

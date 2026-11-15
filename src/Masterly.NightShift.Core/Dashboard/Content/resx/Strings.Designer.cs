@@ -6337,5 +6337,32 @@ namespace Masterly.NightShift.Dashboard.Resources {
                 return ResourceManager.GetString("LayoutPage_Watchlist_Remove", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Recurring job.
+        /// </summary>
+        public static string RecurringJobDetailsPage_Kind {
+            get {
+                return ResourceManager.GetString("RecurringJobDetailsPage_Kind", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Active.
+        /// </summary>
+        public static string RecurringJobDetailsPage_Active {
+            get {
+                return ResourceManager.GetString("RecurringJobDetailsPage_Active", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Definition.
+        /// </summary>
+        public static string RecurringJobDetailsPage_Definition {
+            get {
+                return ResourceManager.GetString("RecurringJobDetailsPage_Definition", resourceCulture);
+            }
+        }
     }
 }

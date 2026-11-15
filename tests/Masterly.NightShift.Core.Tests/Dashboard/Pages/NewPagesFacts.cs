@@ -83,6 +83,26 @@ public class NewPagesFacts
     }
 
     [Fact]
+    public void RecurringJobDetails_OfAPausedJob_SaysSo_DescribesMissedOccurrencesInWords_AndLinksTheEditor()
+    {
+        _renderer.Connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:nightly")).Returns(new Dictionary<string, string>
+        {
+            ["Cron"] = "0 2 * * *",
+            ["Job"] = InvocationData.SerializeJob(Job.FromExpression(() => Run())).SerializePayload(),
+            ["Paused"] = "1",
+            ["Misfire"] = "1",
+        });
+
+        string html = _renderer.Render(new RecurringJobDetailsPage("nightly"));
+
+        Assert.Contains("ns-recurring-paused", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("ns-recurring-active", html, StringComparison.Ordinal);
+        Assert.Contains("/recurring/resume-one/nightly", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/recurring?edit=nightly\"", html, StringComparison.Ordinal);
+        Assert.Contains(Masterly.NightShift.Dashboard.Resources.Strings.RecurringJobsPage_Misfire_Strict, html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RecurringJobDetails_HidesTheActions_ForReadOnlyUsers()
     {
         _renderer.Options = new DashboardOptions { IsReadOnlyFunc = static _ => true };
@@ -95,6 +115,7 @@ public class NewPagesFacts
         string html = _renderer.Render(new RecurringJobDetailsPage("nightly"));
 
         Assert.DoesNotContain("/recurring/trigger-one/", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("/recurring?edit=", html, StringComparison.Ordinal);
     }
 
     [Fact]

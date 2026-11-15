@@ -1,4 +1,5 @@
 using System.Globalization;
+using Masterly.NightShift.Dashboard.Resources;
 using Masterly.NightShift.Logging;
 
 namespace Masterly.NightShift.Dashboard.Pages;
@@ -30,6 +31,19 @@ internal partial class RecurringJobDetailsPage(string id)
             Logger.DebugException($"The next runs of recurring job '{Id}' couldn't be computed.", ex);
             return [];
         }
+    }
+
+    // The same words as the schedule editor's choices
+    private static string DescribeMisfire(MisfireHandlingMode mode)
+    {
+        return mode switch
+        {
+            MisfireHandlingMode.Relaxed => Strings.RecurringJobsPage_Misfire_Relaxed,
+            MisfireHandlingMode.Strict => Strings.RecurringJobsPage_Misfire_Strict,
+            MisfireHandlingMode.Ignorable => Strings.RecurringJobsPage_Misfire_Ignorable,
+            MisfireHandlingMode.RunLatest => Strings.RecurringJobsPage_Misfire_RunLatest,
+            _ => mode.ToString(),
+        };
     }
 
     internal static string FormatDuration(TimeSpan duration)
