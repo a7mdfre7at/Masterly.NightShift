@@ -68,6 +68,76 @@
         }));
     };
 
+    // jQuery 4 has no $.trim: a field's value without the white space around it, or '' for none
+    var trim = function (value) {
+        return value === null || value === undefined ? '' : String(value).trim();
+    };
+
+    var escapeAttribute = function (value) {
+        return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    };
+
+    // An icon of the dashboard's sprite (Bootstrap Icons) as HTML, like Html.Icon on the server: an SVG that takes
+    // the size and color of the text around it and is hidden from screen readers. name is a Bootstrap Icons name
+    // the sprite holds, such as "trash-fill"; cssClass, when given, is added to "bi".
+    nightshift.icon = function (name, cssClass) {
+        var url = $('#nightshiftConfig').attr('data-icons-url') || '';
+        return '<svg class="bi' + (cssClass ? ' ' + escapeAttribute(cssClass) : '') + '" aria-hidden="true"><use href="'
+            + escapeAttribute(url) + '#bi-' + escapeAttribute(name) + '"></use></svg>';
+    };
+
+    // What Bootstrap 3's button('loading') and button('reset') did: while a request runs, the button is disabled
+    // and shows its data-loading-text (when it has one); afterwards it gets its content back and is enabled again
+    nightshift.setLoading = function (element, loading) {
+        return $(element).each(function () {
+            var button = $(this);
+
+            if (loading) {
+                if (button.data('nightshift-reset-html') === undefined) {
+                    button.data('nightshift-reset-html', button.html());
+                }
+
+                var text = button.attr('data-loading-text');
+                if (text) {
+                    button.text(text);
+                }
+
+                button.prop('disabled', true).addClass('disabled').attr('aria-busy', 'true');
+            } else {
+                var html = button.data('nightshift-reset-html');
+                if (html !== undefined) {
+                    button.html(html).removeData('nightshift-reset-html');
+                }
+
+                button.prop('disabled', false).removeClass('disabled').removeAttr('aria-busy');
+            }
+        });
+    };
+
+    // A Bootstrap tooltip for every element with a title in the container (the whole page without one), for
+    // content added after the page loaded too; an element that has one keeps it
+    nightshift.tooltips = function (container) {
+        if (!window.bootstrap || !bootstrap.Tooltip) return;
+
+        $(container || document).find('[title]').addBack('[title]').each(function () {
+            bootstrap.Tooltip.getOrCreateInstance(this);
+        });
+    };
+
+    // Changes an element's title, also when its Bootstrap tooltip took the title over
+    nightshift.setTitle = function (element, text) {
+        return $(element).each(function () {
+            var tooltip = window.bootstrap && bootstrap.Tooltip ? bootstrap.Tooltip.getInstance(this) : null;
+
+            if (tooltip) {
+                this.setAttribute('data-bs-original-title', text);
+                tooltip.setContent({ '.tooltip-inner': text });
+            } else {
+                this.setAttribute('title', text);
+            }
+        });
+    };
+
     nightshift.config = {
         pollInterval: $("#nightshiftConfig").data("pollinterval"),
         pollUrl: $("#nightshiftConfig").data("pollurl"),
@@ -575,11 +645,10 @@
             this._preview.empty();
             this._description.text('');
             this._resolved.text('');
-            this._modal.modal('show');
-            this._refreshPreview();
-
             var cron = this._cron;
-            this._modal.one('shown.bs.modal', function () { cron.trigger('focus'); });
+            this._modal[0].addEventListener('shown.bs.modal', function () { cron.trigger('focus'); }, { once: true });
+            bootstrap.Modal.getOrCreateInstance(this._modal[0]).show();
+            this._refreshPreview();
         };
 
         RecurringJobEditor.prototype._schedulePreview = function () {
@@ -590,7 +659,7 @@
 
         RecurringJobEditor.prototype._refreshPreview = function () {
             var self = this;
-            var cron = $.trim(this._cron.val());
+            var cron = trim(this._cron.val());
 
             if (this._previewRequest) {
                 this._previewRequest.abort();
@@ -643,19 +712,19 @@
             var self = this;
             var save = this._save;
 
-            save.button('loading');
+            nightshift.setLoading(save, true);
             this._error.hide();
 
             $.post(this._updateUrl + nightshift.routeValue(this._jobId), {
-                cron: $.trim(this._cron.val()),
+                cron: trim(this._cron.val()),
                 timezone: this._timezone.val(),
                 // An empty queue is sent too: it puts the job back in the default queue
-                queue: $.trim(this._queue.val()),
+                queue: trim(this._queue.val()),
                 misfire: this._misfire.val()
             })
                 .done(function () { window.location.reload(); })
                 .fail(function (xhr) {
-                    save.button('reset');
+                    nightshift.setLoading(save, false);
                     var message = xhr.responseJSON && xhr.responseJSON.error
                         ? xhr.responseJSON.error
                         : 'The server responded with ' + xhr.status + ' (' + xhr.statusText + ').';
@@ -754,7 +823,7 @@
 
                 if (entry.c) {
                     lines.push($('<div>').addClass('job-console-line job-console-checkpoint').append(time)
-                        .append($('<span>').addClass('glyphicon glyphicon-flag')).append(document.createTextNode(' ' + entry.c)));
+                        .append(nightshift.icon('flag-fill')).append(document.createTextNode(' ' + entry.c)));
 
                     var delta = previous !== null ? '+' + LiveJobs.formatDuration(entry.t - previous) : NightShiftIntl.format(entry.t, 'timeWithSeconds');
                     checkpoints.push($('<li>').append($('<span>').addClass('job-checkpoint-name').text(entry.c))
@@ -800,7 +869,7 @@
                             if (job.progress) {
                                 row.find('.js-live-bar').css('width', job.progress.p + '%');
                                 row.find('.js-live-progress-message').text(job.progress.p + '% ' + (job.progress.m || ''));
-                                row.find('.progress').removeClass('job-live-progress-eta job-live-progress-late').attr('title', job.progress.m || '');
+                                nightshift.setTitle(row.find('.progress').removeClass('job-live-progress-eta job-live-progress-late'), job.progress.m || '');
                             }
 
                             if (job.state !== 'Processing') {
@@ -932,9 +1001,8 @@
 
                     if (timestamp) {
                         var time = timestamp * 1000;
-                        $this.html(NightShiftIntl.fromNow(time))
-                            .attr('title', NightShiftIntl.format(time, 'fullDateTime'))
-                            .attr('data-container', 'body');
+                        $this.html(NightShiftIntl.fromNow(time)).attr('data-bs-container', 'body');
+                        nightshift.setTitle($this, NightShiftIntl.format(time, 'fullDateTime'));
                     }
                 });
 
@@ -944,8 +1012,7 @@
 
                     if (timestamp) {
                         var time = timestamp * 1000;
-                        $this.prop('title', NightShiftIntl.format(time, 'fullDateTime'))
-                            .attr('data-container', 'body');
+                        nightshift.setTitle($this.attr('data-bs-container', 'body'), NightShiftIntl.format(time, 'fullDateTime'));
                     }
                 });
 
@@ -964,7 +1031,7 @@
             updateRelativeDates();
             setInterval(updateRelativeDates, 30 * 1000);
 
-            $('*[title]').tooltip();
+            nightshift.tooltips();
 
             $('*[data-metric]').each(function () {
                 var name = $(this).data('metric');
@@ -1057,7 +1124,7 @@
                 if (!confirmText || confirm(confirmText)) {
                     $this.prop('disabled', true);
                     var loadingDelay = setTimeout(function() {
-                        $this.button('loading');
+                        nightshift.setLoading($this, true);
                     }, 100);
 
                     $.post($this.data('ajax'))
@@ -1075,7 +1142,7 @@
                         })
                         .fail(function (xhr) {
                             clearTimeout(loadingDelay);
-                            $this.button('reset');
+                            nightshift.setLoading($this, false);
                             setTimeout(function () { $this.prop('disabled', false); }, 0);
                             nightshift.showRequestError(xhr);
                         });
@@ -1196,7 +1263,7 @@
                     if (!confirmText || confirm(confirmText)) {
                         $this.prop('disabled', true);
                         var loadingDelay = setTimeout(function () {
-                            $this.button('loading');
+                            nightshift.setLoading($this, true);
                         }, 100);
 
                         $.post($this.data('url'), { 'jobs[]': jobs })
@@ -1206,7 +1273,7 @@
                             })
                             .fail(function (xhr) {
                                 clearTimeout(loadingDelay);
-                                $this.button('reset');
+                                nightshift.setLoading($this, false);
                                 setTimeout(function () { $this.prop('disabled', false); }, 0);
                                 nightshift.showRequestError(xhr);
                             });
@@ -1264,7 +1331,7 @@
             // Pages added by extensions show up in the navigation
             $('.hf-nav a[href], .navbar-nav a[href], .list-group a[href]').each(function () {
                 var url = $(this).attr('href');
-                var name = $.trim($(this).clone().children().remove().end().text());
+                var name = trim($(this).clone().children().remove().end().text());
                 if (url && name && !seen[url]) {
                     seen[url] = true;
                     pages.push({ name: name, url: url });
@@ -1284,7 +1351,7 @@
                     .append(this._input = $('<input type="text" class="hf-palette-input" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="hfPaletteResults" autocomplete="off" spellcheck="false">')
                         .attr({ placeholder: placeholder, 'aria-label': placeholder }))
                     .append(this._list = $('<ul class="hf-palette-results" id="hfPaletteResults" role="listbox" aria-label="Results">'))
-                    .append(this._status = $('<div class="sr-only" role="status" aria-live="polite">'))
+                    .append(this._status = $('<div class="visually-hidden" role="status" aria-live="polite">'))
                     .append($('<div class="hf-palette-hint">').html('<kbd>↑</kbd><kbd>↓</kbd> navigate &nbsp; <kbd>Enter</kbd> open &nbsp; <kbd>Esc</kbd> close &nbsp; <kbd>&gt;</kbd> commands &nbsp; <span class="hf-palette-hint-right"><kbd>Ctrl</kbd>+<kbd>K</kbd> or <kbd>/</kbd> opens this anywhere</span>')));
 
             $('body').append(this._overlay);
@@ -1442,7 +1509,7 @@
 
         CommandPalette.prototype._search = function () {
             var self = this;
-            var query = $.trim(this._input.val());
+            var query = trim(this._input.val());
             var lower = query.toLowerCase();
 
             if (query.charAt(0) === '>') {
@@ -1583,8 +1650,8 @@
 
             var text = (config && config.text) || { refresh: 'Refresh', live: 'Live', liveHint: 'Refresh this list automatically' };
 
-            this._refreshButton = $('<button type="button" class="btn btn-sm btn-default hf-refresh-button" title="' + text.refresh + '">')
-                .append('<span class="glyphicon glyphicon-refresh"></span> ' + text.refresh)
+            this._refreshButton = $('<button type="button" class="btn btn-sm btn-outline-secondary hf-refresh-button">').attr('title', text.refresh)
+                .append(nightshift.icon('arrow-clockwise')).append(document.createTextNode(' ' + text.refresh))
                 .on('click', function () {
                     self._refreshButton.addClass('spinning');
                     self._refresh(true);
@@ -1592,8 +1659,8 @@
 
             toolbar.append(this._refreshButton);
 
-            this._button = $('<button type="button" class="btn btn-sm btn-default hf-live-toggle" title="' + text.liveHint + '">')
-                .append('<span class="hf-live-dot"></span> ' + text.live)
+            this._button = $('<button type="button" class="btn btn-sm btn-outline-secondary hf-live-toggle">').attr('title', text.liveHint)
+                .append('<span class="hf-live-dot"></span>').append(document.createTextNode(' ' + text.live))
                 .toggleClass('active', this._enabled)
                 .attr('aria-pressed', this._enabled ? 'true' : 'false')
                 .on('click', function () {
@@ -1617,7 +1684,7 @@
 
             // Never pull the rug from under a selection or an open dialog, unless asked by hand; and don't load a
             // tab nobody looks at
-            if (!manual && (document.hidden || this._container.find('.js-jobs-list-checkbox:checked').length || $('.modal.in').length)) {
+            if (!manual && (document.hidden || this._container.find('.js-jobs-list-checkbox:checked').length || $('.modal.show').length)) {
                 this._schedule();
                 return;
             }
@@ -1634,7 +1701,7 @@
                         self._container.find('.btn-toolbar-top').first().append(refresh).append(toggle);
                         self._page.initJobsList(self._container[0]);
                         self._page.updateRelativeDates();
-                        self._container.find('*[title]').tooltip();
+                        nightshift.tooltips(self._container);
                         self._button.addClass('hf-live-flash');
                         setTimeout(function () { self._button.removeClass('hf-live-flash'); }, 600);
                     }
@@ -1651,8 +1718,8 @@
     // The live activity feed on the home page: polls /activity and prepends new transitions
     nightshift.ActivityFeed = (function () {
         var STATE_CLASSES = {
-            Enqueued: 'info', Scheduled: 'default', Processing: 'primary', Succeeded: 'success',
-            Failed: 'danger', Deleted: 'default', Awaiting: 'info'
+            Enqueued: 'info', Scheduled: 'secondary', Processing: 'primary', Succeeded: 'success',
+            Failed: 'danger', Deleted: 'secondary', Awaiting: 'info'
         };
         var MAX_ROWS = 40;
 
@@ -1732,7 +1799,7 @@
 
             var row = $('<li>').addClass('hf-activity-row' + (animate ? ' hf-activity-new' : ''));
             row.append($('<time>').addClass('hf-activity-time').attr('title', NightShiftIntl.format(entry.t, 'dateTimeWithSeconds')).text(NightShiftIntl.format(entry.t, 'timeWithSeconds')));
-            row.append($('<span>').addClass('label label-' + (STATE_CLASSES[entry.s] || 'default') + ' hf-activity-state').text(entry.s));
+            row.append($('<span>').addClass('badge text-bg-' + (STATE_CLASSES[entry.s] || 'secondary') + ' hf-activity-state').text(entry.s));
             row.append($('<a>').addClass('hf-activity-job').attr('href', this._jobUrl + nightshift.routeValue(entry.j)).text('#' + entry.j));
             if (entry.m) row.append($('<code>').addClass('hf-activity-method').text(entry.m));
             if (entry.v) row.append($('<span>').addClass('text-muted hf-activity-server').text(entry.v));
@@ -1812,7 +1879,7 @@
             this._title.text(button.attr('data-type') + '.' + button.attr('data-method'));
             this._error.hide().text('');
             this._success.hide().empty();
-            this._submit.button('reset');
+            nightshift.setLoading(this._submit, false);
             this._arguments.empty();
 
             for (var i = 0; i < parameters.length; i++) {
@@ -1821,16 +1888,15 @@
 
             this._modal.find('.js-catalog-modes input[value="enqueue"]').prop('checked', true);
             this._setMode('enqueue');
-            this._modal.modal('show');
-
             var first = this._arguments.find('input, select, textarea').first();
-            this._modal.one('shown.bs.modal', function () { first.trigger('focus'); });
+            this._modal[0].addEventListener('shown.bs.modal', function () { first.trigger('focus'); }, { once: true });
+            bootstrap.Modal.getOrCreateInstance(this._modal[0]).show();
         };
 
         CatalogRunner.prototype._buildField = function (parameter, index) {
             var id = 'catalogArg' + index;
             var name = 'arg:' + parameter.name;
-            var group = $('<div>').addClass('form-group');
+            var group = $('<div>').addClass('mb-3');
             var label = $('<label>').attr('for', id).append(document.createTextNode(parameter.name + ' '))
                 .append($('<span>').addClass('text-muted hf-param-type').text(parameter.type));
             var input;
@@ -1839,15 +1905,16 @@
                 case 'checkbox':
                     // An unchecked box sends nothing, which would mean "the default", so a hidden "false" goes first;
                     // the server takes "true" when the box sends it too
-                    input = $('<input type="checkbox" value="true">').attr({ id: id, name: name }).prop('checked', parameter['default'] === 'true');
-                    group.addClass('checkbox')
+                    input = $('<input type="checkbox" class="form-check-input" value="true">').attr({ id: id, name: name }).prop('checked', parameter['default'] === 'true');
+                    group.addClass('form-check')
                         .append($('<input type="hidden" value="false">').attr('name', name))
-                        .append($('<label>').attr('for', id).append(input).append(document.createTextNode(' ' + parameter.name)));
+                        .append(input)
+                        .append($('<label class="form-check-label">').attr('for', id).text(parameter.name));
                     return group;
                 case 'select':
                     var options = parameter.options || [];
                     var selected = parameter['default'] || '';
-                    input = $('<select class="form-control">').attr({ id: id, name: name });
+                    input = $('<select class="form-select">').attr({ id: id, name: name });
                     // bool? and nullable enums can be set to null explicitly; an empty value would mean "the default"
                     if (parameter.nullable) {
                         input.append($('<option>').val('null').text('(null)'));
@@ -1892,7 +1959,7 @@
 
             if (parameter.redacted) {
                 input.val('').attr('placeholder', this._text.redacted).attr('autocomplete', 'new-password');
-                label.append(' ').append($('<span>').addClass('label label-default').text('redacted'));
+                label.append(' ').append($('<span>').addClass('badge text-bg-secondary').text('redacted'));
             }
 
             return group.append(label).append(input);
@@ -1909,7 +1976,7 @@
 
         CatalogRunner.prototype._describeCron = function () {
             var self = this;
-            var cron = $.trim(this._cron.val());
+            var cron = trim(this._cron.val());
             if (!cron) { this._cronDescription.text(''); return; }
 
             $.get(this._previewUrl, { cron: cron })
@@ -1919,13 +1986,13 @@
 
         CatalogRunner.prototype._run = function () {
             var self = this;
-            this._submit.button('loading');
+            nightshift.setLoading(this._submit, true);
             this._error.hide();
             this._success.hide();
 
             $.post(this._runUrl, this._form.serialize())
                 .done(function (data) {
-                    self._submit.button('reset');
+                    nightshift.setLoading(self._submit, false);
                     var message;
                     if (data.recurringId) {
                         message = $('<span>').text(self._text.recurringCreated.replace('{0}', data.recurringId) + ' ')
@@ -1937,7 +2004,7 @@
                     self._success.empty().append(message).show();
                 })
                 .fail(function (xhr) {
-                    self._submit.button('reset');
+                    nightshift.setLoading(self._submit, false);
                     var message = xhr.responseJSON && xhr.responseJSON.error
                         ? xhr.responseJSON.error
                         : 'The server responded with ' + xhr.status + ' (' + xhr.statusText + ').';
@@ -1946,7 +2013,7 @@
         };
 
         CatalogRunner.prototype._filter = function (text) {
-            var needle = $.trim(text).toLowerCase();
+            var needle = trim(text).toLowerCase();
             $('.js-catalog-entry').each(function () {
                 var row = $(this);
                 row.toggle(!needle || String(row.attr('data-search') || '').toLowerCase().indexOf(needle) >= 0);
@@ -1973,10 +2040,10 @@
             $(document).on('submit', '.js-drain-form', function (e) {
                 e.preventDefault();
                 var form = $(this);
-                var button = form.find('button[type=submit]').button('loading');
+                var button = nightshift.setLoading(form.find('button[type=submit]'), true);
                 $.post(form.data('url'), form.serialize())
                     .done(function () { window.location.reload(); })
-                    .fail(function (xhr) { button.button('reset'); nightshift.showRequestError(xhr); });
+                    .fail(function (xhr) { nightshift.setLoading(button, false); nightshift.showRequestError(xhr); });
             });
 
             $(document).on('click', '.js-copy-code', function (e) {
@@ -1985,7 +2052,7 @@
                 var code = button.attr('data-code') || '';
                 var original = button.html();
                 var done = function () {
-                    button.addClass('btn-success').html('<span class="glyphicon glyphicon-ok"></span> ' + button.data('copied'));
+                    button.addClass('btn-success').html(nightshift.icon('check-lg')).append(document.createTextNode(' ' + button.data('copied')));
                     setTimeout(function () { button.removeClass('btn-success').html(original); }, 1500);
                 };
 
@@ -2006,10 +2073,10 @@
                 if (confirmText && !confirm(confirmText)) return;
 
                 var jobs = button.data('jobs') || [];
-                button.button('loading');
+                nightshift.setLoading(button, true);
                 $.post(button.data('url'), { 'jobs[]': jobs })
                     .done(function () { window.location.reload(); })
-                    .fail(function (xhr) { button.button('reset'); nightshift.showRequestError(xhr); });
+                    .fail(function (xhr) { nightshift.setLoading(button, false); nightshift.showRequestError(xhr); });
             });
         };
 
@@ -2034,7 +2101,7 @@
             $(document).on('click', '.js-manifest-import', function (e) {
                 e.preventDefault();
                 modal.find('.js-manifest-error, .js-manifest-result').hide();
-                modal.modal('show');
+                bootstrap.Modal.getOrCreateInstance(modal[0]).show();
             });
 
             modal.on('change', '.js-manifest-file', function () {
@@ -2048,13 +2115,13 @@
             modal.on('submit', '.js-manifest-form', function (e) {
                 e.preventDefault();
                 var form = $(this);
-                var button = form.find('.js-manifest-apply').button('loading');
+                var button = nightshift.setLoading(form.find('.js-manifest-apply'), true);
                 var error = modal.find('.js-manifest-error').hide();
                 var result = modal.find('.js-manifest-result').hide();
 
                 $.post(modal.data('import-url'), form.serialize())
                     .done(function (data) {
-                        button.button('reset');
+                        nightshift.setLoading(button, false);
                         var text = String(modal.data('text-result'))
                             .replace('{0}', (data.added || []).length)
                             .replace('{1}', (data.updated || []).length)
@@ -2070,7 +2137,7 @@
                         if (!(data.errors || []).length) setTimeout(function () { window.location.reload(); }, 1200);
                     })
                     .fail(function (xhr) {
-                        button.button('reset');
+                        nightshift.setLoading(button, false);
                         error.text(xhr.responseJSON && xhr.responseJSON.error ? xhr.responseJSON.error : 'The server responded with ' + xhr.status + '.').show();
                     });
             });
@@ -2095,12 +2162,12 @@
 
         Operations.prototype._initNotes = function () {
             var submit = function (form, ack) {
-                var button = form.find(ack ? '.js-note-ack' : 'button[type=submit]').button('loading');
+                var button = nightshift.setLoading(form.find(ack ? '.js-note-ack' : 'button[type=submit]'), true);
                 var data = form.serializeArray();
                 if (ack) data.push({ name: 'ack', value: 'true' });
                 $.post(form.data('url'), data)
                     .done(function () { window.location.reload(); })
-                    .fail(function (xhr) { button.button('reset'); nightshift.showRequestError(xhr); });
+                    .fail(function (xhr) { nightshift.setLoading(button, false); nightshift.showRequestError(xhr); });
             };
             $(document).on('submit', '.js-note-form', function (e) { e.preventDefault(); submit($(this), false); });
             $(document).on('click', '.js-note-ack', function (e) { e.preventDefault(); submit($(this).closest('form'), true); });
@@ -2110,7 +2177,7 @@
             // The filter runs on the server over every tag (the list is paged), so Enter submits the form; clearing
             // the box with its clear button shows every tag again
             $(document).on('search', '.js-tags-filter', function () {
-                if ($.trim($(this).val()) === '') $(this).closest('form').trigger('submit');
+                if (trim($(this).val()) === '') $(this).closest('form').trigger('submit');
             });
         };
 
@@ -2169,7 +2236,7 @@
 
         Watchlist.prototype._build = function () {
             this._panel.empty()
-                .append($('<div class="hf-watchlist-title">').append($('<span class="glyphicon glyphicon-eye-open">')).append(' ' + this._text.title))
+                .append($('<div class="hf-watchlist-title">').append(nightshift.icon('eye-fill')).append(document.createTextNode(' ' + this._text.title)))
                 .append(this._list = $('<ul class="hf-watchlist-items">'));
         };
 
@@ -2191,7 +2258,7 @@
             $('.js-watch-toggle').each(function () {
                 var button = $(this);
                 var watching = self._find(button.attr('data-id') || '') >= 0;
-                button.toggleClass('active btn-info', watching).removeClass(watching ? 'btn-default' : 'btn-info').addClass(watching ? '' : 'btn-default')
+                button.toggleClass('active btn-info', watching).toggleClass('btn-outline-secondary', !watching)
                     .attr('aria-pressed', watching ? 'true' : 'false');
                 button.find('.js-watch-label').text(watching ? button.data('text-watching') : button.data('text-watch'));
             });
@@ -2336,7 +2403,7 @@
             if (!button.length || button.prop('disabled')) return;
 
             var count = $("input[name='jobs[]']:checked").length;
-            if (!button.data('confirm') && !confirm($.trim(button.text()) + ': ' + count + (count === 1 ? ' selected item' : ' selected items') + '?')) return;
+            if (!button.data('confirm') && !confirm(trim(button.text()) + ': ' + count + (count === 1 ? ' selected item' : ' selected items') + '?')) return;
 
             button.trigger('click');
         };
@@ -2364,8 +2431,8 @@
                 // Single-key shortcuts can be turned off, for speech input and accidental key presses (WCAG 2.1.4)
                 var toggle = $('<input type="checkbox" id="hfSingleKeyShortcuts">').prop('checked', nightshift.singleKeyShortcuts.enabled())
                     .on('change', function () { nightshift.singleKeyShortcuts.set(this.checked); });
-                var setting = $('<div class="checkbox hf-shortcuts-setting">').append($('<label for="hfSingleKeyShortcuts">').append(toggle)
-                    .append(document.createTextNode(' Single-key shortcuts (j, k, x, r, d, g, / and ?). Ctrl K works either way.')));
+                var setting = $('<div class="form-check hf-shortcuts-setting">').append(toggle.addClass('form-check-input'))
+                    .append($('<label class="form-check-label" for="hfSingleKeyShortcuts">').text('Single-key shortcuts (j, k, x, r, d, g, / and ?). Ctrl K works either way.'));
                 this._overlay = $('<div class="hf-palette hf-shortcuts" role="dialog" aria-modal="true" aria-labelledby="hfShortcutsTitle" style="display: none">')
                     .append(this._box = $('<div class="hf-palette-box hf-shortcuts-box" tabindex="-1">')
                         .append($('<h4 id="hfShortcutsTitle">').text($('.js-watchlist').data('text-shortcuts') || 'Keyboard shortcuts'))
