@@ -157,6 +157,19 @@ The dashboard formats dates with the browser's built-in `Intl` APIs instead of m
 - The `data-moment`, `data-moment-title` and `data-moment-local` attributes still work, so extensions that render them need no changes. They hold Unix timestamps in seconds.
 - Relative dates use `Intl.RelativeTimeFormat`, so ±1 day now reads "yesterday" or "tomorrow" instead of "a day ago" or "in a day".
 
+## Dashboard: Bootstrap 5, jQuery 4 and Chart.js 4
+
+The dashboard bundles Bootstrap 5.3.9 (`bootstrap.bundle.min.js`, with Popper), jQuery 4.0.0, Chart.js 4.6.1 and an SVG sprite of Bootstrap Icons 1.13.2. Hangfire bundled Bootstrap 3.4, jQuery 3.7, Chart.js 2.9 with chartjs-plugin-streaming, and the Glyphicons font. Pages and partials that only use the dashboard's own helpers and classes need no changes. **What to do:** move dashboard extensions that use the libraries directly.
+
+- **Bootstrap 3 markup is gone.** The pages use Bootstrap 5 classes and `data-bs-*` attributes (`badge` for `label`, `btn-outline-secondary` for `btn-default`, `card` for `panel`, `float-end` for `pull-right`, `d-none d-md-block` for `hidden-xs`, and so on). `label-state-*` stays and now has the colors of its suffix (Hangfire's and earlier builds' badges were gray), and the old `page-header` and `dl-horizontal` classes still style extension pages. `Html.ServerId` writes a `badge`.
+- **Glyphicons are gone**, and so are the `/fonts/glyphicons-halflings-regular/{eot,svg,ttf,woff,woff2}` routes. Icons come from one SVG sprite served at `/icons{n}`: write them with `Html.Icon(name)` or `Html.Icon(name, cssClass)` in a page and `NightShift.icon(name, cssClass)` in a script, which resolve names the same way (a Glyphicon name of the dashboard gives the icon that replaced it; a name the sprite doesn't hold draws nothing). The sprite holds only the icons the dashboard uses (listed in `Dashboard/Content/icons/icons.svg`); an extension that needs another one draws its own SVG.
+- **`MenuItem.Icon` takes a Bootstrap Icons name** (`house-door-fill`), not a Glyphicon name. The Glyphicon names the dashboard used, with or without the `glyphicon-` prefix, still map to their replacements, and any other name gets the chevron.
+- **jQuery 4 and Bootstrap 5 scripts.** Bootstrap 3's `$.fn.button('loading'/'reset')` no longer exists: use `NightShift.setLoading(button, true/false)`. A `data-ajax` button without `data-loading-text` keeps its content while it works. Use `NightShift.tooltips(container)` for tooltips on content added later, `NightShift.setTitle(element, title)` to change one, and `NightShift.disposeTooltips(container)` before content with tooltips is replaced or removed: Bootstrap 5 keeps its tooltips outside jQuery's data and shows them in `<body>`, so without it the old elements stay in memory and a tooltip shown at that moment stays on the screen. Bootstrap 5 still provides `$.fn.modal` and `$.fn.tooltip` while jQuery is loaded. jQuery 4 removed `$.trim`, `$.isArray`, `$.isFunction`, `$.type`, `$.now`, `$.parseJSON` and other deprecated helpers.
+- **Chart.js 4.** The global `Chart` is Chart.js 4.6.1. Charts written for Chart.js 2 move to its options (`scales.x`/`scales.y`, `grid`, `plugins.legend`, `plugins.tooltip`, `Chart.defaults.font` instead of `Chart.defaults.global`). chartjs-plugin-streaming isn't bundled any more: the `realtime` scale and `plugins.streaming` options are gone. `NightShift.RealtimeGraph`, `NightShift.HistoryGraph` and the `nightshift:theme` event keep their shape; their internal `_chart` is a Chart.js 4 instance.
+- **`rem` sizes are larger.** The root font size is 14px; Bootstrap 3 set it to 10px, so `1rem` in an extension's stylesheet grows from 10px to 14px. **What to do:** divide such sizes by 1.4, or use `px` or `em`.
+- **`NightShiftIntl.startOf(t, 'isoWeek', weekday)`** returns the start of that day, as the moment adapter of Chart.js does; it used to keep the time of day.
+- **Embedded resources renamed or removed:** `jquery-3.7.1.min.js` became `jquery-4.0.0.min.js`, `bootstrap.min.js` became `bootstrap.bundle.min.js` and `Chart.min.js` became `chart.umd.min.js`; `chartjs-plugin-streaming.min.js`, `Chart.min.css` and the Glyphicons fonts are gone. They were served through the `/js{n}` and `/css{n}` bundles, whose URLs don't change.
+
 ## Nullable reference type annotations (source-level only)
 
 The whole public API carries C# nullable annotations. The parts where they matter most:
@@ -279,7 +292,7 @@ The dashboard registers these routes in addition to Hangfire's. **What to do:** 
 | Queues and servers | `/queues/pause/{queue}`, `/queues/resume/{queue}`, `/servers/pause/{id}`, `/servers/resume/{id}`, `/maintenance/pause`, `/maintenance/resume`, `/maintenance/clear-jobs`, `/maintenance/reset` |
 | Pages | `/insights`, `/insights/circuits/reset/{resource}`, `/search`, `/activity`, `/audit`, `/catalog`, `/catalog/run`, `/tags`, `/tags/{tag}`, `/tags/forget/{tag}`, `/tags/forget-expired/{tag}`, `/wallboard`, `/timeline`, `/about` |
 | Monitoring | `/health`, `/metrics`, `/ping` |
-| Static files | `/js-intl{n}` (the date formatter that replaces moment.js) |
+| Static files | `/js-intl{n}` (the date formatter that replaces moment.js), `/icons{n}` (the icon sprite) |
 
 The export routes are registered before the list pages whose patterns would also match them.
 
