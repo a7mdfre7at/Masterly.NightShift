@@ -59,6 +59,12 @@ public class BackgroundProcessContext
     public CancellationToken StoppedToken { get; }
     public CancellationToken ShutdownToken { get; }
 
+    /// <summary>
+    /// The server's count of busy workers (<see cref="BackgroundServerContext.BusyWorkers"/>), which workers keep and
+    /// the heartbeat reports; <c>null</c> when the process doesn't run in a server that counts.
+    /// </summary>
+    internal BusyWorkerCounter? BusyWorkers { get; init; }
+
     public bool IsStopping => StoppingToken.IsCancellationRequested || StoppedToken.IsCancellationRequested || ShutdownToken.IsCancellationRequested;
     public bool IsStopped => StoppedToken.IsCancellationRequested || ShutdownToken.IsCancellationRequested;
 

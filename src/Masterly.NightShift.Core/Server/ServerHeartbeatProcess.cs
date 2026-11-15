@@ -27,6 +27,9 @@ internal sealed class ServerHeartbeatProcess(TimeSpan interval, TimeSpan serverT
     private readonly Action _requestRestart = requestRestart;
     private Stopwatch? _faultedSince;
 
+    // Whether a failed busy worker report was logged as a warning (once is enough; the rest go to debug)
+    private bool _reportWarned;
+
     public void Execute(BackgroundProcessContext context)
     {
         _logger.Trace($"{BackgroundServerProcess.GetServerTemplate(context.ServerId)} waiting for {_interval} delay before sending a heartbeat");
@@ -38,6 +41,7 @@ internal sealed class ServerHeartbeatProcess(TimeSpan interval, TimeSpan serverT
             using (IStorageConnection connection = context.Storage.GetConnection())
             {
                 connection.Heartbeat(context.ServerId);
+                ReportBusyWorkers(context, connection);
             }
 
             if (_faultedSince == null)
@@ -71,6 +75,39 @@ internal sealed class ServerHeartbeatProcess(TimeSpan interval, TimeSpan serverT
 
                 _requestRestart();
                 return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Writes the server's busy workers into its own field of <see cref="ServerBusyWorkers.HashKey"/>, with the
+    /// time by the clock the heartbeat used, for the dashboard's Servers page. Best effort: a failure is logged and
+    /// changes nothing about the heartbeat, which succeeded already.
+    /// </summary>
+    private void ReportBusyWorkers(BackgroundProcessContext context, IStorageConnection connection)
+    {
+        if (context.BusyWorkers == null)
+        {
+            return;
+        }
+
+        try
+        {
+            DateTime takenAt = StorageTime.UtcNow(context.Storage, connection);
+            string value = ServerBusyWorkers.FormatValue(context.BusyWorkers.Current, takenAt, _interval);
+            ServerBusyWorkers.Write(connection, context.ServerId, value);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            string message = $"{BackgroundServerProcess.GetServerTemplate(context.ServerId)} could not report its busy workers; the dashboard counts them from the processing jobs meanwhile";
+            if (!_reportWarned)
+            {
+                _reportWarned = true;
+                _logger.WarnException(message, ex);
+            }
+            else
+            {
+                _logger.DebugException(message, ex);
             }
         }
     }

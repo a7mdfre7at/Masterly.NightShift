@@ -298,6 +298,7 @@ add small, opt-in writes.
 | Watchlist | `nightshift.Watchlist` (localStorage `nightshift.watch`, polls `GET /jobs/live?jobs=`), `.js-watch-toggle` on the job page, toasts + Notification API | none (per browser) |
 | Keyboard triage | `nightshift.Shortcuts` (j/k/x/Enter/r/d, `?` overlay) | none |
 | Palette commands | `CommandPalette._commands` (`>` prefix) posting to the existing action routes | none |
+| Busy workers per server | `BusyWorkerCounter` (one per server id, on the internal `BackgroundServerContext.BusyWorkers` and `BackgroundProcessContext.BusyWorkers`, kept by `Worker`), `ServerHeartbeatProcess` (writes after each successful heartbeat, best effort), `ServerBusyWorkers`, `ServerWatchdog` (prunes), `ServersPage.CountBusyWorkers` (uses the reports when all are fresh, else up to 500 processing jobs) | hash `servers:busy`, field = server id (`ShortenResource` to 100), value `{busy};{taken at ms};{interval ms}`; removed by rewriting the hash under `lock:servers:busy` |
 | Per-server pause | `DrainMode.PauseServer/ResumeServer`, `DrainModeStatus.PausedServers`, `DrainModeFilter` (checks the candidate `ProcessingState.ServerId`), `ServerPauseDispatcher`, Servers page | fields `Server:{id}` of `hangfire:control` |
 | Exports | `JobExportDispatcher` (`/jobs/export/{id}`, JSON), `JobListExportDispatcher` (CSV, 10,000 rows, formula characters neutralised), `.js-download` | reads only |
 | State bar | job details page, from the state history | none |

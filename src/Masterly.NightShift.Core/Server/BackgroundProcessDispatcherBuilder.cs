@@ -84,7 +84,10 @@ internal sealed class BackgroundProcessDispatcherBuilder : IBackgroundProcessDis
             executionId,
             serverContext.StoppingToken,
             serverContext.StoppedToken,
-            serverContext.ShutdownToken);
+            serverContext.ShutdownToken)
+        {
+            BusyWorkers = serverContext.BusyWorkers
+        };
 
         while (!context.IsStopping)
         {

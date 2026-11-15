@@ -25,15 +25,16 @@
     IList<ServerDto> servers = monitor.Servers();
 
     DrainModeStatus drain;
+    Dictionary<string, int> busyWorkers;
     using (IStorageConnection connection = Storage.GetReadOnlyConnection())
     {
         drain = DrainMode.Read(connection);
+        busyWorkers = CountBusyWorkers(monitor, connection, servers, Statistics.Processing);
     }
     IReadOnlyList<string> staleServerPauses = DashboardHealth.GetStalePausedServers(drain, servers);
     DateTime now = StorageUtcNow ?? ApplicationUtcNow;
     // The same threshold as the job pages, the diagnostics and /health: no heartbeat for that long
     TimeSpan possiblyAbortedThreshold = DashboardOptions.ServerPossiblyAbortedThreshold;
-    Dictionary<string, int> busyWorkers = CountBusyWorkers(monitor, servers, Statistics.Processing);
     int totalWorkers = servers.Sum(x => x.WorkersCount);
     bool showDangerZone = !IsReadOnly;
 }

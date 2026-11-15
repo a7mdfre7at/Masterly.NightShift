@@ -18,8 +18,14 @@ public class BackgroundProcessContextMock
 
         _context = new Lazy<BackgroundProcessContext>(
             () => new BackgroundProcessContext(ServerId, Storage.Object, Properties, ExecutionId,
-                StoppingTokenSource.Token, StoppedTokenSource.Token, ShutdownTokenSource.Token));
+                StoppingTokenSource.Token, StoppedTokenSource.Token, ShutdownTokenSource.Token)
+            {
+                BusyWorkers = BusyWorkers
+            });
     }
+
+    /// <summary>The server's count of busy workers the context carries; none by default.</summary>
+    internal BusyWorkerCounter BusyWorkers { get; set; }
 
     public BackgroundProcessContext Object => _context.Value;
 

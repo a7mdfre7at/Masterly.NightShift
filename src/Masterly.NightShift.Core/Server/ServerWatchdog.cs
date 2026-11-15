@@ -39,9 +39,26 @@ internal sealed class ServerWatchdog(TimeSpan checkInterval, TimeSpan serverTime
             {
                 _logger.Info($"{serversRemoved} servers were removed due to timeout");
             }
+
+            PruneBusyWorkerReports(context, connection);
         }
 
         context.Wait(_checkInterval);
+    }
+
+    // The busy worker reports of servers that are gone: older than the timeout a server is removed after, so it
+    // timed out or stopped without removing its own (whichever server's watchdog removed it). Best effort: a report
+    // left behind is too old to count anyway
+    private void PruneBusyWorkerReports(BackgroundProcessContext context, IStorageConnection connection)
+    {
+        try
+        {
+            ServerBusyWorkers.RemoveStale(connection, StorageTime.UtcNow(context.Storage, connection), _serverTimeout);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            _logger.DebugException("The busy worker reports of servers that are gone were not pruned", ex);
+        }
     }
 
     public override string ToString()

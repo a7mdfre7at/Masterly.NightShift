@@ -133,6 +133,10 @@ public class Worker : IBackgroundProcess
         bool requeueOnException = true;
         List<IDisposable> disposeAfterStateChange = [];
 
+        // Set while this worker counts as busy for its server: from the change to Processing until the state
+        // change that ends the job is done
+        BusyWorkerCounter? busy = null;
+
         // The same id names this worker in the Processing state, in the lease its final state change checks, and
         // in the job's cancellation token
         string workerId = GetWorkerId(context);
@@ -174,6 +178,9 @@ public class Worker : IBackgroundProcess
             // it was performed to guarantee that it was performed AT LEAST once.
             // It will be re-queued after the JobTimeout was expired.
 
+            busy = context.BusyWorkers;
+            busy?.Enter();
+
             IState? state = PerformJob(context, connection, fetchedJob.JobId, workerId, backgroundJob!, disposeAfterStateChange, out IReadOnlyDictionary<string, object>? customData); // Loaded by the change to Processing above
             bool transactionalAck = CanAcknowledgeInTransaction(context.Storage, connection, fetchedJob);
 
@@ -193,6 +200,9 @@ public class Worker : IBackgroundProcess
                     context.ShutdownToken,
                     workerId);
             }
+
+            busy?.Leave();
+            busy = null;
 
             // Checkpoint #4. The job was performed, and it is in the one
             // of the explicit states (Succeeded, Scheduled and so on).
@@ -222,6 +232,8 @@ public class Worker : IBackgroundProcess
         }
         finally
         {
+            // A job that threw or was given up between the two state changes
+            busy?.Leave();
             DisposeAfterStateChange(disposeAfterStateChange);
         }
     }

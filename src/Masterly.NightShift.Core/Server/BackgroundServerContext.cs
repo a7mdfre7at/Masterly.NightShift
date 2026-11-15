@@ -40,4 +40,10 @@ public sealed record BackgroundServerContext(
 
     /// <summary>The server's properties, shown on the dashboard.</summary>
     public IDictionary<string, object> Properties { get; } = Properties ?? throw new ArgumentNullException(nameof(Properties));
+
+    /// <summary>
+    /// The server's count of busy workers, shared by all its worker pools and reported with its heartbeats; set by
+    /// the server for each id it runs under, <c>null</c> in a context created elsewhere (nothing is counted).
+    /// </summary>
+    internal BusyWorkerCounter? BusyWorkers { get; init; }
 }

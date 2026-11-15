@@ -41,7 +41,7 @@ At startup, with `PrepareSchemaIfNecessary = true` (the default), the storage ru
 | `[JobParameter]` | Name/value pairs attached to a job, such as `RetryCount`, `CurrentCulture`, `Continuations` or `Tags`. Deleted with its job. |
 | `[JobQueue]` | Jobs waiting in a queue or being processed: job id, queue name and `FetchedAt`, the time a worker claimed it. |
 | `[Server]` | Running servers: id, data (workers, queues, start time) and last heartbeat. |
-| `[Hash]` | Key/field/value records: recurring job definitions (`recurring-job:{id}`), the drain-mode flag (`hangfire:control`), batch and insight data. |
+| `[Hash]` | Key/field/value records: recurring job definitions (`recurring-job:{id}`), the drain-mode flag (`hangfire:control`), each server's busy workers (`servers:busy`, one row per server), batch and insight data. |
 | `[Set]` | Scored sets of strings: the schedule of delayed jobs (`schedule`), recurring job ids ordered by next run (`recurring-jobs`), `retries`, tags, batches. |
 | `[List]` | Ordered lists, newest first: the activity feed (`activity`), the audit log (`audit`), job console lines, duration and latency samples. |
 | `[Counter]` | Raw counter increments, such as `stats:succeeded` and the per-day and per-hour statistics. |

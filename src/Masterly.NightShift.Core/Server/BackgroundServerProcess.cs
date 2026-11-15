@@ -87,7 +87,11 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
                 _properties,
                 restartStoppingCts.Token,
                 restartStoppedCts.Token,
-                restartShutdownCts.Token);
+                restartShutdownCts.Token)
+            {
+                // A count of its own for each id: a restart starts from zero
+                BusyWorkers = new BusyWorkerCounter()
+            };
 
             List<IBackgroundDispatcher> dispatchers = [];
 
@@ -140,7 +144,10 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
             context.Properties,
             context.ShutdownToken,
             context.ShutdownToken,
-            context.ShutdownToken);
+            context.ShutdownToken)
+        {
+            BusyWorkers = context.BusyWorkers
+        };
 
         return new ServerHeartbeatProcess(_options.HeartbeatInterval, _options.ServerTimeout, requestRestart)
             .UseBackgroundPool(threadCount: 1
@@ -213,6 +220,7 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
             {
                 connection.RemoveServer(context.ServerId);
                 TakeBackPause(connection, context.ServerId);
+                RemoveBusyWorkersReport(connection, context.ServerId);
             }
 
             stopwatch.Stop();
@@ -242,6 +250,19 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
             _logger.DebugException($"{GetServerTemplate(serverId)} could not take back its pause, which stays until the stale pauses are cleared.", ex);
+        }
+    }
+
+    // The id is given up: its busy worker report goes with it. One left behind is pruned by the watchdogs
+    private void RemoveBusyWorkersReport(IStorageConnection connection, string serverId)
+    {
+        try
+        {
+            ServerBusyWorkers.RemoveServer(connection, serverId);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            _logger.DebugException($"{GetServerTemplate(serverId)} could not remove its busy worker report, which the watchdogs prune later.", ex);
         }
     }
 

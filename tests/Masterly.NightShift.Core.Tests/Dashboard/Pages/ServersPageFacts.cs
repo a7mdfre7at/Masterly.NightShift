@@ -100,6 +100,99 @@ public class ServersPageFacts
     }
 
     [Fact]
+    public void CountBusyWorkers_TakesEachServersOwnReport_WhenEveryServerHasAFreshOne()
+    {
+        DateTime now = DateTime.UtcNow;
+        ServerDto[] servers = [Server("a", now), Server("b", now.AddSeconds(-20))];
+        SetupReports(("a", 4, now.AddSeconds(-1)), ("b", 0, now.AddSeconds(-25)), ("gone", 2, now.AddHours(-1)));
+
+        Dictionary<string, int> busy = CountBusyWorkers(servers, processing: 9);
+
+        Assert.Equal(4, busy["a"]);
+        Assert.Equal(0, busy["b"]);
+        Assert.False(busy.ContainsKey("gone"));
+        _renderer.Connection.Verify(x => x.GetAllEntriesFromHash(ServerBusyWorkers.HashKey), Times.Once);
+        _renderer.Monitoring.Verify(x => x.ProcessingJobs(It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public void CountBusyWorkers_CountsTheProcessingJobs_WhenOneServersReportIsStale()
+    {
+        // A server that went back to a build without reports keeps its heartbeats, and its last report freezes
+        DateTime now = DateTime.UtcNow;
+        ServerDto[] servers = [Server("a", now), Server("b", now)];
+        SetupReports(("a", 4, now), ("b", 5, now.AddSeconds(-61)));
+        SetupProcessingJobs(3, "a", "b", "b");
+
+        Dictionary<string, int> busy = CountBusyWorkers(servers, processing: 3);
+
+        Assert.Equal((1, 2), (busy["a"], busy["b"]));
+        _renderer.Monitoring.Verify(x => x.ProcessingJobs(0, 3), Times.Once);
+    }
+
+    [Fact]
+    public void CountBusyWorkers_CountsTheProcessingJobs_WhenAServerHasNoReport()
+    {
+        DateTime now = DateTime.UtcNow;
+        ServerDto[] servers = [Server("a", now), Server("b", now)];
+        SetupReports(("a", 4, now));
+        SetupProcessingJobs(1, "b");
+
+        Dictionary<string, int> busy = CountBusyWorkers(servers, processing: 1);
+
+        Assert.False(busy.ContainsKey("a"));
+        Assert.Equal(1, busy["b"]);
+    }
+
+    [Fact]
+    public void CountBusyWorkers_CountsTheProcessingJobs_UpToTheirLimit_WhenTheReportsCanNotBeRead()
+    {
+        DateTime now = DateTime.UtcNow;
+        _renderer.Connection.Setup(x => x.GetAllEntriesFromHash(ServerBusyWorkers.HashKey)).Throws(new NotSupportedException());
+        SetupProcessingJobs(ServersPage.MaxProcessingJobsRead, "a");
+
+        Dictionary<string, int> busy = CountBusyWorkers([Server("a", now), Server("b", now)], processing: 10_000);
+
+        Assert.Equal(1, busy["a"]);
+        _renderer.Monitoring.Verify(x => x.ProcessingJobs(0, ServersPage.MaxProcessingJobsRead), Times.Once);
+    }
+
+    [Fact]
+    public void CountBusyWorkers_ClampsAReport_ToTheServersWorkers()
+    {
+        DateTime now = DateTime.UtcNow;
+        SetupReports(("a", 12, now), ("b", 2, now));
+
+        Dictionary<string, int> busy = CountBusyWorkers([Server("a", now), Server("b", now)], processing: 14);
+
+        Assert.Equal((5, 2), (busy["a"], busy["b"]));
+    }
+
+    [Fact]
+    public void CountBusyWorkers_WithOneServer_UsesTheStatistics_WithoutReadingTheReports()
+    {
+        Dictionary<string, int> busy = CountBusyWorkers([Server("a", DateTime.UtcNow)], processing: 9);
+
+        Assert.Equal(5, busy["a"]);
+        _renderer.Connection.Verify(x => x.GetAllEntriesFromHash(ServerBusyWorkers.HashKey), Times.Never);
+    }
+
+    [Fact]
+    public void Render_ShowsEachServersReportedBusyWorkers()
+    {
+        DateTime now = DateTime.UtcNow;
+        SetupServers(Server("a", now), Server("b", now));
+        SetupReports(("a", 2, now), ("b", 4, now));
+        _renderer.Monitoring.Setup(x => x.GetStatistics()).Returns(new StatisticsDto { Processing = 6 });
+
+        string html = _renderer.Render(new ServersPage());
+
+        Assert.Contains("aria-valuemax=\"5\" aria-valuenow=\"2\"", html);
+        Assert.Contains("aria-valuemax=\"5\" aria-valuenow=\"4\"", html);
+        _renderer.Monitoring.Verify(x => x.ProcessingJobs(It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
     public void Render_PutsPausingAndClearing_InADangerZone_SetApartInTheErrorColour()
     {
         _renderer.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Purge)).Returns(true);
@@ -336,6 +429,27 @@ public class ServersPageFacts
     private void SetupServers(params ServerDto[] servers)
     {
         _renderer.Monitoring.Setup(x => x.Servers()).Returns([.. servers]);
+    }
+
+    private Dictionary<string, int> CountBusyWorkers(ServerDto[] servers, long processing)
+    {
+        return ServersPage.CountBusyWorkers(_renderer.Monitoring.Object, _renderer.Connection.Object, servers, processing);
+    }
+
+    // Each report with the default heartbeat interval, 30 seconds: fresh within a minute of its server's heartbeat
+    private void SetupReports(params (string Server, int Busy, DateTime TakenAt)[] reports)
+    {
+        _renderer.Connection.Setup(x => x.GetAllEntriesFromHash(ServerBusyWorkers.HashKey)).Returns(reports.ToDictionary(
+            static x => ServerBusyWorkers.GetField(x.Server),
+            static x => ServerBusyWorkers.FormatValue(x.Busy, x.TakenAt, TimeSpan.FromSeconds(30))));
+    }
+
+    private void SetupProcessingJobs(int count, params string[] servers)
+    {
+        _renderer.Monitoring.Setup(x => x.ProcessingJobs(0, count)).Returns(new JobList<ProcessingJobDto?>(
+        [
+            .. servers.Select(static (server, i) => new KeyValuePair<string, ProcessingJobDto?>(i.ToString(System.Globalization.CultureInfo.InvariantCulture), new ProcessingJobDto { ServerId = server, InProcessingState = true })),
+        ]));
     }
 
     private void SetupControlHash(Dictionary<string, string> hash)

@@ -1119,6 +1119,82 @@ public class WorkerFacts
         Assert.False(waits.CanWait);
     }
 
+    [Fact]
+    public void Execute_CountsTheWorkerAsBusy_FromTheChangeToProcessing_UntilItsFinalStateChangeIsDone()
+    {
+        BusyWorkerCounter busy = new();
+        _context.BusyWorkers = busy;
+        List<(string, int)> seen = [];
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Returns<StateChangeContext>(ctx =>
+            {
+                seen.Add((ctx.NewState.Name, busy.Current));
+                return ctx.NewState;
+            });
+        _performer.Setup(x => x.Perform(It.IsAny<PerformContext>()))
+            .Callback(() => seen.Add(("Perform", busy.Current)));
+
+        CreateWorker().Execute(_context.Object);
+
+        Assert.Equal([(ProcessingState.StateName, 0), ("Perform", 1), (SucceededState.StateName, 1)], seen);
+        Assert.Equal(0, busy.Current);
+    }
+
+    [Fact]
+    public void Execute_CountsTheWorkerAsBusy_AroundAJobThatThrows_AgainForTheNextJob()
+    {
+        BusyWorkerCounter busy = new();
+        _context.BusyWorkers = busy;
+        List<int> duringJobs = [];
+        _performer.Setup(x => x.Perform(It.IsAny<PerformContext>()))
+            .Callback(() => duringJobs.Add(busy.Current))
+            .Throws<InvalidOperationException>();
+        Worker worker = CreateWorker();
+
+        worker.Execute(_context.Object);
+        int afterFirst = busy.Current;
+        worker.Execute(_context.Object);
+
+        Assert.Equal([1, 1], duringJobs);
+        Assert.Equal((0, 0), (afterFirst, busy.Current));
+        _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx => ctx.NewState is FailedState)), Times.Exactly(2));
+    }
+
+    [Fact]
+    public void Execute_StopsCountingTheWorker_WhenTheJobIsAborted_OrItsFinalStateChangeThrows()
+    {
+        BusyWorkerCounter busy = new();
+        _context.BusyWorkers = busy;
+        _performer.Setup(x => x.Perform(It.IsAny<PerformContext>())).Throws<JobAbortedException>();
+
+        CreateWorker().Execute(_context.Object);
+        int afterAbort = busy.Current;
+
+        _performer.Reset();
+        // The final state change fails, and so does the change to Failed tried after it
+        _stateChanger.Setup(x => x.ChangeState(It.Is<StateChangeContext>(ctx => !(ctx.NewState is ProcessingState))))
+            .Throws<InvalidOperationException>();
+        Assert.Throws<InvalidOperationException>(() => CreateWorker(maxStateChangeAttempts: 1).Execute(_context.Object));
+
+        Assert.Equal((0, 0), (afterAbort, busy.Current));
+    }
+
+    [Fact]
+    public void Execute_DoesNotCountTheWorker_WhenTheJobNeverReachesProcessing()
+    {
+        BusyWorkerCounter busy = new();
+        _context.BusyWorkers = busy;
+        int highest = 0;
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Callback(() => highest = Math.Max(highest, busy.Current))
+            .Returns<StateChangeContext>(_ => null);
+
+        CreateWorker().Execute(_context.Object);
+
+        Assert.Equal((0, 0), (highest, busy.Current));
+        _performer.Verify(x => x.Perform(It.IsAny<PerformContext>()), Times.Never);
+    }
+
     private Worker CreateWorker(int maxStateChangeAttempts = 10, WorkerWaits waits = null)
     {
         return new Worker(_queues, _performer.Object, _stateChanger.Object, TimeSpan.FromSeconds(5), maxStateChangeAttempts, waits ?? new WorkerWaits());
