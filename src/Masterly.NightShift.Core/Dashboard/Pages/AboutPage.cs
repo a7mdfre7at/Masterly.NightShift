@@ -78,16 +78,59 @@ internal partial class AboutPage
         }
     }
 
-    private static NonEscapedString MonitorLabel(JobMonitorState state)
+    // A monitor's state as a chip in the colours of the job state it is like: healthy as succeeded, needing
+    // attention as failed, unknown as processing, any other (waiting for its first check) as awaiting
+    private NonEscapedString MonitorLabel(JobMonitorState state)
     {
-        string css = state switch
+        string like = state switch
         {
-            JobMonitorState.Healthy => "text-bg-success",
-            JobMonitorState.NeedsAttention => "text-bg-danger",
-            JobMonitorState.Unknown => "text-bg-warning",
-            _ => "text-bg-secondary",
+            JobMonitorState.Healthy => SucceededState.StateName,
+            JobMonitorState.NeedsAttention => FailedState.StateName,
+            JobMonitorState.Unknown => ProcessingState.StateName,
+            _ => AwaitingState.StateName,
         };
 
-        return new NonEscapedString($"<span class=\"badge {css}\">{state}</span>");
+        return Html.StateLabel(like, state.ToString());
+    }
+
+    // The optional features the storage reports, by id; asking reads its configuration, not the database
+    private List<KeyValuePair<string, bool>> GetStorageFeatures()
+    {
+        string[] features =
+        [
+            JobStorageFeatures.ExtendedApi,
+            JobStorageFeatures.JobQueueProperty,
+            JobStorageFeatures.Purge,
+            JobStorageFeatures.Connection.GetUtcDateTime,
+            JobStorageFeatures.Connection.GetSetContains,
+            JobStorageFeatures.Connection.LimitedGetSetCount,
+            JobStorageFeatures.Connection.BatchedGetFirstByLowest,
+            JobStorageFeatures.Connection.GetQueueEntryId,
+            JobStorageFeatures.Transaction.AcquireDistributedLock,
+            JobStorageFeatures.Transaction.CreateJob,
+            JobStorageFeatures.Transaction.SetJobParameter,
+            JobStorageFeatures.Monitoring.DeletedStateGraphs,
+            JobStorageFeatures.Monitoring.AwaitingJobs,
+            JobStorageFeatures.Monitoring.QueueCounts,
+        ];
+
+        List<KeyValuePair<string, bool>> result = new(features.Length);
+        foreach (string feature in features)
+        {
+            bool supported;
+            try
+            {
+                supported = Storage.HasFeature(feature);
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                Logger.DebugException($"The storage couldn't say whether it supports '{feature}'.", ex);
+                supported = false;
+            }
+
+            result.Add(new KeyValuePair<string, bool>(feature, supported));
+        }
+
+        return result;
     }
 }

@@ -2380,4 +2380,19 @@
   <data name="CatalogPage_Fact_Window" xml:space="preserve">
     <value>Zaman aralığı: {0}</value>
   </data>
+  <data name="AboutPage_Storage" xml:space="preserve">
+    <value>Depolama</value>
+  </data>
+  <data name="AboutPage_Features" xml:space="preserve">
+    <value>İsteğe bağlı özellikler</value>
+  </data>
+  <data name="AboutPage_Supported" xml:space="preserve">
+    <value>destekleniyor</value>
+  </data>
+  <data name="AboutPage_NotSupported" xml:space="preserve">
+    <value>desteklenmiyor</value>
+  </data>
+  <data name="AboutPage_FilterOrder" xml:space="preserve">
+    <value>Sıra {0}</value>
+  </data>
 </root>

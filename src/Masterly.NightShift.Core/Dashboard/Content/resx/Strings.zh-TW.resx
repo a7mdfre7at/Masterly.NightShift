@@ -2346,4 +2346,19 @@
   <data name="CatalogPage_Fact_Window" xml:space="preserve">
     <value>時段：{0}</value>
   </data>
+  <data name="AboutPage_Storage" xml:space="preserve">
+    <value>儲存體</value>
+  </data>
+  <data name="AboutPage_Features" xml:space="preserve">
+    <value>選用功能</value>
+  </data>
+  <data name="AboutPage_Supported" xml:space="preserve">
+    <value>支援</value>
+  </data>
+  <data name="AboutPage_NotSupported" xml:space="preserve">
+    <value>不支援</value>
+  </data>
+  <data name="AboutPage_FilterOrder" xml:space="preserve">
+    <value>順序 {0}</value>
+  </data>
 </root>

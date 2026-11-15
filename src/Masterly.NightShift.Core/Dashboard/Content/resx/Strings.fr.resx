@@ -2371,4 +2371,19 @@ Vous devriez les remettre en file d'attente ou les supprimer manuellement, ou ap
   <data name="CatalogPage_Fact_Window" xml:space="preserve">
     <value>Fenêtre : {0}</value>
   </data>
+  <data name="AboutPage_Storage" xml:space="preserve">
+    <value>Stockage</value>
+  </data>
+  <data name="AboutPage_Features" xml:space="preserve">
+    <value>Fonctions facultatives</value>
+  </data>
+  <data name="AboutPage_Supported" xml:space="preserve">
+    <value>prise en charge</value>
+  </data>
+  <data name="AboutPage_NotSupported" xml:space="preserve">
+    <value>non prise en charge</value>
+  </data>
+  <data name="AboutPage_FilterOrder" xml:space="preserve">
+    <value>Ordre {0}</value>
+  </data>
 </root>

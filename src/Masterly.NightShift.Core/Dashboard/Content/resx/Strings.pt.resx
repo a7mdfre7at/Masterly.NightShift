@@ -2404,4 +2404,19 @@
   <data name="CatalogPage_Fact_Window" xml:space="preserve">
     <value>Janela: {0}</value>
   </data>
+  <data name="AboutPage_Storage" xml:space="preserve">
+    <value>Armazenamento</value>
+  </data>
+  <data name="AboutPage_Features" xml:space="preserve">
+    <value>Recursos opcionais</value>
+  </data>
+  <data name="AboutPage_Supported" xml:space="preserve">
+    <value>compatível</value>
+  </data>
+  <data name="AboutPage_NotSupported" xml:space="preserve">
+    <value>não compatível</value>
+  </data>
+  <data name="AboutPage_FilterOrder" xml:space="preserve">
+    <value>Ordem {0}</value>
+  </data>
 </root>

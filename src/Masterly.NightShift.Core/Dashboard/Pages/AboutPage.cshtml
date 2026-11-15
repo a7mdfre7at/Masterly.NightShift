@@ -1,6 +1,7 @@
 @* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True *@
 @using System
 @using System.Collections.Generic
+@using System.Globalization
 @using System.Linq
 @using Masterly.NightShift
 @using Masterly.NightShift.Common
@@ -11,81 +12,158 @@
 @{
     Layout = new LayoutPage(Strings.AboutPage_Title);
     IReadOnlyList<JobMonitorStatus> monitors = ReadMonitors();
-    IReadOnlyList<JobFunction> functions = JobFunctions.GetAll();
+    IReadOnlyList<JobFunction> jobFunctions = JobFunctions.GetAll();
+    List<JobFilter> filters = GlobalJobFilters.Filters.OrderBy(static x => x.Order).ToList();
 }
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="hf-page-header">@Strings.AboutPage_Title</h1>
+        <header class="ns-page-head">
+            <div class="ns-page-heading">
+                @Html.PageTitle(Strings.AboutPage_Title)
+            </div>
+        </header>
 
-        <h3 id="settings">@Strings.AboutPage_Settings</h3>
-        <table class="table table-sm hf-definition" aria-describedby="settings">
-            <tbody>
-                @foreach (KeyValuePair<string, string> setting in GetSettings())
-                {
-                    <tr><th class="min-width">@setting.Key</th><td class="word-break">@setting.Value</td></tr>
-                }
-            </tbody>
-        </table>
+        <nav class="ns-jump-nav" aria-label="@Strings.JobDetailsPage_OnThisPage">
+            <a class="ns-chip ns-chip-assist" href="#settings">@Html.Icon("list-task") @Strings.AboutPage_Settings</a>
+            <a class="ns-chip ns-chip-assist" href="#storage">@Html.Icon("hdd-fill") @Strings.AboutPage_Storage</a>
+            <a class="ns-chip ns-chip-assist" href="#filters">@Html.Icon("shuffle") @Strings.AboutPage_GlobalFilters</a>
+            <a class="ns-chip ns-chip-assist" href="#functions">@Html.Icon("lightning-fill") @Strings.AboutPage_Functions</a>
+            <a class="ns-chip ns-chip-assist" href="#monitors">@Html.Icon("eye-fill") @Strings.AboutPage_Monitors</a>
+        </nav>
 
-        <h3 id="filters">@Strings.AboutPage_GlobalFilters</h3>
-        <div class="table-responsive">
-            <table class="table table-sm" aria-describedby="filters">
-                <tbody>
-                    @foreach (JobFilter filter in GlobalJobFilters.Filters.OrderBy(static x => x.Order))
-                    {
-                        <tr><td class="min-width"><code>@filter.Instance.GetType().Name</code></td><td class="text-muted">@filter.Order</td></tr>
-                    }
-                </tbody>
-            </table>
+        <div class="ns-about-grid">
+            <section class="hf-card" aria-labelledby="settings">
+                <div class="hf-card-header">
+                    <h2 id="settings">@Strings.AboutPage_Settings</h2>
+                </div>
+                <div class="hf-card-body">
+                    <dl class="ns-kv ns-about-kv">
+                        @foreach (KeyValuePair<string, string> setting in GetSettings())
+                        {
+                            <dt><code>@setting.Key</code></dt>
+                            <dd>@setting.Value</dd>
+                        }
+                    </dl>
+                </div>
+            </section>
+
+            <section class="hf-card" aria-labelledby="storage">
+                <div class="hf-card-header">
+                    <h2 id="storage">@Strings.AboutPage_Storage</h2>
+                </div>
+                <div class="hf-card-body">
+                    <p class="ns-about-storage">@Storage.ToString()</p>
+                    <h3 class="ns-about-subhead">@Strings.AboutPage_Features</h3>
+                    <ul class="ns-about-features">
+                        @foreach (KeyValuePair<string, bool> feature in GetStorageFeatures())
+                        {
+                            <li class="@(feature.Value ? "ns-about-supported" : "ns-about-unsupported")">
+                                @Html.Icon(feature.Value ? "check-circle-fill" : "x-circle-fill")
+                                <code>@feature.Key</code>
+                                <span class="visually-hidden">@(feature.Value ? Strings.AboutPage_Supported : Strings.AboutPage_NotSupported)</span>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </section>
         </div>
 
-        <h3 id="functions">@Strings.AboutPage_Functions</h3>
-        @if (functions.Count == 0)
-        {
-            <p class="text-muted">@Strings.AboutPage_None</p>
-        }
-        else
-        {
-            <div class="table-responsive">
-                <table class="table table-sm" aria-describedby="functions">
-                    <tbody>
-                        @foreach (JobFunction function in functions)
-                        {
-                            <tr>
-                                <td class="min-width"><code>@function.Name</code></td>
-                                <td class="min-width">@(function.PayloadType != null ? function.PayloadType.Name : String.Empty)</td>
-                                <td class="word-break text-muted">@function.Description</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+        <section class="hf-card ns-table-card" aria-labelledby="filters">
+            <div class="hf-card-header">
+                <h2 id="filters">@Strings.AboutPage_GlobalFilters</h2>
+                <span class="ns-count-chip">@filters.Count.ToString(CultureInfo.CurrentCulture)</span>
             </div>
-        }
+            <ol class="ns-list ns-about-list">
+                @foreach (JobFilter filter in filters)
+                {
+                    <li class="ns-list-item">
+                        <div class="ns-list-item-body"><code>@filter.Instance.GetType().Name</code></div>
+                        <div class="ns-list-item-end"><span class="ns-chip ns-chip-status ns-tabular">@String.Format(Strings.AboutPage_FilterOrder, filter.Order)</span></div>
+                    </li>
+                }
+            </ol>
+        </section>
 
-        <h3 id="monitors">@Strings.AboutPage_Monitors</h3>
-        @if (monitors.Count == 0)
-        {
-            <p class="text-muted">@Strings.AboutPage_None</p>
-        }
-        else
-        {
-            <div class="table-responsive">
-                <table class="table table-sm" aria-describedby="monitors">
-                    <tbody>
-                        @foreach (JobMonitorStatus monitor in monitors)
-                        {
-                            <tr>
-                                <td class="min-width"><code>@monitor.Name</code></td>
-                                <td class="min-width">@MonitorLabel(monitor.State)</td>
-                                <td class="min-width">@monitor.Method</td>
-                                <td class="word-break text-muted">@monitor.Reason</td>
-                                <td class="align-right">@(monitor.CheckedAt.HasValue ? Html.RelativeTime(monitor.CheckedAt.Value) : new NonEscapedString(String.Empty))</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+        <section class="hf-card ns-table-card" aria-labelledby="functions">
+            <div class="hf-card-header">
+                <h2 id="functions">@Strings.AboutPage_Functions</h2>
+                <span class="ns-count-chip">@jobFunctions.Count.ToString(CultureInfo.CurrentCulture)</span>
             </div>
-        }
+            @if (jobFunctions.Count == 0)
+            {
+                <div class="ns-empty-state ns-empty-state-compact">
+                    @Html.Icon("lightning-fill")
+                    <p>@Strings.AboutPage_None</p>
+                </div>
+            }
+            else
+            {
+                <ul class="ns-list ns-about-list">
+                    @foreach (JobFunction function in jobFunctions)
+                    {
+                        <li class="ns-list-item">
+                            <div class="ns-list-item-body">
+                                <div class="ns-job-title"><code>@function.Name</code></div>
+                                @if (function.PayloadType != null || !String.IsNullOrEmpty(function.Description))
+                                {
+                                    <div class="ns-job-meta">
+                                        @if (function.PayloadType != null)
+                                        {
+                                            <span class="ns-chip ns-chip-status">@function.PayloadType.Name</span>
+                                        }
+                                        @if (!String.IsNullOrEmpty(function.Description))
+                                        {
+                                            <span>@function.Description</span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+
+        <section class="hf-card ns-table-card" aria-labelledby="monitors">
+            <div class="hf-card-header">
+                <h2 id="monitors">@Strings.AboutPage_Monitors</h2>
+                <span class="ns-count-chip">@monitors.Count.ToString(CultureInfo.CurrentCulture)</span>
+            </div>
+            @if (monitors.Count == 0)
+            {
+                <div class="ns-empty-state ns-empty-state-compact">
+                    @Html.Icon("eye-fill")
+                    <p>@Strings.AboutPage_None</p>
+                </div>
+            }
+            else
+            {
+                <ul class="ns-list ns-about-list">
+                    @foreach (JobMonitorStatus monitor in monitors)
+                    {
+                        <li class="ns-list-item">
+                            <div class="ns-list-item-body">
+                                <div class="ns-job-title"><code>@monitor.Name</code> @MonitorLabel(monitor.State)</div>
+                                <div class="ns-job-meta">
+                                    @if (!String.IsNullOrEmpty(monitor.Method))
+                                    {
+                                        <span>@monitor.Method</span>
+                                    }
+                                    @if (!String.IsNullOrEmpty(monitor.Reason))
+                                    {
+                                        <span>@monitor.Reason</span>
+                                    }
+                                </div>
+                            </div>
+                            @if (monitor.CheckedAt.HasValue)
+                            {
+                                <div class="ns-list-item-end ns-run-time">@Html.RelativeTime(monitor.CheckedAt.Value) <span class="ns-time-exact">@Html.LocalTime(monitor.CheckedAt.Value)</span></div>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
     </div>
 </div>

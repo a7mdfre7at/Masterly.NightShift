@@ -2402,4 +2402,19 @@
   <data name="CatalogPage_Fact_Window" xml:space="preserve">
     <value>بازهٔ زمانی: {0}</value>
   </data>
+  <data name="AboutPage_Storage" xml:space="preserve">
+    <value>ذخیره‌ساز</value>
+  </data>
+  <data name="AboutPage_Features" xml:space="preserve">
+    <value>قابلیت‌های اختیاری</value>
+  </data>
+  <data name="AboutPage_Supported" xml:space="preserve">
+    <value>پشتیبانی می‌شود</value>
+  </data>
+  <data name="AboutPage_NotSupported" xml:space="preserve">
+    <value>پشتیبانی نمی‌شود</value>
+  </data>
+  <data name="AboutPage_FilterOrder" xml:space="preserve">
+    <value>ترتیب {0}</value>
+  </data>
 </root>

@@ -7861,3 +7861,63 @@ body.hf-app.hf-wallboard {
         white-space: normal;
     }
 }
+
+/* The About page: what the process configured, a card per section with a jump nav; the settings and the storage
+   side by side when they fit, each setting by the method that changes it */
+.ns-about-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+    gap: var(--md-sys-spacing-4);
+    margin-bottom: var(--md-sys-spacing-4);
+}
+
+.hf-app .ns-about-grid > .hf-card {
+    margin-bottom: 0;
+}
+
+.hf-app .ns-about-kv > dd {
+    overflow-wrap: anywhere;
+}
+
+.ns-about-storage {
+    margin: 0 0 var(--md-sys-spacing-4);
+    font: var(--md-sys-typescale-body-large);
+    overflow-wrap: anywhere;
+}
+
+.hf-app .ns-about-subhead {
+    margin: 0 0 var(--md-sys-spacing-2);
+    font: var(--md-sys-typescale-title-small);
+}
+
+.ns-about-features {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+    gap: var(--md-sys-spacing-1) var(--md-sys-spacing-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ns-about-features > li {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-2);
+    min-width: 0;
+}
+
+.hf-app .ns-about-features code {
+    overflow-wrap: anywhere;
+}
+
+.ns-about-supported > .bi {
+    color: var(--ns-state-succeeded);
+}
+
+.ns-about-unsupported {
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ns-about-unsupported > .bi {
+    color: var(--md-sys-color-outline);
+}

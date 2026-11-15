@@ -2369,4 +2369,19 @@
   <data name="CatalogPage_Fact_Window" xml:space="preserve">
     <value>Tijdvenster: {0}</value>
   </data>
+  <data name="AboutPage_Storage" xml:space="preserve">
+    <value>Opslag</value>
+  </data>
+  <data name="AboutPage_Features" xml:space="preserve">
+    <value>Optionele functies</value>
+  </data>
+  <data name="AboutPage_Supported" xml:space="preserve">
+    <value>ondersteund</value>
+  </data>
+  <data name="AboutPage_NotSupported" xml:space="preserve">
+    <value>niet ondersteund</value>
+  </data>
+  <data name="AboutPage_FilterOrder" xml:space="preserve">
+    <value>Volgorde {0}</value>
+  </data>
 </root>

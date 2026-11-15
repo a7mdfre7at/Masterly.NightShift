@@ -2471,4 +2471,19 @@
   <data name="CatalogPage_Fact_Window" xml:space="preserve">
     <value>Window: {0}</value>
   </data>
+  <data name="AboutPage_Storage" xml:space="preserve">
+    <value>Storage</value>
+  </data>
+  <data name="AboutPage_Features" xml:space="preserve">
+    <value>Optional features</value>
+  </data>
+  <data name="AboutPage_Supported" xml:space="preserve">
+    <value>supported</value>
+  </data>
+  <data name="AboutPage_NotSupported" xml:space="preserve">
+    <value>not supported</value>
+  </data>
+  <data name="AboutPage_FilterOrder" xml:space="preserve">
+    <value>Order {0}</value>
+  </data>
 </root>

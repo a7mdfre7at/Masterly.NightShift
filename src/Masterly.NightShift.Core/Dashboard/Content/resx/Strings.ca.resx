@@ -2347,4 +2347,19 @@
   <data name="CatalogPage_Fact_Window" xml:space="preserve">
     <value>Finestra: {0}</value>
   </data>
+  <data name="AboutPage_Storage" xml:space="preserve">
+    <value>Emmagatzematge</value>
+  </data>
+  <data name="AboutPage_Features" xml:space="preserve">
+    <value>Funcions opcionals</value>
+  </data>
+  <data name="AboutPage_Supported" xml:space="preserve">
+    <value>compatible</value>
+  </data>
+  <data name="AboutPage_NotSupported" xml:space="preserve">
+    <value>no compatible</value>
+  </data>
+  <data name="AboutPage_FilterOrder" xml:space="preserve">
+    <value>Ordre {0}</value>
+  </data>
 </root>

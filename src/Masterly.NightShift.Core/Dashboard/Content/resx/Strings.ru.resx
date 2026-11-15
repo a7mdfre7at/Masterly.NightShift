@@ -2396,4 +2396,19 @@
   <data name="CatalogPage_Fact_Window" xml:space="preserve">
     <value>Окно: {0}</value>
   </data>
+  <data name="AboutPage_Storage" xml:space="preserve">
+    <value>Хранилище</value>
+  </data>
+  <data name="AboutPage_Features" xml:space="preserve">
+    <value>Необязательные возможности</value>
+  </data>
+  <data name="AboutPage_Supported" xml:space="preserve">
+    <value>поддерживается</value>
+  </data>
+  <data name="AboutPage_NotSupported" xml:space="preserve">
+    <value>не поддерживается</value>
+  </data>
+  <data name="AboutPage_FilterOrder" xml:space="preserve">
+    <value>Порядок {0}</value>
+  </data>
 </root>

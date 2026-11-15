@@ -7093,5 +7093,50 @@ namespace Masterly.NightShift.Dashboard.Resources {
                 return ResourceManager.GetString("CatalogPage_Fact_Window", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Storage.
+        /// </summary>
+        public static string AboutPage_Storage {
+            get {
+                return ResourceManager.GetString("AboutPage_Storage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Optional features.
+        /// </summary>
+        public static string AboutPage_Features {
+            get {
+                return ResourceManager.GetString("AboutPage_Features", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to supported.
+        /// </summary>
+        public static string AboutPage_Supported {
+            get {
+                return ResourceManager.GetString("AboutPage_Supported", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to not supported.
+        /// </summary>
+        public static string AboutPage_NotSupported {
+            get {
+                return ResourceManager.GetString("AboutPage_NotSupported", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Order {0}.
+        /// </summary>
+        public static string AboutPage_FilterOrder {
+            get {
+                return ResourceManager.GetString("AboutPage_FilterOrder", resourceCulture);
+            }
+        }
     }
 }

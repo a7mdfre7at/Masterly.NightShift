@@ -439,6 +439,33 @@ public class NewPagesFacts
     }
 
     [Fact]
+    public void About_HasTheSharedHeader_AJumpNav_AndASectionCardPerPart()
+    {
+        _renderer.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Connection.GetUtcDateTime)).Returns(true);
+
+        string html = _renderer.Render(new AboutPage());
+
+        Assert.Contains("<header class=\"ns-page-head\">", html, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"ns-page-name\">About</span></h1>", html, StringComparison.Ordinal);
+        Assert.Contains("<nav class=\"ns-jump-nav\" aria-label=\"On this page\">", html, StringComparison.Ordinal);
+        foreach (string section in (string[])["settings", "storage", "filters", "functions", "monitors"])
+        {
+            Assert.Contains($"href=\"#{section}\"", html, StringComparison.Ordinal);
+            Assert.Contains($"aria-labelledby=\"{section}\">", html, StringComparison.Ordinal);
+            Assert.Contains($"<h2 id=\"{section}\">", html, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("<dt><code>UseStaleRestartLimit</code></dt>", html, StringComparison.Ordinal);
+        Assert.Contains("<li class=\"ns-about-supported\">", html, StringComparison.Ordinal);
+        Assert.Contains("<code>Connection.GetUtcDateTime</code>", html, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"visually-hidden\">not supported</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<code>CaptureCultureAttribute</code>", html, StringComparison.Ordinal);
+        Assert.Matches("<span class=\"ns-chip ns-chip-status ns-tabular\">Order -?[0-9]+</span>", html);
+        PageStructure.AssertHeadingsInOrder(html);
+        PageStructure.AssertNoEmptyHeaderCells(html);
+    }
+
+    [Fact]
     public void NavigationMenu_LinksToTheNewPages()
     {
         string html = _renderer.Render(new AboutPage());

@@ -2410,4 +2410,19 @@
   <data name="CatalogPage_Fact_Window" xml:space="preserve">
     <value>Tidsfönster: {0}</value>
   </data>
+  <data name="AboutPage_Storage" xml:space="preserve">
+    <value>Lagring</value>
+  </data>
+  <data name="AboutPage_Features" xml:space="preserve">
+    <value>Valfria funktioner</value>
+  </data>
+  <data name="AboutPage_Supported" xml:space="preserve">
+    <value>stöds</value>
+  </data>
+  <data name="AboutPage_NotSupported" xml:space="preserve">
+    <value>stöds inte</value>
+  </data>
+  <data name="AboutPage_FilterOrder" xml:space="preserve">
+    <value>Ordning {0}</value>
+  </data>
 </root>
