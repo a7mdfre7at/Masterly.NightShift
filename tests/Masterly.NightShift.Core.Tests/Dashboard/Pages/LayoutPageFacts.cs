@@ -429,6 +429,28 @@ public class LayoutPageFacts
         Assert.Contains("data-readonly=\"true\"", readOnly);
     }
 
+    [Theory]
+    [InlineData("", "en")]
+    [InlineData("ja-JP", "en")]
+    [InlineData("de", "de")]
+    [InlineData("pt-BR", "pt-BR")]
+    public void Render_NamesTheLanguageItsTextIsIn_InTheLangAttribute(string culture, string expected)
+    {
+        CultureInfo previous = CultureInfo.CurrentUICulture;
+        string html;
+        try
+        {
+            CultureHelper.SetCurrentUICulture(culture);
+            html = _renderer.Render(new TagsPage());
+        }
+        finally
+        {
+            CultureHelper.SetCurrentUICulture(previous);
+        }
+
+        Assert.Contains($"<html lang=\"{expected}\"", html);
+    }
+
     [Fact]
     public void Render_WithDarkModeDisabled_PinsTheLightTheme_SoTheSystemPreferenceDoesntApply()
     {

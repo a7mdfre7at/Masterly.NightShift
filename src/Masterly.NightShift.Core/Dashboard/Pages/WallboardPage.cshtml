@@ -80,7 +80,7 @@
     Version version = GetType().GetTypeInfo().Assembly.GetName().Version!;
     StatisticsDto? statistics = report.Statistics;
 }<!DOCTYPE html>
-<html lang="@CultureInfo.CurrentUICulture.TwoLetterISOLanguageName" data-theme="dark" class="hf-wb-html">
+<html lang="@DocumentLanguage.Of(CultureInfo.CurrentUICulture)" data-theme="dark" class="hf-wb-html">
 <head>
     <title>@Strings.WallboardPage_Title – @(DashboardOptions.DashboardTitle.Contains("<") ? "Masterly.NightShift Dashboard" : DashboardOptions.DashboardTitle)</title>
     <meta charset="utf-8">

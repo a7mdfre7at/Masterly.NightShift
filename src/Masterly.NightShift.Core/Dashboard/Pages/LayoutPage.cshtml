@@ -14,7 +14,7 @@
 }
 <!DOCTYPE html>
 @* Without dark mode the page is always light: the attribute keeps the tokens' system-preference rule from applying *@
-<html lang="@CultureInfo.CurrentUICulture.TwoLetterISOLanguageName"@(DashboardOptions.DarkModeEnabled ? null : Html.Raw(" data-theme=\"light\""))>
+<html lang="@DocumentLanguage.Of(CultureInfo.CurrentUICulture)"@(DashboardOptions.DarkModeEnabled ? null : Html.Raw(" data-theme=\"light\""))>
 <head>
     <title>@Title – @plainTitle</title>
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
