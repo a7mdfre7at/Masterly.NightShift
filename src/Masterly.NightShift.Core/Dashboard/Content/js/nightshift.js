@@ -146,6 +146,7 @@
 
                 var text = button.attr('data-loading-text');
                 if (text) {
+                    nightshift.disposeTooltips(button.children());
                     button.text(text);
                 }
 
@@ -153,6 +154,7 @@
             } else {
                 var html = button.data('nightshift-reset-html');
                 if (html !== undefined) {
+                    nightshift.disposeTooltips(button.children());
                     button.html(html).removeData('nightshift-reset-html');
                 }
 
@@ -168,6 +170,34 @@
 
         $(container || document).find('[title]').addBack('[title]').each(function () {
             bootstrap.Tooltip.getOrCreateInstance(this);
+        });
+    };
+
+    // Disposes the Bootstrap tooltips and popovers of the container (the element or elements given, and everything
+    // inside them; the whole page without one), and takes away the ones they show. Call it before content with
+    // tooltips is replaced or removed: Bootstrap keeps its instances in a map of its own that jQuery's cleanup
+    // doesn't reach, so the removed elements would stay in memory, and a tooltip shown at that moment (Bootstrap
+    // puts it in <body>) would stay on the screen.
+    nightshift.disposeTooltips = function (container) {
+        if (!window.bootstrap || !bootstrap.Tooltip) return;
+
+        var dispose = function (element) {
+            var tooltip = bootstrap.Tooltip.getInstance(element);
+            if (tooltip) tooltip.dispose();
+
+            var popover = bootstrap.Popover ? bootstrap.Popover.getInstance(element) : null;
+            if (popover) popover.dispose();
+        };
+
+        $(container || document).each(function () {
+            dispose(this);
+
+            if (this.querySelectorAll) {
+                var elements = this.querySelectorAll('*');
+                for (var i = 0; i < elements.length; i++) {
+                    dispose(elements[i]);
+                }
+            }
         });
     };
 
@@ -1753,6 +1783,14 @@
 
             try { window.localStorage.removeItem(OLD_STORAGE_KEY); } catch (e) { /* private mode */ }
 
+            // The rows a refresh brings get their tooltips from this one, delegated, when they are first hovered or
+            // focused. Bootstrap leaves a small entry in its event registry for every element that ever had a
+            // tooltip, even after dispose, so creating one for every row on every refresh made a page left on Live
+            // grow all day.
+            if (window.bootstrap && bootstrap.Tooltip) {
+                bootstrap.Tooltip.getOrCreateInstance(this._container[0], { selector: '[title], [data-bs-original-title]' });
+            }
+
             this._enabled = this._read();
             this._build();
             if (this._enabled) this._schedule();
@@ -1827,13 +1865,14 @@
                     var fresh = nodes.filter('.js-jobs-list').add(nodes.find('.js-jobs-list')).first();
 
                     if (fresh.length) {
+                        // The buttons stay, with their tooltips; the tooltips of the rest go with the old rows
                         var toggle = self._button.detach();
                         var refresh = self._refreshButton.detach().removeClass('spinning');
+                        nightshift.disposeTooltips(self._container.children());
                         self._container.html(fresh.html());
                         self._container.find('.btn-toolbar-top').first().append(refresh).append(toggle);
                         self._page.initJobsList(self._container[0]);
                         self._page.updateRelativeDates();
-                        nightshift.tooltips(self._container);
                         self._button.addClass('hf-live-flash');
                         setTimeout(function () { self._button.removeClass('hf-live-flash'); }, 600);
                     }
@@ -1938,7 +1977,9 @@
             if (entry.r) row.append($('<span>').addClass('text-muted hf-activity-reason').attr('title', entry.r).text(entry.r));
 
             this._list.prepend(row);
-            this._list.children().slice(MAX_ROWS).remove();
+            var old = this._list.children().slice(MAX_ROWS);
+            nightshift.disposeTooltips(old);
+            old.remove();
 
             if (animate) {
                 setTimeout(function () { row.removeClass('hf-activity-new'); }, 1200);
@@ -2184,6 +2225,7 @@
                 var code = button.attr('data-code') || '';
                 var original = button.html();
                 var done = function () {
+                    nightshift.disposeTooltips(button.children());
                     button.addClass('btn-success').html(nightshift.icon('check-lg')).append(document.createTextNode(' ' + button.data('copied')));
                     setTimeout(function () { button.removeClass('btn-success').html(original); }, 1500);
                 };
