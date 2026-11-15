@@ -4,7 +4,7 @@
 
     // Gives a graph the colors of a scheme ("light" or "dark"); the realtime and history graphs share it
     var changeDatasetColorScheme = function (newColorScheme) {
-        var colors = COLORS[newColorScheme];
+        var colors = COLORS.get(newColorScheme);
         var datasets = this._chart.data.datasets;
         var scales = this._chart.options.scales;
 
@@ -22,43 +22,30 @@
         this._chart.update('none');
     };
 
-    // The job-state colors of the documentation site: succeeded green, failed rose, deleted slate. Only the
-    // succeeded series has a line; the others are areas, so empty series draw no line along zero.
+    // The graphs' colours, read from the tokens of the theme the page shows (nightshift-tokens.css): the job states'
+    // colour groups (succeeded, failed, deleted) and the outline and text roles for the axes. Only the succeeded
+    // series has a line; the others are areas, so empty series draw no line along zero.
+    var cssToken = function (name, fallback) {
+        var value = window.getComputedStyle ? getComputedStyle(document.documentElement).getPropertyValue(name).trim() : '';
+        return value || fallback;
+    };
+
+    var tokenRgba = function (name, alpha, fallback) {
+        return 'rgba(' + cssToken(name, fallback) + ', ' + alpha + ')';
+    };
+
     var COLORS = {
-        light: {
-            cartesianColor: '#e3eeef',
-            axisColor: 'rgba(0, 0, 0, 0.25)',
-            tickColor: '#5f7882',
-            failed: {
-                backgroundColor: 'rgba(225, 29, 72, 0.75)',
-                borderColor: 'transparent',
-            },
-            deleted: {
-                backgroundColor: 'rgba(95, 120, 130, 0.45)',
-                borderColor: 'transparent',
-            },
-            succeeded: {
-                backgroundColor: 'rgba(52, 211, 153, 0.55)',
-                borderColor: '#059669',
-            },
-        },
-        dark: {
-            cartesianColor: 'rgba(95, 224, 200, 0.1)',
-            axisColor: 'rgba(0, 0, 0, 0.25)',
-            tickColor: '#779597',
-            failed: {
-                backgroundColor: 'rgba(251, 113, 133, 0.4)',
-                borderColor: 'transparent',
-            },
-            deleted: {
-                backgroundColor: 'rgba(166, 193, 195, 0.25)',
-                borderColor: 'transparent',
-            },
-            succeeded: {
-                backgroundColor: 'rgba(52, 211, 153, 0.35)',
-                borderColor: '#34d399',
-            },
-        },
+        get: function (scheme) {
+            var dark = scheme === 'dark';
+            return {
+                cartesianColor: tokenRgba('--md-sys-color-on-surface-rgb', dark ? 0.1 : 0.08, '10, 37, 48'),
+                axisColor: tokenRgba('--md-sys-color-outline-rgb', 0.6, '108, 121, 123'),
+                tickColor: cssToken('--md-sys-color-on-surface-variant', '#3c494b'),
+                failed: { backgroundColor: tokenRgba('--ns-state-failed-rgb', dark ? 0.45 : 0.7, '189, 0, 70'), borderColor: 'transparent' },
+                deleted: { backgroundColor: tokenRgba('--ns-state-deleted-rgb', dark ? 0.35 : 0.4, '82, 97, 103'), borderColor: 'transparent' },
+                succeeded: { backgroundColor: tokenRgba('--ns-state-succeeded-rgb', dark ? 0.35 : 0.45, '0, 109, 58'), borderColor: cssToken('--ns-state-succeeded', '#006d3a') }
+            };
+        }
     };
 
     if (typeof Chart !== 'undefined') {
@@ -69,7 +56,7 @@
     // The options both graphs share: stacked areas without points or legend, a tooltip for every series at the
     // hovered time, colors of the current scheme
     var graphOptions = function (x, y) {
-        var colors = COLORS[colorScheme];
+        var colors = COLORS.get(colorScheme);
 
         x.grid = { color: colors.cartesianColor };
         x.border = { color: colors.axisColor };
@@ -92,7 +79,7 @@
     };
 
     var graphDatasets = function (labels, data) {
-        var colors = COLORS[colorScheme];
+        var colors = COLORS.get(colorScheme);
 
         return SERIES.map(function (name) {
             return {
@@ -167,8 +154,9 @@
             + escapeAttribute(url) + '#bi-' + escapeAttribute(symbol) + '"></use></svg>';
     };
 
-    // What Bootstrap 3's button('loading') and button('reset') did: while a request runs, the button is disabled
-    // and shows its data-loading-text (when it has one); afterwards it gets its content back and is enabled again
+    // The busy state of a button while its request runs: it shows a circular progress indicator and its
+    // data-loading-text (when it has one), and says aria-busy and aria-disabled. It isn't disabled, so it keeps the
+    // focus; the click guard below ignores clicks on it. Afterwards it gets its content back.
     nightshift.setLoading = function (element, loading) {
         return $(element).each(function () {
             var button = $(this);
@@ -179,12 +167,13 @@
                 }
 
                 var text = button.attr('data-loading-text');
+                nightshift.disposeTooltips(button.children());
                 if (text) {
-                    nightshift.disposeTooltips(button.children());
                     button.text(text);
                 }
 
-                button.prop('disabled', true).addClass('disabled').attr('aria-busy', 'true');
+                button.prepend('<span class="ns-progress-circular" aria-hidden="true"></span>')
+                    .attr({ 'aria-busy': 'true', 'aria-disabled': 'true' });
             } else {
                 var html = button.data('nightshift-reset-html');
                 if (html !== undefined) {
@@ -192,10 +181,43 @@
                     button.html(html).removeData('nightshift-reset-html');
                 }
 
-                button.prop('disabled', false).removeClass('disabled').removeAttr('aria-busy');
+                button.prop('disabled', false).removeClass('disabled').removeAttr('aria-busy').removeAttr('aria-disabled');
             }
         });
     };
+
+    // A control that says aria-disabled (a busy button, the previous link of the first page) stays focusable, so
+    // screen readers find it, but does nothing: its clicks stop here, before any handler of the page sees them
+    document.addEventListener('click', function (e) {
+        var target = e.target && e.target.closest ? e.target.closest('[aria-disabled="true"]') : null;
+        if (target) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+        }
+    }, true);
+
+    // The text of a #nightshiftConfig data-text-* attribute (read with .attr: .data() would turn "{0}" or a number
+    // into something else), or the fallback
+    var configText = function (name, fallback) {
+        var value = $('#nightshiftConfig').attr('data-text-' + name);
+        return value === undefined || value === null || value === '' ? fallback : value;
+    };
+
+    // A resource text with {0}, {1}... replaced by the arguments
+    var format = function (text) {
+        var args = Array.prototype.slice.call(arguments, 1);
+        return String(text).replace(/\{(\d+)\}/g, function (match, index) {
+            var value = args[parseInt(index, 10)];
+            return value === undefined ? match : String(value);
+        });
+    };
+
+    nightshift.format = format;
+
+    // Whether the user asked for less motion
+    var reducedMotion = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+    nightshift.prefersReducedMotion = function () { return !!reducedMotion.matches; };
+    if (reducedMotion.matches && $.fx) $.fx.off = true;
 
     // A Bootstrap tooltip for every element with a title in the container (the whole page without one), for
     // content added after the page loaded too; an element that has one keeps it
@@ -203,8 +225,21 @@
         if (!window.bootstrap || !bootstrap.Tooltip) return;
 
         $(container || document).find('[title]').addBack('[title]').each(function () {
+            tooltipRole(this);
             bootstrap.Tooltip.getOrCreateInstance(this);
         });
+    };
+
+    // Bootstrap names an element without text after its tooltip (aria-label), which a plain div or span may not
+    // carry: such an element is an image of what its tooltip says
+    var tooltipRole = function (element) {
+        if (/^(DIV|SPAN|I)$/.test(element.tagName) && !element.getAttribute('role') && !element.getAttribute('aria-label') && !trim(element.textContent)) {
+            element.setAttribute('role', 'img');
+        }
+    };
+
+    nightshift.tooltipRoles = function (container) {
+        $(container || document).find('[title], [data-bs-original-title]').each(function () { tooltipRole(this); });
     };
 
     // Disposes the Bootstrap tooltips and popovers of the container (the element or elements given, and everything
@@ -253,16 +288,67 @@
         pollInterval: $("#nightshiftConfig").data("pollinterval"),
         pollUrl: $("#nightshiftConfig").data("pollurl"),
         text: {
-            refresh: $("#nightshiftConfig").data("text-refresh") || "Refresh",
-            live: $("#nightshiftConfig").data("text-live") || "Live",
-            liveHint: $("#nightshiftConfig").data("text-live-hint") || "Refresh this list automatically",
-            listResult: $("#nightshiftConfig").data("text-list-result") || "{0} jobs changed.",
-            listRemaining: $("#nightshiftConfig").data("text-list-remaining") || "There is more to do (up to {0} jobs). Run it again to continue.",
-            requestFailed: $("#nightshiftConfig").data("text-request-failed") || "The request failed:"
+            refresh: configText('refresh', 'Refresh'),
+            live: configText('live', 'Live'),
+            liveHint: configText('live-hint', 'Refresh this list automatically'),
+            listResult: configText('list-result', '{0} jobs changed.'),
+            listRemaining: configText('list-remaining', 'There is more to do (up to {0} jobs). Run it again to continue.'),
+            requestFailed: configText('request-failed', 'The request failed:'),
+            statusLive: configText('status-live', 'Live'),
+            statusLiveHint: configText('status-live-hint', ''),
+            statusOffline: configText('status-offline', 'Offline – retrying'),
+            statusOfflineHint: configText('status-offline-hint', ''),
+            closeMenu: configText('close-menu', 'Close the menu'),
+            cancel: configText('cancel', 'Cancel'),
+            confirm: configText('confirm', 'Confirm'),
+            close: configText('close', 'Close'),
+            dismiss: configText('dismiss', 'Dismiss'),
+            retry: configText('retry', 'Retry'),
+            discardTitle: configText('discard-title', 'Discard changes?'),
+            discardBody: configText('discard-body', 'What you changed in this dialog is lost.'),
+            discard: configText('discard', 'Discard'),
+            keepEditing: configText('keep-editing', 'Keep editing'),
+            typeToConfirm: configText('type-to-confirm', 'Type {0} to confirm'),
+            done: configText('done', '{0}: done.'),
+            actionFailed: configText('action-failed', '{0} failed: {1}'),
+            serverResponded: configText('server-responded', 'The server responded with {0}.'),
+            noAnswer: configText('no-answer', "The server didn't answer."),
+            viewJob: configText('view-job', 'View job {0}'),
+            listUpdated: configText('list-updated', 'List updated'),
+            listUpdatedNew: configText('list-updated-new', 'List updated · {0} new'),
+            selectedCount: configText('selected-count', '{0} selected'),
+            clearSelection: configText('clear-selection', 'Clear selection'),
+            shortcutConfirm: configText('shortcut-confirm', '{0}: {1} selected. Go ahead?'),
+            paletteLabel: configText('palette-label', 'Search and commands'),
+            palettePlaceholder: configText('palette-placeholder', 'Jump to a page, a job id, a recurring job or a tag…'),
+            paletteResults: configText('palette-results', 'Results'),
+            paletteNothing: configText('palette-nothing', 'Nothing found'),
+            paletteCount: configText('palette-count', '{0} results'),
+            paletteCountOne: configText('palette-count-one', '1 result'),
+            paletteHint: configText('palette-hint', '{0} move · {1} open · {2} close · {3} commands'),
+            paletteHintAnywhere: configText('palette-hint-anywhere', '{0} or {1} opens this anywhere'),
+            palettePages: configText('palette-pages', 'Pages'),
+            paletteCommands: configText('palette-commands', 'Commands'),
+            paletteJobs: configText('palette-jobs', 'Jobs'),
+            paletteRecurring: configText('palette-recurring', 'Recurring jobs'),
+            paletteTags: configText('palette-tags', 'Tags'),
+            shortcuts: configText('shortcuts', 'Keyboard shortcuts'),
+            shortcutSearch: configText('shortcut-search', 'Search, jump to a page, run a command (type >)'),
+            shortcutGo: configText('shortcut-go', 'Go to home, jobs, processing, failed, recurring, servers, insights, catalog, tags, batches, audit'),
+            shortcutMove: configText('shortcut-move', 'Move down / up a job list'),
+            shortcutSelect: configText('shortcut-select', 'Select the focused job'),
+            shortcutOpen: configText('shortcut-open', 'Open the focused job'),
+            shortcutRun: configText('shortcut-run', 'Run the main command of the list for the selected items, after a confirmation'),
+            shortcutDelete: configText('shortcut-delete', 'Delete the selected jobs'),
+            shortcutHelp: configText('shortcut-help', 'This help'),
+            shortcutSingleKey: configText('shortcut-single-key', 'Single-key shortcuts (j, k, x, r, d, g, / and ?). Ctrl K works either way.')
         },
         locale: document.documentElement.lang,
-        darkMode: $("#nightshiftConfig").data("darkmode")
+        darkMode: $("#nightshiftConfig").data("darkmode"),
+        readOnly: $("#nightshiftConfig").attr("data-readonly") === "true"
     };
+
+    var TEXT = nightshift.config.text;
 
     // The effective color scheme: the chosen theme, or the system's when none is chosen
     var effectiveScheme = function () {
@@ -292,6 +378,9 @@
         function Theme() {
             this._buttons = $('.js-theme button[data-theme-choice]');
             this._stylesheet = document.getElementById('hfDarkStylesheet');
+
+            // Without dark mode the page stays light, whatever another dashboard of the site saved
+            if (!nightshift.config.darkMode) return;
 
             var self = this;
             this._buttons.on('click', function () {
@@ -343,38 +432,165 @@
         return Theme;
     })();
 
+    // A table that fits its .table-responsive box needs no sideways scrolling: the box gets ns-table-fits, so on large
+    // windows its header can stick under the app bar (CSS). Measured again when the window or the list changes.
+    nightshift.markFittingTables = function (container) {
+        $(container || document).find('.table-responsive').each(function () {
+            var table = $(this).children('table')[0];
+            if (!table) return;
+            this.classList.remove('ns-table-fits');
+            this.classList.toggle('ns-table-fits', table.scrollWidth <= this.clientWidth + 1);
+        });
+    };
+
+    // The focusable elements of a container that a user can reach with Tab, in order
+    var tabbables = function (container) {
+        return $(container).find('a[href], button, input, select, textarea, [tabindex]').filter(function () {
+            if (this.disabled || this.tabIndex < 0 || this.getAttribute('tabindex') === '-1') return false;
+            if (this.type === 'hidden' || this.closest('[inert]')) return false;
+            return this.offsetWidth > 0 || this.offsetHeight > 0 || this.getClientRects().length > 0;
+        });
+    };
+
+    // Keeps Tab and Shift+Tab inside a container: from its last control to its first and back
+    var trapTab = function (e, container) {
+        if (e.key !== 'Tab') return;
+        var items = tabbables(container);
+        if (!items.length) { e.preventDefault(); return; }
+
+        var first = items[0];
+        var last = items[items.length - 1];
+        var active = document.activeElement;
+
+        if (e.shiftKey && (active === first || !$.contains(container, active))) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && (active === last || !$.contains(container, active))) {
+            e.preventDefault();
+            first.focus();
+        }
+    };
+
+    var focusBack = function (target) {
+        if (target && target !== document.body && document.contains(target) && typeof target.focus === 'function') target.focus();
+    };
+
+    nightshift.trapTab = trapTab;
+
+    // The navigation drawer and the top app bar. From 1240px the drawer stands beside the content; from 600 to 1239px
+    // a rail does, and the menu button opens the drawer over it as a modal; below 600px the drawer is modal only, and
+    // inert while closed. The modal drawer takes the focus to its first item, keeps Tab inside, and closes with Esc,
+    // the scrim or its close button, giving the focus back to the menu button.
     nightshift.Shell = (function () {
         function Shell() {
-            var body = $('body');
+            var self = this;
+            this._body = $('body');
+            this._sidebar = $('#hfSidebar');
+            this._toggle = $('.js-sidebar-toggle');
+            this._scrim = $('.js-sidebar-scrim');
+            this._main = $('.hf-main');
+            this._standard = window.matchMedia ? window.matchMedia('(min-width: 1240px)') : { matches: true, addEventListener: function () { } };
+            this._compact = window.matchMedia ? window.matchMedia('(max-width: 599.98px)') : { matches: false, addEventListener: function () { } };
 
-            $(document).on('click', '.js-sidebar-toggle', function (e) {
+            if (!this._sidebar.length) return;
+
+            this._toggle.on('click', function (e) {
                 e.stopPropagation();
-                body.toggleClass('hf-sidebar-open');
+                if (self.isOpen()) self.close(true); else self.open();
             });
 
-            $(document).on('click', function (e) {
-                if (body.hasClass('hf-sidebar-open') && !$(e.target).closest('#hfSidebar').length) {
-                    body.removeClass('hf-sidebar-open');
-                }
+            $(document).on('click', '.js-sidebar-close', function () { self.close(true); });
+            this._scrim.on('click', function () { self.close(true); });
+
+            this._sidebar.on('keydown', function (e) {
+                if (!self.isOpen()) return;
+                if (e.key === 'Escape') { e.preventDefault(); self.close(true); return; }
+                trapTab(e, self._sidebar[0]);
             });
 
-            $(document).on('keydown', function (e) {
-                if (e.key === 'Escape') body.removeClass('hf-sidebar-open');
-            });
+            var sync = function () { self._sync(); };
+            this._standard.addEventListener('change', sync);
+            this._compact.addEventListener('change', sync);
+            this._sync();
 
             $(document).on('click', '.js-page-refresh', function () {
-                $(this).addClass('spinning');
-                window.location.reload();
+                var button = $(this);
+                if (button.attr('aria-busy') === 'true') return;
+                button.addClass('spinning').attr('aria-busy', 'true');
+                // Offline, Refresh asks the server again first: a page reloaded while the server is gone would be an
+                // error page. Online, it reloads at once.
+                var poller = nightshift.page && nightshift.page._poller;
+                if (!Shell.offline || !poller) { window.location.reload(); return; }
+                poller.pollNow().then(function () {
+                    window.location.reload();
+                }, function () {
+                    button.removeClass('spinning').removeAttr('aria-busy');
+                });
             });
         }
 
+        Shell.prototype.mode = function () {
+            return this._standard.matches ? 'standard' : this._compact.matches ? 'modal' : 'rail';
+        };
+
+        Shell.prototype.isOpen = function () {
+            return this._body.hasClass('hf-sidebar-open');
+        };
+
+        Shell.prototype.open = function () {
+            if (this.mode() === 'standard') return;
+            this._returnFocus = document.activeElement;
+            this._body.addClass('hf-sidebar-open');
+            this._sync();
+            var first = this._sidebar.find('.hf-nav-item').filter(':visible').first();
+            (first.length ? first : this._sidebar.find('.js-sidebar-close')).trigger('focus');
+        };
+
+        Shell.prototype.close = function (returnFocus) {
+            if (!this.isOpen()) return;
+            this._body.removeClass('hf-sidebar-open');
+            this._sync();
+            if (returnFocus) focusBack(this._toggle.filter(':visible')[0] || this._returnFocus);
+        };
+
+        Shell.prototype._sync = function () {
+            var mode = this.mode();
+            if (mode === 'standard' && this.isOpen()) this._body.removeClass('hf-sidebar-open');
+
+            var open = this.isOpen();
+            var sidebar = this._sidebar[0];
+
+            sidebar.inert = mode === 'modal' && !open;
+            if (open) {
+                this._sidebar.attr({ role: 'dialog', 'aria-modal': 'true' });
+            } else {
+                this._sidebar.removeAttr('role').removeAttr('aria-modal');
+            }
+
+            if (this._main.length) this._main[0].inert = open;
+            this._scrim.prop('hidden', !open);
+            this._toggle.attr('aria-expanded', open ? 'true' : 'false');
+        };
+
+        // The status chip of the app bar: Live, or "Offline – retrying" while the polls fail
+        Shell.offline = false;
+
         Shell.setOnline = function (online) {
-            $('.js-pulse-dot').toggleClass('offline', !online);
+            $('.js-pulse-dot').not('.js-activity-dot').toggleClass('offline', !online);
+            if (Shell.offline === !online) return;
+            Shell.offline = !online;
+
+            var chip = $('.js-status');
+            chip.toggleClass('offline', !online);
+            chip.find('.js-status-text').text(online ? TEXT.statusLive : TEXT.statusOffline);
+            nightshift.setTitle(chip, online ? TEXT.statusLiveHint : TEXT.statusOfflineHint);
         };
 
         return Shell;
     })();
 
+    // An error that keeps the page from working, in the alert under the app bar. A failed request shows an error
+    // snackbar instead (showRequestError).
     nightshift.ErrorAlert = (function () {
         function ErrorAlert(title, message) {
             this._errorAlert = $('#errorAlert');
@@ -398,21 +614,15 @@
         };
 
         ErrorAlert.prototype._reveal = function () {
-            $('#errorAlert').show();
-            var alertHeight = $('#errorAlert').outerHeight();
-            $('#errorAlert').hide();
-
-            $('#errorAlert').slideDown("fast");
-            $('.js-page-container').animate({ 'padding-top': alertHeight + 'px' }, "fast");
+            this._errorAlert.removeClass('display-none').show();
         };
 
         return ErrorAlert;
     })();
 
-    // Tells the user why a request failed: the status, and the server's message when it sent plain text or JSON
-    // with an "error". Used by every button that changes something, so a failure is never silent.
-    nightshift.showRequestError = function (xhr, title) {
-        var status = xhr && xhr.status ? String(xhr.status) + (xhr.statusText ? ' (' + xhr.statusText + ')' : '') : 'no answer';
+    // Why a request failed, in one sentence: the status, and the server's message when it sent plain text or JSON with
+    // an "error"
+    nightshift.describeRequestError = function (xhr) {
         var detail = '';
 
         if (xhr && xhr.responseJSON && typeof xhr.responseJSON.error === 'string') {
@@ -423,17 +633,352 @@
 
         if (detail.length > 300) detail = detail.substring(0, 300) + '…';
 
-        new nightshift.ErrorAlert(
-            title || nightshift.config.text.requestFailed,
-            'The server responded with ' + status + '.' + (detail ? ' ' + detail : '')).showText();
+        var status = xhr && xhr.status
+            ? format(TEXT.serverResponded, String(xhr.status) + (xhr.statusText ? ' (' + xhr.statusText + ')' : ''))
+            : TEXT.noAnswer;
+
+        return status + (detail ? ' ' + detail : '');
     };
 
-    // A short message in the bottom corner; kind is "succeeded", "failed" or "warning"
+    // Tells the user why a request failed, in an error snackbar naming the action: the status, and the server's
+    // message. retry, when given, is run by the snackbar's Retry button. Used by every button that changes
+    // something, so a failure is never silent.
+    nightshift.showRequestError = function (xhr, title, retry) {
+        var action = trim(title) ? trim(title).replace(/[:：]\s*$/, '') : trim(TEXT.requestFailed).replace(/[:：]\s*$/, '');
+        nightshift.snackbar.show({
+            text: format(TEXT.actionFailed, action, nightshift.describeRequestError(xhr)),
+            kind: 'error',
+            duration: 10000,
+            action: typeof retry === 'function' ? { label: TEXT.retry, run: retry } : null
+        });
+    };
+
+    // MD3 snackbars: short messages at the bottom of the window, one at a time, in a polite status region. Each
+    // stays 4 to 10 seconds (longer with an action), and while the pointer or the focus is on it. An action is a
+    // link ({ label, href }) or a function ({ label, run }).
+    nightshift.snackbar = (function () {
+        var STORAGE_KEY = 'nightshift.snackbar';
+        var queue = [];
+        var current = null;
+
+        var host = function () {
+            var element = $('.js-snackbar-host');
+            if (!element.length) element = $('<div class="ns-snackbar-host js-snackbar-host" role="status" aria-live="polite">').appendTo('body');
+            return element;
+        };
+
+        var next = function () {
+            if (current || !queue.length) return;
+
+            var options = queue.shift();
+            var duration = Math.min(Math.max(options.duration || (options.action ? 8000 : 5000), 4000), 10000);
+            var element = $('<div class="ns-snackbar">').toggleClass('ns-snackbar-error', options.kind === 'error');
+
+            if (options.kind === 'error') element.append(nightshift.icon('exclamation-circle-fill'));
+            else if (options.kind === 'warning') element.append(nightshift.icon('exclamation-triangle-fill'));
+
+            element.append($('<span class="ns-snackbar-text">').text(options.text));
+
+            if (options.action && options.action.label) {
+                var action = options.action.href
+                    ? $('<a class="ns-snackbar-action">').attr('href', options.action.href)
+                    : $('<button type="button" class="ns-snackbar-action">');
+                action.text(options.action.label).on('click', function () {
+                    if (typeof options.action.run === 'function') options.action.run();
+                    hide();
+                });
+                element.append(action);
+            }
+
+            element.append($('<button type="button" class="ns-icon-button ns-icon-button-sm ns-snackbar-close">')
+                .attr('aria-label', TEXT.dismiss).html(nightshift.icon('x-lg')).on('click', function () { hide(); }));
+
+            var timer = null;
+            var held = false;
+            var start = function () { clearTimeout(timer); timer = setTimeout(function () { if (!held) hide(); }, duration); };
+
+            element.on('mouseenter focusin', function () { held = true; clearTimeout(timer); })
+                .on('mouseleave focusout', function (e) {
+                    if (e.type === 'focusout' && element[0].contains(e.relatedTarget)) return;
+                    held = false;
+                    start();
+                });
+
+            current = { element: element, timer: function () { clearTimeout(timer); } };
+            host().append(element);
+            setTimeout(function () { element.addClass('show'); }, 10);
+            start();
+        };
+
+        var hide = function () {
+            if (!current) return;
+            var element = current.element;
+            current.timer();
+            current = null;
+            element.removeClass('show');
+            setTimeout(function () { element.remove(); next(); }, nightshift.prefersReducedMotion() ? 0 : 200);
+        };
+
+        return {
+            show: function (options) {
+                if (typeof options === 'string') options = { text: options };
+                if (!options || !options.text) return;
+                queue.push(options);
+                next();
+            },
+            hide: hide,
+            // Shows the message on the next page this tab loads (a command that reloads the page says what it did)
+            showAfterReload: function (options) {
+                try {
+                    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+                        text: options.text,
+                        kind: options.kind || null,
+                        action: options.action && options.action.href ? { label: options.action.label, href: options.action.href } : null
+                    }));
+                } catch (e) { /* no storage: the reload says nothing */ }
+            },
+            restore: function () {
+                var saved = null;
+                try {
+                    saved = window.sessionStorage.getItem(STORAGE_KEY);
+                    window.sessionStorage.removeItem(STORAGE_KEY);
+                } catch (e) { return; }
+                if (!saved) return;
+                try { this.show(JSON.parse(saved)); } catch (e) { /* not ours */ }
+            }
+        };
+    })();
+
+    // A short message at the bottom: a snackbar; kind is "succeeded", "failed" or "warning"
     nightshift.showToast = function (text, kind) {
-        var toast = $('<div class="hf-toast" role="status">').addClass('hf-toast-' + (kind || 'succeeded')).text(text);
-        $('body').append(toast);
-        setTimeout(function () { toast.addClass('show'); }, 10);
-        setTimeout(function () { toast.removeClass('show'); setTimeout(function () { toast.remove(); }, 400); }, 6000);
+        nightshift.snackbar.show({ text: text, kind: kind === 'failed' ? 'error' : kind === 'warning' ? 'warning' : null });
+    };
+
+    // A polite announcement for screen readers, through one status region of the page
+    nightshift.announce = function (text) {
+        var region = $('.js-announcer');
+        if (!region.length) return;
+        region.text('');
+        setTimeout(function () { region.text(text); }, 50);
+    };
+
+    // The dashboard's dialogs: every Bootstrap modal of the page gives the focus back to the control that opened it
+    // and keeps Tab inside; a dialog with a form asks "Discard changes?" before it closes over unsaved input (and
+    // ignores clicks on its scrim meanwhile). Below 600px a dialog fills the window (CSS).
+    nightshift.Dialogs = (function () {
+        function Dialogs() {
+            $(document).on('show.bs.modal', '.modal', function (e) {
+                var modal = $(this);
+                if (!modal.data('ns-opener')) modal.data('ns-opener', e.relatedTarget || document.activeElement);
+                Dialogs.setDirty(this, false);
+            });
+
+            $(document).on('hidden.bs.modal', '.modal', function () {
+                var modal = $(this);
+                var opener = modal.data('ns-opener');
+                modal.removeData('ns-opener');
+                if (!modal.data('ns-keep-focus')) focusBack(opener);
+                modal.removeData('ns-keep-focus');
+            });
+
+            $(document).on('keydown', '.modal.show', function (e) {
+                if (e.key === 'Tab') trapTab(e, this);
+            });
+
+            // Input in a dialog's form makes it dirty; a submit means the input was used
+            $(document).on('input change', '.modal:not(.ns-dialog-basic) form :input', function () {
+                Dialogs.setDirty($(this).closest('.modal')[0], true);
+            });
+
+            $(document).on('submit', '.modal form', function () {
+                Dialogs.setDirty($(this).closest('.modal')[0], false);
+            });
+
+            $(document).on('hide.bs.modal', '.modal', function (e) {
+                var modal = this;
+                if (!$(modal).data('ns-dirty')) return;
+
+                e.preventDefault();
+                nightshift.confirm({
+                    title: TEXT.discardTitle,
+                    body: TEXT.discardBody,
+                    confirmLabel: TEXT.discard,
+                    cancelLabel: TEXT.keepEditing,
+                    destructive: true
+                }).then(function (discard) {
+                    if (!discard) return;
+                    Dialogs.setDirty(modal, false);
+                    bootstrap.Modal.getOrCreateInstance(modal).hide();
+                });
+            });
+        }
+
+        Dialogs.setDirty = function (modal, dirty) {
+            if (!modal) return;
+            $(modal).data('ns-dirty', !!dirty);
+            var instance = window.bootstrap && bootstrap.Modal ? bootstrap.Modal.getInstance(modal) : null;
+            // A static backdrop: a click beside a dirty dialog doesn't close it
+            if (instance && instance._config) {
+                if (instance._ns_backdrop === undefined) instance._ns_backdrop = instance._config.backdrop;
+                instance._config.backdrop = dirty ? 'static' : instance._ns_backdrop;
+            }
+        };
+
+        return Dialogs;
+    })();
+
+    // The confirmation dialog: NightShift.confirm({ title, body, confirmLabel, cancelLabel, destructive,
+    // typeToConfirm }) shows a headline, what happens, Cancel and the confirming button (in the error colour when
+    // destructive), and resolves its Promise with true or false. With typeToConfirm the confirming button works only
+    // once that text is typed.
+    nightshift.confirm = (function () {
+        var modal = null;
+        var pending = null;
+
+        var build = function () {
+            modal = $('<div class="modal fade ns-dialog-basic" id="nsConfirmDialog" tabindex="-1" aria-labelledby="nsConfirmTitle" aria-describedby="nsConfirmBody" aria-hidden="true">')
+                .append($('<div class="modal-dialog modal-dialog-centered">')
+                    .append($('<div class="modal-content">')
+                        .append($('<div class="modal-header">').append('<h2 class="modal-title" id="nsConfirmTitle"></h2>'))
+                        .append($('<div class="modal-body">')
+                            .append('<p class="ns-dialog-body" id="nsConfirmBody"></p>')
+                            .append($('<div class="ns-field ns-dialog-type">')
+                                .append('<label for="nsConfirmType" id="nsConfirmTypeLabel"></label>')
+                                .append('<input type="text" class="form-control" id="nsConfirmType" autocomplete="off" spellcheck="false">')))
+                        .append($('<div class="modal-footer">')
+                            .append('<button type="button" class="btn ns-btn-text js-confirm-cancel"></button>')
+                            .append('<button type="button" class="btn js-confirm-ok"></button>'))));
+
+            $('body').append(modal);
+
+            modal.on('click', '.js-confirm-cancel', function () { finish(false); });
+            modal.on('click', '.js-confirm-ok', function () {
+                if ($(this).attr('aria-disabled') === 'true') return;
+                finish(true);
+            });
+            modal.on('input', '#nsConfirmType', function () { updateTyped(); });
+            modal.on('keydown', '#nsConfirmType', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); modal.find('.js-confirm-ok').trigger('click'); }
+            });
+            modal.on('hidden.bs.modal', function () {
+                if (pending) { var resolve = pending.resolve; pending = null; resolve(false); }
+            });
+        };
+
+        var updateTyped = function () {
+            var expected = pending && pending.options.typeToConfirm;
+            if (!expected) return;
+            var ok = trim(modal.find('#nsConfirmType').val()).toLowerCase() === trim(expected).toLowerCase();
+            modal.find('.js-confirm-ok').attr('aria-disabled', ok ? null : 'true');
+            modal.find('#nsConfirmType').attr('aria-invalid', null);
+        };
+
+        var finish = function (result) {
+            if (!pending) return;
+            var resolve = pending.resolve;
+            pending = null;
+            resolve(result);
+            bootstrap.Modal.getOrCreateInstance(modal[0]).hide();
+        };
+
+        return function (options) {
+            options = options || {};
+            if (!window.bootstrap || !bootstrap.Modal) return Promise.resolve(window.confirm(options.title || ''));
+            if (!modal) build();
+            if (pending) { var previous = pending.resolve; pending = null; previous(false); }
+
+            return new Promise(function (resolve) {
+                pending = { resolve: resolve, options: options };
+
+                modal.toggleClass('ns-dialog-destructive', !!options.destructive).attr('role', 'alertdialog');
+                modal.find('#nsConfirmTitle').text(options.title || TEXT.confirm);
+                modal.find('#nsConfirmBody').text(options.body || '').toggle(!!options.body);
+                modal.attr('aria-describedby', options.body ? 'nsConfirmBody' : null);
+
+                var typed = modal.find('.ns-dialog-type').toggle(!!options.typeToConfirm);
+                if (options.typeToConfirm) {
+                    var label = modal.find('#nsConfirmTypeLabel').empty();
+                    var parts = String(TEXT.typeToConfirm).split('{0}');
+                    label.append(document.createTextNode(parts[0] || '')).append($('<code>').text(options.typeToConfirm)).append(document.createTextNode(parts[1] || ''));
+                    typed.find('input').val('');
+                }
+
+                modal.find('.js-confirm-cancel').text(options.cancelLabel || TEXT.cancel);
+                modal.find('.js-confirm-ok').text(options.confirmLabel || TEXT.confirm)
+                    .toggleClass('ns-btn-error', !!options.destructive).toggleClass('ns-btn-filled', !options.destructive)
+                    .attr('aria-disabled', options.typeToConfirm ? 'true' : null);
+
+                var opener = document.activeElement;
+                modal.data('ns-opener', opener);
+                modal.one('shown.bs.modal', function () {
+                    // The safe choice has the focus, or the field to type in
+                    (options.typeToConfirm ? modal.find('#nsConfirmType') : modal.find(options.destructive ? '.js-confirm-cancel' : '.js-confirm-ok')).trigger('focus');
+                });
+
+                bootstrap.Modal.getOrCreateInstance(modal[0], { backdrop: true, keyboard: true }).show();
+            });
+        };
+    })();
+
+    // The confirmation a command button asks for, from its data-confirm attributes: data-confirm (the headline,
+    // where {0} is the number of selected rows), data-confirm-one (the headline for one row), data-confirm-body,
+    // data-confirm-label (else the button's own text), data-confirm-destructive (or a btn-death / btn-danger button)
+    // and data-confirm-type. Resolves true at once for a button without data-confirm.
+    nightshift.confirmButton = function (button, count) {
+        button = $(button);
+        var title = button.attr('data-confirm');
+        if (!title) return Promise.resolve(true);
+
+        if (count === 1 && button.attr('data-confirm-one')) title = button.attr('data-confirm-one');
+        var label = button.attr('data-confirm-label') || trim(button.clone().find('.visually-hidden, .ns-progress-circular').remove().end().text());
+
+        return nightshift.confirm({
+            title: format(title, count === undefined ? '' : count),
+            body: button.attr('data-confirm-body') || null,
+            confirmLabel: label || null,
+            destructive: button.attr('data-confirm-destructive') === 'true' || button.is('.btn-death, .btn-danger, .ns-btn-error'),
+            typeToConfirm: button.attr('data-confirm-type') || null
+        });
+    };
+
+    // The name of a command button for messages: its text without icons or progress
+    var commandName = function (button) {
+        return trim($(button).clone().find('.ns-progress-circular, .visually-hidden').remove().end().text()).replace(/\s+/g, ' ');
+    };
+
+    // Outlined text fields: NightShift.fields(container) links each .ns-field's label, supporting and error text to
+    // its control (for, aria-describedby); NightShift.fieldError(control, message) shows or clears the error
+    // (aria-invalid). Fields added later are wired when fields() runs again over them.
+    var fieldId = 0;
+    nightshift.fields = function (container) {
+        $(container || document).find('.ns-field').each(function () {
+            var field = $(this);
+            var control = field.find('input, select, textarea').first();
+            if (!control.length) return;
+            if (!control.attr('id')) control.attr('id', 'nsField' + (++fieldId));
+            field.children('label').attr('for', control.attr('id'));
+            if (control.prop('required')) field.addClass('ns-field-required');
+
+            var described = [];
+            field.find('.ns-field-supporting, .ns-field-error').each(function () {
+                if (!this.id) this.id = 'nsFieldText' + (++fieldId);
+                described.push(this.id);
+            });
+            if (described.length) control.attr('aria-describedby', described.join(' '));
+        });
+    };
+
+    nightshift.fieldError = function (control, message) {
+        control = $(control);
+        var field = control.closest('.ns-field');
+        var error = field.find('.ns-field-error');
+        if (!error.length && message) {
+            error = $('<div class="ns-field-error">').appendTo(field);
+            nightshift.fields(field.parent());
+        }
+        error.text(message || '');
+        control.attr('aria-invalid', message ? 'true' : null);
+        field.toggleClass('ns-field-invalid', !!message);
     };
 
     // What "Delete all" or "Requeue all" did: { processed, remaining, complete }
@@ -591,6 +1136,7 @@
 
             var self = this;
             this._onFrame = function (time) { self._frame(time); };
+            this._paused = false;
 
             document.addEventListener('visibilitychange', function () {
                 if (document.hidden) {
@@ -600,8 +1146,34 @@
                 }
             });
 
+            // With reduced motion the axis doesn't slide: the graph steps once per poll
+            if (reducedMotion.addEventListener) {
+                reducedMotion.addEventListener('change', function () {
+                    self._stop();
+                    self._start();
+                });
+            }
+
             this._start();
         }
+
+        // Pausing freezes the graph; the polls go on, so it shows the right minute when it runs again
+        RealtimeGraph.prototype.setPaused = function (paused) {
+            this._paused = !!paused;
+            if (this._paused) this._stop(); else this._start();
+        };
+
+        RealtimeGraph.prototype._step = function () {
+            if (this._paused || document.hidden) return;
+            var now = Date.now();
+            var range = this._range(now);
+            var x = this._chart.options.scales.x;
+            x.min = range.min;
+            x.max = range.max;
+            this._forgetAfterClockJump(now);
+            this._dropOld(range.min);
+            this._chart.update('none');
+        };
 
         RealtimeGraph.prototype.appendHistory = function (statistics) {
             var newFailed = parseInt(statistics["failed:count"].intValue);
@@ -623,6 +1195,9 @@
 
                 // The next frame draws it; in a hidden tab, the points still mustn't pile up
                 this._dropOld(this._range(now).min);
+
+                // Without frames (reduced motion) each poll redraws the graph once
+                if (nightshift.prefersReducedMotion()) this._step();
             }
 
             this._failed = newFailed;
@@ -639,6 +1214,12 @@
         };
 
         RealtimeGraph.prototype._start = function () {
+            if (this._paused) return;
+            if (nightshift.prefersReducedMotion()) {
+                this._step();
+                return;
+            }
+
             if (this._frameId === null && !document.hidden) {
                 this._lastFrame = null;
                 this._frameId = window.requestAnimationFrame(this._onFrame);
@@ -735,39 +1316,47 @@
             this._timeoutId = null;
         }
 
+        // Polls the statistics. While the server doesn't answer, the status chip of the app bar says "Offline –
+        // retrying" and the polls go on, further apart (up to a minute); the first answer puts everything back.
         StatisticsPoller.prototype.start = function () {
             var self = this;
+            this._failures = 0;
+            this._running = true;
+            this._timeoutId = setTimeout(function () { self._tick(); }, this._pollInterval);
+        };
 
-            var intervalFunc = function() {
-                try {
-                    $.post(self._statisticsUrl, { metrics: self._metricsCallback() })
-                        .done(function (data) {
-                            NightShift.Shell.setOnline(true);
-                            self._notifyListeners(data);
-                            if (self._timeoutId !== null) {
-                                self._timeoutId = setTimeout(intervalFunc, self._pollInterval);
-                            }
-                        })
-                        .fail(function (xhr) {
-                            NightShift.Shell.setOnline(false);
-                            var errorAlert = new NightShift.ErrorAlert(
-                                'Unable to refresh the statistics:',
-                                'the server responded with ' + xhr.status + ' (' + xhr.statusText
-                                + '). Try reloading the page manually, or wait for automatic reload that will happen in a minute.');
+        StatisticsPoller.prototype._tick = function () {
+            var self = this;
+            this.pollNow().always(function () {
+                if (!self._running) return;
+                var delay = self._failures === 0
+                    ? self._pollInterval
+                    : Math.min(self._pollInterval * Math.pow(2, Math.min(self._failures, 6)), 60 * 1000);
+                self._timeoutId = setTimeout(function () { self._tick(); }, delay);
+            });
+        };
 
-                            errorAlert.show();
-                            self._timeoutId = null;
-                            setTimeout(function() { window.location.reload(); }, 60*1000);
-                        });
-                } catch (e) {
-                    console.log(e);
-                }
-            };
-
-            this._timeoutId = setTimeout(intervalFunc, this._pollInterval);
+        // Polls once now; the promise is resolved when the server answered
+        StatisticsPoller.prototype.pollNow = function () {
+            var self = this;
+            return $.post(this._statisticsUrl, { metrics: this._metricsCallback() })
+                .done(function (data) {
+                    self._failures = 0;
+                    NightShift.Shell.setOnline(true);
+                    try {
+                        self._notifyListeners(data);
+                    } catch (e) {
+                        if (window.console && console.error) console.error(e);
+                    }
+                })
+                .fail(function () {
+                    self._failures++;
+                    NightShift.Shell.setOnline(false);
+                });
         };
 
         StatisticsPoller.prototype.stop = function() {
+            this._running = false;
             if (this._timeoutId !== null) {
                 clearTimeout(this._timeoutId);
                 this._timeoutId = null;
@@ -946,7 +1535,7 @@
                     nightshift.setLoading(save, false);
                     var message = xhr.responseJSON && xhr.responseJSON.error
                         ? xhr.responseJSON.error
-                        : 'The server responded with ' + xhr.status + ' (' + xhr.statusText + ').';
+                        : nightshift.describeRequestError(xhr);
                     self._showError(message);
                 });
         };
@@ -1024,7 +1613,7 @@
             var percent = job.progress ? job.progress.p : null;
 
             if (percent !== null && percent !== undefined) {
-                bar.css('width', percent + '%').attr('aria-valuenow', percent).text(percent + '%');
+                bar.css('width', percent + '%').text(percent + '%').closest('.progress').attr('aria-valuenow', percent);
                 this._details.find('.js-live-progress-message').text(job.progress.m || '');
             }
 
@@ -1086,7 +1675,7 @@
                             if (!job) return;
 
                             if (job.progress) {
-                                row.find('.js-live-bar').css('width', job.progress.p + '%');
+                                row.find('.js-live-bar').css('width', job.progress.p + '%').closest('.progress').attr('aria-valuenow', job.progress.p);
                                 row.find('.js-live-progress-message').text(job.progress.p + '% ' + (job.progress.m || ''));
                                 nightshift.setTitle(row.find('.progress').removeClass('job-live-progress-eta job-live-progress-late'), job.progress.m || '');
                             }
@@ -1125,6 +1714,9 @@
 
     nightshift.Page = (function() {
         function Page(config) {
+            // The server's HTML of each row of a list, before the scripts change it, for the live refresh to compare
+            $('.js-jobs-list table > tbody > tr').each(function () { $(this).data('ns-html', this.outerHTML); });
+
             this._metrics = new NightShift.Metrics();
 
             var self = this;
@@ -1142,6 +1734,12 @@
             this.recurringJobEditor = editorElement ? new NightShift.RecurringJobEditor(editorElement) : null;
             this.theme = new NightShift.Theme();
             this.shell = new NightShift.Shell();
+            this.dialogs = new NightShift.Dialogs();
+            nightshift.markFittingTables();
+            var fitTimer = null;
+            $(window).on('resize', function () { clearTimeout(fitTimer); fitTimer = setTimeout(nightshift.markFittingTables, 150); });
+            nightshift.fields();
+            nightshift.snackbar.restore();
             this.liveJobs = new NightShift.LiveJobs(config.pollInterval);
             this.commandPalette = new NightShift.CommandPalette(config);
             this.liveTable = new NightShift.LiveTable(this, config);
@@ -1169,6 +1767,12 @@
 
                 this._poller.addListener(function (data) {
                     realtimeGraph.appendHistory(data);
+                });
+
+                // The card's "Pause graph" switch
+                $(realtimeElement).closest('.hf-card').find('.js-graph-pause').on('change', function () {
+                    realtimeGraph.setPaused(this.checked);
+                    $(this).closest('.hf-card').find('.js-graph-dot').toggleClass('paused', this.checked);
                 });
 
                 return realtimeGraph;
@@ -1300,11 +1904,13 @@
             $(document).on('submit', '.js-ajax-form', function (e) {
                 var $form = $(this);
                 var $submit = $form.find('[type=submit]');
+                var name = commandName($submit.first());
                 e.preventDefault();
 
-                $submit.prop('disabled', true);
+                nightshift.setLoading($submit, true);
                 $.post($form.attr('action'), $form.serialize())
                     .done(function () {
+                        if (name) nightshift.snackbar.showAfterReload({ text: format(TEXT.done, name) });
                         var target = $form.data('redirect');
                         if (target) {
                             window.location.href = target;
@@ -1313,9 +1919,15 @@
                         }
                     })
                     .fail(function (xhr) {
-                        $submit.prop('disabled', false);
-                        nightshift.showRequestError(xhr);
+                        nightshift.setLoading($submit, false);
+                        nightshift.showRequestError(xhr, name, function () { $form.trigger('submit'); });
                     });
+            });
+
+            // The rows-per-page menu of a list's pagination footer goes to the page of that size
+            $(document).on('change', '.js-per-page', function () {
+                var url = $(this).val();
+                if (url && url !== '#') window.location.href = url;
             });
 
             // A row with data-href opens it when clicked anywhere, except on its own links, buttons and fields,
@@ -1336,38 +1948,38 @@
                 }
             });
 
+            // A command button: asks in the confirmation dialog when it has data-confirm, posts, and says what
+            // happened in a snackbar (after the reload that shows the result), or why it failed, with Retry
             $(document).on('click', '*[data-ajax]', function (e) {
                 var $this = $(this);
-                var confirmText = $this.data('confirm');
-
-                if (!confirmText || confirm(confirmText)) {
-                    $this.prop('disabled', true);
-                    var loadingDelay = setTimeout(function() {
-                        nightshift.setLoading($this, true);
-                    }, 100);
-
-                    $.post($this.data('ajax'))
-                        .done(function (data) {
-                            clearTimeout(loadingDelay);
-
-                            // "Delete all" and "Requeue all" say how much they did before the list reloads
-                            if (data && typeof data.processed === 'number') {
-                                nightshift.showToast(nightshift.formatListResult(data), data.complete === false ? 'warning' : 'succeeded');
-                                setTimeout(function () { window.location.reload(); }, data.complete === false ? 5000 : 1500);
-                                return;
-                            }
-
-                            window.location.reload();
-                        })
-                        .fail(function (xhr) {
-                            clearTimeout(loadingDelay);
-                            nightshift.setLoading($this, false);
-                            setTimeout(function () { $this.prop('disabled', false); }, 0);
-                            nightshift.showRequestError(xhr);
-                        });
-                }
-
                 e.preventDefault();
+
+                nightshift.confirmButton($this).then(function (confirmed) {
+                    if (!confirmed) return;
+                    var name = commandName($this);
+                    var run = function () {
+                        nightshift.setLoading($this, true);
+
+                        $.post($this.attr('data-ajax'))
+                            .done(function (data) {
+                                // "Delete all" and "Requeue all" say how much they did before the list reloads
+                                if (data && typeof data.processed === 'number') {
+                                    nightshift.snackbar.show({ text: nightshift.formatListResult(data), kind: data.complete === false ? 'warning' : null });
+                                    setTimeout(function () { window.location.reload(); }, data.complete === false ? 5000 : 1500);
+                                    return;
+                                }
+
+                                if (name) nightshift.snackbar.showAfterReload({ text: format(TEXT.done, name) });
+                                window.location.reload();
+                            })
+                            .fail(function (xhr) {
+                                nightshift.setLoading($this, false);
+                                nightshift.showRequestError(xhr, name, run);
+                            });
+                    };
+
+                    run();
+                });
             });
 
             $(document).on('click', '.expander', function (e) {
@@ -1401,9 +2013,32 @@
                     var $checkbox = $('.js-jobs-list-checkbox', row);
                     if ($checkbox.length > 0) {
                         $checkbox.prop('checked', isSelected);
-                        $(row).toggleClass('highlight', isSelected);
+                        $(row).toggleClass('highlight', isSelected).attr('aria-selected', isSelected ? 'true' : 'false');
                     }
                 };
+
+                // The contextual selection bar: "N selected", the list's own bulk commands and Clear. Its buttons
+                // click the list's, so they ask and post as those do. It is built again with the list's toolbar.
+                var commands = $('.js-jobs-list-command', container);
+                $(container).children('.ns-selection-bar').remove();
+                var bar = $();
+                if (commands.length) {
+                    bar = $('<div class="ns-selection-bar" hidden>')
+                        .append($('<button type="button" class="ns-icon-button js-selection-clear">').attr({ 'aria-label': TEXT.clearSelection, title: TEXT.clearSelection }).html(nightshift.icon('x-lg')))
+                        .append('<span class="ns-selection-count" aria-live="polite"></span>');
+
+                    commands.each(function () {
+                        var command = $(this);
+                        $('<button type="button" class="btn btn-sm">')
+                            .addClass(command.is('.btn-death, .btn-danger') || /\/(delete|remove)$/.test(command.attr('data-url') || '') ? 'ns-btn-text ns-selection-danger' : 'ns-btn-text')
+                            .html(command.html())
+                            .on('click', function () { command.trigger('click'); })
+                            .appendTo(bar);
+                    });
+
+                    var anchor = $(container).find('.table-responsive, table').first();
+                    if (anchor.length) bar.insertBefore(anchor); else bar.prependTo(container);
+                }
 
                 var toggleRowSelection = function(row) {
                     var $checkbox = $('.js-jobs-list-checkbox', row);
@@ -1420,6 +2055,12 @@
                     
                     $('.js-jobs-list-command', container)
                         .prop('disabled', state === 'none-selected');
+
+                    var count = $('.js-jobs-list-checkbox:checked', container).length;
+                    if (bar.length) {
+                        bar.prop('hidden', count === 0);
+                        bar.find('.ns-selection-count').text(format(TEXT.selectedCount, count));
+                    }
                 };
 
                 var updateListState = function() {
@@ -1471,34 +2112,40 @@
                     updateListState();
                 });
 
+                $(container).on('click.nightshift', '.js-selection-clear', function () {
+                    $('.js-jobs-list-row', container).each(function () { selectRow(this, false); });
+                    updateListState();
+                    var first = $('.js-jobs-list-select-all', container)[0] || $('.js-jobs-list-checkbox', container)[0];
+                    if (first) first.focus();
+                });
+
                 $(container).on('click.nightshift', '.js-jobs-list-command', function(e) {
                     var $this = $(this);
-                    var confirmText = $this.data('confirm');
+                    e.preventDefault();
 
                     var jobs = $("input[name='jobs[]']:checked", container).map(function() {
                         return $(this).val();
                     }).get();
 
-                    if (!confirmText || confirm(confirmText)) {
-                        $this.prop('disabled', true);
-                        var loadingDelay = setTimeout(function () {
+                    nightshift.confirmButton($this, jobs.length).then(function (confirmed) {
+                        if (!confirmed) return;
+                        var name = commandName($this);
+                        var run = function () {
                             nightshift.setLoading($this, true);
-                        }, 100);
 
-                        $.post($this.data('url'), { 'jobs[]': jobs })
-                            .done(function () {
-                                clearTimeout(loadingDelay);
-                                window.location.reload();
-                            })
-                            .fail(function (xhr) {
-                                clearTimeout(loadingDelay);
-                                nightshift.setLoading($this, false);
-                                setTimeout(function () { $this.prop('disabled', false); }, 0);
-                                nightshift.showRequestError(xhr);
-                            });
-                    }
+                            $.post($this.attr('data-url'), { 'jobs[]': jobs })
+                                .done(function () {
+                                    if (name) nightshift.snackbar.showAfterReload({ text: format(TEXT.done, name) });
+                                    window.location.reload();
+                                })
+                                .fail(function (xhr) {
+                                    nightshift.setLoading($this, false);
+                                    nightshift.showRequestError(xhr, name, run);
+                                });
+                        };
 
-                    e.preventDefault();
+                        run();
+                    });
                 });
 
                 updateListState();
@@ -1543,17 +2190,26 @@
 
         CommandPalette.prototype._collectPages = function () {
             var self = this;
-            var pages = DEFAULT_PAGES.map(function (page) { return { name: page.name, url: self._basePath + page.path }; });
+            var pages = [];
             var seen = {};
-            pages.forEach(function (page) { seen[page.url] = true; });
 
-            // Pages added by extensions show up in the navigation
+            // The navigation first: its names are in the dashboard's language, and it holds the pages of extensions
             $('.hf-nav a[href], .navbar-nav a[href], .list-group a[href]').each(function () {
-                var url = $(this).attr('href');
-                var name = trim($(this).clone().children().remove().end().text());
+                var link = $(this);
+                var url = link.attr('href');
+                var label = link.find('.hf-nav-text');
+                var name = trim(label.length ? label.text() : link.clone().children().remove().end().text());
                 if (url && name && !seen[url]) {
                     seen[url] = true;
                     pages.push({ name: name, url: url });
+                }
+            });
+
+            DEFAULT_PAGES.forEach(function (page) {
+                var url = self._basePath + page.path;
+                if (!seen[url]) {
+                    seen[url] = true;
+                    pages.push({ name: page.name, url: url });
                 }
             });
 
@@ -1561,21 +2217,34 @@
         };
 
         CommandPalette.prototype._build = function () {
-            var placeholder = 'Jump to a page, a job id, a recurring job or a tag…';
+            var placeholder = TEXT.palettePlaceholder;
+            var kbd = function (key) { return $('<kbd>').text(key)[0].outerHTML; };
+            var hint = $('<div class="hf-palette-hint">')
+                .append($('<span>').html(format(escapeAttribute(TEXT.paletteHint), kbd('↑') + kbd('↓'), kbd('Enter'), kbd('Esc'), kbd('>'))))
+                .append($('<span class="hf-palette-hint-right">').html(format(escapeAttribute(TEXT.paletteHintAnywhere), kbd('Ctrl K'), kbd('/'))));
 
-            // A dialog holding a combobox: the input keeps the focus, and aria-activedescendant names the option
-            // the arrow keys select, so screen readers follow the selection without moving the focus
-            this._overlay = $('<div class="hf-palette" role="dialog" aria-modal="true" aria-label="Command palette" style="display: none">')
+            // An MD3 search view holding a combobox: the input keeps the focus, and aria-activedescendant names the
+            // option the arrow keys select, so screen readers follow the selection without moving the focus
+            this._overlay = $('<div class="hf-palette" role="dialog" aria-modal="true" style="display: none">').attr('aria-label', TEXT.paletteLabel)
                 .append($('<div class="hf-palette-box">')
-                    .append(this._input = $('<input type="text" class="hf-palette-input" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="hfPaletteResults" autocomplete="off" spellcheck="false">')
-                        .attr({ placeholder: placeholder, 'aria-label': placeholder }))
-                    .append(this._list = $('<ul class="hf-palette-results" id="hfPaletteResults" role="listbox" aria-label="Results">'))
+                    .append($('<div class="hf-palette-bar">')
+                        .append(nightshift.icon('search'))
+                        .append(this._input = $('<input type="text" class="hf-palette-input" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="hfPaletteResults" autocomplete="off" spellcheck="false">')
+                            .attr({ placeholder: placeholder, 'aria-label': placeholder }))
+                        .append(this._close = $('<button type="button" class="ns-icon-button hf-palette-close">').attr('aria-label', TEXT.close).html(nightshift.icon('x-lg'))))
+                    .append(this._list = $('<ul class="hf-palette-results" id="hfPaletteResults" role="listbox">').attr('aria-label', TEXT.paletteResults))
                     .append(this._status = $('<div class="visually-hidden" role="status" aria-live="polite">'))
-                    .append($('<div class="hf-palette-hint">').html('<kbd>↑</kbd><kbd>↓</kbd> navigate &nbsp; <kbd>Enter</kbd> open &nbsp; <kbd>Esc</kbd> close &nbsp; <kbd>&gt;</kbd> commands &nbsp; <span class="hf-palette-hint-right"><kbd>Ctrl</kbd>+<kbd>K</kbd> or <kbd>/</kbd> opens this anywhere</span>')));
+                    .append(hint));
 
             $('body').append(this._overlay);
 
             var self = this;
+
+            this._close.on('click', function () { self.close(); });
+            this._overlay.on('keydown', function (e) {
+                if (e.key === 'Escape') { self.close(); e.preventDefault(); return; }
+                trapTab(e, self._overlay[0]);
+            });
 
             this._overlay.on('click', function (e) {
                 if (e.target === self._overlay[0]) self.close();
@@ -1590,9 +2259,6 @@
                 if (e.key === 'ArrowDown') { self._move(1); e.preventDefault(); }
                 else if (e.key === 'ArrowUp') { self._move(-1); e.preventDefault(); }
                 else if (e.key === 'Enter') { self._open(); e.preventDefault(); }
-                else if (e.key === 'Escape') { self.close(); e.preventDefault(); }
-                // The input is the dialog's only control: Tab stays in it instead of leaving the modal dialog
-                else if (e.key === 'Tab') { e.preventDefault(); }
             });
 
             // Only entries open something: the group headers and "Nothing found" are list items too, so the
@@ -1694,36 +2360,44 @@
         CommandPalette.prototype._commands = function (text) {
             var self = this;
             var base = this._basePath;
-            var post = function (path) {
-                return function () {
+            var post = function (path, title) {
+                var run = function () {
                     $.post(base + path)
-                        .done(function () { window.location.reload(); })
-                        .fail(function (xhr) { nightshift.showRequestError(xhr); });
+                        .done(function () {
+                            nightshift.snackbar.showAfterReload({ text: format(TEXT.done, title.replace(/^>\s*/, '')) });
+                            window.location.reload();
+                        })
+                        .fail(function (xhr) { nightshift.showRequestError(xhr, title.replace(/^>\s*/, ''), run); });
                 };
+                return run;
             };
-            var all = [
-                { title: '> pause processing', detail: 'hold every new job until resumed', run: post('/maintenance/pause') },
-                { title: '> resume processing', detail: 'let held jobs run again', run: post('/maintenance/resume') },
+            // A read-only dashboard lists only the commands that change nothing
+            var readOnly = nightshift.config.readOnly;
+            var all = readOnly ? [] : [
+                { title: '> pause processing', detail: 'hold every new job until resumed', run: post('/maintenance/pause', '> pause processing') },
+                { title: '> resume processing', detail: 'let held jobs run again', run: post('/maintenance/resume', '> resume processing') }
+            ];
+            all = all.concat([
                 { title: '> wallboard', detail: 'open the full-screen status board', run: function () { window.location.href = base + '/wallboard'; } },
                 { title: '> timeline', detail: 'what every worker did recently', run: function () { window.location.href = base + '/timeline'; } },
                 { title: '> keyboard shortcuts', detail: 'list the shortcuts', run: function () { if (window.NightShift.page && window.NightShift.page.shortcuts) window.NightShift.page.shortcuts.toggle(); } },
                 nightshift.singleKeyShortcuts.enabled()
                     ? { title: '> turn single-key shortcuts off', detail: 'j, k, x, r, d, g, / and ? stop doing anything (Ctrl+K still works)', run: function () { nightshift.singleKeyShortcuts.set(false); } }
                     : { title: '> turn single-key shortcuts on', detail: 'j, k, x, r, d, g, / and ? work again', run: function () { nightshift.singleKeyShortcuts.set(true); } }
-            ];
-            var match = /^>\s*(pause|resume)\s+(queue|server)\s+(\S+)/i.exec(text);
+            ]);
+            var match = readOnly ? null : /^>\s*(pause|resume)\s+(queue|server)\s+(\S+)/i.exec(text);
             if (match) {
                 var kind = match[2].toLowerCase() === 'queue' ? '/queues/' : '/servers/';
-                all.unshift({ title: '> ' + match[1].toLowerCase() + ' ' + match[2].toLowerCase() + ' ' + match[3], detail: 'post ' + kind + match[1].toLowerCase() + '/' + match[3], run: post(kind + match[1].toLowerCase() + '/' + nightshift.routeValue(match[3])) });
+                all.unshift({ title: '> ' + match[1].toLowerCase() + ' ' + match[2].toLowerCase() + ' ' + match[3], detail: 'post ' + kind + match[1].toLowerCase() + '/' + match[3], run: post(kind + match[1].toLowerCase() + '/' + nightshift.routeValue(match[3]), '> ' + match[1].toLowerCase() + ' ' + match[2].toLowerCase() + ' ' + match[3]) });
             }
-            var job = /^>\s*(requeue|delete)\s+#?(\S+)/i.exec(text);
+            var job = readOnly ? null : /^>\s*(requeue|delete)\s+#?(\S+)/i.exec(text);
             if (job) {
                 var verb = job[1].toLowerCase();
-                all.unshift({ title: '> ' + verb + ' #' + job[2], detail: verb + ' job ' + job[2], run: post('/jobs/actions/' + verb + '/' + nightshift.routeValue(job[2])) });
+                all.unshift({ title: '> ' + verb + ' #' + job[2], detail: verb + ' job ' + job[2], run: post('/jobs/actions/' + verb + '/' + nightshift.routeValue(job[2]), '> ' + verb + ' #' + job[2]) });
             }
             var needle = text.replace(/^>\s*/, '').toLowerCase();
             return all.filter(function (c) { return !needle || c.title.toLowerCase().indexOf(needle) >= 0; })
-                .map(function (c) { return { group: 'Commands', title: c.title, detail: c.detail, run: c.run }; });
+                .map(function (c) { return { group: TEXT.paletteCommands, title: c.title, detail: c.detail, run: c.run }; });
         };
 
         CommandPalette.prototype._search = function () {
@@ -1740,7 +2414,7 @@
             var results = this._pages
                 .filter(function (page) { return !lower || page.name.toLowerCase().indexOf(lower) >= 0; })
                 .slice(0, lower ? 6 : 12)
-                .map(function (page) { return { group: 'Pages', title: page.name, url: page.url }; });
+                .map(function (page) { return { group: TEXT.palettePages, title: page.name, url: page.url }; });
 
             this._render(results);
 
@@ -1750,13 +2424,13 @@
             this._request = $.get(this._searchUrl, { q: query })
                 .done(function (data) {
                     (data.jobs || []).forEach(function (job) {
-                        results.push({ group: 'Jobs', title: '#' + job.id + (job.name ? ' — ' + job.name : ''), detail: job.state, url: job.url });
+                        results.push({ group: TEXT.paletteJobs, title: '#' + job.id + (job.name ? ' — ' + job.name : ''), detail: job.state, url: job.url });
                     });
                     (data.recurringJobs || []).forEach(function (job) {
-                        results.push({ group: 'Recurring jobs', title: job.id + (job.name ? ' — ' + job.name : ''), detail: (job.paused ? 'paused · ' : '') + (job.cron || ''), url: job.url });
+                        results.push({ group: TEXT.paletteRecurring, title: job.id + (job.name ? ' — ' + job.name : ''), detail: (job.paused ? 'paused · ' : '') + (job.cron || ''), url: job.url });
                     });
                     (data.tags || []).forEach(function (tag) {
-                        results.push({ group: 'Tags', title: tag.tag, detail: tag.count + (tag.count === 1 ? ' job' : ' jobs'), url: tag.url });
+                        results.push({ group: TEXT.paletteTags, title: tag.tag, detail: tag.count + (tag.count === 1 ? ' job' : ' jobs'), url: tag.url });
                     });
                     self._render(results);
                 });
@@ -1790,11 +2464,11 @@
             }
 
             if (results.length === 0) {
-                this._list.append($('<li class="hf-palette-empty" role="presentation">').text('Nothing found'));
+                this._list.append($('<li class="hf-palette-empty" role="presentation">').text(TEXT.paletteNothing));
             }
 
             this._updateActive();
-            this._status.text(results.length === 0 ? 'Nothing found' : results.length + (results.length === 1 ? ' result' : ' results'));
+            this._status.text(results.length === 0 ? TEXT.paletteNothing : results.length === 1 ? TEXT.paletteCountOne : format(TEXT.paletteCount, results.length));
         };
 
         CommandPalette.prototype._updateActive = function () {
@@ -1923,16 +2597,19 @@
                     var fresh = nodes.filter('.js-jobs-list').add(nodes.find('.js-jobs-list')).first();
 
                     if (fresh.length) {
-                        // The buttons stay, with their tooltips; the tooltips of the rest go with the old rows
-                        self._button.detach();
-                        self._refreshButton.detach().removeClass('spinning');
-                        nightshift.disposeTooltips(self._container.children());
-                        self._container.html(fresh.html());
-                        self._place();
+                        var added = self._patch(fresh);
+                        if (added === null) self._replace(fresh);
+
                         self._page.initJobsList(self._container[0]);
                         self._page.updateRelativeDates();
+                        nightshift.tooltipRoles(self._container);
+                        nightshift.markFittingTables(self._container);
                         self._button.addClass('hf-live-flash');
                         setTimeout(function () { self._button.removeClass('hf-live-flash'); }, 600);
+
+                        if (added === null || added > 0 || self._changed) {
+                            nightshift.announce(added > 0 ? format(TEXT.listUpdatedNew, added) : TEXT.listUpdated);
+                        }
                     }
                 })
                 .always(function () {
@@ -1941,14 +2618,129 @@
                 });
         };
 
+        // The key of a row: its data-job-id, else the job its checkbox or its link names
+        LiveTable.rowKey = function (row) {
+            row = $(row);
+            var key = row.attr('data-job-id') || row.find('.js-jobs-list-checkbox').attr('value');
+            if (!key) {
+                var link = row.find('a[href*="/jobs/details/"], a[href*="/recurring/details/"]').first().attr('href');
+                if (link) key = link;
+            }
+            return key || null;
+        };
+
+        // Puts the fresh rows in place of the old ones by their keys, so the page keeps its scroll position, the
+        // focus stays on the same row, and only changed rows are redrawn. The rest of the list (toolbar,
+        // pagination) is replaced. Returns the number of new rows, or null when the rows have no keys or the table
+        // changed shape, and the caller replaces the whole list instead.
+        LiveTable.prototype._patch = function (fresh) {
+            var self = this;
+            var oldBody = this._container.find('table > tbody').first();
+            var newBody = fresh.find('table > tbody').first();
+            var oldHead = this._container.find('table > thead').first();
+            var newHead = fresh.find('table > thead').first();
+            this._changed = false;
+
+            if (!oldBody.length || !newBody.length || oldHead.text() !== newHead.text()) return null;
+
+            var oldRows = {};
+            var keyless = false;
+            oldBody.children('tr').each(function () {
+                var key = LiveTable.rowKey(this);
+                if (!key) { keyless = true; return; }
+                oldRows[key] = this;
+            });
+            newBody.children('tr').each(function () { if (!LiveTable.rowKey(this)) keyless = true; });
+            if (keyless) return null;
+
+            // Where the focus is: the row and the position of the focused control in it
+            var active = document.activeElement;
+            var focusRow = active ? $(active).closest('tr')[0] : null;
+            var focusKey = focusRow && $.contains(oldBody[0], focusRow) ? LiveTable.rowKey(focusRow) : null;
+            var focusIndex = focusKey ? tabbables(focusRow).index(active) : -1;
+
+            var added = 0;
+            var kept = {};
+            var previous = null;
+
+            newBody.children('tr').each(function () {
+                var key = LiveTable.rowKey(this);
+                var old = oldRows[key];
+                var row = this;
+                // The server's HTML of the row, before the page's scripts changed it (relative times, selection)
+                $(row).data('ns-html', row.outerHTML);
+
+                if (old) {
+                    kept[key] = true;
+                    if ($(old).data('ns-html') === row.outerHTML) {
+                        row = old;
+                    } else {
+                        nightshift.disposeTooltips(old);
+                        $(old).replaceWith(row);
+                        $(row).addClass('ns-row-updated');
+                        self._changed = true;
+                    }
+                } else {
+                    added++;
+                    $(row).addClass('ns-row-updated');
+                    self._changed = true;
+                }
+
+                if (previous) $(row).insertAfter(previous); else oldBody.prepend(row);
+                previous = row;
+
+                if (key === focusKey && row !== focusRow) {
+                    var target = tabbables(row).eq(Math.max(focusIndex, 0));
+                    if (target.length) target.trigger('focus');
+                }
+            });
+
+            $.each(oldRows, function (key, row) {
+                if (!kept[key]) {
+                    nightshift.disposeTooltips(row);
+                    $(row).remove();
+                    self._changed = true;
+                }
+            });
+
+            // The toolbar and the pagination: the Live buttons stay, with their tooltips
+            this._button.detach();
+            this._refreshButton.detach().removeClass('spinning');
+            ['.btn-toolbar-top', '.ns-pagination'].forEach(function (selector) {
+                var oldPart = self._container.find(selector).first();
+                var newPart = fresh.find(selector).first();
+                if (oldPart.length && newPart.length) {
+                    nightshift.disposeTooltips(oldPart);
+                    oldPart.replaceWith(newPart);
+                }
+            });
+            this._place();
+
+            setTimeout(function () { self._container.find('.ns-row-updated').removeClass('ns-row-updated'); }, 1000);
+            return added;
+        };
+
+        // Replaces the whole list (rows without keys, or a table of another shape)
+        LiveTable.prototype._replace = function (fresh) {
+            // The buttons stay, with their tooltips; the tooltips of the rest go with the old rows
+            this._button.detach();
+            this._refreshButton.detach().removeClass('spinning');
+            nightshift.disposeTooltips(this._container.children());
+            this._container.html(fresh.html());
+            this._container.find('table > tbody > tr').each(function () { $(this).data('ns-html', this.outerHTML); });
+            this._place();
+        };
+
         return LiveTable;
     })();
 
     // The live activity feed on the home page: polls /activity and prepends new transitions
     nightshift.ActivityFeed = (function () {
-        var STATE_CLASSES = {
-            Enqueued: 'info', Scheduled: 'secondary', Processing: 'primary', Succeeded: 'success',
-            Failed: 'danger', Deleted: 'secondary', Awaiting: 'info'
+        // The state chips of the built-in states (HtmlHelper.StateLabel): colour group and icon
+        var STATE_CHIPS = {
+            Enqueued: ['enqueued', 'inbox-fill'], Scheduled: ['scheduled', 'clock'], Processing: ['processing', 'play-circle-fill'],
+            Succeeded: ['succeeded', 'check-circle-fill'], Failed: ['failed', 'x-circle-fill'], Deleted: ['deleted', 'trash-fill'],
+            Awaiting: ['awaiting', 'hourglass-split']
         };
         var MAX_ROWS = 40;
 
@@ -1964,18 +2756,44 @@
             this._since = 0;
             this._seen = {};
             this._timer = null;
+            this._paused = false;
+            this._unannounced = 0;
+            this._lastAnnounced = 0;
+            this._status = $('.js-activity-status').first();
+            this._summary = this._list.attr('data-text-summary') || '{0} new state changes';
 
             var self = this;
             this._poll(true);
 
             $(document).on('visibilitychange', function () {
-                if (!document.hidden) self._poll(false);
+                if (!document.hidden && !self._paused) self._poll(false);
+            });
+
+            // "Pause feed": no polls and no new rows until it runs again
+            this._list.closest('.hf-card').find('.js-activity-pause').on('change', function () {
+                self._paused = this.checked;
+                $(this).closest('.hf-card').find('.js-activity-dot').toggleClass('paused', self._paused);
+                clearTimeout(self._timer);
+                if (!self._paused) self._poll(false);
             });
         }
+
+        // One polite summary of what came in, at most every 15 seconds: a row read aloud as it comes would drown
+        // everything else
+        ActivityFeed.prototype._announce = function (count) {
+            this._unannounced += count;
+            var now = Date.now();
+            if (!this._unannounced || now - this._lastAnnounced < 15000 || !this._status.length) return;
+            this._status.text(format(this._summary, this._unannounced));
+            this._unannounced = 0;
+            this._lastAnnounced = now;
+        };
 
         ActivityFeed.prototype._poll = function (initial) {
             var self = this;
             clearTimeout(this._timer);
+
+            if (this._paused) return;
 
             if (document.hidden && !initial) {
                 this._timer = setTimeout(function () { self._poll(false); }, this._interval);
@@ -1990,18 +2808,21 @@
                     if (initial && entries.length === 0 && data.enabled === false) {
                         self._list.find('.hf-activity-empty').text(self._list.data('off'));
                     }
+                    var before = Object.keys(self._seen).length;
                     for (var i = 0; i < entries.length; i++) {
                         self._add(entries[i], !initial);
                     }
+                    if (!initial) self._announce(Object.keys(self._seen).length - before);
                     for (var j = 0; j < entries.length; j++) {
                         self._since = Math.max(self._since, entries[j].t - ActivityFeed.SINCE_MARGIN_MS);
                     }
                     self._forget();
-                    NightShift.Shell.setOnline(true);
+                    self._list.closest('.hf-card').find('.js-activity-dot').removeClass('offline');
                 })
-                .fail(function () { NightShift.Shell.setOnline(false); })
+                // The app bar's status follows the statistics polls; the feed's own dot says when the feed can't load
+                .fail(function () { self._list.closest('.hf-card').find('.js-activity-dot').addClass('offline'); })
                 .always(function () {
-                    self._timer = setTimeout(function () { self._poll(false); }, self._interval);
+                    if (!self._paused) self._timer = setTimeout(function () { self._poll(false); }, self._interval);
                 });
         };
 
@@ -2028,7 +2849,9 @@
 
             var row = $('<li>').addClass('hf-activity-row' + (animate ? ' hf-activity-new' : ''));
             row.append($('<time>').addClass('hf-activity-time').attr('title', NightShiftIntl.format(entry.t, 'dateTimeWithSeconds')).text(NightShiftIntl.format(entry.t, 'timeWithSeconds')));
-            row.append($('<span>').addClass('badge text-bg-' + (STATE_CLASSES[entry.s] || 'secondary') + ' hf-activity-state').text(entry.s));
+            var chip = STATE_CHIPS[entry.s];
+            row.append($('<span>').addClass('ns-state-chip hf-activity-state' + (chip ? ' ns-state-' + chip[0] : ''))
+                .append(nightshift.icon(chip ? chip[1] : 'circle-fill')).append($('<span>').text(entry.s)));
             row.append($('<a>').addClass('hf-activity-job').attr('href', this._jobUrl + nightshift.routeValue(entry.j)).text('#' + entry.j));
             if (entry.m) row.append($('<code>').addClass('hf-activity-method').text(entry.m));
             if (entry.v) row.append($('<span>').addClass('text-muted hf-activity-server').text(entry.v));
@@ -2238,7 +3061,7 @@
                     nightshift.setLoading(self._submit, false);
                     var message = xhr.responseJSON && xhr.responseJSON.error
                         ? xhr.responseJSON.error
-                        : 'The server responded with ' + xhr.status + ' (' + xhr.statusText + ').';
+                        : nightshift.describeRequestError(xhr);
                     self._error.text(message).show();
                 });
         };
@@ -2274,7 +3097,7 @@
                 var button = nightshift.setLoading(form.find('button[type=submit]'), true);
                 $.post(form.data('url'), form.serialize())
                     .done(function () { window.location.reload(); })
-                    .fail(function (xhr) { nightshift.setLoading(button, false); nightshift.showRequestError(xhr); });
+                    .fail(function (xhr) { nightshift.setLoading(button, false); nightshift.showRequestError(xhr, commandName(button), function () { form.trigger('submit'); }); });
             });
 
             $(document).on('click', '.js-copy-code', function (e) {
@@ -2301,14 +3124,21 @@
             $(document).on('click', '.js-cluster-command', function (e) {
                 e.preventDefault();
                 var button = $(this);
-                var confirmText = button.data('confirm');
-                if (confirmText && !confirm(confirmText)) return;
-
                 var jobs = button.data('jobs') || [];
-                nightshift.setLoading(button, true);
-                $.post(button.data('url'), { 'jobs[]': jobs })
-                    .done(function () { window.location.reload(); })
-                    .fail(function (xhr) { nightshift.setLoading(button, false); nightshift.showRequestError(xhr); });
+                nightshift.confirmButton(button, jobs.length).then(function (confirmed) {
+                    if (!confirmed) return;
+                    var name = commandName(button);
+                    var run = function () {
+                        nightshift.setLoading(button, true);
+                        $.post(button.attr('data-url'), { 'jobs[]': jobs })
+                            .done(function () {
+                                if (name) nightshift.snackbar.showAfterReload({ text: format(TEXT.done, name) });
+                                window.location.reload();
+                            })
+                            .fail(function (xhr) { nightshift.setLoading(button, false); nightshift.showRequestError(xhr, name, run); });
+                    };
+                    run();
+                });
             });
         };
 
@@ -2370,7 +3200,7 @@
                     })
                     .fail(function (xhr) {
                         nightshift.setLoading(button, false);
-                        error.text(xhr.responseJSON && xhr.responseJSON.error ? xhr.responseJSON.error : 'The server responded with ' + xhr.status + '.').show();
+                        error.text(nightshift.describeRequestError(xhr)).show();
                     });
             });
         };
@@ -2435,7 +3265,7 @@
 
             this._liveUrl = this._panel.data('live-url');
             this._jobUrl = this._panel.data('job-url');
-            this._text = { title: this._panel.data('text-title'), empty: this._panel.data('text-empty'), done: this._panel.data('text-done') };
+            this._text = { title: this._panel.attr('data-text-title'), empty: this._panel.attr('data-text-empty'), done: this._panel.attr('data-text-done'), remove: this._panel.attr('data-text-remove') || 'Stop watching job {0}' };
             this._items = this._read();
             this._interval = Math.max((config && config.pollInterval) || 2000, 2000);
             this._timer = null;
@@ -2480,7 +3310,7 @@
                 var li = $('<li class="hf-watchlist-item">').toggleClass('done', !!FINAL[item.state]);
                 li.append($('<a>').attr('href', this._jobUrl + nightshift.routeValue(item.id)).append($('<span class="hf-watchlist-id">').text('#' + item.id)).append($('<span class="hf-watchlist-name">').text(item.name || '')));
                 li.append($('<span class="hf-watchlist-state">').addClass('state-' + String(item.state || '').toLowerCase()).text(item.state || '…'));
-                li.append($('<button type="button" class="hf-watchlist-remove js-watch-remove" aria-label="remove">').attr('data-id', item.id).html('&times;'));
+                li.append($('<button type="button" class="ns-icon-button hf-watchlist-remove js-watch-remove">').attr({ 'data-id': item.id, 'aria-label': format(this._text.remove, '#' + item.id) }).html(nightshift.icon('x-lg')));
                 this._list.append(li);
             }
         };
@@ -2553,11 +3383,12 @@
 
         Watchlist.prototype._notify = function (item) {
             var text = String(this._text.done).replace('{0}', '#' + item.id).replace('{1}', item.state);
-            var toast = $('<div class="hf-toast">').addClass('hf-toast-' + String(item.state).toLowerCase())
-                .append($('<a>').attr('href', this._jobUrl + nightshift.routeValue(item.id)).text(text + (item.name ? ' — ' + item.name : '')));
-            $('body').append(toast);
-            setTimeout(function () { toast.addClass('show'); }, 10);
-            setTimeout(function () { toast.removeClass('show'); setTimeout(function () { toast.remove(); }, 400); }, 8000);
+            nightshift.snackbar.show({
+                text: text + (item.name ? ' — ' + item.name : ''),
+                kind: item.state === 'Failed' ? 'error' : null,
+                duration: 10000,
+                action: { label: format(TEXT.viewJob, '#' + item.id), href: this._jobUrl + nightshift.routeValue(item.id) }
+            });
 
             if (window.Notification && Notification.permission === 'granted') {
                 try { new Notification(text, { body: item.name || '', tag: 'nightshift-' + item.id }); } catch (e) { /* not available */ }
@@ -2635,44 +3466,49 @@
             if (!button.length || button.prop('disabled')) return;
 
             var count = $("input[name='jobs[]']:checked").length;
-            if (!button.data('confirm') && !confirm(trim(button.text()) + ': ' + count + (count === 1 ? ' selected item' : ' selected items') + '?')) return;
+            if (button.attr('data-confirm')) {
+                button.trigger('click');
+                return;
+            }
 
-            button.trigger('click');
+            nightshift.confirm({ title: format(TEXT.shortcutConfirm, commandName(button), count), confirmLabel: commandName(button) })
+                .then(function (confirmed) { if (confirmed) button.trigger('click'); });
         };
 
         Shortcuts.prototype.toggle = function () {
             if (!this._overlay) {
                 var rows = [
-                    ['Ctrl K', '/', 'Search, jump to a page, run a command (type >)'],
-                    ['g then h / j / p / f / r / s / i / c / t / b / a', '', 'Go to home, jobs, processing, failed, recurring, servers, insights, catalog, tags, batches, audit'],
-                    ['j / k', '', 'Move down / up a job list'],
-                    ['x', '', 'Select the focused job'],
-                    ['Enter', '', 'Open the focused job'],
-                    ['r', '', 'Run the main command of the list (Requeue, Enqueue now, Trigger now) for the selected items, after a confirmation'],
-                    ['d', '', 'Delete the selected jobs'],
-                    ['?', '', 'This help'],
-                    ['Esc', '', 'Close']
+                    ['Ctrl K', '/', TEXT.shortcutSearch],
+                    ['g then h / j / p / f / r / s / i / c / t / b / a', '', TEXT.shortcutGo],
+                    ['j / k', '', TEXT.shortcutMove],
+                    ['x', '', TEXT.shortcutSelect],
+                    ['Enter', '', TEXT.shortcutOpen],
+                    ['r', '', TEXT.shortcutRun],
+                    ['d', '', TEXT.shortcutDelete],
+                    ['?', '', TEXT.shortcutHelp],
+                    ['Esc', '', TEXT.close]
                 ];
                 var table = $('<table class="hf-shortcuts-table">');
                 rows.forEach(function (r) {
                     var keys = $('<td class="hf-shortcuts-keys">');
                     r[0].split(' / ').forEach(function (k, i) { if (i) keys.append(' / '); keys.append($('<kbd>').text(k)); });
-                    if (r[1]) keys.append(' or ').append($('<kbd>').text(r[1]));
+                    if (r[1]) keys.append(' · ').append($('<kbd>').text(r[1]));
                     table.append($('<tr>').append(keys).append($('<td>').text(r[2])));
                 });
                 // Single-key shortcuts can be turned off, for speech input and accidental key presses (WCAG 2.1.4)
-                var toggle = $('<input type="checkbox" id="hfSingleKeyShortcuts">').prop('checked', nightshift.singleKeyShortcuts.enabled())
+                var toggle = $('<input type="checkbox" role="switch" class="ns-switch" id="hfSingleKeyShortcuts">').prop('checked', nightshift.singleKeyShortcuts.enabled())
                     .on('change', function () { nightshift.singleKeyShortcuts.set(this.checked); });
-                var setting = $('<div class="form-check hf-shortcuts-setting">').append(toggle.addClass('form-check-input'))
-                    .append($('<label class="form-check-label" for="hfSingleKeyShortcuts">').text('Single-key shortcuts (j, k, x, r, d, g, / and ?). Ctrl K works either way.'));
+                var setting = $('<label class="ns-switch-label hf-shortcuts-setting" for="hfSingleKeyShortcuts">').append(toggle)
+                    .append($('<span>').text(TEXT.shortcutSingleKey));
+                var self = this;
+                var close = $('<button type="button" class="btn ns-btn-text">').text(TEXT.close).on('click', function () { self.toggle(); });
                 this._overlay = $('<div class="hf-palette hf-shortcuts" role="dialog" aria-modal="true" aria-labelledby="hfShortcutsTitle" style="display: none">')
                     .append(this._box = $('<div class="hf-palette-box hf-shortcuts-box" tabindex="-1">')
-                        .append($('<h4 id="hfShortcutsTitle">').text($('.js-watchlist').data('text-shortcuts') || 'Keyboard shortcuts'))
-                        .append(table).append(setting));
-                var self = this;
+                        .append($('<h2 id="hfShortcutsTitle">').text(TEXT.shortcuts))
+                        .append(table).append(setting)
+                        .append($('<div class="modal-footer px-0 pb-0">').append(close)));
                 this._overlay.on('click', function (e) { if (e.target === self._overlay[0]) self.toggle(); });
-                // Tab stays in the dialog: its only control is the checkbox
-                this._overlay.on('keydown', function (e) { if (e.key === 'Tab') { e.preventDefault(); toggle.trigger('focus'); } });
+                this._overlay.on('keydown', function (e) { trapTab(e, self._box[0]); });
                 $('body').append(this._overlay);
             }
 
@@ -2680,7 +3516,7 @@
                 this._overlay.hide();
                 var target = this._returnFocus;
                 this._returnFocus = null;
-                if (target && target !== document.body && document.contains(target) && typeof target.focus === 'function') target.focus();
+                focusBack(target);
             } else {
                 this._returnFocus = document.activeElement;
                 this._overlay.find('#hfSingleKeyShortcuts').prop('checked', nightshift.singleKeyShortcuts.enabled());
@@ -2688,7 +3524,6 @@
                 this._box.trigger('focus');
             }
         };
-
         return Shortcuts;
     })();
 
