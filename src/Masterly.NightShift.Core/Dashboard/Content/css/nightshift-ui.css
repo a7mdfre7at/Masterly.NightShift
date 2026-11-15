@@ -3,8 +3,10 @@
    Tokens drive everything: colors, radii, shadows, spacing. Light is the
    default; dark applies with [data-theme="dark"] on <html> or, when no
    theme is chosen, with the operating system's preference. The shell
-   (sidebar, top bar, content) is laid out here; Bootstrap 3 still
-   provides the grid, tables, buttons and modal, restyled below.
+   (sidebar, top bar, content) is laid out here; Bootstrap 5 provides
+   the grid, tables, buttons, forms, modal and tooltips, restyled below:
+   its --bs-* variables are set from the tokens, so it follows the theme
+   without data-bs-theme.
    ------------------------------------------------------------------ */
 
 /* Fonts of the documentation site, served by the dashboard itself so it needs no external request.
@@ -197,6 +199,30 @@
     color-scheme: light;
 }
 
+/* Bootstrap 5 reads its colors and fonts from these variables. They are set from the tokens on the same element, so
+   they follow the theme: the dashboard switches themes with data-theme and the media of the dark stylesheet, which
+   also follow the system's choice, so Bootstrap's own data-bs-theme isn't used. */
+:root {
+    --bs-font-sans-serif: var(--hf-font);
+    --bs-font-monospace: var(--hf-mono);
+    --bs-body-font-family: var(--hf-font);
+    --bs-body-color: var(--hf-text);
+    --bs-body-bg: var(--hf-bg);
+    --bs-emphasis-color: var(--hf-text);
+    --bs-secondary-color: var(--hf-muted);
+    --bs-tertiary-color: var(--hf-muted);
+    --bs-secondary-bg: var(--hf-neutral-soft);
+    --bs-tertiary-bg: var(--hf-surface-2);
+    --bs-border-color: var(--hf-border);
+    --bs-heading-color: inherit;
+    --bs-code-color: var(--hf-text);
+}
+
+/* Bootstrap 5 sizes its components in rem: with 14px, the size of the dashboard's text, they keep the sizes the
+   pages were designed with (Bootstrap 3's 14px base) */
+html {
+    font-size: 14px;
+}
 :root[data-theme="dark"] {
     --hf-bg: #061a22;
     --hf-surface: #0a242e;
@@ -650,7 +676,7 @@ body.hf-app hr {
     outline: none;
 }
 
-.hf-search .glyphicon {
+.hf-search .bi {
     font-size: 12px;
 }
 
@@ -732,6 +758,7 @@ body.hf-app hr {
 /* Page header
    ------------------------------------------------------------------ */
 
+.hf-app .hf-page-header,
 .hf-app .page-header {
     margin: 0 0 20px;
     padding: 0;
@@ -742,6 +769,7 @@ body.hf-app hr {
     line-height: 1.25;
 }
 
+.hf-app .hf-page-header small,
 .hf-app .page-header small {
     color: var(--hf-muted);
     font-size: 60%;
@@ -1012,35 +1040,38 @@ body.hf-app hr {
     font-size: 12.5px;
 }
 
-.hf-app .btn-xs {
+/* Bootstrap 5 has no extra-small button: this is Bootstrap 3's btn-xs */
+.hf-app .hf-btn-xs {
     padding: 2px 8px;
     font-size: 12px;
+    line-height: 1.5;
+    border-radius: 3px;
 }
 
-.hf-app .btn-default {
+.hf-app .btn-outline-secondary {
     background-color: var(--hf-surface);
     border-color: var(--hf-border-strong);
     color: var(--hf-text);
     box-shadow: var(--hf-shadow-sm);
 }
 
-.hf-app .btn-default:hover,
-.hf-app .btn-default:focus {
+.hf-app .btn-outline-secondary:hover,
+.hf-app .btn-outline-secondary:focus {
     background-color: var(--hf-surface-2);
     border-color: var(--hf-border-strong);
     color: var(--hf-text);
 }
 
-.hf-app .btn-default.active,
-.hf-app .btn-default:active {
+.hf-app .btn-outline-secondary.active,
+.hf-app .btn-outline-secondary:active {
     background-color: var(--hf-primary-soft);
     border-color: var(--hf-primary);
     color: var(--hf-primary);
     box-shadow: none;
 }
 
-.hf-app .btn-default[disabled],
-.hf-app .btn-default.disabled {
+.hf-app .btn-outline-secondary[disabled],
+.hf-app .btn-outline-secondary.disabled {
     opacity: .5;
     box-shadow: none;
 }
@@ -1125,7 +1156,7 @@ body.hf-app hr {
 /* Labels and state pills
    ------------------------------------------------------------------ */
 
-.hf-app .label {
+.hf-app .badge {
     display: inline-block;
     border-radius: 999px;
     padding: .3em .75em;
@@ -1138,11 +1169,13 @@ body.hf-app hr {
     color: var(--hf-text-2);
 }
 
-.hf-app .label-info { background-color: var(--hf-info-soft); color: var(--hf-info); }
-.hf-app .label-success { background-color: var(--hf-success-soft); color: var(--hf-success); }
-.hf-app .label-warning { background-color: var(--hf-warning-soft); color: var(--hf-warning); }
-.hf-app .label-danger { background-color: var(--hf-danger-soft); color: var(--hf-danger); }
-.hf-app .label-primary { background-color: var(--hf-primary-soft); color: var(--hf-primary); }
+/* Bootstrap's text-bg-* classes set their colors with !important, so the soft pills of the design system do too */
+.hf-app .badge.text-bg-secondary { background-color: var(--hf-neutral-soft) !important; color: var(--hf-text-2) !important; }
+.hf-app .badge.text-bg-info { background-color: var(--hf-info-soft) !important; color: var(--hf-info) !important; }
+.hf-app .badge.text-bg-success { background-color: var(--hf-success-soft) !important; color: var(--hf-success) !important; }
+.hf-app .badge.text-bg-warning { background-color: var(--hf-warning-soft) !important; color: var(--hf-warning) !important; }
+.hf-app .badge.text-bg-danger { background-color: var(--hf-danger-soft) !important; color: var(--hf-danger) !important; }
+.hf-app .badge.text-bg-primary { background-color: var(--hf-primary-soft) !important; color: var(--hf-primary) !important; }
 
 .hf-app .label-state-enqueued { background-color: var(--hf-info-soft); color: var(--hf-info); }
 .hf-app .label-state-scheduled { background-color: var(--hf-primary-soft); color: var(--hf-primary); }
@@ -1203,19 +1236,17 @@ body.hf-app hr {
     color: var(--hf-muted);
 }
 
-.hf-app .breadcrumb > li + li:before {
+.hf-app .breadcrumb-item + .breadcrumb-item::before {
     color: var(--hf-border-strong);
 }
 
-.hf-app .pagination > li > a,
-.hf-app .pagination > li > span {
+.hf-app .page-link {
     background-color: var(--hf-surface);
     border-color: var(--hf-border);
     color: var(--hf-text);
 }
 
-.hf-app .pagination > .active > a,
-.hf-app .pagination > .active > span {
+.hf-app .page-item.active > .page-link {
     background-color: var(--hf-primary);
     border-color: var(--hf-primary);
 }
@@ -1234,7 +1265,7 @@ body.hf-app hr {
     box-shadow: var(--hf-focus);
 }
 
-.hf-app .help-block {
+.hf-app .form-text {
     color: var(--hf-muted);
 }
 
@@ -1268,6 +1299,93 @@ body.hf-app hr {
     font-size: 12px;
 }
 
+.hf-app .form-select {
+    background-color: var(--hf-surface);
+    border: 1px solid var(--hf-border-strong);
+    border-radius: var(--hf-radius-sm);
+    box-shadow: none;
+    color: var(--hf-text);
+    height: 36px;
+}
+
+.hf-app .form-select:focus {
+    border-color: var(--hf-primary);
+    box-shadow: var(--hf-focus);
+}
+
+.hf-app .form-select-sm,
+.hf-app .form-control-sm {
+    padding-top: 5px;
+    padding-bottom: 5px;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.hf-app .form-check-input {
+    background-color: var(--hf-surface);
+    border-color: var(--hf-border-strong);
+}
+
+.hf-app .form-check-input:checked {
+    background-color: var(--hf-primary);
+    border-color: var(--hf-primary);
+}
+
+.hf-app .form-check-input:focus {
+    border-color: var(--hf-primary);
+    box-shadow: var(--hf-focus);
+}
+
+.hf-app .form-check-label {
+    margin-bottom: 0;
+}
+
+/* Bootstrap 5's state buttons and text colors, in the palette of the tokens */
+.hf-app .btn-success,
+.hf-app .btn-warning,
+.hf-app .btn-info,
+.hf-app .btn-danger {
+    --bs-btn-color: var(--hf-on-color);
+    --bs-btn-hover-color: var(--hf-on-color);
+    --bs-btn-active-color: var(--hf-on-color);
+    --bs-btn-disabled-color: var(--hf-on-color);
+}
+
+.hf-app .btn-success { --bs-btn-bg: var(--hf-success); --bs-btn-border-color: var(--hf-success); --bs-btn-hover-bg: var(--hf-success); --bs-btn-hover-border-color: var(--hf-success); --bs-btn-active-bg: var(--hf-success); --bs-btn-active-border-color: var(--hf-success); --bs-btn-disabled-bg: var(--hf-success); --bs-btn-disabled-border-color: var(--hf-success); }
+.hf-app .btn-warning { --bs-btn-bg: var(--hf-warning); --bs-btn-border-color: var(--hf-warning); --bs-btn-hover-bg: var(--hf-warning); --bs-btn-hover-border-color: var(--hf-warning); --bs-btn-active-bg: var(--hf-warning); --bs-btn-active-border-color: var(--hf-warning); --bs-btn-disabled-bg: var(--hf-warning); --bs-btn-disabled-border-color: var(--hf-warning); }
+.hf-app .btn-info { --bs-btn-bg: var(--hf-info); --bs-btn-border-color: var(--hf-info); --bs-btn-hover-bg: var(--hf-info); --bs-btn-hover-border-color: var(--hf-info); --bs-btn-active-bg: var(--hf-info); --bs-btn-active-border-color: var(--hf-info); --bs-btn-disabled-bg: var(--hf-info); --bs-btn-disabled-border-color: var(--hf-info); }
+.hf-app .btn-danger { --bs-btn-bg: var(--hf-danger); --bs-btn-border-color: var(--hf-danger); --bs-btn-hover-bg: var(--hf-danger-strong); --bs-btn-hover-border-color: var(--hf-danger-strong); --bs-btn-active-bg: var(--hf-danger-strong); --bs-btn-active-border-color: var(--hf-danger-strong); --bs-btn-disabled-bg: var(--hf-danger); --bs-btn-disabled-border-color: var(--hf-danger); }
+
+.hf-app .btn-success:hover,
+.hf-app .btn-warning:hover,
+.hf-app .btn-info:hover {
+    filter: brightness(.94);
+}
+
+.hf-app .text-success { color: var(--hf-success) !important; }
+.hf-app .text-warning { color: var(--hf-warning) !important; }
+.hf-app .text-danger { color: var(--hf-danger) !important; }
+.hf-app .text-info { color: var(--hf-info) !important; }
+.hf-app .text-primary { color: var(--hf-primary) !important; }
+
+/* Icons: SVG symbols of the icon sprite, sized and colored like the text around them
+   ------------------------------------------------------------------ */
+
+.bi {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    vertical-align: -.125em;
+    fill: currentColor;
+    flex-shrink: 0;
+}
+
+/* An icon that says something on its own: its wrapper carries the title and the accessible name */
+.hf-icon {
+    display: inline-block;
+    line-height: 1;
+}
+
 /* Modal
    ------------------------------------------------------------------ */
 
@@ -1284,14 +1402,16 @@ body.hf-app hr {
     border-color: var(--hf-border);
 }
 
-.hf-app .modal-header .close {
-    color: var(--hf-text);
-    text-shadow: none;
+.hf-app .modal-header .btn-close {
     opacity: .5;
 }
 
-.hf-app .modal-backdrop.in {
-    opacity: .55;
+.hf-app .modal-header .btn-close:hover {
+    opacity: .8;
+}
+
+.hf-app .modal-backdrop {
+    --bs-backdrop-opacity: .55;
 }
 
 /* Job snippet, state cards, history
@@ -1382,8 +1502,8 @@ body.hf-app hr {
     box-shadow: none;
 }
 
-.hf-app .progress-bar-success { background-color: var(--hf-success); }
-.hf-app .progress-bar-danger { background-color: var(--hf-danger); }
+.hf-app .progress-bar.bg-success { background-color: var(--hf-success) !important; }
+.hf-app .progress-bar.bg-danger { background-color: var(--hf-danger) !important; }
 
 .hf-app .job-console {
     background-color: #04131a;
@@ -1689,8 +1809,8 @@ body.hf-app hr {
     outline: none;
 }
 
-.spinning .glyphicon-refresh,
-.hf-icon-button.spinning .glyphicon {
+.spinning .bi,
+.hf-icon-button.spinning .bi {
     animation: hf-spin .8s linear infinite;
 }
 
@@ -1760,7 +1880,7 @@ body.hf-app hr {
     color: var(--hf-muted);
 }
 
-.hf-hosting-value .label {
+.hf-hosting-value .badge {
     margin-right: 6px;
 }
 
@@ -1781,7 +1901,7 @@ body.hf-app hr {
     font-size: 13px;
 }
 
-.hf-drain-banner > .glyphicon {
+.hf-drain-banner > .bi {
     color: var(--hf-warning);
 }
 
@@ -2130,7 +2250,7 @@ body.hf-app hr {
     border-bottom: none;
 }
 
-.hf-anomaly-reasons .label {
+.hf-anomaly-reasons .badge {
     margin-right: 6px;
     font-weight: 500;
 }
@@ -2232,7 +2352,7 @@ body.hf-app hr {
     background: var(--hf-danger-soft);
 }
 
-.hf-diagnosis-text .label {
+.hf-diagnosis-text .badge {
     vertical-align: middle;
 }
 
@@ -2704,7 +2824,7 @@ body.hf-app hr {
     text-decoration: none;
 }
 
-.hf-tag .glyphicon {
+.hf-tag .bi {
     font-size: 10px;
 }
 
@@ -3664,3 +3784,41 @@ body.hf-app.hf-wallboard {
 
 .hf-tl-tick-first { transform: none; }
 .hf-tl-tick-last { transform: translateX(-100%); }
+
+/* Schedule policies: the preview form is a row from 768px, as Bootstrap 3's form-inline was, and stacked below */
+
+.hf-policy-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 10px;
+}
+
+.hf-policy-preview .form-control,
+.hf-policy-preview .form-select {
+    width: 100%;
+}
+
+@media (min-width: 768px) {
+    .hf-policy-preview {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .hf-policy-preview .form-control,
+    .hf-policy-preview .form-select {
+        width: auto;
+    }
+}
+
+/* Bootstrap 3's checkbox-inline: the box 20px from the start, 10px between the choices */
+.hf-app .form-check-inline {
+    margin-right: 10px;
+    padding-left: 20px;
+}
+
+.hf-app .form-check-inline .form-check-input {
+    margin-left: -20px;
+}

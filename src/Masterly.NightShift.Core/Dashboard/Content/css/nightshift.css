@@ -1,3 +1,261 @@
+/* Bootstrap 5 defaults that differ from the Bootstrap 3 ones the pages were designed with. These rules have the
+   specificity of Bootstrap's own and come right after it, so the dashboard's styles below override them as they
+   overrode Bootstrap 3.
+-------------------------------------------------- */
+
+a {
+    text-decoration: none;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 500;
+    line-height: 1.1;
+}
+
+h1, h2, h3 {
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+h4, h5, h6 {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+h1 { font-size: 36px; }
+h2 { font-size: 30px; }
+h3 { font-size: 24px; }
+h4 { font-size: 18px; }
+h5 { font-size: 14px; }
+h6 { font-size: 12px; }
+
+h1 small, h2 small, h3 small {
+    font-size: 65%;
+    font-weight: 400;
+    line-height: 1;
+}
+
+h4 small, h5 small, h6 small {
+    font-size: 75%;
+    font-weight: 400;
+    line-height: 1;
+}
+
+small, .small {
+    font-size: 85%;
+}
+
+p {
+    margin: 0 0 10px;
+}
+
+ul, ol {
+    margin-bottom: 10px;
+}
+
+dl {
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+dt, dd {
+    line-height: 1.42857143;
+}
+
+dd {
+    margin-bottom: 0;
+}
+
+hr {
+    margin-top: 20px;
+    margin-bottom: 20px;
+    opacity: 1;
+}
+
+pre {
+    padding: 9.5px;
+    margin: 0 0 10px;
+    font-size: 13px;
+    line-height: 1.42857143;
+    word-break: break-all;
+    word-wrap: break-word;
+}
+
+pre code {
+    white-space: pre-wrap;
+    word-break: inherit;
+}
+
+input[type="checkbox"]:not(.form-check-input),
+input[type="radio"]:not(.form-check-input) {
+    margin: 4px 0 0;
+    line-height: normal;
+}
+
+label {
+    display: inline-block;
+    max-width: 100%;
+    margin-bottom: 5px;
+    font-weight: 700;
+}
+
+/* Bootstrap 3's dl-horizontal, which Bootstrap 5 dropped; dl-horizontal is kept for pages written for it */
+@media (min-width: 768px) {
+    .hf-dl-horizontal dt,
+    .dl-horizontal dt {
+        float: left;
+        width: 160px;
+        clear: left;
+        text-align: right;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .hf-dl-horizontal dd,
+    .dl-horizontal dd {
+        margin-left: 180px;
+    }
+}
+
+.hf-dl-horizontal dd::after,
+.dl-horizontal dd::after {
+    display: table;
+    clear: both;
+    content: "";
+}
+
+.list-inline {
+    margin-left: -5px;
+}
+
+.list-inline > .list-inline-item {
+    padding-right: 5px;
+    padding-left: 5px;
+    margin-right: 0;
+}
+
+.row {
+    --bs-gutter-x: 30px;
+}
+
+.btn {
+    --bs-btn-line-height: 1.42857143;
+    white-space: nowrap;
+}
+
+.btn-sm {
+    --bs-btn-line-height: 1.5;
+}
+
+.form-control,
+.form-select {
+    padding: 6px 12px;
+    line-height: 1.42857143;
+}
+
+.form-select {
+    padding-right: 36px;
+    background-position: right 12px center;
+}
+
+.form-text {
+    display: block;
+    margin-top: 5px;
+    margin-bottom: 10px;
+    font-size: inherit;
+}
+
+.alert {
+    margin-bottom: 20px;
+}
+
+.table {
+    margin-bottom: 20px;
+    --bs-table-bg: transparent;
+    --bs-table-color: inherit;
+    --bs-table-border-color: var(--hf-border);
+    --bs-table-striped-color: inherit;
+    --bs-table-striped-bg: var(--hf-surface-2);
+    --bs-table-hover-color: inherit;
+    --bs-table-hover-bg: var(--hf-surface-2);
+}
+
+/* Bootstrap 3 drew one line above each row; Bootstrap 5 draws one under each cell */
+.table > :not(caption) > * > * {
+    padding: 8px;
+    line-height: 1.42857143;
+    border-bottom-width: 0;
+}
+
+.table > tbody > tr > td,
+.table > tbody > tr > th {
+    border-top: 1px solid var(--hf-border);
+}
+
+.table-sm > :not(caption) > * > * {
+    padding: 5px;
+}
+
+/* On a phone a wide table keeps its rows on one line and scrolls sideways, as with Bootstrap 3 */
+@media (max-width: 767px) {
+    .table-responsive {
+        width: 100%;
+        margin-bottom: 15px;
+        overflow-y: hidden;
+    }
+
+    .table-responsive > .table {
+        margin-bottom: 0;
+    }
+
+    .table-responsive > .table > thead > tr > th,
+    .table-responsive > .table > tbody > tr > th,
+    .table-responsive > .table > tfoot > tr > th,
+    .table-responsive > .table > thead > tr > td,
+    .table-responsive > .table > tbody > tr > td,
+    .table-responsive > .table > tfoot > tr > td {
+        white-space: nowrap;
+    }
+}
+
+.progress {
+    --bs-progress-height: 20px;
+    --bs-progress-font-size: 12px;
+    --bs-progress-bg: var(--hf-neutral-soft);
+    --bs-progress-bar-bg: var(--hf-primary);
+    margin-bottom: 20px;
+}
+
+.breadcrumb {
+    --bs-breadcrumb-item-padding-x: 5px;
+    --bs-breadcrumb-divider-color: var(--hf-border-strong);
+    --bs-breadcrumb-item-active-color: var(--hf-muted);
+}
+
+.modal {
+    --bs-modal-width: 600px;
+    --bs-modal-padding: 15px;
+    --bs-modal-header-padding: 15px;
+    --bs-modal-footer-gap: 5px;
+    --bs-modal-margin: 10px;
+}
+
+@media (min-width: 768px) {
+    .modal {
+        --bs-modal-margin: 30px;
+    }
+}
+
+.tooltip {
+    --bs-tooltip-color: #fff;
+    --bs-tooltip-bg: #000;
+    --bs-tooltip-font-size: 12px;
+    --bs-tooltip-arrow-width: 10px;
+    --bs-tooltip-arrow-height: 5px;
+    --bs-tooltip-opacity: .9;
+}
+
 /* Sticky footer styles
 -------------------------------------------------- */
 
@@ -11,13 +269,7 @@ body {
     padding-top: 75px;
 }
 
-.col-lg-1, .col-lg-10, .col-lg-11, .col-lg-12, .col-lg-2, .col-lg-3, .col-lg-4,
-.col-lg-5, .col-lg-6, .col-lg-7, .col-lg-8, .col-lg-9, .col-md-1, .col-md-10, .col-md-11,
-.col-md-12, .col-md-2, .col-md-3, .col-md-4, .col-md-5, .col-md-6, .col-md-7, .col-md-8,
-.col-md-9, .col-sm-1, .col-sm-10, .col-sm-11, .col-sm-12, .col-sm-2, .col-sm-3, .col-sm-4,
-.col-sm-5, .col-sm-6, .col-sm-7, .col-sm-8, .col-sm-9, .col-xs-1, .col-xs-10, .col-xs-11,
-.col-xs-12, .col-xs-2, .col-xs-3, .col-xs-4, .col-xs-5, .col-xs-6, .col-xs-7, .col-xs-8,
-.col-xs-9 {
+.row > * {
     min-height: 2px !important;
 }
 
@@ -46,6 +298,7 @@ body {
   word-break: break-word;
 }
 
+.hf-page-header,
 .page-header {
     margin-top: 0;
     overflow: hidden;
@@ -65,7 +318,7 @@ body {
     color: #fff;
 }
 
-.list-group .list-group-item .glyphicon {
+.list-group .list-group-item .bi {
     margin-right: 3px;
 }
 
@@ -139,7 +392,7 @@ a:hover .label-hover {
     width: 30%;
 }
 
-.glyphicon-sm {
+.hf-icon-sm {
     font-size: 10px;
 }
 
@@ -201,16 +454,16 @@ a:hover .label-hover {
     background-color: #f5f5f5;
 }
 
-.obsolete-data, .obsolete-data a, .obsolete-data pre, .obsolete-data .label {
+.obsolete-data, .obsolete-data a, .obsolete-data pre, .obsolete-data .badge {
     color: #999;
 }
 
-.obsolete-data pre, .obsolete-data .label {
+.obsolete-data pre, .obsolete-data .badge {
     background-color: #999;
     color: #fff;
 }
 
-.obsolete-data .glyphicon-question-sign {
+.obsolete-data .hf-icon {
     font-size: 80%;
     color: #999;
 }
@@ -354,7 +607,7 @@ a:hover .label-hover {
     margin-bottom: 0;
 }
 
-.state-card-title .pull-right {
+.state-card-title .float-end {
     margin-top: 3px;
 }
 
@@ -550,7 +803,7 @@ a.job-method {
     color: inherit;    
 }
 
-.list-group .glyphicon {
+.list-group .bi {
     top: 2px;
 }
 
@@ -849,7 +1102,7 @@ div.metric-null {
     font-weight: 600;
 }
 
-.job-console-checkpoint .glyphicon {
+.job-console-checkpoint .bi {
     margin-right: 6px;
     font-size: 11px;
 }
@@ -911,7 +1164,7 @@ div.metric-null {
     line-height: 1.2;
 }
 
-.insights-tile-value .label {
+.insights-tile-value .badge {
     font-size: 14px;
     vertical-align: middle;
 }
@@ -965,10 +1218,10 @@ div.metric-null {
     font-size: 13px;
 }
 
-.invoker-stats .label {
+.invoker-stats .badge {
     margin-right: 4px;
 }
 
-.invoker-stats .glyphicon {
+.invoker-stats .bi {
     margin-right: 4px;
 }

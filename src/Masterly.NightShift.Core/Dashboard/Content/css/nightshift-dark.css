@@ -1,4 +1,4 @@
-/* Dark theme for the parts of Bootstrap the design system does not restyle.
+/* Dark theme for the parts of Bootstrap 5 the design system does not restyle.
    Loaded through <link media="(prefers-color-scheme: dark)">; the theme switcher changes the
    media attribute to "all" or "not all", so these rules follow the chosen theme without duplication. */
 html {
@@ -6,6 +6,7 @@ html {
 }
 
 /* Common */
+.hf-page-header,
 .page-header {
     border-bottom: 1px solid #17414a;
 }
@@ -235,49 +236,6 @@ div#footer {
     color: #fff;
 }
 
-/* Navbar */
-
-.navbar-default {
-    background: #0a242e;
-    border: none;
-}
-
-.navbar-default .navbar-brand {
-    color: rgba(255, 255, 255, 0.6);
-}
-
-    .navbar-default .navbar-brand:hover {
-        color: rgba(255, 255, 255, 1);
-    }
-
-.navbar-default .navbar-nav > li > a {
-    color: rgba(255, 255, 255, 0.6);
-}
-
-.navbar-default .navbar-nav > li > a:focus,
-.navbar-default .navbar-nav > li > a:hover {
-    color: #ffffff;
-}
-
-.navbar-default .navbar-nav > .active > a,
-.navbar-default .navbar-nav > .active > a:focus,
-.navbar-default .navbar-nav > .active > a:hover {
-    background: #0e2d38;
-    color: #ffffff;
-}
-
-.navbar-default .navbar-toggle {
-    border-color: #17414a;
-}
-
-.navbar-default .navbar-collapse, .navbar-default .navbar-form {
-    border-color: #17414a;
-}
-
-.navbar-default .navbar-toggle:focus, .navbar-default .navbar-toggle:hover {
-    background-color: #0e2d38;
-}
-
 /* Paginator */
 
 .paginator .btn {
@@ -286,52 +244,49 @@ div#footer {
 }
 
 .paginator .btn.active,
-.paginator  a.btn.btn-default.active {
+.paginator  a.btn.btn-outline-secondary.active {
     background: rgba(95, 224, 200, 0.6);
     color: #fff;
 }
 
 .btn-group .btn.active,
-.btn-group .paginator  a.btn.btn-default.active {
+.btn-group .paginator  a.btn.btn-outline-secondary.active {
     background: rgba(95, 224, 200, 0.6);
     color: #fff;
 }
 
 /* btn-default */
 
-.btn-default {
+.btn-outline-secondary {
     background: #0a242e;
     border-color: #17414a;
     color: rgba(255, 255, 255, 0.9);
 }
 
-.btn-default.active.focus, 
-.btn-default.active:focus, 
-.btn-default.active:hover, 
-.btn-default:active.focus, 
-.btn-default:active:focus, 
-.btn-default:active:hover, 
-.open>.dropdown-toggle.btn-default.focus, 
-.open>.dropdown-toggle.btn-default:focus, 
-.open>.dropdown-toggle.btn-default:hover,
-.btn-default:hover,
-.btn-default:focus,
-.btn-default:active:focus,
-a.btn.btn-default.active {
+.btn-outline-secondary.active.focus, 
+.btn-outline-secondary.active:focus, 
+.btn-outline-secondary.active:hover, 
+.btn-outline-secondary:active.focus, 
+.btn-outline-secondary:active:focus, 
+.btn-outline-secondary:active:hover, 
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus,
+.btn-outline-secondary:active:focus,
+a.btn.btn-outline-secondary.active {
     background: #0e2d38;
     border-color: #17414a;
     color: rgba(255, 255, 255, 1);
 }
 
-.btn-default.disabled.focus, 
-.btn-default.disabled:focus, 
-.btn-default.disabled:hover, 
-.btn-default[disabled].focus, 
-.btn-default[disabled]:focus, 
-.btn-default[disabled]:hover, 
-fieldset[disabled] .btn-default.focus, 
-fieldset[disabled] .btn-default:focus, 
-fieldset[disabled] .btn-default:hover {
+.btn-outline-secondary.disabled.focus, 
+.btn-outline-secondary.disabled:focus, 
+.btn-outline-secondary.disabled:hover, 
+.btn-outline-secondary[disabled].focus, 
+.btn-outline-secondary[disabled]:focus, 
+.btn-outline-secondary[disabled]:hover, 
+fieldset[disabled] .btn-outline-secondary.focus, 
+fieldset[disabled] .btn-outline-secondary:focus, 
+fieldset[disabled] .btn-outline-secondary:hover {
     background: #0a242e;
     border-color: #17414a;
     color: rgba(255, 255, 255, 0.9);
@@ -351,9 +306,6 @@ fieldset[disabled] .btn-default:hover {
 .btn-primary:active.focus, 
 .btn-primary:active:focus, 
 .btn-primary:active:hover, 
-.open>.dropdown-toggle.btn-primary.focus, 
-.open>.dropdown-toggle.btn-primary:focus, 
-.open>.dropdown-toggle.btn-primary:hover,
 .btn-primary:hover,
 .btn-primary:focus,
 .btn-primary:active:focus,
@@ -391,9 +343,6 @@ fieldset[disabled] .btn-primary:hover {
 .btn-death:active.focus, 
 .btn-death:active:focus, 
 .btn-death:active:hover, 
-.open>.dropdown-toggle.btn-death.focus, 
-.open>.dropdown-toggle.btn-death:focus, 
-.open>.dropdown-toggle.btn-death:hover,
 .btn-death:hover,
 .btn-death:focus,
 .btn-death:active:focus,
@@ -641,22 +590,6 @@ span.metric-danger.highlighted {
     background-color: transparent;
 }
 
-.nav-tabs > li > a {
-    color: rgba(255, 255, 255, 0.6);
-}
-
-.nav-tabs > li > a:hover {
-    color: white;
-    background-color: transparent;
-    border-color: transparent!important;
-}
-
-.nav-tabs > li.active > a, .nav-tabs > li.active > a:focus, .nav-tabs > li.active > a:hover {
-    color: white;
-    background-color: #0e2d38;
-    border-color: #17414a #17414a transparent #17414a !important;
-}
-
 .table-hover > tbody > tr:hover {
     background-color: #0a242e;
 }
@@ -669,16 +602,6 @@ div.metric.metric-default {
     border-color: #17414a;
 }
 
-@media (min-width: 768px) {
-    .nav-tabs > li > a {
-        border-bottom-color: #17414a!important;
-    }
-
-    .nav-tabs > li > a:hover {
-        border-bottom-color: #17414a!important;
-    }
-}
-
 @media screen and (max-width: 767px) {
     .table-responsive {
         border-color: #17414a;
@@ -687,4 +610,14 @@ div.metric.metric-default {
 
 .table-vertical tbody > tr > th {
     border-right-color: #17414a!important;
+}
+
+/* Bootstrap 5 parts drawn with images: the close button's cross and the arrow of a select */
+
+.btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+.form-select {
+    --bs-form-select-bg-img: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23a6c1c3' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
 }
