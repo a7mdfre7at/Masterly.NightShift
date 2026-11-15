@@ -10,13 +10,18 @@ public class TimelinePageFacts
     private readonly long _nowMs = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalMilliseconds;
 
     [Fact]
-    public void Render_WithoutActivity_ShowsTheEmptyMessage()
+    public void Render_WithoutActivity_ShowsAnEmptyStateThatSaysWhatToDoNext()
     {
         string html = _renderer.Render(new TimelinePage());
 
-        Assert.Contains($"{Encode(Strings.TimelinePage_Title)} <small class=\"text-muted\">{Encode(Strings.TimelinePage_Hint)}</small>", html);
-        Assert.Contains($"<div class=\"alert alert-info\">{Encode(Strings.TimelinePage_Empty)}</div>", html);
+        Assert.Contains("<header class=\"ns-page-head\">", html);
+        Assert.Contains($"<span class=\"ns-page-name\">{Encode(Strings.TimelinePage_Title)}</span></h1>", html);
+        Assert.Contains($"<p class=\"ns-page-subtitle\">{Encode(Strings.TimelinePage_Hint)}</p>", html);
+        Assert.Contains($"<h2 class=\"ns-empty-state-title\">{Encode(Strings.TimelinePage_Empty_Title)}</h2><p>{Encode(Strings.TimelinePage_Empty)}</p>", html);
+        Assert.Contains($"href=\"/catalog\">{Encode(Strings.NavigationMenu_Catalog)}</a>", html);
         Assert.DoesNotContain("hf-tl-track", html);
+        Assert.DoesNotContain("ns-run-list", html);
+        PageStructure.AssertHeadingsInOrder(html);
         _renderer.Connection.Verify(x => x.GetRangeFromList(ActivityFeed.ListKey, 0, ActivityFeed.MaxEntries - 1));
     }
 
@@ -29,9 +34,12 @@ public class TimelinePageFacts
 
         string html = _renderer.Render(new TimelinePage());
 
-        Assert.Contains("<p class=\"text-muted hf-tl-summary\">", html);
-        Assert.Contains("<i class=\"hf-tl-swatch hf-tl-held\"></i> " + Encode(Strings.TimelinePage_Legend_Held), html);
-        Assert.Contains("<i class=\"hf-tl-swatch hf-tl-running\"></i> " + Encode(Strings.TimelinePage_Running), html);
+        Assert.Contains("<h2 id=\"timeline-workers\">" + Encode(Strings.ServersPage_Table_Workers) + "</h2>", html);
+        Assert.Contains("<span class=\"ns-section-hint\">" + Encode(string.Format(Strings.TimelinePage_Summary, 1, 1, 1, "")).Split(' ')[0], html);
+        Assert.Contains("<i class=\"hf-tl-swatch hf-tl-succeeded\" aria-hidden=\"true\"></i> " + Encode(Strings.JobsSidebarMenu_Succeeded), html);
+        Assert.Contains("<i class=\"hf-tl-swatch hf-tl-held\" aria-hidden=\"true\"></i> " + Encode(Strings.TimelinePage_Legend_Held), html);
+        Assert.Contains("<i class=\"hf-tl-swatch hf-tl-running\" aria-hidden=\"true\"></i> " + Encode(Strings.TimelinePage_Running), html);
+        Assert.Contains("<div class=\"hf-card hf-tl\" role=\"group\" aria-labelledby=\"timeline-workers\">", html);
         Assert.Contains("class=\"hf-tl-tick hf-tl-tick-first\" style=\"left: 0%\"", html);
         Assert.Contains("class=\"hf-tl-tick \" style=\"left: 50%\"", html);
         Assert.Contains("class=\"hf-tl-tick hf-tl-tick-last\" style=\"left: 100%\"", html);
@@ -82,6 +90,33 @@ public class TimelinePageFacts
         Assert.Contains("title=\"" + Encode("Billing.Charge · Succeeded · "), html);
         Assert.Contains("title=\"" + Encode("4 · Scheduled · "), html);
         Assert.Contains("title=\"" + Encode($"5 · {Strings.TimelinePage_Running} · "), html);
+    }
+
+    [Fact]
+    public void Render_ListsTheRecentRuns_NewestFirst_WithTheirStateWorkerAndTimes()
+    {
+        SetupActivity(
+            Entry(-60000, "1", ProcessingState.StateName, "srv-1:a", "worker-aaaa-1111", "Billing.Charge"),
+            Entry(-50000, "1", SucceededState.StateName),
+            Entry(-45000, "2", ProcessingState.StateName, "srv-1:a", "worker-bbbb-2222"),
+            Entry(-40000, "2", FailedState.StateName),
+            Entry(-10000, "3", ProcessingState.StateName, "srv-1:a", "worker-aaaa-1111"));
+
+        string html = _renderer.Render(new TimelinePage());
+
+        Assert.Contains("<h2 id=\"timeline-runs\">" + Encode(Strings.TimelinePage_RecentRuns) + "</h2>", html);
+        Assert.Equal(3, CountOf(html, "<li class=\"ns-run\">"));
+        int running = html.IndexOf("<a class=\"job-method\" href=\"/jobs/details/3\">#3</a>", StringComparison.Ordinal);
+        int failed = html.IndexOf("<a class=\"job-method\" href=\"/jobs/details/2\">#2</a>", StringComparison.Ordinal);
+        int succeeded = html.IndexOf("<a class=\"job-method\" href=\"/jobs/details/1\">Billing.Charge</a>", StringComparison.Ordinal);
+        Assert.True(running > 0 && running < failed && failed < succeeded, $"{running} {failed} {succeeded}");
+        Assert.Contains("<span class=\"ns-dot ns-state-processing\" aria-hidden=\"true\"></span>", html);
+        Assert.Contains("<span class=\"ns-dot ns-state-failed\" aria-hidden=\"true\"></span>", html);
+        Assert.Contains("<span>" + Encode(Strings.TimelinePage_Running) + "</span>", html);
+        Assert.Contains("<code title=\"worker-aaaa-1111\">worker-a</code>", html);
+        Assert.Contains("<div class=\"ns-run-time\"><span data-moment=", html);
+        Assert.Contains("<span class=\"ns-time-exact\"><span data-moment-local=", html);
+        PageStructure.AssertHeadingsInOrder(html);
     }
 
     [Fact]

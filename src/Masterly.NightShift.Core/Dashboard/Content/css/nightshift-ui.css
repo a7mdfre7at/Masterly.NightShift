@@ -3586,76 +3586,9 @@ label.ns-required::after {
     margin-left: 4px;
 }
 
-.hf-maintenance {
-    padding: 4px 18px;
-}
-
-.hf-maintenance-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--hf-border);
-}
-
-.hf-maintenance-row:last-child {
-    border-bottom: none;
-}
-
-.hf-maintenance-row p {
-    margin: 2px 0 0;
-    font-size: 0.7813rem;
-}
-
-.hf-maintenance-row .btn {
-    white-space: nowrap;
-}
-
-/* Hosting card on the Servers page */
-
-.hf-hosting {
-    padding: 4px 18px;
-}
-
-.hf-hosting-item {
-    display: flex;
-    align-items: baseline;
-    gap: 16px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--hf-border);
-}
-
-.hf-hosting-item:last-child {
-    border-bottom: none;
-}
-
-.hf-hosting-label {
-    flex: 0 0 120px;
-    font-size: 0.7188rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .05em;
-    color: var(--hf-muted);
-}
-
-.hf-hosting-value .badge {
-    margin-right: 6px;
-}
-
+/* The danger zone's processing row while processing is paused */
 .hf-drain.hf-drain-active {
-    border-color: var(--hf-warning);
     background-image: linear-gradient(90deg, var(--hf-warning-soft), transparent 60%);
-}
-
-.hf-drain-form {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.hf-drain-form .form-control {
-    width: 220px;
 }
 
 /* Activity feed on the home page
@@ -4005,15 +3938,6 @@ label.ns-required::after {
 
     .hf-forecast-tick:nth-child(even) {
         display: none;
-    }
-
-    .hf-activity-method,
-    .hf-activity-server {
-        display: none;
-    }
-
-    .hf-drain-form {
-        flex-wrap: wrap;
     }
 }
 
@@ -4939,19 +4863,6 @@ body.hf-app.hf-wallboard {
 /* Timeline (worker swimlanes)
    ------------------------------------------------------------------ */
 
-.hf-tl-summary {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    align-items: center;
-}
-
-.hf-tl-legend {
-    display: inline-flex;
-    gap: 14px;
-    font-size: 0.75rem;
-}
-
 .hf-tl-swatch {
     display: inline-block;
     width: 12px;
@@ -5175,6 +5086,7 @@ body.hf-app.hf-wallboard {
 /* A segment grows with its share of the time (flex-grow, set by the page) from nothing, and is never narrower than
    min-width, so a short state stays visible; one whose label doesn't fit hides it (hf-state-seg-tight) */
 .hf-state-seg {
+    position: relative;
     display: block;
     flex: 0 1 0%;
     min-width: 12px;
@@ -7146,4 +7058,463 @@ tr.hf-row-focus .ns-row-actions,
     .hf-app .ns-step-args {
         max-width: 100%;
     }
+}
+
+/* Overview pages
+   ------------------------------------------------------------------
+   Home: the one band in the brand's gradient (ns-home-head, a faint tint over the card surface, so the text keeps
+   the on-surface roles and their contrast in both themes, with the gradient itself as a thin rule at its foot),
+   a tile per job state that links to its list (ns-home-tile), and the graphs with a legend and a summary. */
+
+.ns-home-head {
+    position: relative;
+    align-items: center;
+    padding: var(--md-sys-spacing-5) var(--md-sys-spacing-5) calc(var(--md-sys-spacing-5) + 3px);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-large);
+    background-color: var(--ns-surface-card);
+    background-image: linear-gradient(100deg, rgba(15, 110, 128, .12), rgba(95, 224, 200, .14));
+    overflow: hidden;
+}
+
+.ns-home-head::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background-image: var(--ns-brand-gradient);
+}
+
+.ns-home-head .ns-chip {
+    background-color: var(--ns-surface-card);
+}
+
+.ns-home-head .ns-chip strong {
+    color: var(--md-sys-color-on-surface);
+    font-variant-numeric: tabular-nums;
+}
+
+.ns-home-tiles {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
+}
+
+a.ns-home-tile {
+    transition: box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+        transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+}
+
+a.ns-home-tile:hover {
+    transform: translateY(-1px);
+}
+
+.ns-home-tile .ns-summary-value {
+    display: block;
+    font: var(--md-sys-typescale-headline-small);
+}
+
+.ns-home-tile .ns-summary-label .bi {
+    color: var(--ns-state-color, var(--md-sys-color-primary));
+}
+
+/* A graph: its legend above it, the canvas at a fixed height (Chart.js fills it), a sentence that sums it up under it */
+.ns-graph {
+    position: relative;
+    height: 18rem;
+}
+
+.ns-graph-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--md-sys-spacing-1) var(--md-sys-spacing-4);
+    margin: 0 0 var(--md-sys-spacing-3);
+    padding: 0;
+    list-style: none;
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ns-graph-legend > li {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-2);
+}
+
+.ns-graph-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: var(--md-sys-shape-corner-extra-small);
+    background-color: var(--ns-state-color);
+}
+
+.ns-graph-summary {
+    min-height: 1.25rem;
+    margin: var(--md-sys-spacing-3) 0 0;
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Live activity in the shape of the job lists: a state dot, the job and under it its id, server and reason; the
+   state chip and the time on the right */
+.hf-app .hf-activity {
+    max-height: 26rem;
+    padding: 0;
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.hf-app .hf-activity-row,
+.hf-app .hf-activity-empty {
+    gap: var(--md-sys-spacing-3);
+    min-height: 56px;
+    padding: var(--md-sys-spacing-2) var(--md-sys-spacing-4);
+    border-bottom-color: var(--ns-divider);
+    transition: background-color var(--md-sys-motion-duration-long2) var(--md-sys-motion-easing-standard);
+}
+
+.hf-app .hf-activity-new {
+    background-color: var(--md-sys-color-surface-container-low);
+}
+
+.hf-activity-main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.hf-app .hf-activity-main .ns-job-title {
+    flex-wrap: nowrap;
+}
+
+.hf-app .hf-activity-method {
+    padding: 0;
+    background: transparent;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-small);
+}
+
+.hf-app .hf-activity-job {
+    font: var(--md-sys-typescale-code-small);
+}
+
+.hf-app .hf-activity-main .ns-job-meta > * {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hf-app .hf-activity-server,
+.hf-app .hf-activity-reason {
+    flex: 0 1 auto;
+    font: inherit;
+    text-align: left;
+}
+
+.hf-app .hf-activity-state {
+    min-width: 0;
+}
+
+.hf-app .hf-activity-time {
+    min-width: 5.5rem;
+    font: var(--md-sys-typescale-body-small);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+/* Servers: a card per server. Its name and status, the busy workers on a meter in the brand gradient, the queues as
+   chips, when it started and its last heartbeat. A server without a recent heartbeat is muted (a dashed outline and
+   the variant text roles, never a lowered opacity, so its text keeps its contrast). */
+.ns-server-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+    gap: var(--md-sys-spacing-4);
+    margin-bottom: var(--md-sys-spacing-6);
+}
+
+.hf-app .ns-server-card {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: var(--md-sys-spacing-4);
+    transition: box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+}
+
+.hf-app .ns-server-card:hover {
+    box-shadow: var(--md-sys-elevation-level1);
+}
+
+.ns-server-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--md-sys-spacing-2) var(--md-sys-spacing-3);
+}
+
+.hf-app .ns-server-name {
+    margin: 0;
+    font: var(--md-sys-typescale-title-medium);
+    overflow-wrap: anywhere;
+}
+
+.ns-server-id {
+    display: block;
+    margin-top: 2px;
+    font: var(--md-sys-typescale-code-small);
+    color: var(--md-sys-color-on-surface-variant);
+    overflow-wrap: anywhere;
+}
+
+.ns-server-status {
+    flex: 0 0 auto;
+}
+
+.ns-chip.ns-server-status .ns-dot {
+    width: 10px;
+    height: 10px;
+}
+
+.ns-server-workers {
+    margin: var(--md-sys-spacing-4) 0 var(--md-sys-spacing-3);
+}
+
+.ns-server-workers-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--md-sys-spacing-2);
+    font: var(--md-sys-typescale-label-large);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ns-server-workers-head strong {
+    font: var(--md-sys-typescale-title-small);
+    color: var(--md-sys-color-on-surface);
+    font-variant-numeric: tabular-nums;
+}
+
+.ns-server-workers .ns-meter {
+    height: 8px;
+    margin-top: var(--md-sys-spacing-2);
+}
+
+.hf-app .ns-server-facts {
+    margin: 0;
+}
+
+.ns-server-queues {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--md-sys-spacing-1);
+}
+
+.ns-time-exact {
+    display: block;
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ns-server-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: auto;
+    padding-top: var(--md-sys-spacing-3);
+}
+
+.hf-app .ns-server-card.ns-server-stale {
+    border-style: dashed;
+    background-color: var(--md-sys-color-surface-container-low);
+}
+
+.hf-app .ns-server-stale .ns-server-name,
+.hf-app .ns-server-stale .ns-server-workers-head strong {
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.hf-app .ns-server-stale .ns-meter > span {
+    background-image: none;
+    background-color: var(--md-sys-color-outline);
+}
+
+.ns-server-status.ns-server-status-stale {
+    border-color: transparent;
+    background-color: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
+}
+
+.ns-server-status.ns-server-status-paused {
+    border-color: transparent;
+    background-color: var(--ns-state-processing-container);
+    color: var(--ns-state-on-processing-container);
+}
+
+.ns-hosting-card .ns-kv {
+    margin: 0;
+}
+
+.ns-danger-row .ns-drain-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--md-sys-spacing-2);
+}
+
+.ns-danger-row .ns-drain-form .form-control {
+    width: 14rem;
+    max-width: 100%;
+}
+
+.ns-danger-row .ns-state-chip {
+    vertical-align: middle;
+}
+
+/* Insights: the job table fits a 1024px window. Median, p95 and max share one column, the invoker and the last
+   run go under the job's name. */
+.hf-app .insights-table td.ns-job-cell {
+    min-width: 12rem;
+}
+
+.ns-insight-durations {
+    white-space: nowrap;
+}
+
+.ns-insight-durations .ns-job-meta {
+    justify-content: flex-end;
+}
+
+/* Timeline: the lanes keep their bars; the runs under them are a list of two-line rows */
+.ns-run-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ns-run {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-3);
+    min-height: 56px;
+    padding: var(--md-sys-spacing-2) var(--md-sys-spacing-4);
+    border-top: 1px solid var(--ns-divider);
+}
+
+.ns-run:first-child {
+    border-top: 0;
+}
+
+.ns-run-main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.ns-run-time {
+    flex: 0 0 auto;
+    text-align: right;
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.hf-app .ns-run .job-method {
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 599.98px) {
+    .ns-home-head {
+        padding: var(--md-sys-spacing-4) var(--md-sys-spacing-4) calc(var(--md-sys-spacing-4) + 3px);
+    }
+
+    .ns-graph {
+        height: 14rem;
+    }
+
+    .hf-app .hf-activity-state,
+    .hf-app .hf-activity-server {
+        display: none;
+    }
+
+    .ns-run {
+        flex-wrap: wrap;
+    }
+
+    .ns-run-time {
+        flex-basis: 100%;
+        padding-left: calc(8px + var(--md-sys-spacing-3));
+        text-align: left;
+    }
+}
+
+/* Wallboard: the board's title is its h1; below 600px the header wraps and the tiles go two by two */
+.hf-app h1.hf-wb-brand {
+    margin: 0;
+    font-size: 1.375rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.hf-wb-header {
+    flex-wrap: wrap;
+}
+
+.hf-app .ns-note-title {
+    margin: 0 0 var(--md-sys-spacing-1);
+    font: var(--md-sys-typescale-title-small);
+    color: var(--md-sys-color-on-surface);
+}
+
+.hf-app .ns-note-text > p {
+    margin: 0 0 var(--md-sys-spacing-2);
+}
+
+.hf-app .ns-kv .invoker-stats {
+    margin: 0;
+}
+
+@media (max-width: 599.98px) {
+    body.hf-app.hf-wallboard {
+        padding: var(--md-sys-spacing-4);
+    }
+
+    .hf-wb-header {
+        gap: var(--md-sys-spacing-3);
+    }
+
+    .hf-app h1.hf-wb-brand {
+        flex: 1 1 100%;
+        font-size: 1.125rem;
+    }
+
+    .hf-wb-status {
+        padding: 6px 14px;
+        font-size: 1rem;
+    }
+
+    .hf-wb-time {
+        font-size: 1.5rem;
+    }
+
+    .hf-wb-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--md-sys-spacing-3);
+    }
+
+    .hf-wb-tile {
+        padding: var(--md-sys-spacing-4);
+    }
+
+    .hf-wb-card {
+        grid-column: 1 / -1;
+    }
+
+    .hf-wb-value {
+        font-size: 2rem;
+    }
+}
+
+/* The board is as tall as its content, so its background runs under all of it */
+body.hf-app.hf-wallboard {
+    height: auto;
+}
+
+.hf-app code.ns-server-id {
+    padding: 0;
+    background: transparent;
 }

@@ -25,30 +25,43 @@
     ClusterTimeline timeline = ClusterTimeline.Build(entries, nowMs, TimeSpan.FromMinutes(15));
     long windowMs = Math.Max(1, timeline.ToMs - timeline.FromMs);
     const int ticks = 6;
+
+    // The latest runs, newest first, from the lanes the page has read already
+    List<KeyValuePair<TimelineLane, TimelineSpan>> recentRuns = timeline.Lanes
+        .SelectMany(lane => lane.Spans.Select(span => new KeyValuePair<TimelineLane, TimelineSpan>(lane, span)))
+        .OrderByDescending(x => x.Value.StartMs)
+        .Take(25)
+        .ToList();
 }
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="hf-page-header">@Strings.TimelinePage_Title <small class="text-muted">@Strings.TimelinePage_Hint</small></h1>
+        <header class="ns-page-head">
+            <div class="ns-page-heading">
+                @Html.PageTitle(Strings.TimelinePage_Title)
+                <p class="ns-page-subtitle">@Strings.TimelinePage_Hint</p>
+            </div>
+        </header>
 
         @if (timeline.IsEmpty)
         {
-            <div class="alert alert-info">@Strings.TimelinePage_Empty</div>
+            @Html.EmptyState("list-task", Strings.TimelinePage_Empty_Title, Strings.TimelinePage_Empty, Url.To("/catalog"), Strings.NavigationMenu_Catalog)
         }
         else
         {
-            <p class="text-muted hf-tl-summary">
-                @String.Format(Strings.TimelinePage_Summary, timeline.Runs, timeline.Lanes.Count, timeline.Servers, Html.ToHumanDuration(timeline.Window, false))
-                <span class="hf-tl-legend">
-                    <span><i class="hf-tl-swatch hf-tl-succeeded"></i> @SucceededState.StateName</span>
-                    <span><i class="hf-tl-swatch hf-tl-failed"></i> @FailedState.StateName</span>
-                    <span><i class="hf-tl-swatch hf-tl-held"></i> @Strings.TimelinePage_Legend_Held</span>
-                    <span><i class="hf-tl-swatch hf-tl-deleted"></i> @DeletedState.StateName</span>
-                    <span><i class="hf-tl-swatch hf-tl-running"></i> @Strings.TimelinePage_Running</span>
-                </span>
-            </p>
+            <div class="ns-section-head">
+                <h2 id="timeline-workers">@Strings.ServersPage_Table_Workers</h2>
+                <span class="ns-section-hint">@String.Format(Strings.TimelinePage_Summary, timeline.Runs, timeline.Lanes.Count, timeline.Servers, Html.ToHumanDuration(timeline.Window, false))</span>
+            </div>
+            <ul class="ns-graph-legend hf-tl-legend">
+                <li><i class="hf-tl-swatch hf-tl-succeeded" aria-hidden="true"></i> @Strings.JobsSidebarMenu_Succeeded</li>
+                <li><i class="hf-tl-swatch hf-tl-failed" aria-hidden="true"></i> @Strings.JobsSidebarMenu_Failed</li>
+                <li><i class="hf-tl-swatch hf-tl-held" aria-hidden="true"></i> @Strings.TimelinePage_Legend_Held</li>
+                <li><i class="hf-tl-swatch hf-tl-deleted" aria-hidden="true"></i> @Strings.JobsSidebarMenu_Deleted</li>
+                <li><i class="hf-tl-swatch hf-tl-running" aria-hidden="true"></i> @Strings.TimelinePage_Running</li>
+            </ul>
 
-            <div class="hf-card hf-tl" aria-describedby="page-title">
+            <div class="hf-card hf-tl" role="group" aria-labelledby="timeline-workers">
                 <div class="hf-tl-row hf-tl-axis">
                     <div class="hf-tl-label"></div>
                     <div class="hf-tl-track">
@@ -87,6 +100,34 @@
                     </div>
                 }
             </div>
+
+            @* The same runs as a list: the state's dot, the job, where it ran, and when *@
+            <section class="hf-card ns-table-card" aria-labelledby="timeline-runs">
+                <div class="hf-card-header">
+                    <h2 id="timeline-runs">@Strings.TimelinePage_RecentRuns</h2>
+                </div>
+                <ol class="ns-run-list">
+                    @foreach (KeyValuePair<TimelineLane, TimelineSpan> run in recentRuns)
+                    {
+                        TimelineSpan span = run.Value;
+                        string state = span.Outcome ?? ProcessingState.StateName;
+                        DateTime startedAt = DateTimeOffset.FromUnixTimeMilliseconds(span.StartMs).UtcDateTime;
+                        <li class="ns-run">
+                            @Html.StateDot(state)
+                            <div class="ns-run-main">
+                                <div class="ns-job-title"><a class="job-method" href="@Url.JobDetails(span.JobId)">@(span.Method ?? "#" + span.JobId)</a></div>
+                                <div class="ns-job-meta">
+                                    <span class="ns-job-id">#@span.JobId</span>
+                                    @Html.StateLabel(state, span.IsRunning ? Strings.TimelinePage_Running : span.Outcome)
+                                    <span>@Html.ToHumanDuration(TimeSpan.FromMilliseconds(span.DurationMs), false)</span>
+                                    <span>@Html.ServerId(run.Key.ServerId) <code title="@run.Key.WorkerId">@run.Key.ShortWorkerId</code></span>
+                                </div>
+                            </div>
+                            <div class="ns-run-time">@Html.RelativeTime(startedAt) <span class="ns-time-exact">@Html.LocalTime(startedAt)</span></div>
+                        </li>
+                    }
+                </ol>
+            </section>
         }
     </div>
 </div>

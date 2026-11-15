@@ -2236,4 +2236,37 @@
   <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
     <value>É colocado na fila e executado novamente. O histórico mantém todos os estados por que passou.</value>
   </data>
+  <data name="Common_DangerZone" xml:space="preserve">
+    <value>Zona de perigo</value>
+  </data>
+  <data name="HomePage_Kpi_Queues" xml:space="preserve">
+    <value>Filas: {0}</value>
+  </data>
+  <data name="HomePage_GraphSummary_LastMinute" xml:space="preserve">
+    <value>Último minuto: {0} concluídos, {1} com falha</value>
+  </data>
+  <data name="HomePage_GraphSummary_Day" xml:space="preserve">
+    <value>Últimas 24 horas: {0} concluídos, {1} com falha</value>
+  </data>
+  <data name="HomePage_GraphSummary_Week" xml:space="preserve">
+    <value>Últimos 7 dias: {0} concluídos, {1} com falha</value>
+  </data>
+  <data name="ServersPage_BusyWorkers" xml:space="preserve">
+    <value>Workers ocupados</value>
+  </data>
+  <data name="ServersPage_WorkersBusy" xml:space="preserve">
+    <value>{0} de {1} ocupados</value>
+  </data>
+  <data name="ServersPage_NoServers_Title" xml:space="preserve">
+    <value>Nenhum servidor ativo</value>
+  </data>
+  <data name="ServersPage_NoServers_Next" xml:space="preserve">
+    <value>Os trabalhos esperam nas filas até que um servidor seja executado. Inicie um na sua aplicação com AddNightShiftServer() ou um BackgroundJobServer.</value>
+  </data>
+  <data name="TimelinePage_RecentRuns" xml:space="preserve">
+    <value>Execuções recentes</value>
+  </data>
+  <data name="TimelinePage_Empty_Title" xml:space="preserve">
+    <value>Ainda não há execuções</value>
+  </data>
 </root>

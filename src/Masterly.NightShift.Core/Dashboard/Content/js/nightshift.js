@@ -69,6 +69,8 @@
         y.stacked = true;
 
         return {
+            // The graph fills its container (.ns-graph), whose height the stylesheet sets
+            maintainAspectRatio: false,
             scales: { x: x, y: y },
             elements: { line: { tension: 0 }, point: { radius: 0 } },
             plugins: {
@@ -1378,6 +1380,20 @@
             this._last = now;
         };
 
+        // The jobs that succeeded and failed in the minute the graph shows
+        RealtimeGraph.prototype.totals = function () {
+            var min = this._range(Date.now()).min;
+            var sum = function (data) {
+                var total = 0;
+                for (var i = 0; i < data.length; i++) {
+                    if (data[i].x > min) total += data[i].y;
+                }
+                return total;
+            };
+            var datasets = this._chart.data.datasets;
+            return { failed: sum(datasets[0].data), succeeded: sum(datasets[2].data) };
+        };
+
         RealtimeGraph.prototype.changeDatasetColorScheme = changeDatasetColorScheme;
 
         RealtimeGraph.prototype._range = function (now) {
@@ -1943,8 +1959,14 @@
                 var deletedStr = $(realtimeElement).data('deleted-string');
                 var realtimeGraph = new NightShift.RealtimeGraph(realtimeElement, succeeded, failed, deleted, succeededStr, failedStr, deletedStr, pollInterval);
 
+                // The sentence under the graph: what the points it shows add up to
+                var summary = $(realtimeElement).closest('.hf-card').find('.js-graph-summary');
                 this._poller.addListener(function (data) {
                     realtimeGraph.appendHistory(data);
+                    if (summary.length) {
+                        var totals = realtimeGraph.totals();
+                        summary.text(format(summary.attr('data-format'), totals.succeeded, totals.failed));
+                    }
                 });
 
                 // The card's "Pause graph" switch
@@ -3041,15 +3063,29 @@
 
             this._list.find('.hf-activity-empty').remove();
 
+            // A row of the job lists: the state's dot, the job (its method, or its id) and under it the id, the
+            // server and the reason; the state chip and the time on the right
             var row = $('<li>').addClass('hf-activity-row' + (animate ? ' hf-activity-new' : ''));
-            row.append($('<time>').addClass('hf-activity-time').attr('title', NightShiftIntl.format(entry.t, 'dateTimeWithSeconds')).text(NightShiftIntl.format(entry.t, 'timeWithSeconds')));
             var chip = STATE_CHIPS[entry.s];
+            row.append($('<span>').addClass('ns-dot' + (chip ? ' ns-state-' + chip[0] : '')).attr('aria-hidden', 'true'));
+
+            var href = this._jobUrl + nightshift.routeValue(entry.j);
+            var main = $('<div>').addClass('hf-activity-main');
+            var link = $('<a>').attr('href', href);
+            if (entry.m) link.addClass('hf-activity-method').text(entry.m); else link.addClass('hf-activity-job').text('#' + entry.j);
+            main.append($('<div>').addClass('ns-job-title').append(link));
+
+            var meta = $('<div>').addClass('ns-job-meta');
+            if (entry.m) meta.append($('<span>').addClass('ns-job-id hf-activity-job').text('#' + entry.j));
+            if (entry.v) meta.append($('<span>').addClass('hf-activity-server').text(entry.v));
+            if (entry.r) meta.append($('<span>').addClass('hf-activity-reason').attr('title', entry.r).text(entry.r));
+            if (meta.children().length) main.append(meta);
+            row.append(main);
+
             row.append($('<span>').addClass('ns-state-chip hf-activity-state' + (chip ? ' ns-state-' + chip[0] : ''))
                 .append(nightshift.icon(chip ? chip[1] : 'circle-fill')).append($('<span>').text(entry.s)));
-            row.append($('<a>').addClass('hf-activity-job').attr('href', this._jobUrl + nightshift.routeValue(entry.j)).text('#' + entry.j));
-            if (entry.m) row.append($('<code>').addClass('hf-activity-method').text(entry.m));
-            if (entry.v) row.append($('<span>').addClass('text-muted hf-activity-server').text(entry.v));
-            if (entry.r) row.append($('<span>').addClass('text-muted hf-activity-reason').attr('title', entry.r).text(entry.r));
+            row.append($('<time>').addClass('hf-activity-time').attr('datetime', new Date(entry.t).toISOString())
+                .attr('title', NightShiftIntl.format(entry.t, 'dateTimeWithSeconds')).text(NightShiftIntl.format(entry.t, 'timeWithSeconds')));
 
             this._list.prepend(row);
             var old = this._list.children().slice(MAX_ROWS);

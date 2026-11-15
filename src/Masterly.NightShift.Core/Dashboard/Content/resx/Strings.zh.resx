@@ -2189,4 +2189,37 @@
   <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
     <value>它会排入队列并再次运行。历史记录会保留它经历过的每个状态。</value>
   </data>
+  <data name="Common_DangerZone" xml:space="preserve">
+    <value>危险区域</value>
+  </data>
+  <data name="HomePage_Kpi_Queues" xml:space="preserve">
+    <value>队列：{0}</value>
+  </data>
+  <data name="HomePage_GraphSummary_LastMinute" xml:space="preserve">
+    <value>最近一分钟：{0} 个成功，{1} 个失败</value>
+  </data>
+  <data name="HomePage_GraphSummary_Day" xml:space="preserve">
+    <value>最近 24 小时：{0} 个成功，{1} 个失败</value>
+  </data>
+  <data name="HomePage_GraphSummary_Week" xml:space="preserve">
+    <value>最近 7 天：{0} 个成功，{1} 个失败</value>
+  </data>
+  <data name="ServersPage_BusyWorkers" xml:space="preserve">
+    <value>繁忙的工作线程</value>
+  </data>
+  <data name="ServersPage_WorkersBusy" xml:space="preserve">
+    <value>{1} 个中有 {0} 个繁忙</value>
+  </data>
+  <data name="ServersPage_NoServers_Title" xml:space="preserve">
+    <value>没有活动的服务器</value>
+  </data>
+  <data name="ServersPage_NoServers_Next" xml:space="preserve">
+    <value>作业会在队列中等待，直到有服务器运行。请在应用程序中使用 AddNightShiftServer() 或 BackgroundJobServer 启动一个。</value>
+  </data>
+  <data name="TimelinePage_RecentRuns" xml:space="preserve">
+    <value>最近的运行</value>
+  </data>
+  <data name="TimelinePage_Empty_Title" xml:space="preserve">
+    <value>尚无运行</value>
+  </data>
 </root>

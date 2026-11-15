@@ -12,7 +12,8 @@
 @using Masterly.NightShift.Storage.Monitoring
 @inherits RazorPage
 @{
-    // A full-screen status board for a wall display: no navigation, large numbers, refreshes itself.
+    // A full-screen status board for a wall display: no navigation, large numbers, refreshes itself: the script at
+    // the end fetches the page again and swaps its content, and waits while the tab is hidden.
     // It is always dark, whatever DarkModeEnabled says (data-theme="dark" and the dark stylesheet for all media):
     // a dark screen is easier to read from across a room and doesn't light it up.
     const int refreshSeconds = 10;
@@ -85,17 +86,25 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="none">
-    <meta http-equiv="refresh" content="@refreshSeconds">
+    @if (!string.IsNullOrWhiteSpace(DashboardOptions.FaviconPath))
+    {
+        <link rel="shortcut icon" href="@DashboardOptions.FaviconPath" type="image/x-icon">
+    }
+    else
+    {
+        @* No request for /favicon.ico, which the application may not serve *@
+        <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
+    }
     <link rel="stylesheet" href="@Url.To($"/css{version.Major}{version.Minor}{version.Build}0{Math.Abs(DashboardRoutes.StylesheetsHashCode)}")">
     <link rel="stylesheet" media="all" href="@Url.To($"/css-dark{version.Major}{version.Minor}{version.Build}0{Math.Abs(DashboardRoutes.StylesheetsDarkModeHashCode)}")">
 </head>
-<body class="hf-app hf-wallboard @statusClass">
+<body class="hf-app hf-wallboard @statusClass" data-refresh="@(refreshSeconds * 1000)">
     <header class="hf-wb-header">
-        <div class="hf-wb-brand">
+        <h1 class="hf-wb-brand">
             <span class="hf-brand-mark" aria-hidden="true"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="hf-logo-sky" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#145A6B"/><stop offset="1" stop-color="#0A2530"/></linearGradient><mask id="hf-logo-moon"><rect width="256" height="256" fill="#000"/><circle cx="122" cy="132" r="58" fill="#fff"/><circle cx="152" cy="112" r="50" fill="#000"/></mask></defs><rect width="256" height="256" rx="58" fill="url(#hf-logo-sky)"/><circle cx="128" cy="128" r="86" fill="none" stroke="#5FE0C8" stroke-opacity=".28" stroke-width="12"/><path d="M128 42A86 86 0 1 1 53.5 171" fill="none" stroke="#5FE0C8" stroke-width="12" stroke-linecap="round"/><rect width="256" height="256" fill="#F6E9CF" mask="url(#hf-logo-moon)"/><circle cx="53.5" cy="171" r="17" fill="#FF7A45"/></svg></span>
-            <span>@Html.Raw(DashboardOptions.DashboardTitle)</span>
-        </div>
-        <div class="hf-wb-status"><span class="hf-wb-status-dot"></span>@statusText</div>
+            <span>@Html.Raw(DashboardOptions.DashboardTitle)<span class="visually-hidden"> – @Strings.WallboardPage_Title</span></span>
+        </h1>
+        <div class="hf-wb-status js-wb-status" role="status"><span class="hf-wb-status-dot" aria-hidden="true"></span>@statusText</div>
         <div class="hf-wb-clock">
             @* Shown in the viewer's time zone by the script below; without it, in UTC and labeled so *@
             <span class="hf-wb-time" data-moment-local="@JobHelper.ToTimestamp(now)" data-moment-local-format="time">@now.ToString("HH:mm", CultureInfo.CurrentCulture) UTC</span>
@@ -103,7 +112,7 @@
         </div>
     </header>
 
-    <main class="hf-wb-grid">
+    <main class="hf-wb-grid js-wb-content">
         <section class="hf-wb-tile hf-wb-tile-servers">
             <div class="hf-wb-value">@report.Servers</div>
             <div class="hf-wb-label">@Strings.WallboardPage_Servers</div>
@@ -204,8 +213,76 @@
         </section>
     </main>
 
-    <footer class="hf-wb-footer">@String.Format(Strings.WallboardPage_Refresh, refreshSeconds) &middot; @Strings.LayoutPage_Footer_StorageTime @now.ToString("u", CultureInfo.InvariantCulture)</footer>
+    <footer class="hf-wb-footer js-wb-footer">@String.Format(Strings.WallboardPage_Refresh, refreshSeconds) &middot; @Strings.LayoutPage_Footer_StorageTime @now.ToString("u", CultureInfo.InvariantCulture)</footer>
     <script src="@Url.To($"/js-intl{version.Major}{version.Minor}{version.Build}0{Math.Abs(DashboardRoutes.JavaScriptsHashCode)}")"></script>
-    <script>(function(){if(!window.NightShiftIntl)return;NightShiftIntl.setLocale(document.documentElement.lang);var e=document.querySelectorAll('[data-moment-local]');for(var i=0;i<e.length;i++){var t=Number(e[i].getAttribute('data-moment-local'));if(t)e[i].textContent=NightShiftIntl.format(t*1000,e[i].getAttribute('data-moment-local-format')||'numericDateTime');}})();</script>
+    @* Times in the viewer's time zone, then a refresh every few seconds without reloading the page: the board is
+       fetched again and its status, content, clock and footer swapped in. Nothing is fetched while the tab is
+       hidden, and the board is fetched at once when it shows again; after a failed fetch the next one waits
+       longer, up to a minute, as the dashboard's statistics poller does. *@
+    <script>
+        (function () {
+            function localTimes(root) {
+                if (!window.NightShiftIntl) return;
+                var e = root.querySelectorAll('[data-moment-local]');
+                for (var i = 0; i < e.length; i++) {
+                    var t = Number(e[i].getAttribute('data-moment-local'));
+                    if (t) e[i].textContent = NightShiftIntl.format(t * 1000, e[i].getAttribute('data-moment-local-format') || 'numericDateTime');
+                }
+            }
+
+            if (window.NightShiftIntl) NightShiftIntl.setLocale(document.documentElement.lang);
+            localTimes(document);
+
+            var interval = Number(document.body.getAttribute('data-refresh')) || 10000;
+            var failures = 0;
+            var timer = null;
+            var busy = false;
+
+            function swap(next, selector) {
+                var from = next.querySelector(selector), to = document.querySelector(selector);
+                // Only what changed, so the status isn't read out again when it stays the same
+                if (from && to && to.innerHTML !== from.innerHTML) to.innerHTML = from.innerHTML;
+            }
+
+            function schedule() {
+                clearTimeout(timer);
+                var delay = failures === 0 ? interval : Math.min(interval * Math.pow(2, Math.min(failures, 6)), 60000);
+                timer = setTimeout(refresh, delay);
+            }
+
+            function refresh() {
+                if (document.hidden || busy || !window.fetch || !window.DOMParser) return;
+                busy = true;
+                fetch(location.href, { cache: 'no-store', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(function (response) {
+                        if (!response.ok) throw new Error(response.status);
+                        return response.text();
+                    })
+                    .then(function (html) {
+                        var next = new DOMParser().parseFromString(html, 'text/html');
+                        if (!next.body || !next.querySelector('.js-wb-content')) throw new Error('not the wallboard');
+                        document.body.className = next.body.className;
+                        swap(next, '.js-wb-status');
+                        swap(next, '.js-wb-content');
+                        swap(next, '.hf-wb-clock');
+                        swap(next, '.js-wb-footer');
+                        localTimes(document);
+                        failures = 0;
+                    })
+                    .catch(function () { failures++; })
+                    .then(function () { busy = false; schedule(); });
+            }
+
+            document.addEventListener('visibilitychange', function () {
+                if (document.hidden) {
+                    clearTimeout(timer);
+                } else {
+                    refresh();
+                }
+            });
+
+            schedule();
+        })();
+    </script>
 </body>
 </html>

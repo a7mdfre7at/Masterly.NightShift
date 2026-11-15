@@ -39,6 +39,7 @@ public static class DashboardMetrics
         AddMetric(FailedCount);
         AddMetric(DeletedCount);
         AddMetric(AwaitingCount);
+        AddMetric(EnqueuedCount);
     }
 
     public static void AddMetric([NotNull] DashboardMetric metric)
@@ -136,6 +137,12 @@ public static class DashboardMetrics
             Style = page.Statistics.Enqueued > 0 ? MetricStyle.Info : MetricStyle.Default,
             Highlighted = page.Statistics.Enqueued > 0
         });
+
+    // The plain number of enqueued jobs, which the home page's Enqueued tile keeps up to date
+    internal static readonly DashboardMetric EnqueuedCount = new(
+        "enqueued:count",
+        "Metrics_EnqueuedCountOrNull",
+        static page => new Metric(page.Statistics.Enqueued));
 
     public static readonly DashboardMetric ScheduledCount = new(
         "scheduled:count",

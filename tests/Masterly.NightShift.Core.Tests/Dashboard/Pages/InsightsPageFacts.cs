@@ -49,11 +49,13 @@ public class InsightsPageFacts
     {
         string html = _renderer.Render(new InsightsPage());
 
-        Assert.Contains("insights-summary", html);
-        Assert.Contains("<div class=\"insights-tile-value\">0</div>", html);
-        Assert.Contains("<div class=\"insights-tile-value\">–</div>", html);
+        Assert.Contains("<header class=\"ns-page-head\">", html);
+        Assert.Contains("<div class=\"ns-summary insights-summary\">", html);
+        Assert.Contains("<p class=\"ns-summary-value insights-tile-value\">0</p>", html);
+        Assert.Contains("<p class=\"ns-summary-value insights-tile-value\">–</p>", html);
         Assert.DoesNotContain("insights-tile-danger", html);
-        Assert.Contains(Strings.InsightsPage_NoData_Html, html);
+        Assert.Contains("<span class=\"ns-note-text\">" + Strings.InsightsPage_NoData_Html + "</span>", html);
+        PageStructure.AssertHeadingsInOrder(html);
         Assert.DoesNotContain("id=\"insights-anomalies\"", html);
         Assert.DoesNotContain("id=\"insights-circuits\"", html);
         Assert.DoesNotContain("id=\"insights-jobs\"", html);
@@ -89,7 +91,8 @@ public class InsightsPageFacts
         Assert.Contains("<span class=\"badge text-bg-danger\">" + H(string.Format(Strings.InsightsPage_Anomaly_FailureRate, 0.5.ToString("P0"))) + "</span>", html);
         Assert.Equal(1, CountOf(html, "<span class=\"hf-anomaly-link\">"));
         Assert.Contains("<span class=\"hf-anomaly-link\"><a href=\"/jobs/details/42\">#42</a></span>", html);
-        Assert.Contains("insights-tile insights-tile-danger", html);
+        Assert.Contains("ns-summary-tile ns-state-failed insights-tile-danger", html);
+        PageStructure.AssertHeadingsInOrder(html);
     }
 
     [Fact]
@@ -105,13 +108,34 @@ public class InsightsPageFacts
         Assert.Contains("<span class=\"badge text-bg-danger\">10 (" + 0.5.ToString("P0"), html);
         Assert.Contains("<span class=\"badge text-bg-warning\">1 (" + 0.1.ToString("P0"), html);
         Assert.Contains("<span class=\"badge text-bg-secondary\">0 (" + 0d.ToString("P0"), html);
-        Assert.Contains("<span class=\"badge text-bg-success\">Generated</span>", html);
-        Assert.Contains("<span class=\"badge text-bg-info\">Compiled</span>", html);
-        Assert.Contains("<span class=\"badge text-bg-secondary\">Reflection</span>", html);
+        Assert.Contains("<span class=\"badge text-bg-success\" title=\"" + H(Strings.InsightsPage_Table_Invoker) + "\">Generated</span>", html);
+        Assert.Contains("<span class=\"badge text-bg-info\" title=\"" + H(Strings.InsightsPage_Table_Invoker) + "\">Compiled</span>", html);
+        Assert.Contains("<span class=\"badge text-bg-secondary\" title=\"" + H(Strings.InsightsPage_Table_Invoker) + "\">Reflection</span>", html);
         Assert.Contains("title=\"" + H(Strings.InsightsPage_SlowRun_Tooltip) + "\"", html);
         Assert.Contains("<a href=\"/jobs/details/42\" class=\"text-decoration-none\"><span data-moment=", html);
         Assert.Contains("sparkline-last sparkline-last-failed", html);
         Assert.Contains("<circle class=\"sparkline-last\"", html);
+    }
+
+    [Fact]
+    public void Render_FitsTheJobTable_ToANarrowWindow_WithSectionHeads()
+    {
+        AddAnomalousInsight();
+        AddHealthyInsight();
+
+        string html = _renderer.Render(new InsightsPage());
+
+        // Five columns: the invoker and the last run go under the job, the three durations share one column
+        string table = Section(html, "<table class=\"table insights-table ns-table-reflow\"");
+        table = table[..table.IndexOf("</thead>", StringComparison.Ordinal)];
+        Assert.Equal(5, CountOf(table, "<th scope=\"col\""));
+        Assert.Contains("<section class=\"hf-card ns-table-card\" aria-labelledby=\"insights-jobs\">", html);
+        Assert.Contains("<div class=\"ns-section-head\">\r\n                    <h2 id=\"insights-anomalies\">", html);
+        Assert.Contains("<div class=\"ns-section-head\">\r\n                    <h2 id=\"insights-heatmap\">", html);
+        Assert.Contains("<td class=\"ns-job-cell word-break\">", html);
+        Assert.Contains("<td class=\"min-width align-right ns-insight-durations\">", html);
+        PageStructure.AssertHeadingsInOrder(html);
+        PageStructure.AssertNoEmptyHeaderCells(html);
     }
 
     [Fact]

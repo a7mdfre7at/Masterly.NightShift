@@ -2179,4 +2179,37 @@
   <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
     <value>Es posa a la cua i torna a executar-se. El seu historial conserva tots els estats per on ha passat.</value>
   </data>
+  <data name="Common_DangerZone" xml:space="preserve">
+    <value>Zona de perill</value>
+  </data>
+  <data name="HomePage_Kpi_Queues" xml:space="preserve">
+    <value>Cues: {0}</value>
+  </data>
+  <data name="HomePage_GraphSummary_LastMinute" xml:space="preserve">
+    <value>Últim minut: {0} completades, {1} fallides</value>
+  </data>
+  <data name="HomePage_GraphSummary_Day" xml:space="preserve">
+    <value>Últimes 24 hores: {0} completades, {1} fallides</value>
+  </data>
+  <data name="HomePage_GraphSummary_Week" xml:space="preserve">
+    <value>Últims 7 dies: {0} completades, {1} fallides</value>
+  </data>
+  <data name="ServersPage_BusyWorkers" xml:space="preserve">
+    <value>Treballadors ocupats</value>
+  </data>
+  <data name="ServersPage_WorkersBusy" xml:space="preserve">
+    <value>{0} de {1} ocupats</value>
+  </data>
+  <data name="ServersPage_NoServers_Title" xml:space="preserve">
+    <value>No hi ha servidors actius</value>
+  </data>
+  <data name="ServersPage_NoServers_Next" xml:space="preserve">
+    <value>Les tasques esperen a les cues fins que s'executa un servidor. Inicieu-ne un a l'aplicació amb AddNightShiftServer() o un BackgroundJobServer.</value>
+  </data>
+  <data name="TimelinePage_RecentRuns" xml:space="preserve">
+    <value>Execucions recents</value>
+  </data>
+  <data name="TimelinePage_Empty_Title" xml:space="preserve">
+    <value>Encara no hi ha execucions</value>
+  </data>
 </root>

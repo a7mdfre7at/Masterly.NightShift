@@ -2181,4 +2181,37 @@
   <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
     <value>Er wird eingereiht und läuft erneut. Sein Verlauf behält jeden Zustand, den er durchlaufen hat.</value>
   </data>
+  <data name="Common_DangerZone" xml:space="preserve">
+    <value>Gefahrenbereich</value>
+  </data>
+  <data name="HomePage_Kpi_Queues" xml:space="preserve">
+    <value>Warteschlangen: {0}</value>
+  </data>
+  <data name="HomePage_GraphSummary_LastMinute" xml:space="preserve">
+    <value>Letzte Minute: {0} erfolgreich, {1} fehlgeschlagen</value>
+  </data>
+  <data name="HomePage_GraphSummary_Day" xml:space="preserve">
+    <value>Letzte 24 Stunden: {0} erfolgreich, {1} fehlgeschlagen</value>
+  </data>
+  <data name="HomePage_GraphSummary_Week" xml:space="preserve">
+    <value>Letzte 7 Tage: {0} erfolgreich, {1} fehlgeschlagen</value>
+  </data>
+  <data name="ServersPage_BusyWorkers" xml:space="preserve">
+    <value>Beschäftigte Worker</value>
+  </data>
+  <data name="ServersPage_WorkersBusy" xml:space="preserve">
+    <value>{0} von {1} beschäftigt</value>
+  </data>
+  <data name="ServersPage_NoServers_Title" xml:space="preserve">
+    <value>Keine aktiven Server</value>
+  </data>
+  <data name="ServersPage_NoServers_Next" xml:space="preserve">
+    <value>Jobs warten in ihren Warteschlangen, bis ein Server läuft. Starten Sie einen in Ihrer Anwendung mit AddNightShiftServer() oder einem BackgroundJobServer.</value>
+  </data>
+  <data name="TimelinePage_RecentRuns" xml:space="preserve">
+    <value>Letzte Ausführungen</value>
+  </data>
+  <data name="TimelinePage_Empty_Title" xml:space="preserve">
+    <value>Noch keine Ausführungen</value>
+  </data>
 </root>

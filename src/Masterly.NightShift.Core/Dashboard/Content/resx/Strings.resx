@@ -2303,4 +2303,37 @@
   <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
     <value>It is enqueued and runs again. Its history keeps every state it went through.</value>
   </data>
+  <data name="Common_DangerZone" xml:space="preserve">
+    <value>Danger zone</value>
+  </data>
+  <data name="HomePage_Kpi_Queues" xml:space="preserve">
+    <value>Queues: {0}</value>
+  </data>
+  <data name="HomePage_GraphSummary_LastMinute" xml:space="preserve">
+    <value>Last minute: {0} succeeded, {1} failed</value>
+  </data>
+  <data name="HomePage_GraphSummary_Day" xml:space="preserve">
+    <value>Last 24 hours: {0} succeeded, {1} failed</value>
+  </data>
+  <data name="HomePage_GraphSummary_Week" xml:space="preserve">
+    <value>Last 7 days: {0} succeeded, {1} failed</value>
+  </data>
+  <data name="ServersPage_BusyWorkers" xml:space="preserve">
+    <value>Busy workers</value>
+  </data>
+  <data name="ServersPage_WorkersBusy" xml:space="preserve">
+    <value>{0} of {1} busy</value>
+  </data>
+  <data name="ServersPage_NoServers_Title" xml:space="preserve">
+    <value>No active servers</value>
+  </data>
+  <data name="ServersPage_NoServers_Next" xml:space="preserve">
+    <value>Jobs wait in their queues until a server runs. Start one in your application with AddNightShiftServer() or a BackgroundJobServer.</value>
+  </data>
+  <data name="TimelinePage_RecentRuns" xml:space="preserve">
+    <value>Recent runs</value>
+  </data>
+  <data name="TimelinePage_Empty_Title" xml:space="preserve">
+    <value>No runs yet</value>
+  </data>
 </root>

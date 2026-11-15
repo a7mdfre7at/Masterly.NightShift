@@ -2203,4 +2203,37 @@ Vous devriez les remettre en file d'attente ou les supprimer manuellement, ou ap
   <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
     <value>Elle est mise en file d'attente et s'exécute à nouveau. Son historique conserve tous les états par lesquels elle est passée.</value>
   </data>
+  <data name="Common_DangerZone" xml:space="preserve">
+    <value>Zone de danger</value>
+  </data>
+  <data name="HomePage_Kpi_Queues" xml:space="preserve">
+    <value>Files : {0}</value>
+  </data>
+  <data name="HomePage_GraphSummary_LastMinute" xml:space="preserve">
+    <value>Dernière minute : {0} réussies, {1} en échec</value>
+  </data>
+  <data name="HomePage_GraphSummary_Day" xml:space="preserve">
+    <value>Dernières 24 heures : {0} réussies, {1} en échec</value>
+  </data>
+  <data name="HomePage_GraphSummary_Week" xml:space="preserve">
+    <value>7 derniers jours : {0} réussies, {1} en échec</value>
+  </data>
+  <data name="ServersPage_BusyWorkers" xml:space="preserve">
+    <value>Workers occupés</value>
+  </data>
+  <data name="ServersPage_WorkersBusy" xml:space="preserve">
+    <value>{0} sur {1} occupés</value>
+  </data>
+  <data name="ServersPage_NoServers_Title" xml:space="preserve">
+    <value>Aucun serveur actif</value>
+  </data>
+  <data name="ServersPage_NoServers_Next" xml:space="preserve">
+    <value>Les tâches attendent dans leurs files jusqu'à ce qu'un serveur tourne. Démarrez-en un dans votre application avec AddNightShiftServer() ou un BackgroundJobServer.</value>
+  </data>
+  <data name="TimelinePage_RecentRuns" xml:space="preserve">
+    <value>Exécutions récentes</value>
+  </data>
+  <data name="TimelinePage_Empty_Title" xml:space="preserve">
+    <value>Aucune exécution pour l'instant</value>
+  </data>
 </root>

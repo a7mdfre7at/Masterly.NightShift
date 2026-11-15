@@ -40,7 +40,11 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="hf-page-header">@Strings.InsightsPage_Title</h1>
+        <header class="ns-page-head">
+            <div class="ns-page-heading">
+                @Html.PageTitle(Strings.InsightsPage_Title)
+            </div>
+        </header>
 
         @if (!supported)
         {
@@ -48,48 +52,43 @@
         }
         else
         {
-            <div class="row insights-summary">
-                <div class="col-md-3">
-                    <div class="insights-tile">
-                        <div class="insights-tile-value">@insights.Count</div>
-                        <div class="insights-tile-label">@Strings.InsightsPage_Summary_Methods</div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="insights-tile">
-                        <div class="insights-tile-value">@totalRuns.ToString("N0")</div>
-                        <div class="insights-tile-label">@Strings.InsightsPage_Summary_Runs</div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="insights-tile @(totalRuns > 0 && totalFailed * 10 > totalRuns ? "insights-tile-danger" : null)">
-                        <div class="insights-tile-value">@(totalRuns == 0 ? "–" : ((double)totalFailed / totalRuns).ToString("P1"))</div>
-                        <div class="insights-tile-label">@Strings.InsightsPage_Summary_FailureRate</div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="insights-tile" title="@Strings.InsightsPage_Summary_Invokers_Hint">
-                        <div class="insights-tile-value">
-                            <span class="badge text-bg-success">@invokers.Generated</span>
-                            <span class="badge text-bg-info">@invokers.Compiled</span>
-                            <span class="badge text-bg-secondary">@invokers.Reflection</span>
-                        </div>
-                        <div class="insights-tile-label">@Strings.InsightsPage_Summary_Invokers</div>
-                    </div>
-                </div>
+            <div class="ns-summary insights-summary">
+                <section class="ns-summary-tile" aria-labelledby="insights-methods">
+                    <h2 id="insights-methods" class="ns-summary-label">@Html.Icon("list-task") @Strings.InsightsPage_Summary_Methods</h2>
+                    <p class="ns-summary-value insights-tile-value">@insights.Count</p>
+                </section>
+                <section class="ns-summary-tile" aria-labelledby="insights-runs">
+                    <h2 id="insights-runs" class="ns-summary-label">@Html.Icon("play-circle") @Strings.InsightsPage_Summary_Runs</h2>
+                    <p class="ns-summary-value insights-tile-value">@totalRuns.ToString("N0")</p>
+                </section>
+                <section class="ns-summary-tile@(totalRuns > 0 && totalFailed * 10 > totalRuns ? " ns-state-failed insights-tile-danger" : null)" aria-labelledby="insights-failure-rate">
+                    <h2 id="insights-failure-rate" class="ns-summary-label">@Html.Icon("x-circle-fill") @Strings.InsightsPage_Summary_FailureRate</h2>
+                    <p class="ns-summary-value insights-tile-value">@(totalRuns == 0 ? "–" : ((double)totalFailed / totalRuns).ToString("P1"))</p>
+                </section>
+                <section class="ns-summary-tile" aria-labelledby="insights-invokers" title="@Strings.InsightsPage_Summary_Invokers_Hint">
+                    <h2 id="insights-invokers" class="ns-summary-label">@Html.Icon("lightning-fill") @Strings.InsightsPage_Summary_Invokers</h2>
+                    <p class="ns-summary-value insights-tile-value">
+                        <span class="badge text-bg-success">@invokers.Generated</span>
+                        <span class="badge text-bg-info">@invokers.Compiled</span>
+                        <span class="badge text-bg-secondary">@invokers.Reflection</span>
+                    </p>
+                </section>
             </div>
 
             List<JobInsight> anomalies = insights.Where(x => x.IsAnomalous).ToList();
             if (insights.Count > 0)
             {
-                <h3 id="insights-anomalies">@Strings.InsightsPage_Anomalies <small class="text-muted">@Strings.InsightsPage_Anomalies_Hint</small></h3>
+                <div class="ns-section-head">
+                    <h2 id="insights-anomalies">@Strings.InsightsPage_Anomalies</h2>
+                    <span class="ns-section-hint">@Strings.InsightsPage_Anomalies_Hint</span>
+                </div>
                 if (anomalies.Count == 0)
                 {
                     <div class="hf-card hf-anomalies hf-anomalies-ok">@Html.Icon("check-circle", "text-success") @Strings.InsightsPage_Anomalies_None</div>
                 }
                 else
                 {
-                    <div class="hf-card hf-anomalies" aria-describedby="insights-anomalies">
+                    <div class="hf-card hf-anomalies" role="group" aria-labelledby="insights-anomalies">
                         @foreach (JobInsight anomaly in anomalies)
                         {
                             <div class="hf-anomaly">
@@ -125,8 +124,11 @@
                 IReadOnlyList<IReadOnlyList<HeatmapCell>> heatRows = ActivityHeatmap.Read(Storage, heatNow);
                 long heatMax = ActivityHeatmap.Max(heatRows);
 
-                <h3 id="insights-heatmap">@Strings.InsightsPage_Heatmap <small class="text-muted">@Strings.InsightsPage_Heatmap_Hint</small></h3>
-                <div class="hf-card hf-heatmap-card" aria-describedby="insights-heatmap">
+                <div class="ns-section-head">
+                    <h2 id="insights-heatmap">@Strings.InsightsPage_Heatmap</h2>
+                    <span class="ns-section-hint">@Strings.InsightsPage_Heatmap_Hint</span>
+                </div>
+                <div class="hf-card hf-heatmap-card" role="group" aria-labelledby="insights-heatmap">
                     @if (ActivityHeatmap.IsEmpty(heatRows))
                     {
                         <p class="text-muted hf-heatmap-empty">@Strings.InsightsPage_Heatmap_Empty</p>
@@ -155,125 +157,137 @@
 
             if (circuits.Count > 0)
             {
-                <h3 id="insights-circuits">@Strings.InsightsPage_Circuits</h3>
-                <div class="table-responsive">
-                    <table class="table" aria-describedby="insights-circuits">
-                        <thead>
-                            <tr>
-                                <th scope="col">@Strings.InsightsPage_Circuits_Resource</th>
-                                <th scope="col" class="min-width">@Strings.Common_State</th>
-                                <th scope="col" class="min-width">@Strings.InsightsPage_Circuits_Failures</th>
-                                <th scope="col" class="min-width align-right">@Strings.InsightsPage_Circuits_Since</th>
-                                @if (!IsReadOnly)
-                                {
-                                    <th scope="col" class="min-width"><span class="visually-hidden">@Strings.Common_Actions</span></th>
-                                }
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (CircuitBreakerAttribute.CircuitState circuit in circuits)
-                            {
-                                string labelClass = circuit.State == CircuitBreakerAttribute.OpenState ? "text-bg-danger"
-                                    : circuit.State == CircuitBreakerAttribute.HalfOpenState ? "text-bg-warning"
-                                    : "text-bg-success";
-
+                <section class="hf-card ns-table-card" aria-labelledby="insights-circuits">
+                    <div class="hf-card-header">
+                        <h2 id="insights-circuits">@Strings.InsightsPage_Circuits</h2>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table ns-table-reflow" aria-labelledby="insights-circuits">
+                            <thead>
                                 <tr>
-                                    <td class="word-break"><code>@circuit.Resource</code></td>
-                                    <td class="min-width"><span class="badge @labelClass text-uppercase">@circuit.State</span></td>
-                                    <td class="min-width">@circuit.Failures</td>
-                                    <td class="min-width align-right">
-                                        @if (circuit.OpenedAt > DateTime.MinValue)
-                                        {
-                                            @Html.RelativeTime(circuit.OpenedAt)
-                                        }
-                                    </td>
+                                    <th scope="col">@Strings.InsightsPage_Circuits_Resource</th>
+                                    <th scope="col" class="min-width">@Strings.Common_State</th>
+                                    <th scope="col" class="min-width">@Strings.InsightsPage_Circuits_Failures</th>
+                                    <th scope="col" class="min-width align-right">@Strings.InsightsPage_Circuits_Since</th>
                                     @if (!IsReadOnly)
                                     {
-                                        <td class="min-width">
-                                            @if (circuit.State != CircuitBreakerAttribute.ClosedState || circuit.Failures > 0)
-                                            {
-                                                <button class="btn hf-btn-xs btn-outline-secondary" data-ajax="@Url.To("/insights/circuits/reset/" + RouteValues.Encode(circuit.Resource))" data-loading-text="@Strings.InsightsPage_Circuits_Reset">
-                                                    @Html.Icon("arrow-clockwise") @Strings.InsightsPage_Circuits_Reset
-                                                </button>
-                                            }
-                                        </td>
+                                        <th scope="col" class="min-width"><span class="visually-hidden">@Strings.Common_Actions</span></th>
                                     }
                                 </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
+                            </thead>
+                            <tbody>
+                                @foreach (CircuitBreakerAttribute.CircuitState circuit in circuits)
+                                {
+                                    string labelClass = circuit.State == CircuitBreakerAttribute.OpenState ? "text-bg-danger"
+                                        : circuit.State == CircuitBreakerAttribute.HalfOpenState ? "text-bg-warning"
+                                        : "text-bg-success";
+
+                                    <tr>
+                                        <td class="word-break"><code>@circuit.Resource</code></td>
+                                        <td class="min-width"><span class="badge @labelClass text-uppercase">@circuit.State</span></td>
+                                        <td class="min-width">@circuit.Failures</td>
+                                        <td class="min-width align-right">
+                                            @if (circuit.OpenedAt > DateTime.MinValue)
+                                            {
+                                                @Html.RelativeTime(circuit.OpenedAt)
+                                            }
+                                        </td>
+                                        @if (!IsReadOnly)
+                                        {
+                                            <td class="min-width">
+                                                @if (circuit.State != CircuitBreakerAttribute.ClosedState || circuit.Failures > 0)
+                                                {
+                                                    <button class="btn hf-btn-xs btn-outline-secondary" data-ajax="@Url.To("/insights/circuits/reset/" + RouteValues.Encode(circuit.Resource))" data-loading-text="@Strings.InsightsPage_Circuits_Reset">
+                                                        @Html.Icon("arrow-clockwise") @Strings.InsightsPage_Circuits_Reset
+                                                    </button>
+                                                }
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             }
 
             if (insights.Count == 0)
             {
-                <div class="alert alert-info">@Html.Raw(Strings.InsightsPage_NoData_Html)</div>
+                <div class="ns-note">
+                    @Html.Icon("info-circle-fill")
+                    <span class="ns-note-text">@Html.Raw(Strings.InsightsPage_NoData_Html)</span>
+                </div>
             }
             else
             {
-                <h3 id="insights-jobs">@Strings.Common_Job</h3>
-                <div class="table-responsive">
-                    <table class="table insights-table" aria-describedby="insights-jobs">
-                        <thead>
-                            <tr>
-                                <th scope="col">@Strings.Common_Job</th>
-                                <th scope="col" class="min-width align-right">@Strings.InsightsPage_Table_Runs</th>
-                                <th scope="col" class="min-width align-right">@Strings.InsightsPage_Table_Failed</th>
-                                <th scope="col" class="min-width align-right">@Strings.InsightsPage_Table_Median</th>
-                                <th scope="col" class="min-width align-right">@Strings.InsightsPage_Table_P95</th>
-                                <th scope="col" class="min-width align-right">@Strings.InsightsPage_Table_Max</th>
-                                <th scope="col" class="min-width">@Strings.InsightsPage_Table_Trend</th>
-                                <th scope="col" class="min-width">@Strings.InsightsPage_Table_Invoker</th>
-                                <th scope="col" class="min-width align-right">@Strings.InsightsPage_Table_LastRun</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (JobInsight insight in insights)
-                            {
-                                string failureClass = insight.FailureRate >= 0.25 ? "text-bg-danger" : insight.FailureRate > 0 ? "text-bg-warning" : "text-bg-secondary";
-
+                @* The job's name with its invoker and last run under it, and the three durations in one column, so the
+                   table fits a 1024px window *@
+                <section class="hf-card ns-table-card" aria-labelledby="insights-jobs">
+                    <div class="hf-card-header">
+                        <h2 id="insights-jobs">@Strings.Common_Job</h2>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table insights-table ns-table-reflow" aria-labelledby="insights-jobs">
+                            <thead>
                                 <tr>
-                                    <td class="word-break">
-                                        <code>@insight.Key</code>
-                                        @if (insight.LastRunWasSlow)
-                                        {
-                                            <span class="hf-icon text-warning" title="@Strings.InsightsPage_SlowRun_Tooltip" role="img" aria-label="@Strings.InsightsPage_SlowRun_Tooltip">@Html.Icon("exclamation-triangle-fill")</span>
-                                        }
-                                    </td>
-                                    <td class="min-width align-right">@insight.Total.ToString("N0")</td>
-                                    <td class="min-width align-right">
-                                        <span class="badge @failureClass">@insight.Failed.ToString("N0") (@insight.FailureRate.ToString("P0"))</span>
-                                    </td>
-                                    <td class="min-width align-right">@Html.ToHumanDuration(TimeSpan.FromMilliseconds(insight.MedianMs), false)</td>
-                                    <td class="min-width align-right">@Html.ToHumanDuration(TimeSpan.FromMilliseconds(insight.P95Ms), false)</td>
-                                    <td class="min-width align-right">@Html.ToHumanDuration(TimeSpan.FromMilliseconds(insight.MaxMs), false)</td>
-                                    <td class="min-width">@Sparkline.Render(insight.Durations, 120, 26, insight.LastFailed)</td>
-                                    <td class="min-width">
-                                        @if (insight.Invoker != null)
-                                        {
-                                            string invokerClass = insight.Invoker == "Generated" ? "text-bg-success" : insight.Invoker == "Compiled" ? "text-bg-info" : "text-bg-secondary";
-                                            <span class="badge @invokerClass">@insight.Invoker</span>
-                                        }
-                                    </td>
-                                    <td class="min-width align-right">
-                                        @if (insight.LastRunAt.HasValue)
-                                        {
-                                            if (insight.LastJobId != null)
-                                            {
-                                                <a href="@Url.JobDetails(insight.LastJobId)" class="text-decoration-none">@Html.RelativeTime(insight.LastRunAt.Value)</a>
-                                            }
-                                            else
-                                            {
-                                                @Html.RelativeTime(insight.LastRunAt.Value)
-                                            }
-                                            <span class="text-muted">(@Html.ToHumanDuration(TimeSpan.FromMilliseconds(insight.LastDurationMs), false))</span>
-                                        }
-                                    </td>
+                                    <th scope="col">@Strings.Common_Job</th>
+                                    <th scope="col" class="min-width align-right">@Strings.InsightsPage_Table_Runs</th>
+                                    <th scope="col" class="min-width align-right">@Strings.InsightsPage_Table_Failed</th>
+                                    <th scope="col" class="min-width align-right">@Strings.InsightsPage_Table_Median <span class="text-muted">/ @Strings.InsightsPage_Table_P95 / @Strings.InsightsPage_Table_Max</span></th>
+                                    <th scope="col" class="min-width">@Strings.InsightsPage_Table_Trend</th>
                                 </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
+                            </thead>
+                            <tbody>
+                                @foreach (JobInsight insight in insights)
+                                {
+                                    string failureClass = insight.FailureRate >= 0.25 ? "text-bg-danger" : insight.FailureRate > 0 ? "text-bg-warning" : "text-bg-secondary";
+
+                                    <tr>
+                                        <td class="ns-job-cell word-break">
+                                            <div class="ns-job-title">
+                                                <code>@insight.Key</code>
+                                                @if (insight.LastRunWasSlow)
+                                                {
+                                                    <span class="hf-icon text-warning" title="@Strings.InsightsPage_SlowRun_Tooltip" role="img" aria-label="@Strings.InsightsPage_SlowRun_Tooltip">@Html.Icon("exclamation-triangle-fill")</span>
+                                                }
+                                            </div>
+                                            <div class="ns-job-meta">
+                                                @if (insight.Invoker != null)
+                                                {
+                                                    string invokerClass = insight.Invoker == "Generated" ? "text-bg-success" : insight.Invoker == "Compiled" ? "text-bg-info" : "text-bg-secondary";
+                                                    <span class="badge @invokerClass" title="@Strings.InsightsPage_Table_Invoker">@insight.Invoker</span>
+                                                }
+                                                @if (insight.LastRunAt.HasValue)
+                                                {
+                                                    <span title="@Strings.InsightsPage_Table_LastRun">
+                                                        @if (insight.LastJobId != null)
+                                                        {
+                                                            <a href="@Url.JobDetails(insight.LastJobId)" class="text-decoration-none">@Html.RelativeTime(insight.LastRunAt.Value)</a>
+                                                        }
+                                                        else
+                                                        {
+                                                            @Html.RelativeTime(insight.LastRunAt.Value)
+                                                        }
+                                                        (@Html.ToHumanDuration(TimeSpan.FromMilliseconds(insight.LastDurationMs), false)?.Trim())
+                                                    </span>
+                                                }
+                                            </div>
+                                        </td>
+                                        <td class="min-width align-right">@insight.Total.ToString("N0")</td>
+                                        <td class="min-width align-right">
+                                            <span class="badge @failureClass">@insight.Failed.ToString("N0") (@insight.FailureRate.ToString("P0"))</span>
+                                        </td>
+                                        <td class="min-width align-right ns-insight-durations">
+                                            @Html.ToHumanDuration(TimeSpan.FromMilliseconds(insight.MedianMs), false)
+                                            <div class="ns-job-meta">@Html.ToHumanDuration(TimeSpan.FromMilliseconds(insight.P95Ms), false) / @Html.ToHumanDuration(TimeSpan.FromMilliseconds(insight.MaxMs), false)</div>
+                                        </td>
+                                        <td class="min-width">@Sparkline.Render(insight.Durations, 96, 26, insight.LastFailed)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             }
         }
     </div>

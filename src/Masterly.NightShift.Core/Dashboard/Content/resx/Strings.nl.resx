@@ -2201,4 +2201,37 @@
   <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
     <value>Hij wordt in de wachtrij geplaatst en draait opnieuw. Zijn geschiedenis bewaart elke status die hij heeft doorlopen.</value>
   </data>
+  <data name="Common_DangerZone" xml:space="preserve">
+    <value>Gevarenzone</value>
+  </data>
+  <data name="HomePage_Kpi_Queues" xml:space="preserve">
+    <value>Wachtrijen: {0}</value>
+  </data>
+  <data name="HomePage_GraphSummary_LastMinute" xml:space="preserve">
+    <value>Laatste minuut: {0} geslaagd, {1} mislukt</value>
+  </data>
+  <data name="HomePage_GraphSummary_Day" xml:space="preserve">
+    <value>Laatste 24 uur: {0} geslaagd, {1} mislukt</value>
+  </data>
+  <data name="HomePage_GraphSummary_Week" xml:space="preserve">
+    <value>Laatste 7 dagen: {0} geslaagd, {1} mislukt</value>
+  </data>
+  <data name="ServersPage_BusyWorkers" xml:space="preserve">
+    <value>Bezette workers</value>
+  </data>
+  <data name="ServersPage_WorkersBusy" xml:space="preserve">
+    <value>{0} van {1} bezet</value>
+  </data>
+  <data name="ServersPage_NoServers_Title" xml:space="preserve">
+    <value>Geen actieve servers</value>
+  </data>
+  <data name="ServersPage_NoServers_Next" xml:space="preserve">
+    <value>Jobs wachten in hun wachtrijen tot er een server draait. Start er een in uw applicatie met AddNightShiftServer() of een BackgroundJobServer.</value>
+  </data>
+  <data name="TimelinePage_RecentRuns" xml:space="preserve">
+    <value>Recente uitvoeringen</value>
+  </data>
+  <data name="TimelinePage_Empty_Title" xml:space="preserve">
+    <value>Nog geen uitvoeringen</value>
+  </data>
 </root>

@@ -11,12 +11,14 @@ public class ServersPageFacts
     private readonly PageRenderer _renderer = new();
 
     [Fact]
-    public void Render_ShowsTheNoServersWarning_AndHostingDetails_WhenNoServerIsRegistered()
+    public void Render_ShowsAnEmptyState_AndHostingDetails_WhenNoServerIsRegistered()
     {
         string html = _renderer.Render(new ServersPage());
 
-        Assert.Contains(H(Strings.ServersPage_NoServers), html);
-        Assert.DoesNotContain("<table class=\"table\"", html);
+        Assert.Contains("<h2 class=\"ns-empty-state-title\">" + H(Strings.ServersPage_NoServers_Title) + "</h2><p>" + H(Strings.ServersPage_NoServers_Next) + "</p>", html);
+        Assert.Contains("<span class=\"ns-page-name\">" + H(Strings.ServersPage_Title) + "</span> <span class=\"ns-count-chip js-list-count\">0</span></h1>", html);
+        Assert.DoesNotContain("ns-server-card", html);
+        PageStructure.AssertHeadingsInOrder(html);
         Assert.Contains("id=\"servers-hosting\"", html);
         Assert.Contains(H(Strings.ServersPage_Hosting_Uptime), html);
         Assert.Contains("invoker-stats", html);
@@ -35,11 +37,10 @@ public class ServersPageFacts
 
         string html = _renderer.Render(new ServersPage());
 
-        Assert.Contains(DashboardMarkup.TitledIcon("check-lg", H(Strings.ServersPage_Active), "text-success"), html);
-        // Past ServerPossiblyAbortedThreshold (one minute) is possibly aborted, as on the job pages; it took twice that
-        Assert.DoesNotContain("bi margin-right-14p", html);
-        string possiblyAborted = DashboardMarkup.TitledIcon("exclamation-triangle-fill", H(Strings.ServersPage_Possibly_Aborted), "text-danger");
-        Assert.Equal(2, (html.Length - html.Replace(possiblyAborted, string.Empty).Length) / possiblyAborted.Length);
+        Assert.Equal(2, CountOf(html, "<span class=\"ns-chip ns-chip-status ns-server-status\"><span class=\"ns-dot ns-state-succeeded\" aria-hidden=\"true\"></span> " + H(Strings.ServersPage_Active) + "</span>"));
+        // Past ServerPossiblyAbortedThreshold (one minute) is possibly aborted, as on the job pages: its card is muted
+        Assert.Equal(2, CountOf(html, "<section class=\"hf-card ns-server-card ns-server-stale\""));
+        Assert.Equal(2, CountOf(html, "ns-server-status-stale\">" + DashboardMarkup.Icon("exclamation-triangle-fill") + " " + H(Strings.ServersPage_Possibly_Aborted)));
         Assert.Contains(H(Strings.ServersPage_Note_Title), html);
         Assert.Contains("/jobs/processing", html);
         Assert.Contains("fresh-server", html);
@@ -54,7 +55,71 @@ public class ServersPageFacts
         string html = _renderer.Render(new ServersPage());
 
         Assert.DoesNotContain(H(Strings.ServersPage_Note_Title), html);
-        Assert.DoesNotContain("hf-icon text-danger", html);
+        Assert.DoesNotContain("ns-server-stale", html);
+    }
+
+    [Fact]
+    public void Render_ShowsACardPerServer_WithItsQueuesTimesAndBusyWorkers()
+    {
+        SetupServers(Server("web-1:42:abcd", DateTime.UtcNow, "critical", "default"));
+        _renderer.Monitoring.Setup(x => x.GetStatistics()).Returns(new StatisticsDto { Processing = 3 });
+
+        string html = _renderer.Render(new ServersPage());
+
+        Assert.Contains("<h2 id=\"server-0\" class=\"ns-server-name\">web-1:42</h2>", html);
+        Assert.Contains("<code class=\"ns-server-id\">web-1:42:abcd</code>", html);
+        Assert.Contains("<strong>" + H(string.Format(Strings.ServersPage_WorkersBusy, 3, 5)) + "</strong>", html);
+        Assert.Contains("role=\"meter\" aria-label=\"" + H(Strings.ServersPage_BusyWorkers) + "\" aria-valuemin=\"0\" aria-valuemax=\"5\" aria-valuenow=\"3\"", html);
+        Assert.Contains("<span style=\"width: 60%\"></span>", html);
+        Assert.Contains("<a class=\"ns-queue-chip\" href=\"/jobs/enqueued/critical\">", html);
+        Assert.Contains("<a class=\"ns-queue-chip\" href=\"/jobs/enqueued/default\">", html);
+        Assert.Contains("<span class=\"ns-time-exact\"><span data-moment-local=", html);
+        Assert.Contains(H(string.Format(Strings.WallboardPage_Workers, 5)), html);
+        // One server: its busy workers are the processing jobs the statistics count, without another query
+        _renderer.Monitoring.Verify(x => x.ProcessingJobs(It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+        PageStructure.AssertHeadingsInOrder(html);
+    }
+
+    [Fact]
+    public void Render_CountsTheBusyWorkersOfEachServer_FromOneBoundedReadOfTheProcessingJobs()
+    {
+        SetupServers(Server("a", DateTime.UtcNow), Server("b", DateTime.UtcNow));
+        _renderer.Monitoring.Setup(x => x.GetStatistics()).Returns(new StatisticsDto { Processing = 3 });
+        _renderer.Monitoring.Setup(x => x.ProcessingJobs(0, 3)).Returns(new JobList<ProcessingJobDto?>(
+        [
+            new KeyValuePair<string, ProcessingJobDto?>("1", new ProcessingJobDto { ServerId = "a", InProcessingState = true }),
+            new KeyValuePair<string, ProcessingJobDto?>("2", new ProcessingJobDto { ServerId = "a", InProcessingState = true }),
+            new KeyValuePair<string, ProcessingJobDto?>("3", new ProcessingJobDto { ServerId = "b", InProcessingState = true }),
+        ]));
+
+        string html = _renderer.Render(new ServersPage());
+
+        Assert.Contains("aria-valuemax=\"5\" aria-valuenow=\"2\"", html);
+        Assert.Contains("aria-valuemax=\"5\" aria-valuenow=\"1\"", html);
+        _renderer.Monitoring.Verify(x => x.ProcessingJobs(0, 3), Times.Once);
+    }
+
+    [Fact]
+    public void Render_PutsPausingAndClearing_InADangerZone_SetApartInTheErrorColour()
+    {
+        _renderer.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Purge)).Returns(true);
+        SetupServers(Server("fresh-server", DateTime.UtcNow));
+
+        string html = _renderer.Render(new ServersPage());
+
+        int zone = html.IndexOf("<section class=\"ns-danger-zone\" aria-labelledby=\"servers-danger\">", StringComparison.Ordinal);
+        Assert.True(zone > html.IndexOf("id=\"servers-hosting\"", StringComparison.Ordinal), "the danger zone comes last");
+        Assert.Contains("<h2 id=\"servers-danger\">" + H(Strings.Common_DangerZone) + "</h2>", html);
+        Assert.True(html.IndexOf("js-drain-form", StringComparison.Ordinal) > zone);
+        Assert.True(html.IndexOf("data-ajax=\"/maintenance/clear-jobs\"", StringComparison.Ordinal) > zone);
+        Assert.True(html.IndexOf("data-ajax=\"/maintenance/reset\"", StringComparison.Ordinal) > zone);
+        Assert.Contains("<button type=\"submit\" class=\"btn btn-sm ns-btn-outlined-error\"", html);
+        Assert.Contains("<button class=\"btn btn-sm ns-btn-outlined-error\" data-ajax=\"/maintenance/clear-jobs\"", html);
+        Assert.Contains("data-confirm=\"" + H(Strings.ServersPage_ClearJobsConfirm_Title) + "\"", html);
+        Assert.Contains("data-confirm=\"" + H(Strings.ServersPage_ResetStorageConfirm_Title) + "\"", html);
+        Assert.Contains("data-confirm=\"" + H(Strings.ServersPage_PauseConfirm) + "\"", html);
+        Assert.Contains("aria-label=\"" + H(Strings.ServersPage_Pause_Reason) + "\"", html);
+        PageStructure.AssertHeadingsInOrder(html);
     }
 
     [Fact]
@@ -88,7 +153,8 @@ public class ServersPageFacts
 
         string html = _renderer.Render(new ServersPage());
 
-        Assert.Contains("title=\"disk swap\">" + H(Strings.ServersPage_Paused) + "</span>", html);
+        Assert.Contains("ns-server-status-paused\" title=\"disk swap\">" + DashboardMarkup.Icon("pause-fill") + " " + H(Strings.ServersPage_Paused) + "</span>", html);
+        Assert.Contains("<dd><em>disk swap</em></dd>", html);
         Assert.Contains("data-ajax=\"/servers/resume/paused%20server\"", html);
         Assert.Contains("data-ajax=\"/servers/pause/fresh-server\"", html);
     }
@@ -105,7 +171,7 @@ public class ServersPageFacts
 
         string html = _renderer.Render(new ServersPage());
 
-        Assert.Contains("<h4>" + H(Strings.ServersPage_StalePauses_Title) + "</h4>", html);
+        Assert.Contains("<h2 id=\"servers-stale-pauses\" class=\"ns-note-title\">" + H(Strings.ServersPage_StalePauses_Title) + "</h2>", html);
         Assert.Contains("<code>web-1:1:old</code>", html);
         Assert.Contains("<em>before deploy</em>", html);
         Assert.Contains("data-ajax=\"/servers/resume/web-1%3A1%3Aold\"", html);
@@ -121,7 +187,7 @@ public class ServersPageFacts
 
         string html = _renderer.Render(new ServersPage());
 
-        Assert.Contains(H(Strings.ServersPage_NoServers), html);
+        Assert.Contains(H(Strings.ServersPage_NoServers_Title), html);
         Assert.Contains("<code>gone</code>", html);
         Assert.Contains("data-ajax=\"/servers/resume/gone\"", html);
     }
@@ -163,6 +229,9 @@ public class ServersPageFacts
         Assert.DoesNotContain("js-drain-form", html);
         Assert.DoesNotContain("/maintenance/resume", html);
         Assert.DoesNotContain("id=\"servers-maintenance\"", html);
+        Assert.DoesNotContain("ns-danger-zone", html);
+        Assert.DoesNotContain("ns-server-actions", html);
+        Assert.Contains(H(Strings.ServersPage_Processing + ": " + Strings.ServersPage_Processing_Running), html);
     }
 
     [Fact]
@@ -287,6 +356,8 @@ public class ServersPageFacts
     }
 
     private static string H(string text) => WebUtility.HtmlEncode(text);
+
+    private static int CountOf(string html, string value) => html.Split([value], StringSplitOptions.None).Length - 1;
 
     private sealed class StubHandler(Exception exception) : HttpMessageHandler
     {

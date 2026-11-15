@@ -2212,4 +2212,37 @@
   <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
     <value>Kuyruğa alınır ve yeniden çalışır. Geçmişi, geçtiği tüm durumları korur.</value>
   </data>
+  <data name="Common_DangerZone" xml:space="preserve">
+    <value>Tehlikeli bölge</value>
+  </data>
+  <data name="HomePage_Kpi_Queues" xml:space="preserve">
+    <value>Kuyruklar: {0}</value>
+  </data>
+  <data name="HomePage_GraphSummary_LastMinute" xml:space="preserve">
+    <value>Son dakika: {0} başarılı, {1} başarısız</value>
+  </data>
+  <data name="HomePage_GraphSummary_Day" xml:space="preserve">
+    <value>Son 24 saat: {0} başarılı, {1} başarısız</value>
+  </data>
+  <data name="HomePage_GraphSummary_Week" xml:space="preserve">
+    <value>Son 7 gün: {0} başarılı, {1} başarısız</value>
+  </data>
+  <data name="ServersPage_BusyWorkers" xml:space="preserve">
+    <value>Meşgul çalışanlar</value>
+  </data>
+  <data name="ServersPage_WorkersBusy" xml:space="preserve">
+    <value>{1} çalışandan {0} meşgul</value>
+  </data>
+  <data name="ServersPage_NoServers_Title" xml:space="preserve">
+    <value>Etkin sunucu yok</value>
+  </data>
+  <data name="ServersPage_NoServers_Next" xml:space="preserve">
+    <value>İşler bir sunucu çalışana kadar kuyruklarında bekler. Uygulamanızda AddNightShiftServer() veya bir BackgroundJobServer ile bir tane başlatın.</value>
+  </data>
+  <data name="TimelinePage_RecentRuns" xml:space="preserve">
+    <value>Son çalıştırmalar</value>
+  </data>
+  <data name="TimelinePage_Empty_Title" xml:space="preserve">
+    <value>Henüz çalıştırma yok</value>
+  </data>
 </root>

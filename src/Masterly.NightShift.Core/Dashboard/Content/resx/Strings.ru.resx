@@ -2228,4 +2228,37 @@
   <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
     <value>Оно ставится в очередь и выполняется снова. В его истории остаются все состояния, через которые оно прошло.</value>
   </data>
+  <data name="Common_DangerZone" xml:space="preserve">
+    <value>Опасная зона</value>
+  </data>
+  <data name="HomePage_Kpi_Queues" xml:space="preserve">
+    <value>Очереди: {0}</value>
+  </data>
+  <data name="HomePage_GraphSummary_LastMinute" xml:space="preserve">
+    <value>За последнюю минуту: {0} успешно, {1} с ошибкой</value>
+  </data>
+  <data name="HomePage_GraphSummary_Day" xml:space="preserve">
+    <value>За последние 24 часа: {0} успешно, {1} с ошибкой</value>
+  </data>
+  <data name="HomePage_GraphSummary_Week" xml:space="preserve">
+    <value>За последние 7 дней: {0} успешно, {1} с ошибкой</value>
+  </data>
+  <data name="ServersPage_BusyWorkers" xml:space="preserve">
+    <value>Занятые воркеры</value>
+  </data>
+  <data name="ServersPage_WorkersBusy" xml:space="preserve">
+    <value>Занято {0} из {1}</value>
+  </data>
+  <data name="ServersPage_NoServers_Title" xml:space="preserve">
+    <value>Нет активных серверов</value>
+  </data>
+  <data name="ServersPage_NoServers_Next" xml:space="preserve">
+    <value>Задания ждут в своих очередях, пока не запущен сервер. Запустите его в приложении с помощью AddNightShiftServer() или BackgroundJobServer.</value>
+  </data>
+  <data name="TimelinePage_RecentRuns" xml:space="preserve">
+    <value>Недавние запуски</value>
+  </data>
+  <data name="TimelinePage_Empty_Title" xml:space="preserve">
+    <value>Запусков пока нет</value>
+  </data>
 </root>

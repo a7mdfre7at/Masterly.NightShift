@@ -2178,4 +2178,37 @@
   <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
     <value>它會排入佇列並再次執行。歷程記錄會保留它經歷過的每個狀態。</value>
   </data>
+  <data name="Common_DangerZone" xml:space="preserve">
+    <value>危險區域</value>
+  </data>
+  <data name="HomePage_Kpi_Queues" xml:space="preserve">
+    <value>佇列：{0}</value>
+  </data>
+  <data name="HomePage_GraphSummary_LastMinute" xml:space="preserve">
+    <value>最近一分鐘：{0} 個成功，{1} 個失敗</value>
+  </data>
+  <data name="HomePage_GraphSummary_Day" xml:space="preserve">
+    <value>最近 24 小時：{0} 個成功，{1} 個失敗</value>
+  </data>
+  <data name="HomePage_GraphSummary_Week" xml:space="preserve">
+    <value>最近 7 天：{0} 個成功，{1} 個失敗</value>
+  </data>
+  <data name="ServersPage_BusyWorkers" xml:space="preserve">
+    <value>忙碌的背景工作執行緒</value>
+  </data>
+  <data name="ServersPage_WorkersBusy" xml:space="preserve">
+    <value>{1} 個中有 {0} 個忙碌</value>
+  </data>
+  <data name="ServersPage_NoServers_Title" xml:space="preserve">
+    <value>沒有使用中的伺服器</value>
+  </data>
+  <data name="ServersPage_NoServers_Next" xml:space="preserve">
+    <value>工作會在佇列中等候，直到有伺服器執行。請在應用程式中使用 AddNightShiftServer() 或 BackgroundJobServer 啟動一個。</value>
+  </data>
+  <data name="TimelinePage_RecentRuns" xml:space="preserve">
+    <value>最近的執行</value>
+  </data>
+  <data name="TimelinePage_Empty_Title" xml:space="preserve">
+    <value>尚無執行</value>
+  </data>
 </root>

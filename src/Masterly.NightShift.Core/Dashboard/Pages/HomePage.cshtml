@@ -1,10 +1,13 @@
 ﻿@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True *@
 @using System
 @using System.Collections.Generic
+@using System.Globalization
 @using Masterly.NightShift.Dashboard
 @using Masterly.NightShift.Dashboard.Pages
 @using Masterly.NightShift.Dashboard.Resources
+@using Masterly.NightShift.States
 @using Masterly.NightShift.Storage
+@using Masterly.NightShift.Storage.Monitoring
 @using System.Text.Json
 @inherits RazorPage
 @{
@@ -14,9 +17,10 @@
     IDictionary<DateTime, long>? deleted = null;
 
     string period = Query("period") ?? "day";
+    bool week = "week".Equals(period, StringComparison.OrdinalIgnoreCase);
 
     IMonitoringApi monitor = Storage.GetMonitoringApi();
-    if ("week".Equals(period, StringComparison.OrdinalIgnoreCase))
+    if (week)
     {
         succeeded = monitor.SucceededByDatesCount();
         failed = monitor.FailedByDatesCount();
@@ -36,11 +40,50 @@
             deleted = jobStorageMonitor.HourlyDeletedJobs();
         }
     }
+
+    // The numbers of the tiles come from the statistics the navigation reads anyway: no query of their own
+    StatisticsDto statistics = Statistics;
+    IReadOnlyList<HomeTile> tiles = GetTiles(statistics);
+    string? historySummary = succeeded != null && failed != null
+        ? String.Format(CultureInfo.CurrentCulture, week ? Strings.HomePage_GraphSummary_Week : Strings.HomePage_GraphSummary_Day, Sum(succeeded), Sum(failed))
+        : null;
 }
 
 <div class="row">
     <div class="col-md-12">
-        <h1 class="hf-page-header">@Strings.HomePage_Title</h1>
+        @* The one band in the brand's gradient: the title, how the cluster is set up, and the wallboard *@
+        <header class="ns-page-head ns-home-head">
+            <div class="ns-page-heading">
+                @Html.PageTitle(Strings.HomePage_Title)
+                <div class="ns-page-facts">
+                    <a class="ns-chip ns-chip-assist" href="@Url.To("/servers")">@Html.Icon("hdd-fill") @Strings.Metrics_Servers <strong data-metric="servers:count">@statistics.Servers.ToString("N0", CultureInfo.CurrentCulture)</strong></a>
+                    <a class="ns-chip ns-chip-assist" href="@Url.To("/recurring")">@Html.Icon("clock") @Strings.Metrics_RecurringJobs <strong data-metric="recurring:count">@statistics.Recurring.ToString("N0", CultureInfo.CurrentCulture)</strong></a>
+                    @if (statistics.Retries.HasValue)
+                    {
+                        <a class="ns-chip ns-chip-assist" href="@Url.To("/retries")">@Html.Icon("arrow-repeat") @Strings.Metrics_Retries <strong data-metric="retries:count">@statistics.Retries.Value.ToString("N0", CultureInfo.CurrentCulture)</strong></a>
+                    }
+                </div>
+            </div>
+            <div class="ns-page-actions">
+                <a class="btn btn-sm ns-btn-tonal" href="@Url.To("/wallboard")">@Html.Icon("easel-fill") @Strings.NavigationMenu_Wallboard</a>
+            </div>
+        </header>
+
+        @* A tile per state, each a link to its list; the poller keeps the numbers current *@
+        <div class="ns-summary ns-home-tiles">
+            @foreach (HomeTile tile in tiles)
+            {
+                <a class="ns-summary-tile ns-home-tile ns-state-@tile.Group" href="@Url.To(tile.Path)">
+                    <span class="ns-summary-label">@Html.Icon(JobHistoryRenderer.GetStateIcon(tile.StateName)) @tile.Label</span>
+                    <span class="ns-summary-value" data-metric="@tile.Metric">@tile.Value.ToString("N0", CultureInfo.CurrentCulture)</span>
+                    @if (tile.Sub != null)
+                    {
+                        <span class="ns-summary-sub">@tile.Sub</span>
+                    }
+                </a>
+            }
+        </div>
+
         @if (Metrics.Count > 0)
         {
             <div class="hf-kpi-grid">
@@ -51,9 +94,9 @@
             </div>
         }
 
-        <section class="hf-card">
+        <section class="hf-card ns-graph-card" aria-labelledby="home-realtime">
             <div class="hf-card-header">
-                <h2>@Strings.HomePage_RealtimeGraph</h2>
+                <h2 id="home-realtime">@Strings.HomePage_RealtimeGraph</h2>
                 <div class="hf-card-actions">
                     <span class="hf-pulse"><span class="hf-pulse-dot js-pulse-dot js-graph-dot"></span></span>
                     <label class="ns-switch-label">
@@ -63,10 +106,16 @@
                 </div>
             </div>
             <div class="hf-card-body">
-                <canvas width="1140" height="210" id="realtimeGraph" data-succeeded="@Statistics.Succeeded" data-failed="@Statistics.Failed" data-deleted="@Statistics.Deleted"
-                     data-succeeded-string="@Strings.HomePage_GraphHover_Succeeded"
-                     data-failed-string="@Strings.HomePage_GraphHover_Failed"
-                     data-deleted-string="@Strings.JobsSidebarMenu_Deleted"></canvas>
+                @GraphLegend(true)
+                <div class="ns-graph">
+                    <canvas id="realtimeGraph" data-succeeded="@Statistics.Succeeded" data-failed="@Statistics.Failed" data-deleted="@Statistics.Deleted"
+                         data-succeeded-string="@Strings.HomePage_GraphHover_Succeeded"
+                         data-failed-string="@Strings.HomePage_GraphHover_Failed"
+                         data-deleted-string="@Strings.JobsSidebarMenu_Deleted"
+                         role="img" aria-label="@Strings.HomePage_RealtimeGraph" aria-describedby="home-realtime-summary"></canvas>
+                </div>
+                @* Filled in by the script from the points the graph shows *@
+                <p id="home-realtime-summary" class="ns-graph-summary js-graph-summary" data-format="@Strings.HomePage_GraphSummary_LastMinute"></p>
                 <div class="display-none">
                     <span data-metric="succeeded:count"></span>
                     <span data-metric="failed:count"></span>
@@ -75,9 +124,9 @@
             </div>
         </section>
 
-        <section class="hf-card hf-activity-card">
+        <section class="hf-card hf-activity-card" aria-labelledby="home-activity">
             <div class="hf-card-header">
-                <h2>@Strings.HomePage_Activity <small class="text-muted">@Strings.HomePage_Activity_Hint</small></h2>
+                <h2 id="home-activity">@Strings.HomePage_Activity <small class="text-muted">@Strings.HomePage_Activity_Hint</small></h2>
                 <div class="hf-card-actions">
                     <span class="hf-pulse"><span class="hf-pulse-dot js-pulse-dot js-activity-dot"></span></span>
                     <label class="ns-switch-label">
@@ -86,32 +135,37 @@
                     </label>
                 </div>
             </div>
-            <ol class="hf-activity js-activity" data-url="@Url.To("/activity")" data-job-url="@Url.To("/jobs/details/")" data-empty="@Strings.HomePage_Activity_Empty" data-off="@Strings.HomePage_Activity_Off" data-text-summary="@Strings.HomePage_Activity_Summary">
+            <ol class="hf-activity js-activity" data-url="@Url.To("/activity")" data-job-url="@Url.To("/jobs/details/")" data-empty="@Strings.HomePage_Activity_Empty" data-off="@Strings.HomePage_Activity_Off" data-text-summary="@Strings.HomePage_Activity_Summary" aria-labelledby="home-activity">
                 <li class="hf-activity-empty text-muted">@Strings.HomePage_Activity_Empty</li>
             </ol>
             <div class="visually-hidden js-activity-status" role="status"></div>
         </section>
 
-        <section class="hf-card">
+        <section class="hf-card ns-graph-card" aria-labelledby="home-history">
             <div class="hf-card-header">
-                <h2>@Strings.HomePage_HistoryGraph</h2>
+                <h2 id="home-history">@Strings.HomePage_HistoryGraph</h2>
                 <div class="btn-group">
                     <a href="?period=day" class="btn btn-sm btn-outline-secondary @("day".Equals(period, StringComparison.OrdinalIgnoreCase) ? "active" : null)">@Strings.Common_PeriodDay</a>
-                    <a href="?period=week" class="btn btn-sm btn-outline-secondary @("week".Equals(period, StringComparison.OrdinalIgnoreCase) ? "active" : null)">@Strings.Common_PeriodWeek</a>
+                    <a href="?period=week" class="btn btn-sm btn-outline-secondary @(week ? "active" : null)">@Strings.Common_PeriodWeek</a>
                 </div>
             </div>
             <div class="hf-card-body">
                 @if (succeeded != null && failed != null)
                 {
-                    <canvas width="1140" height="210" id="historyGraph"
-                         data-succeeded="@JsonSerializer.Serialize(succeeded)"
-                         data-failed="@JsonSerializer.Serialize(failed)"
-                         data-deleted="@(deleted != null ? JsonSerializer.Serialize(deleted) : String.Empty)"
-                         data-succeeded-string="@Strings.HomePage_GraphHover_Succeeded"
-                         data-failed-string="@Strings.HomePage_GraphHover_Failed"
-                         data-deleted-string="@Strings.JobsSidebarMenu_Deleted"
-                         data-period="@period">
-                    </canvas>
+                    @GraphLegend(deleted != null)
+                    <div class="ns-graph">
+                        <canvas id="historyGraph"
+                             data-succeeded="@JsonSerializer.Serialize(succeeded)"
+                             data-failed="@JsonSerializer.Serialize(failed)"
+                             data-deleted="@(deleted != null ? JsonSerializer.Serialize(deleted) : String.Empty)"
+                             data-succeeded-string="@Strings.HomePage_GraphHover_Succeeded"
+                             data-failed-string="@Strings.HomePage_GraphHover_Failed"
+                             data-deleted-string="@Strings.JobsSidebarMenu_Deleted"
+                             data-period="@period"
+                             role="img" aria-label="@Strings.HomePage_HistoryGraph" aria-describedby="home-history-summary">
+                        </canvas>
+                    </div>
+                    <p id="home-history-summary" class="ns-graph-summary">@historySummary</p>
                 }
             </div>
         </section>

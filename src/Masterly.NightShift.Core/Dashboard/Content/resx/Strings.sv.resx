@@ -2242,4 +2242,37 @@
   <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
     <value>Det köas och körs igen. Historiken behåller alla tillstånd det har passerat.</value>
   </data>
+  <data name="Common_DangerZone" xml:space="preserve">
+    <value>Riskzon</value>
+  </data>
+  <data name="HomePage_Kpi_Queues" xml:space="preserve">
+    <value>Köer: {0}</value>
+  </data>
+  <data name="HomePage_GraphSummary_LastMinute" xml:space="preserve">
+    <value>Senaste minuten: {0} lyckades, {1} misslyckades</value>
+  </data>
+  <data name="HomePage_GraphSummary_Day" xml:space="preserve">
+    <value>Senaste 24 timmarna: {0} lyckades, {1} misslyckades</value>
+  </data>
+  <data name="HomePage_GraphSummary_Week" xml:space="preserve">
+    <value>Senaste 7 dagarna: {0} lyckades, {1} misslyckades</value>
+  </data>
+  <data name="ServersPage_BusyWorkers" xml:space="preserve">
+    <value>Upptagna arbetare</value>
+  </data>
+  <data name="ServersPage_WorkersBusy" xml:space="preserve">
+    <value>{0} av {1} upptagna</value>
+  </data>
+  <data name="ServersPage_NoServers_Title" xml:space="preserve">
+    <value>Inga aktiva servrar</value>
+  </data>
+  <data name="ServersPage_NoServers_Next" xml:space="preserve">
+    <value>Jobb väntar i sina köer tills en server körs. Starta en i ditt program med AddNightShiftServer() eller en BackgroundJobServer.</value>
+  </data>
+  <data name="TimelinePage_RecentRuns" xml:space="preserve">
+    <value>Senaste körningar</value>
+  </data>
+  <data name="TimelinePage_Empty_Title" xml:space="preserve">
+    <value>Inga körningar ännu</value>
+  </data>
 </root>

@@ -2234,4 +2234,37 @@
   <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
     <value>در صف قرار می‌گیرد و دوباره اجرا می‌شود. تاریخچه‌اش همهٔ وضعیت‌هایی را که داشته نگه می‌دارد.</value>
   </data>
+  <data name="Common_DangerZone" xml:space="preserve">
+    <value>منطقهٔ خطر</value>
+  </data>
+  <data name="HomePage_Kpi_Queues" xml:space="preserve">
+    <value>صف‌ها: {0}</value>
+  </data>
+  <data name="HomePage_GraphSummary_LastMinute" xml:space="preserve">
+    <value>دقیقهٔ گذشته: {0} موفق، {1} ناموفق</value>
+  </data>
+  <data name="HomePage_GraphSummary_Day" xml:space="preserve">
+    <value>۲۴ ساعت گذشته: {0} موفق، {1} ناموفق</value>
+  </data>
+  <data name="HomePage_GraphSummary_Week" xml:space="preserve">
+    <value>۷ روز گذشته: {0} موفق، {1} ناموفق</value>
+  </data>
+  <data name="ServersPage_BusyWorkers" xml:space="preserve">
+    <value>کارگرهای مشغول</value>
+  </data>
+  <data name="ServersPage_WorkersBusy" xml:space="preserve">
+    <value>{0} از {1} مشغول</value>
+  </data>
+  <data name="ServersPage_NoServers_Title" xml:space="preserve">
+    <value>هیچ سرور فعالی نیست</value>
+  </data>
+  <data name="ServersPage_NoServers_Next" xml:space="preserve">
+    <value>کارها تا زمانی که سروری اجرا شود در صف‌های خود منتظر می‌مانند. یکی را در برنامهٔ خود با AddNightShiftServer() یا یک BackgroundJobServer راه‌اندازی کنید.</value>
+  </data>
+  <data name="TimelinePage_RecentRuns" xml:space="preserve">
+    <value>اجراهای اخیر</value>
+  </data>
+  <data name="TimelinePage_Empty_Title" xml:space="preserve">
+    <value>هنوز اجرایی نیست</value>
+  </data>
 </root>

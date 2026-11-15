@@ -2179,4 +2179,37 @@
   <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
     <value>Se pone en la cola y vuelve a ejecutarse. Su historial conserva todos los estados por los que pasó.</value>
   </data>
+  <data name="Common_DangerZone" xml:space="preserve">
+    <value>Zona de peligro</value>
+  </data>
+  <data name="HomePage_Kpi_Queues" xml:space="preserve">
+    <value>Colas: {0}</value>
+  </data>
+  <data name="HomePage_GraphSummary_LastMinute" xml:space="preserve">
+    <value>Último minuto: {0} completados, {1} fallidos</value>
+  </data>
+  <data name="HomePage_GraphSummary_Day" xml:space="preserve">
+    <value>Últimas 24 horas: {0} completados, {1} fallidos</value>
+  </data>
+  <data name="HomePage_GraphSummary_Week" xml:space="preserve">
+    <value>Últimos 7 días: {0} completados, {1} fallidos</value>
+  </data>
+  <data name="ServersPage_BusyWorkers" xml:space="preserve">
+    <value>Trabajadores ocupados</value>
+  </data>
+  <data name="ServersPage_WorkersBusy" xml:space="preserve">
+    <value>{0} de {1} ocupados</value>
+  </data>
+  <data name="ServersPage_NoServers_Title" xml:space="preserve">
+    <value>No hay servidores activos</value>
+  </data>
+  <data name="ServersPage_NoServers_Next" xml:space="preserve">
+    <value>Los trabajos esperan en sus colas hasta que se ejecuta un servidor. Inicie uno en su aplicación con AddNightShiftServer() o un BackgroundJobServer.</value>
+  </data>
+  <data name="TimelinePage_RecentRuns" xml:space="preserve">
+    <value>Ejecuciones recientes</value>
+  </data>
+  <data name="TimelinePage_Empty_Title" xml:space="preserve">
+    <value>Aún no hay ejecuciones</value>
+  </data>
 </root>

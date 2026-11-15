@@ -2240,4 +2240,37 @@
   <data name="JobDetailsPage_RequeueConfirm_Body" xml:space="preserve">
     <value>Den settes i kø og kjøres på nytt. Historikken beholder alle tilstandene den har vært i.</value>
   </data>
+  <data name="Common_DangerZone" xml:space="preserve">
+    <value>Faresone</value>
+  </data>
+  <data name="HomePage_Kpi_Queues" xml:space="preserve">
+    <value>Køer: {0}</value>
+  </data>
+  <data name="HomePage_GraphSummary_LastMinute" xml:space="preserve">
+    <value>Siste minutt: {0} fullført, {1} mislyktes</value>
+  </data>
+  <data name="HomePage_GraphSummary_Day" xml:space="preserve">
+    <value>Siste 24 timer: {0} fullført, {1} mislyktes</value>
+  </data>
+  <data name="HomePage_GraphSummary_Week" xml:space="preserve">
+    <value>Siste 7 dager: {0} fullført, {1} mislyktes</value>
+  </data>
+  <data name="ServersPage_BusyWorkers" xml:space="preserve">
+    <value>Opptatte arbeidere</value>
+  </data>
+  <data name="ServersPage_WorkersBusy" xml:space="preserve">
+    <value>{0} av {1} opptatt</value>
+  </data>
+  <data name="ServersPage_NoServers_Title" xml:space="preserve">
+    <value>Ingen aktive servere</value>
+  </data>
+  <data name="ServersPage_NoServers_Next" xml:space="preserve">
+    <value>Jobber venter i køene sine til en server kjører. Start en i applikasjonen med AddNightShiftServer() eller en BackgroundJobServer.</value>
+  </data>
+  <data name="TimelinePage_RecentRuns" xml:space="preserve">
+    <value>Nylige kjøringer</value>
+  </data>
+  <data name="TimelinePage_Empty_Title" xml:space="preserve">
+    <value>Ingen kjøringer ennå</value>
+  </data>
 </root>

@@ -6589,5 +6589,104 @@ namespace Masterly.NightShift.Dashboard.Resources {
                 return ResourceManager.GetString("JobDetailsPage_RequeueConfirm_Body", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Danger zone.
+        /// </summary>
+        public static string Common_DangerZone {
+            get {
+                return ResourceManager.GetString("Common_DangerZone", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Queues: {0}.
+        /// </summary>
+        public static string HomePage_Kpi_Queues {
+            get {
+                return ResourceManager.GetString("HomePage_Kpi_Queues", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Last minute: {0} succeeded, {1} failed.
+        /// </summary>
+        public static string HomePage_GraphSummary_LastMinute {
+            get {
+                return ResourceManager.GetString("HomePage_GraphSummary_LastMinute", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Last 24 hours: {0} succeeded, {1} failed.
+        /// </summary>
+        public static string HomePage_GraphSummary_Day {
+            get {
+                return ResourceManager.GetString("HomePage_GraphSummary_Day", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Last 7 days: {0} succeeded, {1} failed.
+        /// </summary>
+        public static string HomePage_GraphSummary_Week {
+            get {
+                return ResourceManager.GetString("HomePage_GraphSummary_Week", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Busy workers.
+        /// </summary>
+        public static string ServersPage_BusyWorkers {
+            get {
+                return ResourceManager.GetString("ServersPage_BusyWorkers", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} of {1} busy.
+        /// </summary>
+        public static string ServersPage_WorkersBusy {
+            get {
+                return ResourceManager.GetString("ServersPage_WorkersBusy", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No active servers.
+        /// </summary>
+        public static string ServersPage_NoServers_Title {
+            get {
+                return ResourceManager.GetString("ServersPage_NoServers_Title", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Jobs wait in their queues until a server runs. Start one in your application with AddNightShiftServer() or a BackgroundJobServer..
+        /// </summary>
+        public static string ServersPage_NoServers_Next {
+            get {
+                return ResourceManager.GetString("ServersPage_NoServers_Next", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Recent runs.
+        /// </summary>
+        public static string TimelinePage_RecentRuns {
+            get {
+                return ResourceManager.GetString("TimelinePage_RecentRuns", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No runs yet.
+        /// </summary>
+        public static string TimelinePage_Empty_Title {
+            get {
+                return ResourceManager.GetString("TimelinePage_Empty_Title", resourceCulture);
+            }
+        }
     }
 }

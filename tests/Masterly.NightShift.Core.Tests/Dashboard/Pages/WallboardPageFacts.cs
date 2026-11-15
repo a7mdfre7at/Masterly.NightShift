@@ -44,9 +44,8 @@ public class WallboardPageFacts
 
         Assert.StartsWith("<!DOCTYPE html>", html.TrimStart());
         Assert.DoesNotContain("navbar", html);
-        Assert.Contains("<meta http-equiv=\"refresh\" content=\"10\">", html);
-        Assert.Contains("<body class=\"hf-app hf-wallboard hf-wb-ok\">", html);
-        Assert.Contains("<span class=\"hf-wb-status-dot\"></span>" + H(Strings.WallboardPage_Healthy), html);
+        Assert.Contains("<body class=\"hf-app hf-wallboard hf-wb-ok\" data-refresh=\"10000\">", html);
+        Assert.Contains("<div class=\"hf-wb-status js-wb-status\" role=\"status\"><span class=\"hf-wb-status-dot\" aria-hidden=\"true\"></span>" + H(Strings.WallboardPage_Healthy), html);
         Assert.Contains("<title>" + H(Strings.WallboardPage_Title) + " – Masterly.NightShift Dashboard</title>", html);
         Assert.Contains("<div class=\"hf-wb-value\">1</div>", html);
         Assert.Contains(H(string.Format(Strings.WallboardPage_Workers, 5)), html);
@@ -69,7 +68,41 @@ public class WallboardPageFacts
         string html = _renderer.Render(new WallboardPage());
 
         Assert.Contains("– Masterly.NightShift Dashboard</title>", html);
-        Assert.Contains("<span><b>Ops</b></span>", html);
+        Assert.Contains("<span><b>Ops</b><span class=\"visually-hidden\"> – " + H(Strings.WallboardPage_Title) + "</span></span>", html);
+    }
+
+    [Fact]
+    public void Render_RefreshesByScript_NotByAMetaRefresh_AndHasAnH1()
+    {
+        string html = _renderer.Render(new WallboardPage());
+
+        Assert.DoesNotContain("http-equiv=\"refresh\"", html);
+        Assert.Contains("<main class=\"hf-wb-grid js-wb-content\">", html);
+        Assert.Contains("data-refresh=\"10000\"", html);
+        Assert.Contains("document.addEventListener('visibilitychange'", html);
+        Assert.Contains("if (document.hidden || busy", html);
+        Assert.Equal(1, CountOf(html, "<h1 "));
+        Assert.Contains("<h1 class=\"hf-wb-brand\">", html);
+        PageStructure.AssertHeadingsInOrder(html);
+    }
+
+    [Fact]
+    public void Render_DeclaresAnIcon_SoTheBrowserAsksForNoFaviconOfTheApplication()
+    {
+        string html = _renderer.Render(new WallboardPage());
+
+        Assert.Contains("<link rel=\"shortcut icon\" href=\"data:image/x-icon;,\" type=\"image/x-icon\">", html);
+    }
+
+    [Fact]
+    public void Render_UsesTheConfiguredFavicon()
+    {
+        _renderer.Options = new DashboardOptions { FaviconPath = "/brand.ico" };
+
+        string html = _renderer.Render(new WallboardPage());
+
+        Assert.Contains("<link rel=\"shortcut icon\" href=\"/brand.ico\" type=\"image/x-icon\">", html);
+        Assert.DoesNotContain("data:image/x-icon", html);
     }
 
     [Fact]
