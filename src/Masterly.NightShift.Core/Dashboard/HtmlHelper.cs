@@ -188,6 +188,14 @@ public class HtmlHelper
         return StateLabel(stateName, stateName);
     }
 
+    /// <summary>
+    /// Renders a state chip: the state's icon and <paramref name="text"/> in the state's MD3 colour group
+    /// (<c>ns-state-chip ns-state-{group}</c>, see <see cref="JobHistoryRenderer.GetStateColorGroup"/>). A state
+    /// without a group gets the neutral chip, with the class <c>label-state-{suffix}</c> when it has a CSS suffix.
+    /// </summary>
+    /// <param name="stateName">The name of the state, which chooses the colours and the icon.</param>
+    /// <param name="text">The text of the chip.</param>
+    /// <param name="hover">Whether the chip turns into the filled state colour when the link around it is hovered.</param>
     public NonEscapedString StateLabel(string? stateName, string? text, bool hover = false)
     {
         if (string.IsNullOrWhiteSpace(stateName))
@@ -195,16 +203,112 @@ public class HtmlHelper
             return Raw($"<em>{HtmlEncode(Strings.Common_NoState)}</em>");
         }
 
-        string? cssSuffix = JobHistoryRenderer.GetStateCssSuffix(stateName);
-        string? cssHover = hover ? "label-hover" : null;
+        string? group = JobHistoryRenderer.GetStateColorGroup(stateName);
+        string? cssSuffix = group == null ? JobHistoryRenderer.GetStateCssSuffix(stateName) : null;
 
-        if (cssSuffix != null)
+        StringBuilder css = new("ns-state-chip");
+        if (group != null)
         {
-            return Raw($"<span class=\"badge {cssHover} label-state-{HtmlEncode(cssSuffix)}\">{HtmlEncode(text)}</span>");
+            css.Append(" ns-state-").Append(group);
+        }
+        else if (cssSuffix != null)
+        {
+            css.Append(" label-state-").Append(cssSuffix);
         }
 
-        // No suffix: the neutral label look
-        return Raw($"<span class=\"badge text-bg-secondary {cssHover}\">{HtmlEncode(text)}</span>");
+        if (hover)
+        {
+            css.Append(" label-hover");
+        }
+
+        return Raw($"<span class=\"{HtmlEncode(css.ToString())}\">{Icon(JobHistoryRenderer.GetStateIcon(stateName))}<span>{HtmlEncode(text)}</span></span>");
+    }
+
+    /// <summary>
+    /// Renders the selection checkbox of a job list's row (<c>js-jobs-list-checkbox</c>, posted as <c>jobs[]</c>),
+    /// named "Select job #id" for screen readers.
+    /// </summary>
+    /// <param name="jobId">The id of the job, the value posted when the box is checked.</param>
+    public NonEscapedString JobCheckbox([NotNull] string jobId)
+    {
+        ArgumentNullException.ThrowIfNull(jobId);
+        string shown = Guid.TryParse(jobId, out _) ? string.Concat(jobId.AsSpan(0, 8), "…") : $"#{jobId}";
+        return JobCheckbox(jobId, string.Format(CultureInfo.CurrentCulture, Strings.Common_SelectJob, shown));
+    }
+
+    /// <summary>
+    /// Renders the selection checkbox of a list's row, like <see cref="JobCheckbox(string)"/>, with the accessible name
+    /// given (for a list of other items, such as recurring jobs).
+    /// </summary>
+    /// <param name="value">The value posted as <c>jobs[]</c> when the box is checked.</param>
+    /// <param name="label">The accessible name of the checkbox.</param>
+    public NonEscapedString JobCheckbox([NotNull] string value, [NotNull] string label)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ArgumentNullException.ThrowIfNull(label);
+        return Raw($"<input type=\"checkbox\" class=\"js-jobs-list-checkbox\" name=\"jobs[]\" value=\"{HtmlEncode(value)}\" aria-label=\"{HtmlEncode(label)}\"/>");
+    }
+
+    /// <summary>
+    /// Renders the checkbox in the header of a job list that selects every row of the page
+    /// (<c>js-jobs-list-select-all</c>), named "Select all jobs on this page".
+    /// </summary>
+    public NonEscapedString SelectAllCheckbox()
+    {
+        return SelectAllCheckbox(Strings.Common_SelectAllJobs);
+    }
+
+    /// <summary>Renders the select-all checkbox of a list, like <see cref="SelectAllCheckbox()"/>, with the accessible name given.</summary>
+    /// <param name="label">The accessible name of the checkbox.</param>
+    public NonEscapedString SelectAllCheckbox([NotNull] string label)
+    {
+        ArgumentNullException.ThrowIfNull(label);
+        return Raw($"<input type=\"checkbox\" class=\"js-jobs-list-select-all\" aria-label=\"{HtmlEncode(label)}\"/>");
+    }
+
+    /// <summary>
+    /// Renders the attributes that make a command button (<c>data-ajax</c>, a list command or a cluster command) ask
+    /// first in the dashboard's confirmation dialog: <c>data-confirm</c> (the headline), and when given
+    /// <c>data-confirm-body</c>, <c>data-confirm-label</c>, <c>data-confirm-destructive</c> and
+    /// <c>data-confirm-type</c>. A headline may hold <c>{0}</c>, replaced by the number of selected rows.
+    /// </summary>
+    /// <param name="title">The headline: a question that names the action, such as "Delete 3 jobs?".</param>
+    /// <param name="body">What happens, or <c>null</c>.</param>
+    /// <param name="confirmLabel">The label of the confirming button, or <c>null</c> for the command button's text.</param>
+    /// <param name="destructive">Whether the confirming button has the error colour.</param>
+    /// <param name="typeToConfirm">Text the user must type before the confirming button works, or <c>null</c>.</param>
+    public NonEscapedString ConfirmAttributes(
+        [NotNull] string title,
+        [CanBeNull] string? body = null,
+        [CanBeNull] string? confirmLabel = null,
+        bool destructive = false,
+        [CanBeNull] string? typeToConfirm = null)
+    {
+        ArgumentNullException.ThrowIfNull(title);
+
+        StringBuilder html = new();
+        html.Append("data-confirm=\"").Append(HtmlEncode(title)).Append('"');
+        if (!string.IsNullOrEmpty(body))
+        {
+            html.Append(" data-confirm-body=\"").Append(HtmlEncode(body)).Append('"');
+        }
+
+        if (!string.IsNullOrEmpty(confirmLabel))
+        {
+            html.Append(" data-confirm-label=\"").Append(HtmlEncode(confirmLabel)).Append('"');
+        }
+
+        if (destructive)
+        {
+            html.Append(" data-confirm-destructive=\"true\"");
+        }
+
+        if (!string.IsNullOrEmpty(typeToConfirm))
+        {
+            html.Append(" data-confirm-type=\"").Append(HtmlEncode(typeToConfirm)).Append('"');
+        }
+
+        return Raw(html.ToString());
     }
 
     /// <summary>

@@ -34,9 +34,8 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="hf-page-header">
-            @Html.Breadcrumbs(title, new Dictionary<string, string> { { Strings.RecurringJobsPage_Title, Url.To("/recurring") } })
-        </h1>
+        @Html.Breadcrumbs(title, new Dictionary<string, string> { { Strings.RecurringJobsPage_Title, Url.To("/recurring") } })
+        <h1 id="page-title" class="hf-page-header">@title</h1>
 
         @if (job == null)
         {
@@ -147,14 +146,14 @@
                     <table class="table" aria-describedby="runs">
                         <thead>
                             <tr>
-                                <th class="min-width">@Strings.Common_Id</th>
-                                <th class="min-width">@Strings.Common_State</th>
-                                <th>@Strings.RecurringJobDetailsPage_ScheduledFor</th>
-                                <th>@Strings.Common_Created</th>
-                                <th>@Strings.RecurringJobDetailsPage_Duration</th>
-                                <th class="min-width">@Strings.Common_Retry</th>
-                                <th>@Strings.Common_Server</th>
-                                <th>@Strings.Common_Reason</th>
+                                <th scope="col" class="min-width">@Strings.Common_Id</th>
+                                <th scope="col" class="min-width">@Strings.Common_State</th>
+                                <th scope="col">@Strings.RecurringJobDetailsPage_ScheduledFor</th>
+                                <th scope="col">@Strings.Common_Created</th>
+                                <th scope="col">@Strings.RecurringJobDetailsPage_Duration</th>
+                                <th scope="col" class="min-width">@Strings.Common_Retry</th>
+                                <th scope="col">@Strings.Common_Server</th>
+                                <th scope="col">@Strings.Common_Reason</th>
                             </tr>
                         </thead>
                         <tbody>

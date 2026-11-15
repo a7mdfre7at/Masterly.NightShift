@@ -56,14 +56,14 @@
                 <table class="table" aria-describedby="page-title">
                     <thead>
                         <tr>
-                            <th>@Strings.ServersPage_Table_Name</th>
-                            <th>@Strings.ServersPage_Table_Workers</th>
-                            <th>@Strings.ServersPage_Table_Queues</th>
-                            <th>@Strings.ServersPage_Table_Started</th>
-                            <th>@Strings.ServersPage_Table_Heartbeat</th>
+                            <th scope="col">@Strings.ServersPage_Table_Name</th>
+                            <th scope="col">@Strings.ServersPage_Table_Workers</th>
+                            <th scope="col">@Strings.ServersPage_Table_Queues</th>
+                            <th scope="col">@Strings.ServersPage_Table_Started</th>
+                            <th scope="col">@Strings.ServersPage_Table_Heartbeat</th>
                             @if (!IsReadOnly)
                             {
-                                <th class="min-width"></th>
+                                <th scope="col" class="min-width"></th>
                             }
                         </tr>
                     </thead>
@@ -252,7 +252,7 @@
                         <strong>@Strings.ServersPage_ClearJobs</strong>
                         <p class="text-muted">@Strings.ServersPage_ClearJobs_Hint</p>
                     </div>
-                    <button class="btn btn-sm btn-outline-secondary" data-ajax="@Url.To("/maintenance/clear-jobs")" data-loading-text="@Strings.ServersPage_Clearing" data-confirm="@Strings.ServersPage_ClearJobsConfirm">
+                    <button class="btn btn-sm btn-outline-secondary" data-ajax="@Url.To("/maintenance/clear-jobs")" data-loading-text="@Strings.ServersPage_Clearing" @Html.ConfirmAttributes(Strings.ServersPage_ClearJobsConfirm_Title, Strings.ServersPage_ClearJobsConfirm, destructive: true, typeToConfirm: Strings.ServersPage_ClearJobsConfirm_Word)>
                         @Html.Icon("trash-fill") @Strings.ServersPage_ClearJobs
                     </button>
                 </div>
@@ -261,7 +261,7 @@
                         <strong>@Strings.ServersPage_ResetStorage</strong>
                         <p class="text-muted">@Strings.ServersPage_ResetStorage_Hint</p>
                     </div>
-                    <button class="btn btn-sm btn-death" data-ajax="@Url.To("/maintenance/reset")" data-loading-text="@Strings.ServersPage_Clearing" data-confirm="@Strings.ServersPage_ResetStorageConfirm">
+                    <button class="btn btn-sm btn-death" data-ajax="@Url.To("/maintenance/reset")" data-loading-text="@Strings.ServersPage_Clearing" @Html.ConfirmAttributes(Strings.ServersPage_ResetStorageConfirm_Title, Strings.ServersPage_ResetStorageConfirm, destructive: true, typeToConfirm: Strings.ServersPage_ResetStorageConfirm_Word)>
                         @Html.Icon("fire") @Strings.ServersPage_ResetStorage
                     </button>
                 </div>

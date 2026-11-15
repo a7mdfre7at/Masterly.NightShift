@@ -16,9 +16,8 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="hf-page-header">
-            @Html.Breadcrumbs(title, new Dictionary<string, string> { { Strings.ChainsPage_Title, Url.To("/chains") } })
-        </h1>
+        @Html.Breadcrumbs(title, new Dictionary<string, string> { { Strings.ChainsPage_Title, Url.To("/chains") } })
+        <h1 id="page-title" class="hf-page-header">@title</h1>
 
         @if (chain == null)
         {
@@ -41,7 +40,7 @@
                         </span>
                         @if (!IsReadOnly && !chain.IsSettled)
                         {
-                            <button class="btn btn-sm btn-outline-secondary" data-ajax="@Url.To("/chains/delete/" + RouteValues.Encode(chain.ChainId))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.ChainDetailsPage_DeleteConfirm">
+                            <button class="btn btn-sm btn-outline-secondary" data-ajax="@Url.To("/chains/delete/" + RouteValues.Encode(chain.ChainId))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.ChainDetailsPage_DeleteConfirm" data-confirm-destructive="true">
                                 @Html.Icon("x-lg") @Strings.Common_Delete
                             </button>
                         }

@@ -586,7 +586,7 @@ internal static class ChainFlowchartRenderer
         JobChainStepInfo info = step.Info;
         // A step whose job expired shows what it finished as, when the chain kept it
         string state = info.State ?? (info.FinishedAs != null ? string.Format(CultureInfo.CurrentCulture, Strings.ChainFlow_FinishedAsExpired, info.FinishedAs) : Strings.Common_JobExpired);
-        string color = info.StateOrOutcome != null ? JobHistoryRenderer.GetForegroundStateColor(info.StateOrOutcome) : "#5F7882";
+        string color = info.StateOrOutcome != null ? JobHistoryRenderer.GetStateColorCss(info.StateOrOutcome) : "var(--ns-state-deleted)";
         bool dim = info.State == null || step.Condition == ChainFlowCondition.NotRun;
         string css = "hf-flow-card" + (dim ? " hf-flow-dim" : string.Empty) + (IsProcessing(info.State) ? " hf-flow-active" : string.Empty);
 

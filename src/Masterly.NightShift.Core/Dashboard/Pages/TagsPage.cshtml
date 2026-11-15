@@ -77,11 +77,11 @@
                 <table class="table hf-tags-table" aria-describedby="page-title">
                     <thead>
                         <tr>
-                            <th>@Strings.TagsPage_Table_Tag</th>
-                            <th class="min-width align-right">@Strings.TagsPage_Table_Jobs</th>
+                            <th scope="col">@Strings.TagsPage_Table_Tag</th>
+                            <th scope="col" class="min-width align-right">@Strings.TagsPage_Table_Jobs</th>
                             @if (!IsReadOnly)
                             {
-                                <th class="min-width"></th>
+                                <th scope="col" class="min-width"></th>
                             }
                         </tr>
                     </thead>
@@ -94,7 +94,7 @@
                                 @if (!IsReadOnly)
                                 {
                                     <td>
-                                        <button class="btn hf-btn-xs btn-outline-secondary" data-ajax="@Url.To("/tags/forget/" + RouteValues.Encode(tag.Tag))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.TagsPage_ForgetConfirm">
+                                        <button class="btn hf-btn-xs btn-outline-secondary" data-ajax="@Url.To("/tags/forget/" + RouteValues.Encode(tag.Tag))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.TagsPage_ForgetConfirm" data-confirm-destructive="true">
                                             @Html.Icon("x-lg") @Strings.TagsPage_Forget
                                         </button>
                                     </td>

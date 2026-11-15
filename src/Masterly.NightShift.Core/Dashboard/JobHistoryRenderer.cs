@@ -50,21 +50,23 @@ public static class JobHistoryRenderer
         Register(DeletedState.StateName, DeletedRenderer);
         Register(AwaitingState.StateName, AwaitingRenderer);
 
-        BackgroundStateColors.Add(EnqueuedState.StateName, "#E3F0F1");
-        BackgroundStateColors.Add(SucceededState.StateName, "#E0F5EC");
-        BackgroundStateColors.Add(FailedState.StateName, "#FDE8EC");
-        BackgroundStateColors.Add(ProcessingState.StateName, "#FFEDE4");
-        BackgroundStateColors.Add(ScheduledState.StateName, "#E7EFFD");
-        BackgroundStateColors.Add(DeletedState.StateName, "#EAF3F3");
-        BackgroundStateColors.Add(AwaitingState.StateName, "#E7EFFD");
+        // The light scheme's values of the state colour groups (--ns-state-{group}-container and --ns-state-{group} in
+        // nightshift-tokens.css), for places that can't use the CSS variables
+        BackgroundStateColors.Add(EnqueuedState.StateName, "#ABEDFF");
+        BackgroundStateColors.Add(SucceededState.StateName, "#9AF6B4");
+        BackgroundStateColors.Add(FailedState.StateName, "#FFD9DD");
+        BackgroundStateColors.Add(ProcessingState.StateName, "#FFDBCC");
+        BackgroundStateColors.Add(ScheduledState.StateName, "#D3E3FF");
+        BackgroundStateColors.Add(DeletedState.StateName, "#D5E5EC");
+        BackgroundStateColors.Add(AwaitingState.StateName, "#E8DDFF");
 
         ForegroundStateColors.Add(EnqueuedState.StateName, "#0F6E80");
-        ForegroundStateColors.Add(SucceededState.StateName, "#059669");
-        ForegroundStateColors.Add(FailedState.StateName, "#E11D48");
-        ForegroundStateColors.Add(ProcessingState.StateName, "#E2622C");
-        ForegroundStateColors.Add(ScheduledState.StateName, "#2563EB");
-        ForegroundStateColors.Add(DeletedState.StateName, "#5F7882");
-        ForegroundStateColors.Add(AwaitingState.StateName, "#2563EB");
+        ForegroundStateColors.Add(SucceededState.StateName, "#006D3A");
+        ForegroundStateColors.Add(FailedState.StateName, "#BD0046");
+        ForegroundStateColors.Add(ProcessingState.StateName, "#99461B");
+        ForegroundStateColors.Add(ScheduledState.StateName, "#1760A5");
+        ForegroundStateColors.Add(DeletedState.StateName, "#526167");
+        ForegroundStateColors.Add(AwaitingState.StateName, "#6550A5");
 
         StateCssSuffixes.Add(EnqueuedState.StateName, "active");
         StateCssSuffixes.Add(SucceededState.StateName, "success");
@@ -119,6 +121,76 @@ public static class JobHistoryRenderer
         return suffix;
     }
 
+    // The colour group (--ns-state-{group} in nightshift-tokens.css) and the icon of each built-in state, and the group
+    // a built-in CSS suffix stands for
+    private static readonly Dictionary<string, (string Group, string Icon)> StateGroups = new(StringComparer.Ordinal)
+    {
+        [EnqueuedState.StateName] = ("enqueued", "inbox-fill"),
+        [ScheduledState.StateName] = ("scheduled", "clock"),
+        [ProcessingState.StateName] = ("processing", "play-circle-fill"),
+        [SucceededState.StateName] = ("succeeded", "check-circle-fill"),
+        [FailedState.StateName] = ("failed", "x-circle-fill"),
+        [DeletedState.StateName] = ("deleted", "trash-fill"),
+        [AwaitingState.StateName] = ("awaiting", "hourglass-split"),
+    };
+
+    private static readonly Dictionary<string, string> SuffixGroups = new(StringComparer.Ordinal)
+    {
+        ["active"] = EnqueuedState.StateName,
+        ["info"] = ScheduledState.StateName,
+        ["warning"] = ProcessingState.StateName,
+        ["success"] = SucceededState.StateName,
+        ["danger"] = FailedState.StateName,
+        ["inactive"] = DeletedState.StateName,
+    };
+
+    /// <summary>
+    /// The colour group of a state: <c>enqueued</c>, <c>scheduled</c>, <c>processing</c>, <c>succeeded</c>,
+    /// <c>failed</c>, <c>deleted</c> or <c>awaiting</c>, whose colours are the CSS variables
+    /// <c>--ns-state-{group}</c>, <c>--ns-state-on-{group}</c>, <c>--ns-state-{group}-container</c> and
+    /// <c>--ns-state-on-{group}-container</c>, and the class <c>ns-state-{group}</c> sets them for an element. A
+    /// built-in state has its own group; another state takes the group of its built-in CSS suffix (see
+    /// <see cref="AddStateCssSuffix"/>), or <c>null</c> without one.
+    /// </summary>
+    [CanBeNull]
+    public static string? GetStateColorGroup(string stateName)
+    {
+        return FindStateGroup(stateName)?.Group;
+    }
+
+    /// <summary>
+    /// The colour of a state as a CSS value that follows the theme: <c>var(--ns-state-{group})</c> for a state with a
+    /// colour group, else its foreground colour (<see cref="GetForegroundStateColor"/>). For inline styles and CSS
+    /// variables, not for SVG presentation attributes.
+    /// </summary>
+    internal static string GetStateColorCss(string stateName)
+    {
+        string? group = GetStateColorGroup(stateName);
+        return group != null ? $"var(--ns-state-{group})" : GetForegroundStateColor(stateName);
+    }
+    /// <summary>The icon of a state's chip: the built-in state's own, or the one of the state its CSS suffix stands for.</summary>
+    internal static string GetStateIcon(string stateName)
+    {
+        return FindStateGroup(stateName)?.Icon ?? "circle-fill";
+    }
+
+    private static (string Group, string Icon)? FindStateGroup(string stateName)
+    {
+        if (stateName == null)
+        {
+            return null;
+        }
+
+        if (StateGroups.TryGetValue(stateName, out (string Group, string Icon) own))
+        {
+            return own;
+        }
+
+        return StateCssSuffixes.TryGetValue(stateName, out string? suffix)
+            && SuffixGroups.TryGetValue(suffix, out string? builtIn)
+            ? StateGroups[builtIn]
+            : null;
+    }
     [CanBeNull]
     internal static string? FindForegroundStateColor(string stateName)
     {

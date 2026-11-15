@@ -42,7 +42,7 @@
                         <button class="btn btn-sm btn-outline-secondary btn-delete-all"
                                 data-ajax="@Url.To("/jobs/succeeded/delete-all")"
                                 data-loading-text="@Strings.Common_Deleting"
-                                data-confirm="@Strings.Common_DeleteAllConfirm">
+                                @Html.ConfirmAttributes(Strings.Common_DeleteAllConfirm_Title, Strings.Common_DeleteAllConfirm, Strings.Common_DeleteAll, destructive: true)>
                             @Html.Icon("trash-fill")
                             @Strings.Common_DeleteAll
                         </button>
@@ -66,22 +66,22 @@
                             <tr>
                                 @if (!IsReadOnly)
                                 {
-                                    <th class="min-width">
-                                        <input type="checkbox" class="js-jobs-list-select-all"/>
+                                    <th scope="col" class="min-width">
+                                        @Html.SelectAllCheckbox()
                                     </th>
                                 }
-                                <th class="min-width">@Strings.Common_Id</th>
-                                <th>@Strings.Common_Job</th>
+                                <th scope="col" class="min-width">@Strings.Common_Id</th>
+                                <th scope="col">@Strings.Common_Job</th>
                                 @if (succeededJobs.Any(x => x.Value?.StateData != null))
                                 {
-                                    <th class="min-width">@Strings.SucceededJobsPage_Table_Duration</th>
-                                    <th class="min-width">@Strings.SucceededJobsPage_Table_Latency</th>
+                                    <th scope="col" class="min-width">@Strings.SucceededJobsPage_Table_Duration</th>
+                                    <th scope="col" class="min-width">@Strings.SucceededJobsPage_Table_Latency</th>
                                 }
                                 else
                                 {
-                                    <th class="min-width">@Strings.SucceededJobsPage_Table_TotalDuration</th>
+                                    <th scope="col" class="min-width">@Strings.SucceededJobsPage_Table_TotalDuration</th>
                                 }
-                                <th class="align-right">@Strings.SucceededJobsPage_Table_Succeeded</th>
+                                <th scope="col" class="align-right">@Strings.SucceededJobsPage_Table_Succeeded</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -93,7 +93,7 @@
                                         <td>
                                             @if (job.Value != null && job.Value.InSucceededState)
                                             {
-                                                <input type="checkbox" class="js-jobs-list-checkbox" name="jobs[]" value="@job.Key"/>
+                                                @Html.JobCheckbox(job.Key)
                                             }
                                         </td>
                                     }

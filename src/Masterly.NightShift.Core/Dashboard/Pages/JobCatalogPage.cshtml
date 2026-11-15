@@ -59,13 +59,13 @@
                         <table class="table hf-catalog-table" aria-describedby="page-title">
                             <thead>
                                 <tr>
-                                    <th>@Strings.CatalogPage_Table_Method</th>
-                                    <th>@Strings.CatalogPage_Table_Parameters</th>
-                                    <th>@Strings.CatalogPage_Table_Filters</th>
-                                    <th class="min-width">@Strings.CatalogPage_Table_Stats</th>
+                                    <th scope="col">@Strings.CatalogPage_Table_Method</th>
+                                    <th scope="col">@Strings.CatalogPage_Table_Parameters</th>
+                                    <th scope="col">@Strings.CatalogPage_Table_Filters</th>
+                                    <th scope="col" class="min-width">@Strings.CatalogPage_Table_Stats</th>
                                     @if (!IsReadOnly)
                                     {
-                                        <th class="min-width"></th>
+                                        <th scope="col" class="min-width"></th>
                                     }
                                 </tr>
                             </thead>

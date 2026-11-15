@@ -33,9 +33,8 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="hf-page-header">
-            @Html.Breadcrumbs(Tag, new Dictionary<string, string> { { Strings.TagsPage_Title, Url.To("/tags") } })
-        </h1>
+        @Html.Breadcrumbs(Tag, new Dictionary<string, string> { { Strings.TagsPage_Title, Url.To("/tags") } })
+        <h1 id="page-title" class="hf-page-header">@title</h1>
 
         @if (expired.Count > 0)
         {
@@ -69,10 +68,10 @@
                     <table class="table" aria-describedby="page-title">
                         <thead>
                             <tr>
-                                <th class="min-width">@Strings.Common_Id</th>
-                                <th class="min-width">@Strings.Common_State</th>
-                                <th>@Strings.Common_Job</th>
-                                <th class="align-right">@Strings.Common_Created</th>
+                                <th scope="col" class="min-width">@Strings.Common_Id</th>
+                                <th scope="col" class="min-width">@Strings.Common_State</th>
+                                <th scope="col">@Strings.Common_Job</th>
+                                <th scope="col" class="align-right">@Strings.Common_Created</th>
                             </tr>
                         </thead>
                         <tbody>

@@ -160,13 +160,13 @@
                     <table class="table" aria-describedby="insights-circuits">
                         <thead>
                             <tr>
-                                <th>@Strings.InsightsPage_Circuits_Resource</th>
-                                <th class="min-width">@Strings.Common_State</th>
-                                <th class="min-width">@Strings.InsightsPage_Circuits_Failures</th>
-                                <th class="min-width align-right">@Strings.InsightsPage_Circuits_Since</th>
+                                <th scope="col">@Strings.InsightsPage_Circuits_Resource</th>
+                                <th scope="col" class="min-width">@Strings.Common_State</th>
+                                <th scope="col" class="min-width">@Strings.InsightsPage_Circuits_Failures</th>
+                                <th scope="col" class="min-width align-right">@Strings.InsightsPage_Circuits_Since</th>
                                 @if (!IsReadOnly)
                                 {
-                                    <th class="min-width"></th>
+                                    <th scope="col" class="min-width"></th>
                                 }
                             </tr>
                         </thead>
@@ -216,15 +216,15 @@
                     <table class="table insights-table" aria-describedby="insights-jobs">
                         <thead>
                             <tr>
-                                <th>@Strings.Common_Job</th>
-                                <th class="min-width align-right">@Strings.InsightsPage_Table_Runs</th>
-                                <th class="min-width align-right">@Strings.InsightsPage_Table_Failed</th>
-                                <th class="min-width align-right">@Strings.InsightsPage_Table_Median</th>
-                                <th class="min-width align-right">@Strings.InsightsPage_Table_P95</th>
-                                <th class="min-width align-right">@Strings.InsightsPage_Table_Max</th>
-                                <th class="min-width">@Strings.InsightsPage_Table_Trend</th>
-                                <th class="min-width">@Strings.InsightsPage_Table_Invoker</th>
-                                <th class="min-width align-right">@Strings.InsightsPage_Table_LastRun</th>
+                                <th scope="col">@Strings.Common_Job</th>
+                                <th scope="col" class="min-width align-right">@Strings.InsightsPage_Table_Runs</th>
+                                <th scope="col" class="min-width align-right">@Strings.InsightsPage_Table_Failed</th>
+                                <th scope="col" class="min-width align-right">@Strings.InsightsPage_Table_Median</th>
+                                <th scope="col" class="min-width align-right">@Strings.InsightsPage_Table_P95</th>
+                                <th scope="col" class="min-width align-right">@Strings.InsightsPage_Table_Max</th>
+                                <th scope="col" class="min-width">@Strings.InsightsPage_Table_Trend</th>
+                                <th scope="col" class="min-width">@Strings.InsightsPage_Table_Invoker</th>
+                                <th scope="col" class="min-width align-right">@Strings.InsightsPage_Table_LastRun</th>
                             </tr>
                         </thead>
                         <tbody>

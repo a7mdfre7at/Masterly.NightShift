@@ -61,9 +61,8 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="hf-page-header">
-            @Html.Breadcrumbs(title, new Dictionary<string, string> { { Strings.BatchesPage_Title, Url.To("/batches") } })
-        </h1>
+        @Html.Breadcrumbs(title, new Dictionary<string, string> { { Strings.BatchesPage_Title, Url.To("/batches") } })
+        <h1 id="page-title" class="hf-page-header">@title</h1>
 
         @if (batch == null)
         {
@@ -96,7 +95,7 @@
                             }
                             @if (batch.Pending + batch.Failed > 0)
                             {
-                                <button class="btn btn-sm btn-outline-secondary" data-ajax="@Url.To("/batches/delete/" + RouteValues.Encode(batch.Id))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.BatchDetailsPage_DeletePendingConfirm">
+                                <button class="btn btn-sm btn-outline-secondary" data-ajax="@Url.To("/batches/delete/" + RouteValues.Encode(batch.Id))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.BatchDetailsPage_DeletePendingConfirm" data-confirm-destructive="true">
                                     @Html.Icon("x-lg") @String.Format(Strings.BatchDetailsPage_DeletePending, batch.Pending + batch.Failed)
                                 </button>
                             }
@@ -129,9 +128,9 @@
                     <table class="table" aria-describedby="batch-continuations">
                         <thead>
                             <tr>
-                                <th class="min-width">@Strings.Common_Id</th>
-                                <th class="min-width">@Strings.Common_State</th>
-                                <th>@Strings.Common_Job</th>
+                                <th scope="col" class="min-width">@Strings.Common_Id</th>
+                                <th scope="col" class="min-width">@Strings.Common_State</th>
+                                <th scope="col">@Strings.Common_Job</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -166,10 +165,10 @@
                 <table class="table" aria-describedby="batch-jobs">
                     <thead>
                         <tr>
-                            <th class="min-width">@Strings.Common_Id</th>
-                            <th class="min-width">@Strings.Common_State</th>
-                            <th>@Strings.Common_Job</th>
-                            <th class="align-right">@Strings.Common_Created</th>
+                            <th scope="col" class="min-width">@Strings.Common_Id</th>
+                            <th scope="col" class="min-width">@Strings.Common_State</th>
+                            <th scope="col">@Strings.Common_Job</th>
+                            <th scope="col" class="align-right">@Strings.Common_Created</th>
                         </tr>
                     </thead>
                     <tbody>

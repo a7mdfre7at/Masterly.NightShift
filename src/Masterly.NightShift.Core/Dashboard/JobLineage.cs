@@ -406,7 +406,7 @@ internal static class JobLineageRenderer
         foreach (JobLineageNode node in lineage.Nodes)
         {
             (double x, double y) = positions[node.Id];
-            string color = node.State != null ? JobHistoryRenderer.GetForegroundStateColor(node.State) : "#5F7882";
+            string color = node.State != null ? JobHistoryRenderer.GetStateColorCss(node.State) : "var(--ns-state-deleted)";
             string css = "hf-lineage-node" + (node.IsCurrent ? " hf-lineage-current" : string.Empty) + (node.Exists ? string.Empty : " hf-lineage-missing");
             string title = node.Exists ? $"{page.Html.JobId(node.Id, false)} · {node.Name} · {node.State}" : string.Format(CultureInfo.CurrentCulture, Strings.JobDetailsPage_JobExpired, node.Id);
 

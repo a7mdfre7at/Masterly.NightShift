@@ -87,7 +87,7 @@
                         <button class="btn btn-sm btn-outline-secondary btn-delete-all"
                                 data-ajax="@Url.To("/recurring/remove-all")"
                                 data-loading-text="@Strings.Common_Deleting"
-                                data-confirm="@Strings.RecurringJobsPage_RemoveAllConfirm">
+                                @Html.ConfirmAttributes(Strings.RecurringJobsPage_RemoveAllConfirm_Title, Strings.RecurringJobsPage_RemoveAllConfirm, Strings.RecurringJobsPage_RemoveAll, destructive: true)>
                             @Html.Icon("trash-fill")
                             @Strings.RecurringJobsPage_RemoveAll
                         </button>
@@ -127,7 +127,7 @@
                         <button class="js-jobs-list-command btn btn-sm btn-outline-secondary"
                                 data-url="@Url.To("/recurring/remove")"
                                 data-loading-text="@Strings.Common_Deleting"
-                                data-confirm="@Strings.Common_DeleteConfirm"
+                                @Html.ConfirmAttributes(Strings.Common_DeleteSelected_Title, Strings.RecurringJobsPage_RemoveAllConfirm, Strings.Common_Delete, destructive: true) data-confirm-one="@Strings.Common_DeleteSelected_TitleOne"
                                 disabled="disabled">
                             @Html.Icon("x-lg")
                             @Strings.Common_Delete
@@ -145,20 +145,20 @@
                             <tr>
                                 @if (!IsReadOnly)
                                 {
-                                    <th class="min-width">
-                                        <input type="checkbox" class="js-jobs-list-select-all"/>
+                                    <th scope="col" class="min-width">
+                                        @Html.SelectAllCheckbox(Strings.RecurringJobsPage_SelectAll)
                                     </th>
                                 }
-                                <th>@Strings.Common_Id</th>
-                                <th class="min-width">@Strings.RecurringJobsPage_Table_Cron</th>
-                                <th>@Strings.RecurringJobsPage_Table_TimeZone</th>
-                                <th>@Strings.Common_Job</th>
-                                <th class="align-right min-width">@Strings.RecurringJobsPage_Table_NextExecution</th>
-                                <th class="align-right min-width">@Strings.RecurringJobsPage_Table_LastExecution</th>
-                                <th class="align-right min-width">@Strings.Common_Created</th>
+                                <th scope="col">@Strings.Common_Id</th>
+                                <th scope="col" class="min-width">@Strings.RecurringJobsPage_Table_Cron</th>
+                                <th scope="col">@Strings.RecurringJobsPage_Table_TimeZone</th>
+                                <th scope="col">@Strings.Common_Job</th>
+                                <th scope="col" class="align-right min-width">@Strings.RecurringJobsPage_Table_NextExecution</th>
+                                <th scope="col" class="align-right min-width">@Strings.RecurringJobsPage_Table_LastExecution</th>
+                                <th scope="col" class="align-right min-width">@Strings.Common_Created</th>
                                 @if (!IsReadOnly)
                                 {
-                                    <th class="min-width"></th>
+                                    <th scope="col" class="min-width"></th>
                                 }
                             </tr>
                         </thead>
@@ -169,7 +169,7 @@
                                     @if (!IsReadOnly)
                                     {
                                         <td rowspan="@(job.Error != null ? "2" : "1")">
-                                            <input type="checkbox" class="js-jobs-list-checkbox" name="jobs[]" value="@job.Id"/>
+                                            @Html.JobCheckbox(job.Id, String.Format(Strings.RecurringJobsPage_SelectJob, job.Id))
                                         </td>
                                     }
                                     <td class="word-break"><a href="@Url.To("/recurring/details/" + RouteValues.Encode(job.Id))">@job.Id</a></td>

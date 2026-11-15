@@ -39,16 +39,16 @@
                 <table class="table table-striped" aria-describedby="page-title">
                     <thead>
                         <tr>
-                            <th class="min-width-200p">@Strings.QueuesPage_Table_Queue</th>
-                            <th>@Strings.QueuesPage_Table_Length</th>
-                            <th>@Strings.Common_Fetched</th>
-                            <th class="min-width" title="@Strings.QueuesPage_Table_Latency_Hint">@Strings.QueuesPage_Table_Latency</th>
-                            <th class="min-width">@Strings.QueuesPage_Table_Throughput</th>
-                            <th class="min-width">@Strings.QueuesPage_Table_ClearsIn</th>
-                            <th>@Strings.QueuesPage_Table_NextsJobs</th>
+                            <th scope="col" class="min-width-200p">@Strings.QueuesPage_Table_Queue</th>
+                            <th scope="col">@Strings.QueuesPage_Table_Length</th>
+                            <th scope="col">@Strings.Common_Fetched</th>
+                            <th scope="col" class="min-width" title="@Strings.QueuesPage_Table_Latency_Hint">@Strings.QueuesPage_Table_Latency</th>
+                            <th scope="col" class="min-width">@Strings.QueuesPage_Table_Throughput</th>
+                            <th scope="col" class="min-width">@Strings.QueuesPage_Table_ClearsIn</th>
+                            <th scope="col">@Strings.QueuesPage_Table_NextsJobs</th>
                             @if (!IsReadOnly)
                             {
-                                <th class="min-width"></th>
+                                <th scope="col" class="min-width"></th>
                             }
                         </tr>
                     </thead>
@@ -134,10 +134,10 @@
                                         <table class="table table-sm table-inner">
                                             <thead>
                                                 <tr>
-                                                    <th class="min-width">@Strings.Common_Id</th>
-                                                    <th class="min-width">@Strings.Common_State</th>
-                                                    <th>@Strings.Common_Job</th>
-                                                    <th class="align-right min-width">@Strings.Common_Enqueued</th>
+                                                    <th scope="col" class="min-width">@Strings.Common_Id</th>
+                                                    <th scope="col" class="min-width">@Strings.Common_State</th>
+                                                    <th scope="col">@Strings.Common_Job</th>
+                                                    <th scope="col" class="align-right min-width">@Strings.Common_Enqueued</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
