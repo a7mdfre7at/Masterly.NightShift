@@ -1,6 +1,7 @@
 using System.Net;
 using Masterly.NightShift;
 using Masterly.NightShift.Common;
+using Masterly.NightShift.Server;
 using Masterly.NightShift.States;
 using Masterly.NightShift.Storage;
 
@@ -604,6 +605,43 @@ public static class Experiments
                 return Task.FromResult($"On playground (critical): {string.Join(" · ", onFirst)}<br>On playground-reports (reports): {string.Join(" · ", onSecond)}");
             }),
 
+        new("stalled", "11. Operations", "A paused server whose heartbeat is late (step 1: announce it)",
+            "A server that was paused and then stopped sending heartbeats, as a process that hangs would. This one has no workers behind it: it is announced through the storage API with an id of its own, 2 workers and the queues reports and default, paused the way the Servers page's Pause button pauses a server, and never sends a heartbeat.",
+            $"{D("/servers", "Servers")}: its card, playground-stalled, says Paused at once. After 1 minute without a heartbeat (DashboardOptions.ServerPossiblyAbortedThreshold) it also says Possibly aborted. The server watchdog removes it when its heartbeat is older than the server timeout (BackgroundJobServerOptions.ServerTimeout, 5 minutes), at its next check (ServerCheckInterval, every 5 minutes): 5 to 10 minutes after you pressed the button. Its pause outlives it, and Servers then lists it under the stale pauses. The next step removes both now.",
+            "using IStorageConnection connection = storage.GetConnection();\nconnection.AnnounceServer(\"playground-stalled:1\", new ServerContext { WorkerCount = 2, Queues = [\"reports\", \"default\"] });\nDrainMode.PauseServer(connection, \"playground-stalled:1\", \"Stalled on purpose\");\n// and never connection.Heartbeat(\"playground-stalled:1\")",
+            static c =>
+            {
+                string id = PlaygroundState.NextStalledServerId();
+                using IStorageConnection connection = c.Storage.GetConnection();
+                connection.AnnounceServer(id, new ServerContext { WorkerCount = 2, Queues = ["reports", "default"] });
+                DrainMode.PauseServer(connection, id, "Stalled on purpose: no heartbeat");
+                return Task.FromResult($"Announced and paused {Encode(id)}: it turns Possibly aborted in a minute. {D("/servers", "Open Servers")}");
+            }),
+
+        new("stalled-remove", "11. Operations", "A paused server whose heartbeat is late (step 2: remove it)",
+            "Removes every stalled server of the step above now, as the server watchdog would, and clears its pause, which nothing else removes: a server takes back its own pause when it stops, and these never ran.",
+            $"The playground-stalled cards leave {D("/servers", "Servers")}, with no stale pause left behind.",
+            "connection.RemoveServer(\"playground-stalled:1\");\nDrainMode.ResumeServer(connection, \"playground-stalled:1\");",
+            static c =>
+            {
+                using IStorageConnection connection = c.Storage.GetConnection();
+                string[] servers = [.. c.Storage.GetMonitoringApi().Servers().Select(static x => x.Name).Where(IsStalledServer)];
+                string[] pauses = [.. DrainMode.Read(connection).PausedServers.Keys.Where(IsStalledServer)];
+                foreach (string id in servers)
+                {
+                    connection.RemoveServer(id);
+                }
+
+                foreach (string id in pauses)
+                {
+                    DrainMode.ResumeServer(connection, id);
+                }
+
+                return Task.FromResult(servers.Length == 0 && pauses.Length == 0
+                    ? "No stalled server to remove."
+                    : $"Removed {servers.Length} server(s) and cleared {pauses.Length} pause(s): {Encode(string.Join(", ", servers.Union(pauses)))}");
+            }, "Remove it"),
+
         new("server", "11. Operations", "Stop and start the servers",
             "IBackgroundJobServerControl stops and starts this process's servers (for a maintenance window, or with StartMode = Manual).",
             $"Stop: both servers leave {D("/servers", "Servers")}, jobs pile up on Enqueued, <a href=\"/health/live\" target=\"_blank\">/health/live</a> turns unhealthy. Start: new server ids, and the backlog runs.",
@@ -645,6 +683,8 @@ public static class Experiments
     private static string D(string path, string text) => Dashboard(path, text);
 
     private static string Encode(string value) => WebUtility.HtmlEncode(value);
+
+    private static bool IsStalledServer(string serverId) => serverId.StartsWith(PlaygroundState.StalledServerPrefix, StringComparison.OrdinalIgnoreCase);
 
     private static string MonitorStatus(PlaygroundContext c) =>
         "Monitors: " + string.Join(" · ", JobMonitors.GetStatus(c.Storage).Select(x => Encode($"{x.Name}: {x.State}" + (x.Reason != null ? $" ({x.Reason})" : string.Empty))));

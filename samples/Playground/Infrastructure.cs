@@ -92,11 +92,18 @@ public sealed class PlaygroundContext(IServiceProvider services)
     public JobStorage Storage { get; } = services.GetRequiredService<JobStorage>();
 }
 
-/// <summary>Values experiments share: the long job to cancel, toggles.</summary>
+/// <summary>Values experiments share: the long job to cancel, toggles, the stalled servers' ids.</summary>
 public static class PlaygroundState
 {
+    public const string StalledServerPrefix = "playground-stalled:";
+
+    private static int _stalledServers;
+
     public static string? LongJobId { get; set; }
     public static string? SlowJobId { get; set; }
+
+    /// <summary>The id of the next stalled server: <c>playground-stalled:1</c>, <c>playground-stalled:2</c>...</summary>
+    public static string NextStalledServerId() => $"{StalledServerPrefix}{Interlocked.Increment(ref _stalledServers)}";
 }
 
 /// <summary>

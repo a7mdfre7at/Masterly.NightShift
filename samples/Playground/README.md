@@ -27,10 +27,15 @@ The sections, in the order to try them the first time:
 8. Recurring jobs: CRON schedules, trigger/pause/resume, jobs declared in code, plain-English CRON, forecast, export
 9. Managing jobs: reschedule, wait for a result, delete pending jobs, requeue failed jobs
 10. Monitoring: job monitors, OpenTelemetry, insights, activity, timeline, audit, health checks and metrics
-11. Operations: drain mode, two servers with their busy workers, stopping the servers, a read-only dashboard, the
-    About page and the command palette
+11. Operations: drain mode, two servers with their busy workers, a paused server whose heartbeat is late, stopping
+    the servers, a read-only dashboard, the About page and the command palette
 
 The app runs two servers: `playground` (8 workers, queues `critical` and `default`, plus a worker for long-running
-jobs) and `playground-reports` (3 workers, queues `reports` and `default`). The configuration that turns all of this
+jobs) and `playground-reports` (3 workers, queues `reports` and `default`). The step "A paused server whose heartbeat
+is late" adds a third, `playground-stalled:{n}`, through the storage API (`IStorageConnection.AnnounceServer`, then
+`DrainMode.PauseServer`, as the Servers page pauses a server) and never sends it a heartbeat: the Servers page says
+Paused at once, and Possibly aborted after a minute (`DashboardOptions.ServerPossiblyAbortedThreshold`). The server
+watchdog removes it 5 to 10 minutes later (`ServerTimeout` and `ServerCheckInterval`, 5 minutes each) and leaves its
+pause behind; the step after it removes the server and its pause at once. The configuration that turns all of this
 on is in `Program.cs`; the jobs are in `Jobs.cs`, and each step is an
 `Experiment` in `Experiments.cs`.
