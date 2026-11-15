@@ -33,149 +33,146 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="hf-page-header">@Strings.ForecastPage_Title <small class="text-muted">@Strings.ForecastPage_Hint</small></h1>
-
-        <div class="btn-toolbar btn-toolbar-top">
-            <div class="btn-group">
-                <a href="?window=24h" class="btn btn-sm btn-outline-secondary @(!week ? "active" : null)">@Strings.ForecastPage_Window_24h</a>
-                <a href="?window=7d" class="btn btn-sm btn-outline-secondary @(week ? "active" : null)">@Strings.ForecastPage_Window_7d</a>
+        <header class="ns-page-head">
+            <div class="ns-page-heading">
+                @Html.PageTitle(Strings.ForecastPage_Title, null, forecast.Rows.Count)
+                <p class="ns-page-subtitle">@Strings.ForecastPage_Hint</p>
             </div>
-            <a href="@Url.To("/recurring")" class="btn btn-sm btn-outline-secondary">@Html.Icon("clock") @Strings.NavigationMenu_RecurringJobs</a>
-        </div>
+            <div class="ns-page-actions">
+                <div class="btn-group" role="group" aria-label="@Strings.ForecastPage_Title">
+                    <a href="?window=24h" class="btn btn-sm btn-outline-secondary @(!week ? "active" : null)"@Html.Raw(!week ? " aria-current=\"page\"" : null)>@Strings.ForecastPage_Window_24h</a>
+                    <a href="?window=7d" class="btn btn-sm btn-outline-secondary @(week ? "active" : null)"@Html.Raw(week ? " aria-current=\"page\"" : null)>@Strings.ForecastPage_Window_7d</a>
+                </div>
+                <a href="@Url.To("/recurring")" class="btn btn-sm btn-outline-secondary">@Html.Icon("clock") @Strings.NavigationMenu_RecurringJobs</a>
+            </div>
+        </header>
 
         @if (forecast.Rows.Count == 0)
         {
-            <div class="alert alert-info">@Strings.RecurringJobsPage_NoJobs</div>
+            @Html.EmptyState("calendar3", Strings.RecurringJobsPage_EmptyTitle, Strings.RecurringJobsPage_Empty, Url.To("/catalog"), Strings.NavigationMenu_Catalog)
         }
         else
         {
-            <div class="row insights-summary">
-                <div class="col-md-3">
-                    <div class="insights-tile">
-                        <div class="insights-tile-value" title="@(forecast.Truncated ? String.Format(Strings.ForecastPage_Truncated, ScheduleForecast.MaxOccurrencesPerJob) : null)">@(forecast.Truncated ? "\u2265" : null)@forecast.TotalRuns.ToString("N0")</div>
-                        <div class="insights-tile-label">@Strings.ForecastPage_Summary_Runs</div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="insights-tile">
-                        <div class="insights-tile-value">@Html.ToHumanDuration(forecast.TotalBusyTime, false)</div>
-                        <div class="insights-tile-label">@Strings.ForecastPage_Summary_BusyTime</div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="insights-tile">
-                        <div class="insights-tile-value">@if (busiest.HasValue) { <span data-moment-local="@JobHelper.ToTimestamp(busiest.Value)" data-moment-local-format="@(week ? "shortDateTime" : "time")">@busiest.Value.ToString("HH:mm", CultureInfo.InvariantCulture)</span> } else { <text>&ndash;</text> }</div>
-                        <div class="insights-tile-label">@Strings.ForecastPage_Summary_Busiest</div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="insights-tile @(forecast.HotSpots.Count > 0 ? "insights-tile-danger" : null)">
-                        <div class="insights-tile-value">@forecast.HotSpots.Count</div>
-                        <div class="insights-tile-label">@Strings.ForecastPage_HotSpots</div>
-                    </div>
-                </div>
+            <div class="ns-summary insights-summary">
+                <section class="ns-summary-tile" aria-labelledby="forecast-runs" title="@(forecast.Truncated ? String.Format(Strings.ForecastPage_Truncated, ScheduleForecast.MaxOccurrencesPerJob) : null)">
+                    <h2 id="forecast-runs" class="ns-summary-label">@Html.Icon("play-circle") @Strings.ForecastPage_Summary_Runs</h2>
+                    <p class="ns-summary-value insights-tile-value">@(forecast.Truncated ? "≥" : null)@forecast.TotalRuns.ToString("N0")</p>
+                </section>
+                <section class="ns-summary-tile" aria-labelledby="forecast-busy">
+                    <h2 id="forecast-busy" class="ns-summary-label">@Html.Icon("hourglass-split") @Strings.ForecastPage_Summary_BusyTime</h2>
+                    <p class="ns-summary-value insights-tile-value">@Html.ToHumanDuration(forecast.TotalBusyTime, false)</p>
+                </section>
+                <section class="ns-summary-tile" aria-labelledby="forecast-busiest">
+                    <h2 id="forecast-busiest" class="ns-summary-label">@Html.Icon("bar-chart-fill") @Strings.ForecastPage_Summary_Busiest</h2>
+                    <p class="ns-summary-value insights-tile-value">@if (busiest.HasValue) { <span data-moment-local="@JobHelper.ToTimestamp(busiest.Value)" data-moment-local-format="@(week ? "shortDateTime" : "time")">@busiest.Value.ToString("HH:mm", CultureInfo.InvariantCulture)</span> } else { <text>&ndash;</text> }</p>
+                </section>
+                <section class="ns-summary-tile@(forecast.HotSpots.Count > 0 ? " ns-state-failed insights-tile-danger" : null)" aria-labelledby="forecast-hot">
+                    <h2 id="forecast-hot" class="ns-summary-label">@Html.Icon("fire") @Strings.ForecastPage_HotSpots</h2>
+                    <p class="ns-summary-value insights-tile-value">@forecast.HotSpots.Count</p>
+                </section>
             </div>
 
-            <section class="hf-card hf-forecast">
-                <div class="hf-forecast-axis">
-                    <div class="hf-forecast-label"></div>
-                    <div class="hf-forecast-ticks">
-                        @for (int i = 0; i <= ticks; i++)
-                        {
-                            DateTime tickTime = forecast.From.AddTicks(window.Ticks * i / ticks);
-                            <span class="hf-forecast-tick" style="left: @((100.0 * i / ticks).ToString("F2", CultureInfo.InvariantCulture))%" data-moment-local="@JobHelper.ToTimestamp(tickTime)" data-moment-local-format="@tickFormat">@tickTime.ToString("HH:mm", CultureInfo.InvariantCulture)</span>
-                        }
-                    </div>
+            <section class="hf-card ns-forecast-card" aria-labelledby="forecast-timeline">
+                <div class="hf-card-header">
+                    <h2 id="forecast-timeline">@(week ? Strings.ForecastPage_Window_7d : Strings.ForecastPage_Window_24h)</h2>
                 </div>
-                @foreach (ScheduleForecast.Row row in forecast.Rows)
-                {
-                    <div class="hf-forecast-row @(row.Dto.Paused ? "hf-forecast-row-paused" : null)">
-                        <div class="hf-forecast-label" title="@row.Dto.Cron">
-                            <a href="@Url.To("/recurring?edit=" + Uri.EscapeDataString(row.Id))">@row.Id</a>
-                            <small class="text-muted">
-                                @if (row.Dto.Paused)
-                                {
-                                    <span class="badge text-bg-warning">@Strings.ForecastPage_Paused</span>
-                                }
-                                else
-                                {
-                                    if (row.Truncated)
+                <div class="hf-forecast">
+                    <div class="hf-forecast-axis">
+                        <div class="hf-forecast-label"></div>
+                        <div class="hf-forecast-ticks">
+                            @for (int i = 0; i <= ticks; i++)
+                            {
+                                DateTime tickTime = forecast.From.AddTicks(window.Ticks * i / ticks);
+                                <span class="hf-forecast-tick" style="left: @((100.0 * i / ticks).ToString("F2", CultureInfo.InvariantCulture))%" data-moment-local="@JobHelper.ToTimestamp(tickTime)" data-moment-local-format="@tickFormat">@tickTime.ToString("HH:mm", CultureInfo.InvariantCulture)</span>
+                            }
+                        </div>
+                    </div>
+                    @foreach (ScheduleForecast.Row row in forecast.Rows)
+                    {
+                        <div class="hf-forecast-row @(row.Dto.Paused ? "hf-forecast-row-paused" : null)">
+                            <div class="hf-forecast-label" title="@row.Dto.Cron">
+                                <a href="@Url.To("/recurring?edit=" + Uri.EscapeDataString(row.Id))">@row.Id</a>
+                                <span class="hf-forecast-facts">
+                                    @if (row.Dto.Paused)
                                     {
-                                        <span title="@String.Format(Strings.ForecastPage_Truncated, ScheduleForecast.MaxOccurrencesPerJob)">&ge;@row.Occurrences.Count&times;</span><text> &middot; </text>@Html.ToHumanDuration(row.ExpectedDuration, false)@(row.DurationKnown ? null : "*")
+                                        <span class="ns-chip ns-chip-status ns-recurring-paused">@Html.Icon("pause-fill") @Strings.ForecastPage_Paused</span>
                                     }
                                     else
                                     {
-                                        @row.Occurrences.Count<text>&times; &middot; </text>@Html.ToHumanDuration(row.ExpectedDuration, false)@(row.DurationKnown ? null : "*")
+                                        if (row.Truncated)
+                                        {
+                                            <span title="@String.Format(Strings.ForecastPage_Truncated, ScheduleForecast.MaxOccurrencesPerJob)">&ge;@row.Occurrences.Count&times;</span><text> &middot; </text>@Html.ToHumanDuration(row.ExpectedDuration, false)@(row.DurationKnown ? null : "*")
+                                        }
+                                        else
+                                        {
+                                            @row.Occurrences.Count<text>&times; &middot; </text>@Html.ToHumanDuration(row.ExpectedDuration, false)@(row.DurationKnown ? null : "*")
+                                        }
+                                    }
+                                </span>
+                            </div>
+                            <div class="hf-forecast-track">
+                                @if (row.Error != null)
+                                {
+                                    <span class="hf-forecast-error" title="@row.Error">@Html.Icon("exclamation-triangle-fill") @row.Error</span>
+                                }
+                                @if (row.Occurrences.Count > denseThreshold)
+                                {
+                                    double firstLeft = 100.0 * (row.Occurrences[0] - forecast.From).Ticks / window.Ticks;
+                                    // A truncated row keeps running after its last projected run, until RunsUntil
+                                    double lastLeft = 100.0 * ((row.RunsUntil ?? row.Occurrences[row.Occurrences.Count - 1]) - forecast.From).Ticks / window.Ticks;
+                                    <span class="hf-forecast-run hf-forecast-run-dense @(row.DurationKnown ? null : "hf-forecast-run-estimated")"
+                                          style="left: @(firstLeft.ToString("F3", CultureInfo.InvariantCulture))%; width: @(Math.Max(0.5, lastLeft - firstLeft).ToString("F3", CultureInfo.InvariantCulture))%"
+                                          title="@(row.Truncated ? String.Format(Strings.ForecastPage_Truncated, ScheduleForecast.MaxOccurrencesPerJob) : String.Format(Strings.ForecastPage_Dense, row.Occurrences.Count))"></span>
+                                }
+                                else
+                                {
+                                    foreach (DateTime occurrence in row.Occurrences)
+                                    {
+                                        double left = 100.0 * (occurrence - forecast.From).Ticks / window.Ticks;
+                                        double width = Math.Max(0.25, 100.0 * row.ExpectedDuration.Ticks / window.Ticks);
+                                        DateTime slot = new(occurrence.Ticks - occurrence.Ticks % ScheduleForecast.SlotSize.Ticks, DateTimeKind.Utc);
+
+                                        <span class="hf-forecast-run @(hotSlots.Contains(slot) ? "hf-forecast-run-hot" : null) @(row.DurationKnown ? null : "hf-forecast-run-estimated")"
+                                              style="left: @(left.ToString("F3", CultureInfo.InvariantCulture))%; width: @(Math.Min(width, 100 - left).ToString("F3", CultureInfo.InvariantCulture))%"
+                                              title="@occurrence.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) UTC &middot; @Html.ToHumanDuration(row.ExpectedDuration, false)"></span>
                                     }
                                 }
-                            </small>
+                            </div>
                         </div>
-                        <div class="hf-forecast-track">
-                            @if (row.Error != null)
-                            {
-                                <span class="text-danger hf-forecast-error" title="@row.Error">@Html.Icon("exclamation-triangle-fill") @row.Error</span>
-                            }
-                            @if (row.Occurrences.Count > denseThreshold)
-                            {
-                                double firstLeft = 100.0 * (row.Occurrences[0] - forecast.From).Ticks / window.Ticks;
-                                // A truncated row keeps running after its last projected run, until RunsUntil
-                                double lastLeft = 100.0 * ((row.RunsUntil ?? row.Occurrences[row.Occurrences.Count - 1]) - forecast.From).Ticks / window.Ticks;
-                                <span class="hf-forecast-run hf-forecast-run-dense @(row.DurationKnown ? null : "hf-forecast-run-estimated")"
-                                      style="left: @(firstLeft.ToString("F3", CultureInfo.InvariantCulture))%; width: @(Math.Max(0.5, lastLeft - firstLeft).ToString("F3", CultureInfo.InvariantCulture))%"
-                                      title="@(row.Truncated ? String.Format(Strings.ForecastPage_Truncated, ScheduleForecast.MaxOccurrencesPerJob) : String.Format(Strings.ForecastPage_Dense, row.Occurrences.Count))"></span>
-                            }
-                            else
-                            {
-                                foreach (DateTime occurrence in row.Occurrences)
-                                {
-                                    double left = 100.0 * (occurrence - forecast.From).Ticks / window.Ticks;
-                                    double width = Math.Max(0.25, 100.0 * row.ExpectedDuration.Ticks / window.Ticks);
-                                    DateTime slot = new(occurrence.Ticks - occurrence.Ticks % ScheduleForecast.SlotSize.Ticks, DateTimeKind.Utc);
-
-                                    <span class="hf-forecast-run @(hotSlots.Contains(slot) ? "hf-forecast-run-hot" : null) @(row.DurationKnown ? null : "hf-forecast-run-estimated")"
-                                          style="left: @(left.ToString("F3", CultureInfo.InvariantCulture))%; width: @(Math.Min(width, 100 - left).ToString("F3", CultureInfo.InvariantCulture))%"
-                                          title="@occurrence.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) UTC &middot; @Html.ToHumanDuration(row.ExpectedDuration, false)"></span>
-                                }
-                            }
-                        </div>
-                    </div>
-                }
-                <div class="hf-forecast-legend text-muted">
-                    <span class="hf-forecast-run"></span> @Strings.ForecastPage_Legend_Expected
-                    <span class="hf-forecast-run hf-forecast-run-hot"></span> @Strings.ForecastPage_HotSpots_Hint
-                    <span>* @Strings.ForecastPage_Legend_Default</span>
+                    }
                 </div>
+                <ul class="ns-graph-legend hf-forecast-legend">
+                    <li><span class="hf-forecast-run" aria-hidden="true"></span> @Strings.ForecastPage_Legend_Expected</li>
+                    <li><span class="hf-forecast-run hf-forecast-run-hot" aria-hidden="true"></span> @Strings.ForecastPage_HotSpots_Hint</li>
+                    <li>* @Strings.ForecastPage_Legend_Default</li>
+                </ul>
             </section>
 
             if (forecast.HotSpots.Count > 0)
             {
-                <h3 id="forecast-hotspots">@Strings.ForecastPage_HotSpots <small class="text-muted">@Strings.ForecastPage_HotSpots_Hint</small></h3>
-                <div class="table-responsive">
-                    <table class="table" aria-describedby="forecast-hotspots">
-                        <thead>
-                            <tr>
-                                <th scope="col" class="min-width">@Strings.ForecastPage_Table_Slot</th>
-                                <th scope="col" class="min-width">@Strings.ForecastPage_Table_Jobs</th>
-                                <th scope="col">@Strings.NavigationMenu_RecurringJobs</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (ScheduleForecast.HotSpot hotSpot in forecast.HotSpots)
-                            {
-                                <tr>
-                                    <td class="min-width">@Html.LocalTime(hotSpot.Slot) <span class="text-muted">@Html.RelativeTime(hotSpot.Slot)</span></td>
-                                    <td class="min-width"><span class="badge text-bg-danger">@hotSpot.JobIds.Count</span></td>
-                                    <td class="word-break">
+                <section class="hf-card ns-table-card ns-forecast-hotspots" aria-labelledby="forecast-hotspots">
+                    <div class="hf-card-header">
+                        <h2 id="forecast-hotspots">@Strings.ForecastPage_HotSpots</h2>
+                        <span class="ns-section-hint">@Strings.ForecastPage_HotSpots_Hint</span>
+                    </div>
+                    <ol class="ns-run-list">
+                        @foreach (ScheduleForecast.HotSpot hotSpot in forecast.HotSpots)
+                        {
+                            <li class="ns-run">
+                                <span class="ns-chip ns-chip-status ns-forecast-count" title="@Strings.ForecastPage_Table_Jobs">@hotSpot.JobIds.Count</span>
+                                <div class="ns-run-main">
+                                    <ul class="ns-forecast-jobs">
                                         @foreach (string id in hotSpot.JobIds)
                                         {
-                                            <a class="hf-chip" href="@Url.To("/recurring?edit=" + Uri.EscapeDataString(id))">@id</a>
+                                            <li><a class="ns-chip ns-chip-assist" href="@Url.To("/recurring?edit=" + Uri.EscapeDataString(id))">@Html.Icon("clock") @id</a></li>
                                         }
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
+                                    </ul>
+                                </div>
+                                <div class="ns-run-time">@Html.RelativeTime(hotSpot.Slot) <span class="ns-time-exact">@Html.LocalTime(hotSpot.Slot)</span></div>
+                            </li>
+                        }
+                    </ol>
+                </section>
             }
         }
     </div>

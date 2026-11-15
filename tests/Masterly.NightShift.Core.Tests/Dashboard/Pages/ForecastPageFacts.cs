@@ -22,8 +22,10 @@ public class ForecastPageFacts
     {
         string html = _renderer.Render(new ForecastPage());
 
-        Assert.Contains(H(Strings.RecurringJobsPage_NoJobs), html);
+        Assert.Contains("<h2 class=\"ns-empty-state-title\">" + H(Strings.RecurringJobsPage_EmptyTitle) + "</h2>", html);
         Assert.DoesNotContain("hf-forecast-row", html);
+        Assert.Contains("aria-current=\"page\">" + H(Strings.ForecastPage_Window_24h) + "</a>", html);
+        PageStructure.AssertHeadingsInOrder(html);
         Assert.Contains("href=\"?window=24h\" class=\"btn btn-sm btn-outline-secondary active\"", html);
         Assert.Contains("href=\"?window=7d\" class=\"btn btn-sm btn-outline-secondary \"", html);
         Assert.Contains("href=\"/recurring\"", html);
@@ -65,14 +67,18 @@ public class ForecastPageFacts
 
         Assert.Contains("<a href=\"/recurring?edit=alpha\">alpha</a>", html);
         Assert.Contains("<a href=\"/recurring?edit=beta\">beta</a>", html);
-        Assert.Contains("insights-tile insights-tile-danger", html);
+        Assert.Contains("<section class=\"ns-summary-tile ns-state-failed insights-tile-danger\" aria-labelledby=\"forecast-hot\">", html);
         Assert.Contains("id=\"forecast-hotspots\"", html);
-        Assert.Equal(10, CountOf(html, "<span class=\"badge text-bg-danger\">2</span>"));
-        Assert.Contains("<a class=\"hf-chip\" href=\"/recurring?edit=alpha\">alpha</a>", html);
+        Assert.Equal(10, CountOf(html, "<span class=\"ns-chip ns-chip-status ns-forecast-count\" title=\"" + H(Strings.ForecastPage_Table_Jobs) + "\">2</span>"));
+        Assert.Contains("<a class=\"ns-chip ns-chip-assist\" href=\"/recurring?edit=alpha\">" + DashboardMarkup.Icon("clock") + " alpha</a>", html);
+        Assert.Contains("<section class=\"hf-card ns-table-card ns-forecast-hotspots\" aria-labelledby=\"forecast-hotspots\">", html);
+        Assert.Contains("<h2 id=\"forecast-hotspots\">", html);
+        PageStructure.AssertHeadingsInOrder(html);
+        PageStructure.AssertNoEmptyHeaderCells(html);
         Assert.Contains("hf-forecast-run hf-forecast-run-hot hf-forecast-run-estimated", html);
         Assert.Contains("UTC &middot; ", html);
         Assert.Contains("&times; &middot; " + Duration(ScheduleForecast.DefaultDuration) + "*", html);
-        Assert.Contains("<div class=\"insights-tile-value\"> <span data-moment-local=", html);
+        Assert.Contains("<p class=\"ns-summary-value insights-tile-value\"> <span data-moment-local=", html);
     }
 
     [Fact]
@@ -128,9 +134,9 @@ public class ForecastPageFacts
         string html = _renderer.Render(new ForecastPage());
 
         Assert.Contains("hf-forecast-row hf-forecast-row-paused", html);
-        Assert.Contains("<span class=\"badge text-bg-warning\">" + H(Strings.ForecastPage_Paused) + "</span>", html);
+        Assert.Contains("<span class=\"ns-chip ns-chip-status ns-recurring-paused\">" + DashboardMarkup.Icon("pause-fill") + " " + H(Strings.ForecastPage_Paused) + "</span>", html);
         Assert.DoesNotContain("UTC &middot;", html);
-        Assert.Contains("<div class=\"insights-tile-value\">&ndash;</div>", html);
+        Assert.Contains("<p class=\"ns-summary-value insights-tile-value\">&ndash;</p>", html);
     }
 
     [Fact]
@@ -142,6 +148,21 @@ public class ForecastPageFacts
 
         Assert.Contains("hf-forecast-error", html);
         Assert.Contains("<div class=\"hf-forecast-label\" title=\"not a cron\">", html);
+    }
+
+    [Fact]
+    public void Render_HasTheSharedHeader_WithTheNumberOfJobs_AndTheWindowAsAnH2()
+    {
+        AddRecurringJob("alpha", "0 * * * *", Job.FromExpression(() => SampleJobs.Unknown()));
+
+        string html = _renderer.Render(new ForecastPage());
+
+        Assert.Contains("<header class=\"ns-page-head\">", html);
+        Assert.Contains("<span class=\"ns-page-name\">" + H(Strings.ForecastPage_Title) + "</span> <span class=\"ns-count-chip js-list-count\">1</span></h1>", html);
+        Assert.Contains("<p class=\"ns-page-subtitle\">" + H(Strings.ForecastPage_Hint) + "</p>", html);
+        Assert.Contains("<h2 id=\"forecast-timeline\">" + H(Strings.ForecastPage_Window_24h) + "</h2>", html);
+        Assert.Contains("<ul class=\"ns-graph-legend hf-forecast-legend\">", html);
+        PageStructure.AssertHeadingsInOrder(html);
     }
 
     private void AddRecurringJob(string id, string cron, Job job, Dictionary<string, string> extra = null)

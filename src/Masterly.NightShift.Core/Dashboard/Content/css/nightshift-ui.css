@@ -3725,10 +3725,12 @@ label.ns-required::after {
 }
 
 /* Schedule forecast
-   ------------------------------------------------------------------ */
+   ------------------------------------------------------------------
+   A lane per recurring job in a card under the summary tiles: its id and facts, then its runs on the window's axis.
+   A paused job keeps its label at full contrast; its lane is empty and quiet. Hot spots are a list of rows. */
 
 .hf-forecast {
-    padding: 12px 18px 6px;
+    padding: var(--md-sys-spacing-2) var(--md-sys-spacing-4) var(--md-sys-spacing-1);
     overflow-x: auto;
 }
 
@@ -3741,24 +3743,39 @@ label.ns-required::after {
 }
 
 .hf-forecast-row {
-    border-top: 1px solid var(--hf-border);
+    min-height: 44px;
+    border-top: 1px solid var(--ns-divider);
 }
 
-.hf-forecast-row-paused {
-    opacity: .55;
+.hf-forecast-row-paused .hf-forecast-track {
+    background-color: var(--md-sys-color-surface-container-low);
 }
 
 .hf-forecast-label {
     flex: 0 0 220px;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 0.7813rem;
+    font: var(--md-sys-typescale-body-medium);
 }
 
-.hf-forecast-label small {
-    display: block;
-    font-size: 0.6875rem;
+.hf-app .hf-forecast-label > a {
+    font-weight: 500;
+}
+
+.hf-forecast-facts {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-1);
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.hf-forecast-facts .ns-chip {
+    min-height: 20px;
+    gap: var(--md-sys-spacing-1);
+    padding: 0 var(--md-sys-spacing-2);
 }
 
 .hf-forecast-ticks,
@@ -3777,8 +3794,8 @@ label.ns-required::after {
     position: absolute;
     top: 0;
     transform: translateX(-50%);
-    font-size: 0.6875rem;
-    color: var(--hf-muted);
+    font: var(--md-sys-typescale-label-small);
+    color: var(--md-sys-color-on-surface-variant);
     white-space: nowrap;
 }
 
@@ -3791,9 +3808,9 @@ label.ns-required::after {
 }
 
 .hf-forecast-track {
-    background-image: repeating-linear-gradient(90deg, var(--hf-border) 0 1px, transparent 1px calc(100% / 12));
-    background-color: var(--hf-surface-2);
-    border-radius: 4px;
+    background-image: repeating-linear-gradient(90deg, var(--ns-divider) 0 1px, transparent 1px calc(100% / 12));
+    background-color: var(--md-sys-color-surface-container);
+    border-radius: var(--md-sys-shape-corner-extra-small);
 }
 
 .hf-forecast-run {
@@ -3802,7 +3819,7 @@ label.ns-required::after {
     height: 14px;
     min-width: 3px;
     border-radius: 3px;
-    background-color: var(--hf-primary);
+    background-color: var(--md-sys-color-primary);
     opacity: .85;
 }
 
@@ -3811,24 +3828,45 @@ label.ns-required::after {
 }
 
 .hf-forecast-run-hot {
-    background-color: var(--hf-danger);
+    background-color: var(--md-sys-color-error);
 }
 
 .hf-forecast-error {
     position: absolute;
     left: 8px;
     top: 4px;
-    font-size: 0.75rem;
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-error);
     white-space: nowrap;
 }
 
-.hf-forecast-legend {
+.hf-app .hf-forecast-legend {
+    margin: 0;
+    padding: var(--md-sys-spacing-2) var(--md-sys-spacing-4) var(--md-sys-spacing-3);
+}
+
+.ns-chip.ns-forecast-count {
+    justify-content: center;
+    min-width: 2.25rem;
+    border-color: transparent;
+    background-color: var(--ns-state-failed-container);
+    color: var(--ns-state-on-failed-container);
+    font-variant-numeric: tabular-nums;
+}
+
+.ns-forecast-jobs {
     display: flex;
-    align-items: center;
     flex-wrap: wrap;
-    gap: 8px 18px;
-    padding: 10px 0 6px;
-    font-size: 0.7188rem;
+    gap: var(--md-sys-spacing-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.hf-app .ns-forecast-hotspots .hf-card-header {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: var(--md-sys-spacing-1) var(--md-sys-spacing-3);
 }
 
 .hf-forecast-legend .hf-forecast-run {
