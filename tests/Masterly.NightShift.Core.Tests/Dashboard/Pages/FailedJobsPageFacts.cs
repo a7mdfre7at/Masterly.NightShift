@@ -65,7 +65,7 @@ public class FailedJobsPageFacts
         string html = _renderer.Render(new FailedJobsPage());
 
         Assert.Contains("data-url=\"/jobs/failed/export\"", html);
-        Assert.Contains("class=\"hf-card hf-clusters\"", html);
+        Assert.Contains("class=\"ns-clusters hf-clusters\"", html);
         Assert.DoesNotContain("hf-cluster-actions", html);
         Assert.DoesNotContain("/jobs/failed/delete-all", html);
         Assert.DoesNotContain("/jobs/failed/requeue", html);
@@ -87,7 +87,7 @@ public class FailedJobsPageFacts
         Assert.Contains("data-cluster=\"InvalidOperationException|FailedPageJobs.Work\"", html);
         Assert.DoesNotContain("data-cluster=\"TimeoutException", html);
         Assert.Contains($"<div class=\"hf-cluster-count\" title=\"{Encode(string.Format(Strings.FailedJobsPage_Clusters_Jobs, 2))}\">2</div>", html);
-        Assert.Contains("<span class=\"hf-cluster-exception\">InvalidOperationException</span> <code class=\"hf-cluster-method\">FailedPageJobs.Work</code>", html);
+        Assert.Contains("<span class=\"hf-cluster-exception\" title=\"InvalidOperationException\">InvalidOperationException</span> <code class=\"hf-cluster-method\">FailedPageJobs.Work</code>", html);
         Assert.Contains("<div class=\"hf-cluster-message text-muted\">Connection &lt;lost&gt;</div>", html);
         Assert.Contains($"<span>{Encode(Strings.FailedJobsPage_Clusters_FirstSeen)} <span data-moment=", html);
         Assert.Contains($"<span>&middot; {Encode(Strings.FailedJobsPage_Clusters_LastSeen)} <span data-moment=", html);
@@ -108,7 +108,7 @@ public class FailedJobsPageFacts
 
         string html = _renderer.Render(new FailedJobsPage());
 
-        Assert.Contains("<span class=\"hf-cluster-exception\">InvalidOperationException</span>", html);
+        Assert.Contains("<span class=\"hf-cluster-exception\" title=\"InvalidOperationException\">InvalidOperationException</span>", html);
         Assert.DoesNotContain("hf-cluster-message", html);
         Assert.DoesNotContain(Encode(Strings.FailedJobsPage_Clusters_FirstSeen), html);
         Assert.DoesNotContain(Encode(Strings.FailedJobsPage_Clusters_LastSeen), html);
@@ -204,6 +204,55 @@ public class FailedJobsPageFacts
         Assert.Contains(Encode(Strings.Common_JobExpired), html);
         Assert.DoesNotContain("hf-ack", html);
         _renderer.Connection.Verify(x => x.GetJobParameter(It.IsAny<string>(), JobNotes.ParameterName), Times.Never);
+    }
+
+    [Fact]
+    public void Render_WithAFailure_ShowsItsExceptionInTheRow_AndItsDetailsInASideSheetTemplate()
+    {
+        FailedJobDto failed = Failed("System.InvalidOperationException", "Connection <lost>");
+        failed.ExceptionDetails = "System.InvalidOperationException: Connection lost";
+        failed.StateData = new Dictionary<string, string> { { "ServerId", "web-1:42:abc" } };
+        SetupJobs(new Dictionary<string, FailedJobDto> { { "7", failed } });
+
+        string html = _renderer.Render(new FailedJobsPage());
+
+        Assert.Contains("<code class=\"ns-exception-type\" title=\"System.InvalidOperationException\">InvalidOperationException</code>", html);
+        Assert.Contains("<span class=\"ns-job-error-message\">Connection &lt;lost&gt;</span>", html);
+        Assert.Contains("class=\"btn btn-sm ns-btn-text js-sheet-open\" aria-haspopup=\"dialog\" data-sheet-title=\"FailedPageJobs.Work\" data-sheet-overline=\"#7\"", html);
+        Assert.Contains("<template class=\"js-sheet-template\">", html);
+        Assert.Contains("<pre class=\"stack-trace\"><code>", html);
+        Assert.Contains("<div class=\"js-sheet-actions\">", html);
+        Assert.Contains("data-url=\"/jobs/failed/requeue\" data-job=\"7\"", html);
+        Assert.DoesNotContain("failed-job-details", html);
+        Assert.DoesNotContain("class=\"expander\"", html);
+    }
+
+    [Fact]
+    public void Render_WithFailures_PutsTheCountInTheHeader_AndTheRequeueAllThere()
+    {
+        SetupJobs(new Dictionary<string, FailedJobDto> { { "1", Failed("InvalidOperationException", "Boom") } });
+
+        string html = _renderer.Render(new FailedJobsPage());
+
+        Assert.Contains("<span class=\"ns-count-chip js-list-count\">1</span>", html);
+        Assert.Contains("class=\"btn btn-sm btn-primary btn-requeue-all\"", html);
+        Assert.Contains("class=\"ns-note js-note\" data-note=\"failed-jobs-retention\"", html);
+        Assert.Contains($"aria-label=\"{Encode(string.Format(Strings.Common_RequeueJob, "#1"))}\"", html);
+        Assert.Contains($"aria-label=\"{Encode(string.Format(Strings.Common_DeleteJob, "#1"))}\"", html);
+        Assert.Contains($"<span class=\"visually-hidden\">{Encode(Strings.Common_Actions)}</span>", html);
+        Assert.DoesNotContain("<th scope=\"col\" class=\"min-width\"></th>", html);
+    }
+
+    [Fact]
+    public void Render_ForALiveRefresh_LeavesTheNoteOut()
+    {
+        SetupJobs(new Dictionary<string, FailedJobDto> { { "1", Failed("InvalidOperationException", "Boom") } });
+        _renderer.Request.Query[RazorPage.ListRefreshQuery] = "1";
+
+        string html = _renderer.Render(new FailedJobsPage());
+
+        Assert.DoesNotContain("js-note", html);
+        Assert.Contains("js-list-count", html);
     }
 
     private void SetupJobs(Dictionary<string, FailedJobDto> jobs)
