@@ -408,7 +408,10 @@ public class DashboardServerFacts
         Assert.DoesNotContain(".modal('show')", script);
         Assert.DoesNotContain(".tooltip()", script);
         Assert.DoesNotContain(".modal.in", script);
-        Assert.DoesNotContain("glyphicon", script);
+        // Glyphicon names are only resolved (NightShift.icon accepts the old ones), never drawn as Glyphicon classes
+        Assert.DoesNotMatch(@"(class=|addClass\()[^)>]*\bglyphicon\b", script);
+        // The names NightShift.icon resolves come first
+        Assert.StartsWith("window.NightShift = window.NightShift || {};\nNightShift._icons = {\"names\":[", bundle, StringComparison.Ordinal);
     }
 
     [Fact]

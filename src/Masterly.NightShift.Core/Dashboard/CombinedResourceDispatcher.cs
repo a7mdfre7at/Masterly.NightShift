@@ -22,14 +22,19 @@ internal sealed class CombinedResourceDispatcher : EmbeddedResourceDispatcher
     private static readonly byte[] NewLine = [(byte)'\n'];
 
     private readonly IEnumerable<Tuple<Assembly, string>> _resources;
+    private readonly Func<byte[]>? _prologue;
 
+    // prologue, when given, gives what is written before the resources; it is asked for on each request, so it can
+    // come from a type whose initialization needs the routes
     public CombinedResourceDispatcher(
         [NotNull] string contentType,
-        [NotNull] IEnumerable<Tuple<Assembly, string>> resources)
+        [NotNull] IEnumerable<Tuple<Assembly, string>> resources,
+        [CanBeNull] Func<byte[]>? prologue = null)
         : base(contentType, null, null)
     {
         ArgumentNullException.ThrowIfNull(resources);
         _resources = resources;
+        _prologue = prologue;
     }
 
     protected override async Task WriteResponse(DashboardResponse response)
@@ -39,6 +44,11 @@ internal sealed class CombinedResourceDispatcher : EmbeddedResourceDispatcher
         lock (_resources)
         {
             copy = [.. _resources];
+        }
+
+        if (_prologue != null)
+        {
+            await response.Body.WriteAsync(_prologue()).ConfigureAwait(false);
         }
 
         foreach (Tuple<Assembly, string> resource in copy)

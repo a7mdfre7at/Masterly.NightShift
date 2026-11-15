@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Masterly.NightShift.Core.Tests.Stubs;
 using Masterly.NightShift.Dashboard;
@@ -100,7 +102,8 @@ public class DashboardRoutesFacts
 
         Assert.NotEmpty(icons);
         Assert.All(icons, icon => Assert.Contains(icon, DashboardIcons.Names));
-        Assert.DoesNotContain("glyphicon", script, StringComparison.Ordinal);
+        // Glyphicon names are only resolved (NightShift.icon accepts the old ones), never drawn as Glyphicon classes
+        Assert.DoesNotMatch(@"(class=|addClass\()[^)>]*\bglyphicon\b", script);
     }
 
     [Fact]
@@ -112,6 +115,29 @@ public class DashboardRoutesFacts
         Assert.Contains(DashboardRoutes.GetContentResourceName("js", "bootstrap.bundle.min.js"), names);
         Assert.DoesNotContain(DashboardRoutes.GetContentResourceName("js", "jquery-3.7.1.min.js"), names);
         Assert.DoesNotContain(DashboardRoutes.GetContentResourceName("js", "bootstrap.min.js"), names);
+    }
+
+    [Fact]
+    public async Task TheScriptBundle_StartsWithTheIconNames_ThatNightShiftIconResolvesNamesWith()
+    {
+        const string Start = "window.NightShift = window.NightShift || {};\nNightShift._icons = ";
+        BundleContext context = new(_storage.Object, "/js1");
+
+        await DashboardRoutes.Routes.FindDispatcher("/js1")!.Item1.Dispatch(context);
+
+        string bundle = Encoding.UTF8.GetString(context.BundleResponse.Body.ToArray());
+        Assert.StartsWith(Start, bundle, StringComparison.Ordinal);
+
+        string json = bundle[Start.Length..bundle.IndexOf(";\n", Start.Length, StringComparison.Ordinal)];
+        using JsonDocument icons = JsonDocument.Parse(json);
+        string[] names = [.. icons.RootElement.GetProperty("names").EnumerateArray().Select(static x => x.GetString()!)];
+        Dictionary<string, string> glyphicons = icons.RootElement.GetProperty("glyphicons").EnumerateObject()
+            .ToDictionary(static x => x.Name, static x => x.Value.GetString()!);
+
+        Assert.Equal(DashboardIcons.Names.Order(StringComparer.Ordinal), names);
+        Assert.Equal(DashboardIcons.GlyphiconNames.OrderBy(static x => x.Key, StringComparer.Ordinal), glyphicons.OrderBy(static x => x.Key, StringComparer.Ordinal));
+        // The script that reads them follows
+        Assert.Contains("nightshift.icon = function", bundle, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -534,5 +560,33 @@ public class DashboardRoutesFacts
             BackgroundJobClient = _client.Object,
             RecurringJobManager = _manager.Object,
         };
+    }
+
+    private sealed class BundleContext : DashboardContext
+    {
+        public BundleContext(JobStorage storage, string path) : base(storage, new DashboardOptions())
+        {
+            Request = new DashboardRequestStub("GET", path);
+            Response = BundleResponse;
+        }
+
+        public BodyResponse BundleResponse { get; } = new();
+    }
+
+    private sealed class BodyResponse : DashboardResponse
+    {
+        public override string ContentType { get; set; } = "";
+        public override int StatusCode { get; set; }
+        public override MemoryStream Body { get; } = new();
+
+        public override void SetExpire(DateTimeOffset? value)
+        {
+        }
+
+        public override Task WriteAsync(string text)
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes(text);
+            return Body.WriteAsync(bytes, 0, bytes.Length);
+        }
     }
 }

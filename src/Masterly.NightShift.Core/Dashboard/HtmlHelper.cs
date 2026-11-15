@@ -213,9 +213,11 @@ public class HtmlHelper
     /// element an accessible name (<c>aria-label</c> or <c>title</c>).
     /// </summary>
     /// <param name="name">
-    /// The name of a Bootstrap Icon the sprite holds, without the <c>bi-</c> prefix, such as <c>"trash-fill"</c> or
-    /// <c>"arrow-repeat"</c>. A Glyphicon name the dashboard used before, such as <c>"trash"</c>, gives the icon that
-    /// replaced it.
+    /// The name of a Bootstrap Icon the sprite holds, such as <c>"trash-fill"</c> or <c>"arrow-repeat"</c> (a
+    /// <c>bi-</c> prefix and white space around the name are ignored). A Glyphicon name the dashboard used before,
+    /// such as <c>"trash"</c> or <c>"glyphicon-trash"</c>, gives the icon that replaced it. Any other name is written
+    /// as it is and draws nothing: the sprite holds only the icons listed in the documentation. The script's
+    /// <c>NightShift.icon(name)</c> resolves names the same way.
     /// </param>
     public NonEscapedString Icon([NotNull] string name)
     {
@@ -232,7 +234,7 @@ public class HtmlHelper
     {
         ArgumentNullException.ThrowIfNull(name);
 
-        string symbol = DashboardIcons.Resolve(name) ?? name;
+        string symbol = DashboardIcons.SymbolOf(name);
         string css = string.IsNullOrWhiteSpace(cssClass) ? "bi" : $"bi {cssClass}";
 
         return Raw($"<svg class=\"{HtmlEncode(css)}\" aria-hidden=\"true\"><use href=\"{HtmlEncode(Page.Url.To(DashboardIcons.Path))}#bi-{HtmlEncode(symbol)}\"></use></svg>");

@@ -454,7 +454,7 @@ Pages written for Bootstrap 3 need the usual changes ([Bootstrap's migration gui
 
 ### Icons
 
-The dashboard's icons are [Bootstrap Icons](https://icons.getbootstrap.com/) in one SVG sprite (the route `/icons...`), which holds the icons the dashboard uses. Draw one with `Html.Icon(name)` in a page, or `NightShift.icon(name)` in a script, which returns the same HTML:
+The dashboard's icons are [Bootstrap Icons](https://icons.getbootstrap.com/) in one SVG sprite (the route `/icons...`), which holds the icons the dashboard uses. Draw one with `Html.Icon(name)` in a page, or `NightShift.icon(name)` in a script, which resolves the name the same way and returns the same HTML:
 
 ```csharp
 WriteLiteral("<button class=\"btn btn-sm btn-outline-secondary\" data-ajax=\"...\">");
@@ -468,7 +468,7 @@ $('<span>').html(NightShift.icon('check-lg', 'text-success'));
 
 The icon is an inline `<svg class="bi">` that takes the size and color of the text around it, and is hidden from screen readers (`aria-hidden="true"`): give a button that shows only an icon an `aria-label` or a `title`. `Html.Icon(name, cssClass)` adds classes to the `svg`.
 
-The sprite holds `arrow-clockwise`, `arrow-repeat`, `arrows`, `arrows-fullscreen`, `bar-chart-fill`, `book-fill`, `box-arrow-down`, `box-arrow-left`, `calendar3`, `card-list`, `chat-left-text-fill`, `check-circle`, `check-lg`, `chevron-right`, `circle-half`, `clock`, `copy`, `download`, `easel-fill`, `exclamation-circle-fill`, `exclamation-triangle-fill`, `eye-fill`, `fire`, `flag-fill`, `folder2-open`, `grid-fill`, `hdd-fill`, `house-door-fill`, `info-circle-fill`, `lightning-fill`, `link-45deg`, `list`, `list-task`, `moon-stars`, `pause-fill`, `pencil-fill`, `play-circle`, `play-fill`, `plus-lg`, `question-circle-fill`, `search`, `shuffle`, `sun-fill`, `tag-fill`, `terminal-fill`, `text-left`, `trash-fill`, `upload`, `x-circle-fill`, `x-lg`, `zoom-in` and `zoom-out`. The Glyphicon names the dashboard used before, such as `trash` or `time`, give the icon that replaced them. For another icon, put the Bootstrap Icons SVG in your page.
+The sprite holds `arrow-clockwise`, `arrow-repeat`, `arrows`, `arrows-fullscreen`, `bar-chart-fill`, `book-fill`, `box-arrow-down`, `box-arrow-left`, `calendar3`, `card-list`, `chat-left-text-fill`, `check-circle`, `check-lg`, `chevron-right`, `circle-half`, `clock`, `copy`, `download`, `easel-fill`, `exclamation-circle-fill`, `exclamation-triangle-fill`, `eye-fill`, `fire`, `flag-fill`, `folder2-open`, `grid-fill`, `hdd-fill`, `house-door-fill`, `info-circle-fill`, `lightning-fill`, `link-45deg`, `list`, `list-task`, `moon-stars`, `pause-fill`, `pencil-fill`, `play-circle`, `play-fill`, `plus-lg`, `question-circle-fill`, `search`, `shuffle`, `sun-fill`, `tag-fill`, `terminal-fill`, `text-left`, `trash-fill`, `upload`, `x-circle-fill`, `x-lg`, `zoom-in` and `zoom-out`. Both helpers ignore white space around the name and a `bi-` prefix (`bi-trash-fill` is `trash-fill`), and the Glyphicon names the dashboard used before, with or without `glyphicon-` (`trash`, `glyphicon-time`), give the icon that replaced them. Any other name is written as it is, and draws nothing: an empty 1em box. (A menu item's `Icon` is different: a name the sprite doesn't hold gives the chevron.) For another icon, put the Bootstrap Icons SVG in your page.
 
 ### Adding a section to the job page
 

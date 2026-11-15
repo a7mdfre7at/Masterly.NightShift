@@ -72,7 +72,8 @@ public static class DashboardRoutes
 
         #region Embedded static content
 
-        Routes.Add("/js[0-9]+", new CombinedResourceDispatcher("application/javascript", JavaScripts));
+        // The bundle starts with the icon names NightShift.icon resolves, as Html.Icon does
+        Routes.Add("/js[0-9]+", new CombinedResourceDispatcher("application/javascript", JavaScripts, static () => DashboardIcons.ClientScript));
         // Only the date formatting, for the wallboard, which loads no other script
         Routes.Add("/js-intl[0-9]+", new EmbeddedResourceDispatcher("application/javascript", executingAssembly, GetContentResourceName("js", "nightshift-intl.js")));
         Routes.Add("/css[0-9]+", new CombinedResourceDispatcher("text/css", Stylesheets));

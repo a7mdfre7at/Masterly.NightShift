@@ -120,17 +120,51 @@
         return value === null || value === undefined ? '' : String(value).trim();
     };
 
+    // Encodes the characters WebUtility.HtmlEncode encodes in the ASCII range, as the server does
     var escapeAttribute = function (value) {
-        return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     };
 
-    // An icon of the dashboard's sprite (Bootstrap Icons) as HTML, like Html.Icon on the server: an SVG that takes
-    // the size and color of the text around it and is hidden from screen readers. name is a Bootstrap Icons name
-    // the sprite holds, such as "trash-fill"; cssClass, when given, is added to "bi".
+    var hasOwn = function (object, key) {
+        return Object.prototype.hasOwnProperty.call(object, key);
+    };
+
+    // The sprite's name for an icon, as DashboardIcons.Resolve gives it on the server: a Bootstrap Icons name the
+    // sprite holds (with or without "bi-"), or the icon that replaced a Glyphicon name (with or without
+    // "glyphicon-"); null for any other name. The names come with the script bundle (NightShift._icons).
+    var resolveIcon = function (name) {
+        var icons = nightshift._icons || { names: [], glyphicons: {} };
+        if (!icons.lookup) {
+            icons.lookup = {};
+            for (var i = 0; i < icons.names.length; i++) icons.lookup[icons.names[i]] = true;
+        }
+
+        var trimmed = trim(name);
+        if (trimmed.indexOf('bi-') === 0) trimmed = trimmed.substring(3);
+        if (!trimmed) return null;
+        if (hasOwn(icons.lookup, trimmed)) return trimmed;
+
+        var glyphicon = trimmed.indexOf('glyphicon-') === 0 ? trimmed.substring('glyphicon-'.length) : trimmed;
+        return hasOwn(icons.glyphicons, glyphicon) ? icons.glyphicons[glyphicon] : null;
+    };
+
+    // An icon of the dashboard's sprite (Bootstrap Icons) as HTML, the same HTML Html.Icon writes on the server: an
+    // SVG that takes the size and color of the text around it and is hidden from screen readers. name is a Bootstrap
+    // Icons name the sprite holds, such as "trash-fill", or a Glyphicon name of earlier versions, such as "trash";
+    // any other name is written as it is (without spaces around it or "bi-") and draws nothing. cssClass, when
+    // given, is added to "bi".
     nightshift.icon = function (name, cssClass) {
         var url = $('#nightshiftConfig').attr('data-icons-url') || '';
-        return '<svg class="bi' + (cssClass ? ' ' + escapeAttribute(cssClass) : '') + '" aria-hidden="true"><use href="'
-            + escapeAttribute(url) + '#bi-' + escapeAttribute(name) + '"></use></svg>';
+        var symbol = resolveIcon(name);
+
+        if (symbol === null) {
+            symbol = trim(name);
+            if (symbol.indexOf('bi-') === 0) symbol = symbol.substring(3);
+        }
+
+        return '<svg class="bi' + (trim(cssClass) ? ' ' + escapeAttribute(cssClass) : '') + '" aria-hidden="true"><use href="'
+            + escapeAttribute(url) + '#bi-' + escapeAttribute(symbol) + '"></use></svg>';
     };
 
     // What Bootstrap 3's button('loading') and button('reset') did: while a request runs, the button is disabled

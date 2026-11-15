@@ -1,5 +1,7 @@
 using System.Collections.Frozen;
 using System.Reflection;
+using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace Masterly.NightShift.Dashboard;
@@ -90,8 +92,29 @@ internal static partial class DashboardIcons
     internal static IReadOnlySet<string> Names => SpriteNames.Value;
 
     /// <summary>
-    /// The sprite's name for an icon: a Bootstrap Icons name the sprite holds, or a Glyphicon name it replaced;
-    /// <c>null</c> for any other name.
+    /// The start of the script bundle: the names <c>NightShift.icon</c> resolves as <see cref="Resolve"/> does, the
+    /// sprite's (<c>names</c>) and the Glyphicon names with their replacements (<c>glyphicons</c>), in
+    /// <c>NightShift._icons</c>.
+    /// </summary>
+    internal static byte[] ClientScript => ClientScriptBytes.Value;
+
+    private static readonly Lazy<byte[]> ClientScriptBytes = new(static () => Encoding.UTF8.GetBytes(
+        $"window.NightShift = window.NightShift || {{}};\nNightShift._icons = {ClientJson()};\n"));
+
+    /// <summary>The JSON of <see cref="ClientScript"/>.</summary>
+    internal static string ClientJson()
+    {
+        return JsonSerializer.Serialize(new
+        {
+            names = SpriteNames.Value.Order(StringComparer.Ordinal).ToArray(),
+            glyphicons = new SortedDictionary<string, string>(GlyphiconNames, StringComparer.Ordinal),
+        });
+    }
+
+    /// <summary>
+    /// The sprite's name for an icon: a Bootstrap Icons name the sprite holds, or a Glyphicon name it replaced, with
+    /// or without the <c>bi-</c> or <c>glyphicon-</c> prefix and white space around it; <c>null</c> for any other
+    /// name.
     /// </summary>
     internal static string? Resolve(string? name)
     {
@@ -100,7 +123,7 @@ internal static partial class DashboardIcons
             return null;
         }
 
-        string trimmed = name.StartsWith("bi-", StringComparison.Ordinal) ? name[3..] : name;
+        string trimmed = WithoutPrefix(name);
         if (SpriteNames.Value.Contains(trimmed))
         {
             return trimmed;
@@ -108,6 +131,21 @@ internal static partial class DashboardIcons
 
         string glyphicon = trimmed.StartsWith("glyphicon-", StringComparison.Ordinal) ? trimmed["glyphicon-".Length..] : trimmed;
         return GlyphiconNames.TryGetValue(glyphicon, out string? replacement) ? replacement : null;
+    }
+
+    /// <summary>
+    /// The symbol an icon is drawn with: the name <see cref="Resolve"/> gives, or else the name as it is, without the
+    /// white space around it and the <c>bi-</c> prefix, which draws nothing.
+    /// </summary>
+    internal static string SymbolOf(string name)
+    {
+        return Resolve(name) ?? WithoutPrefix(name);
+    }
+
+    private static string WithoutPrefix(string name)
+    {
+        string trimmed = name.Trim();
+        return trimmed.StartsWith("bi-", StringComparison.Ordinal) ? trimmed[3..] : trimmed;
     }
 
     private static FrozenSet<string> ReadSpriteNames()

@@ -94,6 +94,54 @@ public class HtmlHelperFacts
         Assert.Throws<ArgumentNullException>(() => new Pages.PageRenderer().Render(new IconPage(page => page.Html.Icon(null!))));
     }
 
+    [Theory]
+    [InlineData(" trash-fill ", "trash-fill")]
+    [InlineData("bi-trash-fill", "trash-fill")]
+    [InlineData(" bi-trash-fill\t", "trash-fill")]
+    [InlineData(" glyphicon-time ", "clock")]
+    [InlineData("bi-trash", "trash-fill")]
+    public void Icon_IgnoresWhiteSpaceAndTheBiPrefix(string name, string symbol)
+    {
+        string html = new Pages.PageRenderer().Render(new IconPage(page => page.Html.Icon(name)));
+
+        Assert.Equal($"<svg class=\"bi\" aria-hidden=\"true\"><use href=\"{DashboardIcons.Path}#bi-{symbol}\"></use></svg>", html);
+    }
+
+    [Theory]
+    [InlineData("no-such-icon", "no-such-icon")]
+    [InlineData("bi-no-such-icon", "no-such-icon")]
+    [InlineData(" glyphicon-no-such-icon ", "glyphicon-no-such-icon")]
+    [InlineData("   ", "")]
+    [InlineData("", "")]
+    public void Icon_WritesANameTheSpriteDoesNotHold_AsItIs_WhichDrawsNothing(string name, string symbol)
+    {
+        string html = new Pages.PageRenderer().Render(new IconPage(page => page.Html.Icon(name)));
+
+        Assert.Null(DashboardIcons.Resolve(name));
+        Assert.Equal($"<svg class=\"bi\" aria-hidden=\"true\"><use href=\"{DashboardIcons.Path}#bi-{symbol}\"></use></svg>", html);
+    }
+
+    [Fact]
+    public void Icon_EncodesTheName_AndTheClasses()
+    {
+        string html = new Pages.PageRenderer().Render(new IconPage(page => page.Html.Icon("x\"><script>'", "a<b> 'c'")));
+
+        Assert.Equal(
+            $"<svg class=\"bi a&lt;b&gt; &#39;c&#39;\" aria-hidden=\"true\"><use href=\"{DashboardIcons.Path}#bi-x&quot;&gt;&lt;script&gt;&#39;\"></use></svg>",
+            html);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    [InlineData("bi-")]
+    [InlineData("glyphicon-")]
+    public void DashboardIcons_ResolvesNoIcon_ForAnEmptyName(string? name)
+    {
+        Assert.Null(DashboardIcons.Resolve(name));
+    }
+
     [Fact]
     public void DashboardIcons_TheSpriteHoldsEveryIconAGlyphiconWasReplacedWith()
     {
