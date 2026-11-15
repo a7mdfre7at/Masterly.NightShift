@@ -3514,6 +3514,24 @@
             CatalogRunner.filter($(this).val());
         });
 
+        // The Audit page's filters: the entries whose user, address, action, targets or detail hold the text, the failed
+        // ones only when asked, and a note when none is left
+        var filterAudit = function () {
+            var needle = trim($('.js-audit-filter').val() || '').toLowerCase();
+            var failedOnly = $('.js-audit-failed').prop('checked');
+            var shown = 0;
+            $('.js-audit-entry').each(function () {
+                var entry = $(this);
+                var match = (!needle || String(entry.attr('data-search') || '').toLowerCase().indexOf(needle) >= 0) &&
+                    (!failedOnly || entry.attr('data-failed') === 'true');
+                entry.toggle(match);
+                if (match) shown++;
+            });
+            $('.js-audit-nomatch').prop('hidden', shown > 0);
+        };
+        $(document).on('input', '.js-audit-filter', filterAudit);
+        $(document).on('change', '.js-audit-failed', filterAudit);
+
         return CatalogRunner;
     })();
     // Small operator actions: pausing processing with a reason, copying a job as C#, failure clusters,

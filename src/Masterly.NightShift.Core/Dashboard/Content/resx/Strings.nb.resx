@@ -2423,4 +2423,22 @@
   <data name="AboutPage_FilterOrder" xml:space="preserve">
     <value>Rekkefølge {0}</value>
   </data>
+  <data name="AuditPage_EmptyTitle" xml:space="preserve">
+    <value>Ingen revisjonsoppføringer</value>
+  </data>
+  <data name="AuditPage_Entries" xml:space="preserve">
+    <value>Oppføringer</value>
+  </data>
+  <data name="AuditPage_Filter" xml:space="preserve">
+    <value>Filtrer oppføringer…</value>
+  </data>
+  <data name="AuditPage_FailedOnly" xml:space="preserve">
+    <value>Bare mislykkede</value>
+  </data>
+  <data name="AuditPage_NoMatch" xml:space="preserve">
+    <value>Ingen oppføring samsvarer med filteret.</value>
+  </data>
+  <data name="AuditPage_Show" xml:space="preserve">
+    <value>Oppføringer som vises</value>
+  </data>
 </root>

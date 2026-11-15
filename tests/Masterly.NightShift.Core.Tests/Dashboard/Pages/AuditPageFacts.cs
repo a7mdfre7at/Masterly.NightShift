@@ -13,9 +13,11 @@ public class AuditPageFacts
     {
         string html = _renderer.Render(new AuditPage());
 
-        Assert.Contains($"<div class=\"alert alert-info\">{Encode(Strings.AuditPage_NoEntries)}</div>", html);
+        Assert.Contains($"<h2 class=\"ns-empty-state-title\">{Encode(Strings.AuditPage_EmptyTitle)}</h2><p>{Encode(Strings.AuditPage_NoEntries)}</p>", html);
         Assert.DoesNotContain(Encode(Strings.AuditPage_Disabled), html);
-        Assert.DoesNotContain("hf-audit", html);
+        Assert.DoesNotContain("js-audit-entry", html);
+        Assert.DoesNotContain("js-audit-filter", html);
+        PageStructure.AssertHeadingsInOrder(html);
     }
 
     [Fact, GlobalLock(Reason = "Changes AuditLog.Enabled")]
@@ -42,10 +44,17 @@ public class AuditPageFacts
 
         string html = _renderer.Render(new AuditPage());
 
-        Assert.Contains("<span class=\"hf-catalog-summary text-muted\">1 / 3</span>", html);
-        Assert.Contains("<a class=\"btn btn-sm btn-primary active\" href=\"/audit?count=100\">100</a>", html);
-        Assert.Contains("<a class=\"btn btn-sm btn-outline-secondary\" href=\"/audit?count=50\">50</a>", html);
-        Assert.Contains("<a class=\"btn btn-sm btn-outline-secondary\" href=\"/audit?count=1000\">1000</a>", html);
+        Assert.Contains("<span class=\"hf-catalog-summary\">1 / 3</span>", html);
+        Assert.Contains("<span class=\"ns-page-name\">" + Encode(Strings.AuditPage_Title) + "</span> <span class=\"ns-count-chip js-list-count\">3</span></h1>", html);
+        Assert.Contains("<a class=\"ns-chip ns-chip-filter selected\" href=\"/audit?count=100\" aria-current=\"page\">100</a>", html);
+        Assert.Contains("<a class=\"ns-chip ns-chip-filter\" href=\"/audit?count=50\">50</a>", html);
+        Assert.Contains("<a class=\"ns-chip ns-chip-filter\" href=\"/audit?count=1000\">1000</a>", html);
+        Assert.Contains($"<nav class=\"ns-audit-count js-audit-count\" aria-label=\"{Encode(Strings.AuditPage_Show)}\">", html);
+        Assert.Contains($"<label for=\"auditFilter\" class=\"visually-hidden\">{Encode(Strings.AuditPage_Filter)}</label>", html);
+        Assert.Contains("<input type=\"checkbox\" class=\"js-audit-failed\" />", html);
+        Assert.Contains("<div class=\"ns-empty-state ns-empty-state-compact js-audit-nomatch\" hidden=\"hidden\">", html);
+        PageStructure.AssertHeadingsInOrder(html);
+        PageStructure.AssertNoEmptyHeaderCells(html);
         _renderer.Connection.Verify(x => x.GetRangeFromList(AuditLog.ListKey, 0, 99));
     }
 
@@ -61,7 +70,7 @@ public class AuditPageFacts
 
         string html = _renderer.Render(new AuditPage());
 
-        Assert.Contains($"<a class=\"btn btn-sm btn-primary active\" href=\"/audit?count={expected}\">{expected}</a>", html);
+        Assert.Contains($"<a class=\"ns-chip ns-chip-filter selected\" href=\"/audit?count={expected}\" aria-current=\"page\">{expected}</a>", html);
         _renderer.Connection.Verify(x => x.GetRangeFromList(AuditLog.ListKey, 0, expected - 1));
     }
 
@@ -81,15 +90,18 @@ public class AuditPageFacts
 
         string html = _renderer.Render(new AuditPage());
 
-        Assert.Contains("<strong>alice &lt;admin&gt;</strong>", html);
-        Assert.Contains("<div class=\"text-muted hf-audit-ip\">10.0.0.1</div>", html);
-        Assert.Contains("<span class=\"\">Requeue failed jobs</span>", html);
+        Assert.Contains("<span class=\"ns-chip ns-chip-status ns-audit-user\"><strong>alice &lt;admin&gt;</strong></span>", html);
+        Assert.Contains("<span class=\"hf-audit-ip\">10.0.0.1</span>", html);
+        Assert.Contains("<span class=\"ns-audit-action\">Requeue failed jobs</span>", html);
         Assert.Contains("<code>/jobs/failed/requeue</code>", html);
-        Assert.Contains("<a href=\"/jobs/details/12\">#12</a>", html);
+        Assert.Contains("<a class=\"ns-chip ns-chip-assist\" href=\"/jobs/details/12\">#12</a>", html);
         Assert.Contains("<code>abc</code>", html);
-        Assert.Contains("<td class=\"word-break text-muted\">partner API is back</td>", html);
+        Assert.Contains("<p class=\"ns-audit-detail\">partner API is back</p>", html);
+        Assert.Contains("data-failed=\"false\"", html);
+        Assert.Contains("<span class=\"ns-dot ns-state-succeeded\" aria-hidden=\"true\"></span>", html);
+        Assert.Contains("<span class=\"ns-time-exact\"><span data-moment-local=", html);
         Assert.DoesNotContain(Encode(Strings.AuditPage_Anonymous), html);
-        Assert.DoesNotContain("badge text-bg-danger", html);
+        Assert.DoesNotContain("data-state=\"Failed\"", html);
     }
 
     [Theory]
@@ -121,12 +133,13 @@ public class AuditPageFacts
 
         string html = _renderer.Render(new AuditPage());
 
-        Assert.Contains($"<em class=\"text-muted\">{Encode(Strings.AuditPage_Anonymous)}</em>", html);
+        Assert.Contains($"<span class=\"ns-chip ns-chip-status ns-audit-user\"><em>{Encode(Strings.AuditPage_Anonymous)}</em></span>", html);
         Assert.DoesNotContain("hf-audit-ip", html);
-        Assert.Contains("<span class=\"text-danger\">", html);
-        Assert.Contains("<span class=\"badge text-bg-danger\">500</span>", html);
-        Assert.Contains("<a href=\"/jobs/details/99\">#99</a>", html);
-        Assert.Contains($"<span class=\"text-muted\">{Encode(string.Format(Strings.AuditPage_More, 29))}</span>", html);
+        Assert.Contains("<li class=\"ns-run js-audit-entry ns-audit-failed\"", html);
+        Assert.Contains("data-failed=\"true\"", html);
+        Assert.Contains("<span class=\"ns-state-chip ns-state-failed\" data-state=\"Failed\">" + DashboardMarkup.Icon("x-circle-fill") + "<span>500</span></span>", html);
+        Assert.Contains("<a class=\"ns-chip ns-chip-assist\" href=\"/jobs/details/99\">#99</a>", html);
+        Assert.Contains($"<span class=\"ns-audit-more\">{Encode(string.Format(Strings.AuditPage_More, 29))}</span>", html);
     }
 
     [Fact]
@@ -149,6 +162,7 @@ public class AuditPageFacts
 
         Assert.Contains("<code>/maintenance/drain</code>", html);
         Assert.DoesNotContain(Encode(string.Format(Strings.AuditPage_More, 0)), html);
+        Assert.DoesNotContain("ns-audit-targets", html);
     }
 
     private void SetupEntries(long total, params AuditEntry[] entries)

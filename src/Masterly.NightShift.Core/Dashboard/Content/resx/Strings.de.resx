@@ -2364,4 +2364,22 @@
   <data name="AboutPage_FilterOrder" xml:space="preserve">
     <value>Reihenfolge {0}</value>
   </data>
+  <data name="AuditPage_EmptyTitle" xml:space="preserve">
+    <value>Keine Audit-Einträge</value>
+  </data>
+  <data name="AuditPage_Entries" xml:space="preserve">
+    <value>Einträge</value>
+  </data>
+  <data name="AuditPage_Filter" xml:space="preserve">
+    <value>Einträge filtern…</value>
+  </data>
+  <data name="AuditPage_FailedOnly" xml:space="preserve">
+    <value>Nur fehlgeschlagene</value>
+  </data>
+  <data name="AuditPage_NoMatch" xml:space="preserve">
+    <value>Kein Eintrag passt zum Filter.</value>
+  </data>
+  <data name="AuditPage_Show" xml:space="preserve">
+    <value>Anzuzeigende Einträge</value>
+  </data>
 </root>

@@ -2384,4 +2384,22 @@
   <data name="AboutPage_FilterOrder" xml:space="preserve">
     <value>Volgorde {0}</value>
   </data>
+  <data name="AuditPage_EmptyTitle" xml:space="preserve">
+    <value>Geen auditvermeldingen</value>
+  </data>
+  <data name="AuditPage_Entries" xml:space="preserve">
+    <value>Vermeldingen</value>
+  </data>
+  <data name="AuditPage_Filter" xml:space="preserve">
+    <value>Vermeldingen filteren…</value>
+  </data>
+  <data name="AuditPage_FailedOnly" xml:space="preserve">
+    <value>Alleen mislukte</value>
+  </data>
+  <data name="AuditPage_NoMatch" xml:space="preserve">
+    <value>Geen vermelding komt overeen met het filter.</value>
+  </data>
+  <data name="AuditPage_Show" xml:space="preserve">
+    <value>Te tonen vermeldingen</value>
+  </data>
 </root>

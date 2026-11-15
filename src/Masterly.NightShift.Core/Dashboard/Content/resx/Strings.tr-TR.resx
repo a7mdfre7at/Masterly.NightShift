@@ -2395,4 +2395,22 @@
   <data name="AboutPage_FilterOrder" xml:space="preserve">
     <value>Sıra {0}</value>
   </data>
+  <data name="AuditPage_EmptyTitle" xml:space="preserve">
+    <value>Denetim kaydı yok</value>
+  </data>
+  <data name="AuditPage_Entries" xml:space="preserve">
+    <value>Kayıtlar</value>
+  </data>
+  <data name="AuditPage_Filter" xml:space="preserve">
+    <value>Kayıtları filtrele…</value>
+  </data>
+  <data name="AuditPage_FailedOnly" xml:space="preserve">
+    <value>Yalnızca başarısızlar</value>
+  </data>
+  <data name="AuditPage_NoMatch" xml:space="preserve">
+    <value>Filtreyle eşleşen kayıt yok.</value>
+  </data>
+  <data name="AuditPage_Show" xml:space="preserve">
+    <value>Gösterilecek kayıtlar</value>
+  </data>
 </root>

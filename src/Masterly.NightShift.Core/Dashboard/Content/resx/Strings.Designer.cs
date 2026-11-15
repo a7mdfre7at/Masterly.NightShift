@@ -7138,5 +7138,59 @@ namespace Masterly.NightShift.Dashboard.Resources {
                 return ResourceManager.GetString("AboutPage_FilterOrder", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No audit entries.
+        /// </summary>
+        public static string AuditPage_EmptyTitle {
+            get {
+                return ResourceManager.GetString("AuditPage_EmptyTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Entries.
+        /// </summary>
+        public static string AuditPage_Entries {
+            get {
+                return ResourceManager.GetString("AuditPage_Entries", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Filter entries….
+        /// </summary>
+        public static string AuditPage_Filter {
+            get {
+                return ResourceManager.GetString("AuditPage_Filter", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Failed only.
+        /// </summary>
+        public static string AuditPage_FailedOnly {
+            get {
+                return ResourceManager.GetString("AuditPage_FailedOnly", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No entry matches the filter..
+        /// </summary>
+        public static string AuditPage_NoMatch {
+            get {
+                return ResourceManager.GetString("AuditPage_NoMatch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Entries to show.
+        /// </summary>
+        public static string AuditPage_Show {
+            get {
+                return ResourceManager.GetString("AuditPage_Show", resourceCulture);
+            }
+        }
     }
 }

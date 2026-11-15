@@ -2486,4 +2486,22 @@
   <data name="AboutPage_FilterOrder" xml:space="preserve">
     <value>Order {0}</value>
   </data>
+  <data name="AuditPage_EmptyTitle" xml:space="preserve">
+    <value>No audit entries</value>
+  </data>
+  <data name="AuditPage_Entries" xml:space="preserve">
+    <value>Entries</value>
+  </data>
+  <data name="AuditPage_Filter" xml:space="preserve">
+    <value>Filter entries…</value>
+  </data>
+  <data name="AuditPage_FailedOnly" xml:space="preserve">
+    <value>Failed only</value>
+  </data>
+  <data name="AuditPage_NoMatch" xml:space="preserve">
+    <value>No entry matches the filter.</value>
+  </data>
+  <data name="AuditPage_Show" xml:space="preserve">
+    <value>Entries to show</value>
+  </data>
 </root>

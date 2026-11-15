@@ -2425,4 +2425,22 @@
   <data name="AboutPage_FilterOrder" xml:space="preserve">
     <value>Ordning {0}</value>
   </data>
+  <data name="AuditPage_EmptyTitle" xml:space="preserve">
+    <value>Inga granskningsposter</value>
+  </data>
+  <data name="AuditPage_Entries" xml:space="preserve">
+    <value>Poster</value>
+  </data>
+  <data name="AuditPage_Filter" xml:space="preserve">
+    <value>Filtrera poster…</value>
+  </data>
+  <data name="AuditPage_FailedOnly" xml:space="preserve">
+    <value>Bara misslyckade</value>
+  </data>
+  <data name="AuditPage_NoMatch" xml:space="preserve">
+    <value>Ingen post matchar filtret.</value>
+  </data>
+  <data name="AuditPage_Show" xml:space="preserve">
+    <value>Poster att visa</value>
+  </data>
 </root>

@@ -2417,4 +2417,22 @@
   <data name="AboutPage_FilterOrder" xml:space="preserve">
     <value>ترتیب {0}</value>
   </data>
+  <data name="AuditPage_EmptyTitle" xml:space="preserve">
+    <value>هیچ ورودی ممیزی نیست</value>
+  </data>
+  <data name="AuditPage_Entries" xml:space="preserve">
+    <value>ورودی‌ها</value>
+  </data>
+  <data name="AuditPage_Filter" xml:space="preserve">
+    <value>فیلتر ورودی‌ها…</value>
+  </data>
+  <data name="AuditPage_FailedOnly" xml:space="preserve">
+    <value>فقط ناموفق‌ها</value>
+  </data>
+  <data name="AuditPage_NoMatch" xml:space="preserve">
+    <value>هیچ ورودی‌ای با فیلتر جور نیست.</value>
+  </data>
+  <data name="AuditPage_Show" xml:space="preserve">
+    <value>ورودی‌های نمایش داده‌شده</value>
+  </data>
 </root>

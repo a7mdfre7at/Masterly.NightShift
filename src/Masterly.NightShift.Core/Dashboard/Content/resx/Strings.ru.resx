@@ -2411,4 +2411,22 @@
   <data name="AboutPage_FilterOrder" xml:space="preserve">
     <value>Порядок {0}</value>
   </data>
+  <data name="AuditPage_EmptyTitle" xml:space="preserve">
+    <value>Нет записей аудита</value>
+  </data>
+  <data name="AuditPage_Entries" xml:space="preserve">
+    <value>Записи</value>
+  </data>
+  <data name="AuditPage_Filter" xml:space="preserve">
+    <value>Фильтр записей…</value>
+  </data>
+  <data name="AuditPage_FailedOnly" xml:space="preserve">
+    <value>Только неудачные</value>
+  </data>
+  <data name="AuditPage_NoMatch" xml:space="preserve">
+    <value>Ни одна запись не подходит под фильтр.</value>
+  </data>
+  <data name="AuditPage_Show" xml:space="preserve">
+    <value>Сколько записей показать</value>
+  </data>
 </root>

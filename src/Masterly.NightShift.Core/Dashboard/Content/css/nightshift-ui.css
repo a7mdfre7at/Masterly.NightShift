@@ -4646,16 +4646,11 @@ label.ns-required::after {
     color: var(--hf-text);
 }
 
-/* Audit
+/* Audit: the address an action came from
    ------------------------------------------------------------------ */
 
-.hf-audit td {
-    vertical-align: top;
-}
-
 .hf-audit-ip {
-    font-size: 0.6875rem;
-    font-family: var(--hf-mono);
+    font: var(--md-sys-typescale-code-small);
 }
 
 /* Wallboard: a full-screen status board
@@ -7920,4 +7915,62 @@ body.hf-app.hf-wallboard {
 
 .ns-about-unsupported > .bi {
     color: var(--md-sys-color-outline);
+}
+
+/* The audit log: the filters (text, failed only, how many entries), then the entries as rows, newest first: the
+   outcome's dot, what was done with its status when it failed, who did it and from where, the action's address, its
+   targets and detail, and the time, relative and exact */
+.ns-audit-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--md-sys-spacing-2) var(--md-sys-spacing-3);
+    margin-bottom: var(--md-sys-spacing-4);
+}
+
+.ns-audit-count {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--md-sys-spacing-1);
+}
+
+.ns-audit-list .ns-run {
+    align-items: flex-start;
+}
+
+.ns-audit-list .ns-run > .ns-dot {
+    margin-top: .5rem;
+}
+
+.ns-audit-action {
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+.hf-app .ns-audit-list code {
+    overflow-wrap: anywhere;
+}
+
+.ns-audit-targets {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--md-sys-spacing-1) var(--md-sys-spacing-2);
+    margin-top: var(--md-sys-spacing-1);
+}
+
+.ns-audit-targets .ns-chip {
+    min-height: 22px;
+    padding: 0 var(--md-sys-spacing-2);
+}
+
+.ns-audit-more,
+.ns-audit-detail {
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.hf-app .ns-audit-detail {
+    margin: var(--md-sys-spacing-1) 0 0;
+    overflow-wrap: anywhere;
 }

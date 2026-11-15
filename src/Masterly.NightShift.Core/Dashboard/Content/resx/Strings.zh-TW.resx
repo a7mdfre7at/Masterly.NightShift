@@ -2361,4 +2361,22 @@
   <data name="AboutPage_FilterOrder" xml:space="preserve">
     <value>順序 {0}</value>
   </data>
+  <data name="AuditPage_EmptyTitle" xml:space="preserve">
+    <value>沒有稽核記錄</value>
+  </data>
+  <data name="AuditPage_Entries" xml:space="preserve">
+    <value>記錄</value>
+  </data>
+  <data name="AuditPage_Filter" xml:space="preserve">
+    <value>篩選記錄…</value>
+  </data>
+  <data name="AuditPage_FailedOnly" xml:space="preserve">
+    <value>僅失敗的</value>
+  </data>
+  <data name="AuditPage_NoMatch" xml:space="preserve">
+    <value>沒有符合篩選條件的記錄。</value>
+  </data>
+  <data name="AuditPage_Show" xml:space="preserve">
+    <value>要顯示的記錄</value>
+  </data>
 </root>
