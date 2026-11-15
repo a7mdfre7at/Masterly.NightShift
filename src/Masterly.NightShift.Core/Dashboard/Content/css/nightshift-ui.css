@@ -1697,12 +1697,6 @@ body.hf-app .small {
     color: var(--md-sys-color-on-secondary-container);
 }
 
-.ns-pagination-nav {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--md-sys-spacing-1);
-}
-
 .ns-pagination-compact {
     display: inline-flex;
     align-items: center;
@@ -2420,8 +2414,7 @@ button.ns-chip {
     color: var(--md-sys-color-error);
 }
 
-.ns-empty-state-title,
-.ns-error-state-title {
+.ns-empty-state-title {
     margin: 0;
     font: var(--md-sys-typescale-title-large);
     color: var(--md-sys-color-on-surface);
@@ -2677,8 +2670,7 @@ button.ns-chip {
 }
 
 /* A required field: an asterisk after its label, read as "required" from the control's own required attribute */
-.ns-field-required > label::after,
-label.ns-required::after {
+.ns-field-required > label::after {
     content: " *";
     color: var(--md-sys-color-error);
 }
@@ -3112,17 +3104,6 @@ label.ns-required::after {
 
 .ns-dialog-basic .modal-body {
     padding-top: 0;
-}
-
-.ns-dialog-basic .ns-dialog-icon {
-    display: block;
-    margin: 0 auto var(--md-sys-spacing-4);
-    font-size: 1.5rem;
-    color: var(--md-sys-color-secondary);
-}
-
-.ns-dialog-basic.ns-dialog-destructive .ns-dialog-icon {
-    color: var(--md-sys-color-error);
 }
 
 .ns-dialog-type {
