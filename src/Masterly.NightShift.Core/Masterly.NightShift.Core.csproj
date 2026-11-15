@@ -35,7 +35,6 @@
   
   <ItemGroup>
     <EmbeddedResource Include="Dashboard\Content\css\bootstrap.min.css" />
-    <EmbeddedResource Include="Dashboard\Content\css\Chart.min.css" />
     <EmbeddedResource Include="Dashboard\Content\css\nightshift.css" />
     <EmbeddedResource Include="Dashboard\Content\css\nightshift-ui.css" />
     <EmbeddedResource Include="Dashboard\Content\css\nightshift-dark.css" />
@@ -46,8 +45,7 @@
     <EmbeddedResource Include="Dashboard\Content\js\nightshift.js" />
     <EmbeddedResource Include="Dashboard\Content\js\jquery-4.0.0.min.js" />
     <EmbeddedResource Include="Dashboard\Content\js\nightshift-intl.js" />
-    <EmbeddedResource Include="Dashboard\Content\js\Chart.min.js" />
-    <EmbeddedResource Include="Dashboard\Content\js\chartjs-plugin-streaming.min.js" />
+    <EmbeddedResource Include="Dashboard\Content\js\chart.umd.min.js" />
   </ItemGroup>
 
   <ItemGroup>

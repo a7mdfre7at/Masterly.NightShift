@@ -59,7 +59,6 @@ public static class DashboardRoutes
         Assembly executingAssembly = typeof(DashboardRoutes).GetTypeInfo().Assembly;
 
         AddStylesheet(executingAssembly, GetContentResourceName("css", "bootstrap.min.css"));
-        AddStylesheet(executingAssembly, GetContentResourceName("css", "Chart.min.css"));
         AddStylesheet(executingAssembly, GetContentResourceName("css", "nightshift.css"));
         AddStylesheet(executingAssembly, GetContentResourceName("css", "nightshift-ui.css"));
 
@@ -67,9 +66,8 @@ public static class DashboardRoutes
 
         AddJavaScript(executingAssembly, GetContentResourceName("js", "jquery-4.0.0.min.js"));
         AddJavaScript(executingAssembly, GetContentResourceName("js", "bootstrap.bundle.min.js"));
-        AddJavaScript(executingAssembly, GetContentResourceName("js", "Chart.min.js"));
+        AddJavaScript(executingAssembly, GetContentResourceName("js", "chart.umd.min.js"));
         AddJavaScript(executingAssembly, GetContentResourceName("js", "nightshift-intl.js"));
-        AddJavaScript(executingAssembly, GetContentResourceName("js", "chartjs-plugin-streaming.min.js"));
         AddJavaScript(executingAssembly, GetContentResourceName("js", "nightshift.js"));
 
         #region Embedded static content
