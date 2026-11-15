@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Net;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Masterly.NightShift.Core.Tests.Stubs;
 using Masterly.NightShift.Dashboard;
@@ -183,6 +185,28 @@ public class LayoutPageFacts
         Assert.DoesNotContain("hf-drain-banner", html);
         Assert.Contains("<div class=\"ns-banner ns-banner-error hf-storage-banner\" role=\"alert\">", html);
         Assert.Contains(Encode(Strings.LayoutPage_StorageUnavailable), html);
+    }
+
+    [Fact]
+    public void Render_HandsTheWatchlistTheNamesOfTheBuiltInStates_InTheReadersLanguage()
+    {
+        CultureInfo previous = CultureInfo.CurrentUICulture;
+        string html;
+        try
+        {
+            CultureHelper.SetCurrentUICulture("de");
+            html = _renderer.Render(new TagsPage());
+        }
+        finally
+        {
+            CultureHelper.SetCurrentUICulture(previous);
+        }
+
+        Group names = Regex.Match(html, "<div class=\"hf-watchlist js-watchlist\"[^>]* data-state-names=\"([^\"]+)\"").Groups[1];
+        Assert.True(names.Success);
+        Dictionary<string, string> parsed = JsonSerializer.Deserialize<Dictionary<string, string>>(WebUtility.HtmlDecode(names.Value))!;
+        Assert.Equal("Erfolgreich", parsed["Succeeded"]);
+        Assert.Equal(7, parsed.Count);
     }
 
     [Fact]

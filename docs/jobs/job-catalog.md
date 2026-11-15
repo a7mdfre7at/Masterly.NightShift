@@ -81,8 +81,8 @@ Each run is recorded in the audit log (on by default, see [Audit log and activit
 |---|---|---|
 | `string` | `text` | Taken as is |
 | `bool` | `checkbox` | `on`, `true`, `1`, `yes` mean `true`; anything else `false`. The form sends a hidden `false` with each checkbox, and when a field comes more than once the server takes `true` if any value is, so an unchecked box gives `false` even when the default is `true` |
-| `bool?` | `select` | `true`, `false`, or `null` (the form's "(null)" choice) |
-| Enums | `select` | A member name, case-insensitive. A nullable enum also takes `null` (the form's "(null)" choice). A `[Flags]` enum takes names separated by commas, such as `Instance, Public`; the form offers a multiple choice, sends one `arg:{Name}` field per choice and the server combines them. The form also sends a hidden `0`, so choosing nothing gives no flags rather than the default |
+| `bool?` | `select` | `true`, `false`, or `null` (the form's `null` choice) |
+| Enums | `select` | A member name, case-insensitive. A nullable enum also takes `null` (the form's `null` choice). A `[Flags]` enum takes names separated by commas, such as `Instance, Public`; the form offers a multiple choice, sends one `arg:{Name}` field per choice and the server combines them. The form also sends a hidden `0`, so choosing nothing gives no flags rather than the default |
 | `DateTime` | `datetime` | `2026-11-04T18:30` and other JSON date formats. A trailing `Z` gives a UTC value (`DateTimeKind.Utc`), an offset such as `+05:00` a local one, nothing an unspecified one |
 | `DateTimeOffset` | `datetime` | The same formats. With an offset (`2026-11-04T18:30+05:00`, or `Z`) that exact moment and offset; without one, such as what the date picker gives, the time is read as UTC, whatever the server's time zone |
 | Numbers | `number` | JSON numbers |

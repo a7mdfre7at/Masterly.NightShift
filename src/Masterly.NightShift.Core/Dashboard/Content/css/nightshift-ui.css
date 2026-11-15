@@ -5012,6 +5012,18 @@ body.hf-app.hf-wallboard {
     outline: 2px solid var(--hf-text);
 }
 
+/* A run drawn narrower than a fingertip is still easy to hit: an invisible area of at least 24px by 24px around
+   it, centred on the run, takes its clicks. The drawn width keeps meaning the run's time. */
+.hf-tl-span::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 24px);
+    height: max(100%, 24px);
+    transform: translate(-50%, -50%);
+}
+
 .hf-tl-succeeded { background: var(--hf-success); }
 .hf-tl-failed { background: var(--hf-danger); }
 .hf-tl-held { background: var(--hf-warning); }

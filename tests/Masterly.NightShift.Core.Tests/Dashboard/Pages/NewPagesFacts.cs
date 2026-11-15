@@ -607,6 +607,8 @@ public class NewPagesFacts
         Assert.Contains("data-confirm-body=\"This step runs again with every step after it. The steps before it keep their outcome.\"", details, StringComparison.Ordinal);
         Assert.Contains("data-confirm-label=\"Retry from here\"", details, StringComparison.Ordinal);
         Assert.Contains("<button type=\"button\" class=\"ns-icon-button\" data-ajax=\"/chains/retry/c1/job-2\"", details, StringComparison.Ordinal);
+        // The list's icon button names its step, so each row's has a name of its own
+        Assert.Matches("data-ajax=\"/chains/retry/c1/job-2\" data-loading-text=\"[^\"]+\"\\s+aria-label=\"Retry from [^\"]*Run[^\"]*\" title=\"Retry from [^\"]*Run[^\"]*\"", details);
     }
 
     [Fact]

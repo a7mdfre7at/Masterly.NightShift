@@ -94,7 +94,7 @@
                                     : span.Outcome == DeletedState.StateName ? "hf-tl-deleted"
                                     : "hf-tl-held";
                                 string title = (span.Method ?? span.JobId) + " · " + (span.IsRunning ? Strings.TimelinePage_Running : HtmlHelper.StateDisplayName(span.Outcome ?? String.Empty)) + " · " + Html.ToHumanDuration(TimeSpan.FromMilliseconds(span.DurationMs), false);
-                                <a class="hf-tl-span @css" href="@Url.JobDetails(span.JobId)" style="left: @left.ToString("0.###", CultureInfo.InvariantCulture)%; width: @width.ToString("0.###", CultureInfo.InvariantCulture)%" title="@title"></a>
+                                <a class="hf-tl-span @css" href="@Url.JobDetails(span.JobId)" style="left: @left.ToString("0.###", CultureInfo.InvariantCulture)%; width: @width.ToString("0.###", CultureInfo.InvariantCulture)%" title="@title" aria-label="@title"></a>
                             }
                         </div>
                     </div>

@@ -138,7 +138,9 @@ public class JobCatalogPageFacts : IDisposable
         Assert.Contains("data-run-url=\"/catalog/run\"", html);
         Assert.Contains("data-preview-url=\"/recurring/preview\"", html);
         Assert.Contains($"data-text-redacted=\"{Encode(Strings.CatalogPage_Runner_Redacted)}\"", html);
-        Assert.Contains($"data-loading-text=\"{Encode(Strings.RecurringJobsPage_Saving)}\">{Encode(Strings.CatalogPage_Submit)}</button>", html);
+        Assert.Contains($"data-text-redacted-tag=\"{Encode(Strings.CatalogPage_Runner_RedactedTag)}\"", html);
+        // Create says what it does while it works
+        Assert.Contains($"data-loading-text=\"{Encode(Strings.CatalogPage_Creating)}\">{Encode(Strings.CatalogPage_Submit)}</button>", html);
     }
 
     [Fact, StaticLock]

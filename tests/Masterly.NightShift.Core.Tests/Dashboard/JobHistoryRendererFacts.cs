@@ -199,11 +199,16 @@ public class JobHistoryRendererFacts
         CultureInfo previous = CultureInfo.CurrentUICulture;
         string html;
         string lowerCase;
+        string created;
+        string createdChip;
         try
         {
             CultureHelper.SetCurrentUICulture("de");
             html = CreateHelper().StateLabel(SucceededState.StateName).ToString();
             lowerCase = HtmlHelper.StateDisplayName("succeeded");
+            // The first step of a job's history, which no state is stored as
+            created = HtmlHelper.StateDisplayName("Created");
+            createdChip = CreateHelper().StateLabel("Created").ToString();
         }
         finally
         {
@@ -212,6 +217,9 @@ public class JobHistoryRendererFacts
 
         Assert.Equal($"<span class=\"ns-state-chip ns-state-succeeded\" data-state=\"Succeeded\">{DashboardMarkup.Icon("check-circle-fill")}<span>Erfolgreich</span></span>", html);
         Assert.Equal("Erfolgreich", lowerCase);
+        Assert.Equal("Erstellt", created);
+        Assert.Contains("data-state=\"Created\"", createdChip, StringComparison.Ordinal);
+        Assert.Contains("<span>Erstellt</span>", createdChip, StringComparison.Ordinal);
         Assert.Equal("Facts.Custom", HtmlHelper.StateDisplayName("Facts.Custom"));
     }
 

@@ -78,7 +78,7 @@
                     @Html.RenderPartial(new Navigation())
                 </nav>
 
-                <div class="hf-watchlist js-watchlist" data-live-url="@Url.To("/jobs/live")" data-job-url="@Url.To("/jobs/details/")" data-text-title="@Strings.LayoutPage_Watchlist" data-text-empty="@Strings.LayoutPage_Watchlist_Empty" data-text-done="@Strings.LayoutPage_Watchlist_Done" data-text-remove="@Strings.LayoutPage_Watchlist_Remove" data-text-shortcuts="@Strings.LayoutPage_Shortcuts" style="display: none"></div>
+                <div class="hf-watchlist js-watchlist" data-live-url="@Url.To("/jobs/live")" data-job-url="@Url.To("/jobs/details/")" data-text-title="@Strings.LayoutPage_Watchlist" data-text-empty="@Strings.LayoutPage_Watchlist_Empty" data-text-done="@Strings.LayoutPage_Watchlist_Done" data-text-remove="@Strings.LayoutPage_Watchlist_Remove" data-text-shortcuts="@Strings.LayoutPage_Shortcuts" data-state-names="@HomePage.StateNamesJson()" style="display: none"></div>
 
                 <div class="hf-sidebar-footer">
                     @if (DashboardOptions.DarkModeEnabled)

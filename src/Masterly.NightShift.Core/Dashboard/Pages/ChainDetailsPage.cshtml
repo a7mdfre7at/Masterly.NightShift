@@ -156,7 +156,7 @@
                                             @if (canRetry && ChainFlowchartRenderer.CanRetryFrom(step))
                                             {
                                                 <button type="button" class="ns-icon-button" data-ajax="@ChainFlowchartRenderer.RetryUrl(this, chain.ChainId, step.JobId)" data-loading-text="@Strings.ChainDetailsPage_Retrying"
-                                                        aria-label="@Strings.ChainDetailsPage_RetryFromHere" title="@Strings.ChainDetailsPage_RetryFromHere" @ChainFlowchartRenderer.RetryConfirm(this)>
+                                                        aria-label="@String.Format(Strings.ChainDetailsPage_RetryFromStep, ChainFlowchartRenderer.StepName(this, step))" title="@String.Format(Strings.ChainDetailsPage_RetryFromStep, ChainFlowchartRenderer.StepName(this, step))" @ChainFlowchartRenderer.RetryConfirm(this)>
                                                     @Html.Icon("arrow-repeat")
                                                 </button>
                                             }

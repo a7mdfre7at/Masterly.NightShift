@@ -2429,4 +2429,16 @@
   <data name="AuditPage_Show" xml:space="preserve">
     <value>Сколько записей показать</value>
   </data>
+  <data name="ChainDetailsPage_RetryFromStep" xml:space="preserve">
+    <value>Повторить с шага {0}</value>
+  </data>
+  <data name="CatalogPage_Creating" xml:space="preserve">
+    <value>Создание…</value>
+  </data>
+  <data name="CatalogPage_Runner_RedactedTag" xml:space="preserve">
+    <value>скрыто</value>
+  </data>
+  <data name="Metrics_EnqueuedCount" xml:space="preserve">
+    <value>Задания в очереди</value>
+  </data>
 </root>

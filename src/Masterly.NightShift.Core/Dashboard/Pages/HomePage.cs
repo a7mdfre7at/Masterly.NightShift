@@ -42,7 +42,7 @@ internal partial class HomePage
 
     /// <summary>
     /// The names of the built-in states in the reader's language, by state, as JSON: the live activity's state chips
-    /// show them and keep the state's own name in <c>data-state</c>.
+    /// and the watchlist of the layout show them, and keep the state's own name in <c>data-state</c> and its classes.
     /// </summary>
     internal static string StateNamesJson()
     {

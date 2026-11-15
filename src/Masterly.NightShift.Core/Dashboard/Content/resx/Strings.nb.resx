@@ -2441,4 +2441,16 @@
   <data name="AuditPage_Show" xml:space="preserve">
     <value>Oppføringer som vises</value>
   </data>
+  <data name="ChainDetailsPage_RetryFromStep" xml:space="preserve">
+    <value>Prøv på nytt fra {0}</value>
+  </data>
+  <data name="CatalogPage_Creating" xml:space="preserve">
+    <value>Oppretter…</value>
+  </data>
+  <data name="CatalogPage_Runner_RedactedTag" xml:space="preserve">
+    <value>skjult</value>
+  </data>
+  <data name="Metrics_EnqueuedCount" xml:space="preserve">
+    <value>Jobber i kø</value>
+  </data>
 </root>

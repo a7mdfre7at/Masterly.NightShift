@@ -2435,4 +2435,16 @@
   <data name="AuditPage_Show" xml:space="preserve">
     <value>ورودی‌های نمایش داده‌شده</value>
   </data>
+  <data name="ChainDetailsPage_RetryFromStep" xml:space="preserve">
+    <value>تلاش دوباره از {0}</value>
+  </data>
+  <data name="CatalogPage_Creating" xml:space="preserve">
+    <value>در حال ایجاد…</value>
+  </data>
+  <data name="CatalogPage_Runner_RedactedTag" xml:space="preserve">
+    <value>پنهان</value>
+  </data>
+  <data name="Metrics_EnqueuedCount" xml:space="preserve">
+    <value>کارهای وارد صف شده</value>
+  </data>
 </root>

@@ -195,13 +195,15 @@ public class HtmlHelper
 
     /// <summary>
     /// The name of a state as the dashboard shows it: a built-in state's name (Enqueued, Scheduled, Processing,
-    /// Succeeded, Failed, Deleted, Awaiting) in the reader's language, the jobs menu's word for it; any other state's
-    /// name as it is. What is stored, and the classes and attributes scripts and styles read, keep the name itself.
+    /// Succeeded, Failed, Deleted, Awaiting) in the reader's language, the jobs menu's word for it, and so is Created,
+    /// the first step of a job's history; any other state's name as it is. What is stored, and the classes and
+    /// attributes scripts and styles read, keep the name itself.
     /// </summary>
     internal static string StateDisplayName(string stateName)
     {
         return stateName.ToUpperInvariant() switch
         {
+            "CREATED" => Strings.Common_Created,
             "ENQUEUED" => Strings.JobsSidebarMenu_Enqueued,
             "SCHEDULED" => Strings.JobsSidebarMenu_Scheduled,
             "PROCESSING" => Strings.JobsSidebarMenu_Processing,

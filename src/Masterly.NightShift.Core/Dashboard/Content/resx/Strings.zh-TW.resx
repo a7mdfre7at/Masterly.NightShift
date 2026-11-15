@@ -2379,4 +2379,16 @@
   <data name="AuditPage_Show" xml:space="preserve">
     <value>要顯示的記錄</value>
   </data>
+  <data name="ChainDetailsPage_RetryFromStep" xml:space="preserve">
+    <value>從 {0} 重試</value>
+  </data>
+  <data name="CatalogPage_Creating" xml:space="preserve">
+    <value>正在建立…</value>
+  </data>
+  <data name="CatalogPage_Runner_RedactedTag" xml:space="preserve">
+    <value>已隱藏</value>
+  </data>
+  <data name="Metrics_EnqueuedCount" xml:space="preserve">
+    <value>佇列中的作業</value>
+  </data>
 </root>

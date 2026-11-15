@@ -2402,4 +2402,16 @@
   <data name="AuditPage_Show" xml:space="preserve">
     <value>Te tonen vermeldingen</value>
   </data>
+  <data name="ChainDetailsPage_RetryFromStep" xml:space="preserve">
+    <value>Opnieuw vanaf {0}</value>
+  </data>
+  <data name="CatalogPage_Creating" xml:space="preserve">
+    <value>Aanmaken…</value>
+  </data>
+  <data name="CatalogPage_Runner_RedactedTag" xml:space="preserve">
+    <value>verborgen</value>
+  </data>
+  <data name="Metrics_EnqueuedCount" xml:space="preserve">
+    <value>Taken in wachtrij</value>
+  </data>
 </root>

@@ -2380,4 +2380,16 @@
   <data name="AuditPage_Show" xml:space="preserve">
     <value>Entradas que se muestran</value>
   </data>
+  <data name="ChainDetailsPage_RetryFromStep" xml:space="preserve">
+    <value>Reintentar desde {0}</value>
+  </data>
+  <data name="CatalogPage_Creating" xml:space="preserve">
+    <value>Creando…</value>
+  </data>
+  <data name="CatalogPage_Runner_RedactedTag" xml:space="preserve">
+    <value>oculto</value>
+  </data>
+  <data name="Metrics_EnqueuedCount" xml:space="preserve">
+    <value>Tareas en la cola</value>
+  </data>
 </root>

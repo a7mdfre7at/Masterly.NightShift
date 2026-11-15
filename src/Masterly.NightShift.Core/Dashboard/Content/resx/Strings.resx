@@ -2504,4 +2504,16 @@
   <data name="AuditPage_Show" xml:space="preserve">
     <value>Entries to show</value>
   </data>
+  <data name="ChainDetailsPage_RetryFromStep" xml:space="preserve">
+    <value>Retry from {0}</value>
+  </data>
+  <data name="CatalogPage_Creating" xml:space="preserve">
+    <value>Creating...</value>
+  </data>
+  <data name="CatalogPage_Runner_RedactedTag" xml:space="preserve">
+    <value>redacted</value>
+  </data>
+  <data name="Metrics_EnqueuedCount" xml:space="preserve">
+    <value>Enqueued Jobs</value>
+  </data>
 </root>

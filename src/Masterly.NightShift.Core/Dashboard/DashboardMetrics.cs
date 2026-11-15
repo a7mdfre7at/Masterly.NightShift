@@ -141,7 +141,7 @@ public static class DashboardMetrics
     // The plain number of enqueued jobs, which the home page's Enqueued tile keeps up to date
     internal static readonly DashboardMetric EnqueuedCount = new(
         "enqueued:count",
-        "Metrics_EnqueuedCountOrNull",
+        "Metrics_EnqueuedCount",
         static page => new Metric(page.Statistics.Enqueued));
 
     public static readonly DashboardMetric ScheduledCount = new(

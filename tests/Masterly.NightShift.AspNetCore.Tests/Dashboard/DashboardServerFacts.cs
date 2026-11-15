@@ -535,7 +535,8 @@ public class DashboardServerFacts
 
         // An unchecked box sent nothing, which the server read as the default
         Assert.Contains(".append($('<input type=\"hidden\" value=\"false\">').attr('name', name))", bundle);
-        Assert.Contains("input.append($('<option>').val('null').text('(null)'));", bundle);
+        // The explicit null reads as the keyword, as arguments are shown everywhere else
+        Assert.Contains("input.append($('<option>').val('null').text('null'));", bundle);
         Assert.Contains("input.attr({ multiple: 'multiple', size: Math.min(8, input.children().length) });", bundle);
         Assert.Contains("group.append($('<input type=\"hidden\" value=\"0\">').attr('name', name));", bundle);
     }

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using Masterly.NightShift.Dashboard.Pages;
 using Masterly.NightShift.Dashboard.Resources;
 
@@ -90,6 +91,8 @@ public class TimelinePageFacts
         Assert.Contains("title=\"" + Encode("Billing.Charge · Succeeded · "), html);
         Assert.Contains("title=\"" + Encode("4 · Scheduled · "), html);
         Assert.Contains("title=\"" + Encode($"5 · {Strings.TimelinePage_Running} · "), html);
+        // A span has no text: its accessible name is the same as its tooltip
+        Assert.Equal(5, Regex.Matches(html, "<a class=\"hf-tl-span [^\"]+\" href=\"[^\"]+\" style=\"[^\"]+\" title=\"([^\"]+)\" aria-label=\"\\1\"></a>").Count);
     }
 
     [Fact]

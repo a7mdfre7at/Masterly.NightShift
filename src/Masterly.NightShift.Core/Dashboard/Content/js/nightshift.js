@@ -3348,6 +3348,7 @@
                 recurringCreated: this._holder.attr('data-text-recurring-created'),
                 injected: this._holder.attr('data-text-injected'),
                 redacted: this._holder.attr('data-text-redacted') || 'redacted, enter the value again',
+                redactedTag: this._holder.attr('data-text-redacted-tag') || 'redacted',
                 utc: this._holder.attr('data-text-utc') || 'in UTC',
                 required: this._holder.attr('data-text-required') || 'Enter a value.',
                 json: this._holder.attr('data-text-json') || 'This isn\'t valid JSON.'
@@ -3437,9 +3438,10 @@
                     var options = parameter.options || [];
                     var selected = parameter['default'] || '';
                     input = $('<select class="form-select">').attr({ id: id, name: name });
-                    // bool? and nullable enums can be set to null explicitly; an empty value would mean "the default"
+                    // bool? and nullable enums can be set to null explicitly; an empty value would mean "the default".
+                    // It reads null, the C# keyword, as arguments and defaults are shown everywhere else: not prose
                     if (parameter.nullable) {
-                        input.append($('<option>').val('null').text('(null)'));
+                        input.append($('<option>').val('null').text('null'));
                         if (selected === '') selected = 'null';
                     }
                     for (var i = 0; i < options.length; i++) {
@@ -3486,7 +3488,7 @@
 
             if (parameter.redacted) {
                 input.val('').attr('placeholder', this._text.redacted).attr('autocomplete', 'new-password');
-                label.append(' ').append($('<span>').addClass('ns-catalog-redacted').text('redacted'));
+                label.append(' ').append($('<span>').addClass('ns-catalog-redacted').text(this._text.redactedTag));
             }
 
             return group.append(label).append(input);
@@ -3837,6 +3839,8 @@
             this._liveUrl = this._panel.data('live-url');
             this._jobUrl = this._panel.data('job-url');
             this._text = { title: this._panel.attr('data-text-title'), empty: this._panel.attr('data-text-empty'), done: this._panel.attr('data-text-done'), remove: this._panel.attr('data-text-remove') || 'Stop watching job {0}' };
+            // The built-in states' names in the reader's language; the stored name stays in the class and the list
+            try { this._stateNames = JSON.parse(this._panel.attr('data-state-names') || '{}') || {}; } catch (e) { this._stateNames = {}; }
             this._items = this._read();
             this._interval = Math.max((config && config.pollInterval) || 2000, 2000);
             this._timer = null;
@@ -3880,10 +3884,14 @@
                 var item = this._items[i];
                 var li = $('<li class="hf-watchlist-item">').toggleClass('done', !!FINAL[item.state]);
                 li.append($('<a>').attr('href', this._jobUrl + nightshift.routeValue(item.id)).append($('<span class="hf-watchlist-id">').text('#' + item.id)).append($('<span class="hf-watchlist-name">').text(item.name || '')));
-                li.append($('<span class="hf-watchlist-state">').addClass('state-' + String(item.state || '').toLowerCase()).text(item.state || '…'));
+                li.append($('<span class="hf-watchlist-state">').addClass('state-' + String(item.state || '').toLowerCase()).text(item.state ? this._stateName(item.state) : '…'));
                 li.append($('<button type="button" class="ns-icon-button hf-watchlist-remove js-watch-remove">').attr({ 'data-id': item.id, 'aria-label': format(this._text.remove, '#' + item.id) }).html(nightshift.icon('x-lg')));
                 this._list.append(li);
             }
+        };
+
+        Watchlist.prototype._stateName = function (state) {
+            return Object.prototype.hasOwnProperty.call(this._stateNames, state) ? this._stateNames[state] : state;
         };
 
         Watchlist.prototype._syncButtons = function () {
@@ -3953,7 +3961,7 @@
         };
 
         Watchlist.prototype._notify = function (item) {
-            var text = String(this._text.done).replace('{0}', '#' + item.id).replace('{1}', item.state);
+            var text = String(this._text.done).replace('{0}', '#' + item.id).replace('{1}', this._stateName(item.state));
             nightshift.snackbar.show({
                 text: text + (item.name ? ' — ' + item.name : ''),
                 kind: item.state === 'Failed' ? 'error' : null,

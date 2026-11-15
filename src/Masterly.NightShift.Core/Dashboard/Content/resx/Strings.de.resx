@@ -2382,4 +2382,16 @@
   <data name="AuditPage_Show" xml:space="preserve">
     <value>Anzuzeigende Einträge</value>
   </data>
+  <data name="ChainDetailsPage_RetryFromStep" xml:space="preserve">
+    <value>Ab {0} wiederholen</value>
+  </data>
+  <data name="CatalogPage_Creating" xml:space="preserve">
+    <value>Wird erstellt…</value>
+  </data>
+  <data name="CatalogPage_Runner_RedactedTag" xml:space="preserve">
+    <value>geschwärzt</value>
+  </data>
+  <data name="Metrics_EnqueuedCount" xml:space="preserve">
+    <value>Aufträge in Warteschlange</value>
+  </data>
 </root>

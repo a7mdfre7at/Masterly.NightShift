@@ -7192,5 +7192,41 @@ namespace Masterly.NightShift.Dashboard.Resources {
                 return ResourceManager.GetString("AuditPage_Show", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Retry from {0}.
+        /// </summary>
+        public static string ChainDetailsPage_RetryFromStep {
+            get {
+                return ResourceManager.GetString("ChainDetailsPage_RetryFromStep", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Creating....
+        /// </summary>
+        public static string CatalogPage_Creating {
+            get {
+                return ResourceManager.GetString("CatalogPage_Creating", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to redacted.
+        /// </summary>
+        public static string CatalogPage_Runner_RedactedTag {
+            get {
+                return ResourceManager.GetString("CatalogPage_Runner_RedactedTag", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Enqueued Jobs.
+        /// </summary>
+        public static string Metrics_EnqueuedCount {
+            get {
+                return ResourceManager.GetString("Metrics_EnqueuedCount", resourceCulture);
+            }
+        }
     }
 }
