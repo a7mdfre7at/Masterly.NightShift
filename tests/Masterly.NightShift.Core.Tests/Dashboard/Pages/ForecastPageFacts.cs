@@ -39,6 +39,8 @@ public class ForecastPageFacts
         string html = _renderer.Render(new ForecastPage());
 
         Assert.Equal(13, CountOf(html, "class=\"hf-forecast-tick\""));
+        // A phone shows the first, the middle and the last
+        Assert.Equal(3, CountOf(html, "data-major=\"true\""));
         Assert.Contains("style=\"left: 100.00%\"", html);
         Assert.DoesNotContain("data-moment-local-format=\"shortDate\"", html);
     }
@@ -53,6 +55,7 @@ public class ForecastPageFacts
 
         Assert.Contains("href=\"?window=7d\" class=\"btn btn-sm btn-outline-secondary active\"", html);
         Assert.Equal(8, CountOf(html, "class=\"hf-forecast-tick\""));
+        Assert.Equal(2, CountOf(html, "data-major=\"true\""));
         Assert.Equal(8, CountOf(html, "data-moment-local-format=\"shortDate\""));
         Assert.Contains("data-moment-local-format=\"shortDateTime\"", html);
     }

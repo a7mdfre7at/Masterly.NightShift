@@ -7974,3 +7974,28 @@ body.hf-app.hf-wallboard {
     margin: var(--md-sys-spacing-1) 0 0;
     overflow-wrap: anywhere;
 }
+
+/* On a phone a row of the audit log, the forecast's hot spots and the forecast's axis keep to the width: the text
+   stays beside its dot or chip, and the axis shows its first, middle and last ticks */
+@media (max-width: 599.98px) {
+    .ns-audit-list .ns-run-main,
+    .ns-forecast-hotspots .ns-run-main {
+        flex-basis: 0;
+    }
+
+    .ns-audit-list .ns-run-time {
+        padding-left: calc(8px + var(--md-sys-spacing-3));
+    }
+
+    .ns-forecast-hotspots .ns-run-time {
+        padding-left: 0;
+    }
+
+    .hf-forecast-tick:not([data-major]) {
+        display: none;
+    }
+
+    .hf-forecast-tick[data-major] {
+        display: block;
+    }
+}

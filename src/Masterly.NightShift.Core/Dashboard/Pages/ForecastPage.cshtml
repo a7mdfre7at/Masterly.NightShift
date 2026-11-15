@@ -83,7 +83,8 @@
                             @for (int i = 0; i <= ticks; i++)
                             {
                                 DateTime tickTime = forecast.From.AddTicks(window.Ticks * i / ticks);
-                                <span class="hf-forecast-tick" style="left: @((100.0 * i / ticks).ToString("F2", CultureInfo.InvariantCulture))%" data-moment-local="@JobHelper.ToTimestamp(tickTime)" data-moment-local-format="@tickFormat">@tickTime.ToString("HH:mm", CultureInfo.InvariantCulture)</span>
+                                @* A phone shows the first, the middle (when there is one) and the last tick *@
+                                <span class="hf-forecast-tick" @Html.Raw(i == 0 || i == ticks || i * 2 == ticks ? "data-major=\"true\" " : null)style="left: @((100.0 * i / ticks).ToString("F2", CultureInfo.InvariantCulture))%" data-moment-local="@JobHelper.ToTimestamp(tickTime)" data-moment-local-format="@tickFormat">@tickTime.ToString("HH:mm", CultureInfo.InvariantCulture)</span>
                             }
                         </div>
                     </div>
