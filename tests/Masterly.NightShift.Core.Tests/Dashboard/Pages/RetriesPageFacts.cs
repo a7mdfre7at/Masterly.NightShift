@@ -39,7 +39,9 @@ public class RetriesPageFacts
 
         string html = _renderer.Render(new RetriesPage());
 
-        Assert.Contains("<a href=\"/jobs/details/1\">#1</a>", html);
+        Assert.Contains("<span class=\"ns-job-id\">#1</span>", html);
+        Assert.Contains("data-copy=\"1\"", html);
+        Assert.DoesNotContain("js-job-command", html);
         Assert.DoesNotContain("/retries/delete-all", html);
         Assert.DoesNotContain("/jobs/scheduled/enqueue", html);
     }

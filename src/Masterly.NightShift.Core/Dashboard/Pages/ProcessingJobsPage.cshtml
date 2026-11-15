@@ -57,162 +57,189 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="hf-page-header">@Strings.ProcessingJobsPage_Title</h1>
-
-        @if (pager.TotalPageCount == 0)
-        {
-            <div class="alert alert-info">
-                @Strings.ProcessingJobsPage_NoJobs
+        <header class="ns-page-head">
+            <div class="ns-page-heading">
+                @Html.PageTitle(Strings.ProcessingJobsPage_Title, null, pager.TotalRecordCount)
             </div>
-        }
-        else
-        {
-            <div class="js-jobs-list">
-                <div class="btn-toolbar btn-toolbar-top">
-                    <button type="button" class="btn btn-sm btn-outline-secondary js-download" data-url="@Url.To("/jobs/processing/export")" data-filename="nightshift-processing-jobs.csv">
-                        @Html.Icon("download")
-                        @Strings.Common_DownloadCsv
-                    </button>
+            @if (pager.TotalPageCount > 0)
+            {
+                <div class="ns-page-actions">
                     @if (!IsReadOnly)
                     {
-                        <button class="btn btn-sm btn-outline-secondary btn-delete-all"
+                        <button class="btn btn-sm ns-btn-outlined-error btn-delete-all"
                                 data-ajax="@Url.To("/jobs/processing/delete-all")"
                                 data-loading-text="@Strings.Common_Deleting"
                                 @Html.ConfirmAttributes(Strings.Common_DeleteAllConfirm_Title, Strings.Common_DeleteAllConfirm, Strings.Common_DeleteAll, destructive: true)>
                             @Html.Icon("trash-fill")
                             @Strings.Common_DeleteAll
                         </button>
+                        <span class="ns-actions-divider" aria-hidden="true"></span>
                     }
+                    <button type="button" class="btn btn-sm btn-outline-secondary js-download" data-url="@Url.To("/jobs/processing/export")" data-filename="nightshift-processing-jobs.csv">
+                        @Html.Icon("download")
+                        @Strings.Common_DownloadCsv
+                    </button>
+                </div>
+            }
+        </header>
+
+        @if (pager.TotalPageCount == 0)
+        {
+            @Html.EmptyState("play-circle", Strings.ProcessingJobsPage_NoJobs, null, Url.To("/servers"), Strings.ServersPage_Title)
+        }
+        else
+        {
+            <div class="js-jobs-list">
+                <div class="btn-toolbar btn-toolbar-top ns-list-toolbar">
                     @if (!IsReadOnly)
                     {
-                        <button class="js-jobs-list-command btn btn-sm btn-primary"
-                                data-url="@Url.To("/jobs/processing/requeue")"
-                                data-loading-text="@Strings.Common_Enqueueing"
-                                disabled="disabled">
-                            @Html.Icon("arrow-repeat")
-                            @Strings.Common_RequeueJobs
-                        </button>
-                    }
-                    @if (!IsReadOnly)
-                    {
-                        <button class="js-jobs-list-command btn btn-sm btn-outline-secondary"
-                                data-url="@Url.To("/jobs/processing/delete")"
-                                data-loading-text="@Strings.Common_Deleting"
-                                @Html.ConfirmAttributes(Strings.Common_DeleteSelected_Title, Strings.Common_DeleteConfirm, Strings.Common_Delete, destructive: true) data-confirm-one="@Strings.Common_DeleteSelected_TitleOne"
-                                disabled="disabled">
-                            @Html.Icon("x-lg")
-                            @Strings.Common_DeleteSelected
-                        </button>
+                        <div class="ns-list-commands">
+                            <button class="js-jobs-list-command btn btn-sm ns-btn-tonal"
+                                    data-list-primary="true"
+                                    data-url="@Url.To("/jobs/processing/requeue")"
+                                    data-loading-text="@Strings.Common_Enqueueing"
+                                    disabled="disabled">
+                                @Html.Icon("arrow-repeat")
+                                @Strings.Common_RequeueJobs
+                            </button>
+                            <button class="js-jobs-list-command btn btn-sm btn-outline-secondary"
+                                    data-url="@Url.To("/jobs/processing/delete")"
+                                    data-loading-text="@Strings.Common_Deleting"
+                                    @Html.ConfirmAttributes(Strings.Common_DeleteSelected_Title, Strings.Common_DeleteConfirm, Strings.Common_Delete, destructive: true) data-confirm-one="@Strings.Common_DeleteSelected_TitleOne"
+                                    disabled="disabled">
+                                @Html.Icon("trash-fill")
+                                @Strings.Common_DeleteSelected
+                            </button>
+                        </div>
                     }
                     @Html.PerPageSelector(pager)
                 </div>
 
-                <div class="table-responsive">
-                    <table class="table" aria-describedby="page-title">
-                        <thead>
-                            <tr>
-                                @if (!IsReadOnly)
-                                {
-                                    <th scope="col" class="min-width">
-                                        @Html.SelectAllCheckbox()
-                                    </th>
-                                }
-                                <th scope="col" class="min-width">@Strings.Common_Id</th>
-                                <th scope="col" class="min-width">@Strings.Common_Server</th>
-                                <th scope="col">@Strings.Common_Job</th>
-                                <th scope="col" class="min-width">@Strings.ProcessingJobsPage_Table_Progress</th>
-                                <th scope="col" class="align-right">@Strings.ProcessingJobsPage_Table_Started</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (KeyValuePair<string, ProcessingJobDto?> job in processingJobs)
-                            {
-                                DateTime? deadline = deadlineByJob.TryGetValue(job.Key, out DateTime? d) ? d : null;
-                                bool overdue = deadline.HasValue && deadline.Value < now;
-
-                                <tr class="js-jobs-list-row @(job.Value == null || !job.Value.InProcessingState ? "obsolete-data" : null) @(job.Value != null && job.Value.InProcessingState ? "hover" : null) @(overdue ? "overdue" : null)">
+                <div class="hf-card ns-table-card">
+                    <div class="table-responsive">
+                        <table class="table ns-job-table ns-table-reflow" aria-describedby="page-title">
+                            <thead>
+                                <tr>
                                     @if (!IsReadOnly)
                                     {
-                                        <td>
-                                            @if (job.Value != null && job.Value.InProcessingState)
-                                            {
-                                                @Html.JobCheckbox(job.Key)
-                                            }
-                                        </td>
+                                        <th scope="col" class="ns-select-cell">
+                                            @Html.SelectAllCheckbox()
+                                        </th>
                                     }
-                                    <td class="min-width">
-                                        @Html.JobIdLink(job.Key)
-                                        @if (job.Value != null && !job.Value.InProcessingState)
-                                        {
-                                            <span class="hf-icon" title="@Strings.Common_JobStateChanged_Text" role="img" aria-label="@Strings.Common_JobStateChanged_Text">@Html.Icon("question-circle-fill")</span>
-                                        }
-                                    </td>
-                                    @if (job.Value == null)
-                                    {
-                                        <td colspan="4"><em>@Strings.Common_JobExpired</em></td>
-                                    }
-                                    else if (!job.Value.InProcessingState)
-                                    {
-                                        <td colspan="4">@Strings.Common_JobStateChanged_Text</td>
-                                    }
-                                    else
-                                    {
-                                        <td class="min-width">
-                                            @Html.ServerId(job.Value.ServerId)
-                                        </td>
-                                        <td class="word-break">
-                                            @if (job.Value.ServerId != null && servers.All(x => x.Name != job.Value.ServerId || x.Heartbeat < (StorageUtcNow ?? ApplicationUtcNow).Add(DashboardOptions.ServerPossiblyAbortedThreshold.Negate())))
-                                            {
-                                                <span class="hf-icon hf-icon-sm text-warning" title="@Strings.ProcessingJobsPage_Aborted" role="img" aria-label="@Strings.ProcessingJobsPage_Aborted">@Html.Icon("exclamation-triangle-fill")</span>
-                                            }
-
-                                            @Html.JobNameLink(job.Key, job.Value.Job)
-                                            @if (overdue)
-                                            {
-                                                <span class="badge text-bg-danger text-uppercase" title="@Strings.Common_Overdue_Tooltip">@Strings.Common_Overdue</span>
-                                            }
-                                            else if (deadline.HasValue)
-                                            {
-                                                <span class="badge text-bg-secondary" title="@Strings.Common_Deadline">@Strings.Common_Deadline @Html.RelativeTime(deadline.Value)</span>
-                                            }
-                                        </td>
-                                        <td class="min-width job-live-cell js-live-row" data-job-id="@job.Key">
-                                            @{
-                                                JobProgress? jobProgress = progressByJob.TryGetValue(job.Key, out JobProgress? p) ? p : null;
-                                                double jobPercent = jobProgress != null ? jobProgress.Percent : 0;
-                                                JobInsight? jobInsight = insightByJob.TryGetValue(job.Key, out JobInsight? ins) ? ins : null;
-                                                DateTime? expectedEnd = jobInsight != null && job.Value.StartedAt.HasValue ? jobInsight.EstimateCompletion(job.Value.StartedAt.Value) : null;
-                                                int etaPercent = 0;
-                                                string? etaText = null;
-                                                bool etaLate = false;
-
-                                                if (jobProgress == null && expectedEnd.HasValue && job.Value.StartedAt.HasValue)
-                                                {
-                                                    TimeSpan elapsed = now - job.Value.StartedAt.Value;
-                                                    TimeSpan remaining = expectedEnd.Value - now;
-                                                    etaLate = elapsed.TotalMilliseconds > Math.Max(jobInsight!.P95Ms, jobInsight.MedianMs * 2);
-                                                    etaPercent = (int)Math.Min(97, Math.Max(2, 100.0 * elapsed.Ticks / Math.Max(1, (expectedEnd.Value - job.Value.StartedAt.Value).Ticks)));
-                                                    etaText = etaLate
-                                                        ? Strings.ProcessingJobsPage_LongerThanUsual
-                                                        : String.Format(Strings.ProcessingJobsPage_Eta, Html.ToHumanDuration(TimeSpan.FromSeconds(Math.Max(1, Math.Ceiling(remaining.TotalSeconds))), false));
-                                                }
-                                            }
-                                            <div class="progress job-live-progress-sm @(etaText != null ? "job-live-progress-eta" : null) @(etaLate ? "job-live-progress-late" : null)" title="@(jobProgress != null ? jobProgress.Message : etaText != null ? Strings.ProcessingJobsPage_Eta_Tooltip : null)" role="progressbar" aria-label="@Strings.ProcessingJobsPage_Table_Progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@(jobProgress != null ? jobPercent : etaPercent)">
-                                                <div class="progress-bar progress-bar-striped progress-bar-animated js-live-bar" style="width: @(jobProgress != null ? jobPercent : etaPercent)%"></div>
-                                            </div>
-                                            <small class="text-muted js-live-progress-message" data-eta="@etaText">@(jobProgress != null ? (jobProgress.Percent + "% " + jobProgress.Message) : etaText)</small>
-                                        </td>
-                                        <td class="align-right">
-                                            @if (job.Value.StartedAt.HasValue)
-                                            {
-                                                @Html.RelativeTime(job.Value.StartedAt.Value)
-                                            }
-                                        </td>
-                                    }
+                                    <th scope="col">@Strings.Common_Job</th>
+                                    <th scope="col" class="min-width">@Strings.ProcessingJobsPage_Table_Progress</th>
+                                    <th scope="col" class="ns-time-cell">@Strings.ProcessingJobsPage_Table_Started</th>
+                                    @Html.ActionsColumnHeader()
                                 </tr>
-                            }
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                @foreach (KeyValuePair<string, ProcessingJobDto?> job in processingJobs)
+                                {
+                                    DateTime? deadline = deadlineByJob.TryGetValue(job.Key, out DateTime? d) ? d : null;
+                                    bool overdue = deadline.HasValue && deadline.Value < now;
+                                    bool current = job.Value != null && job.Value.InProcessingState;
+
+                                    <tr class="js-jobs-list-row @(current ? "hover" : "obsolete-data")@(overdue ? " overdue" : null)">
+                                        @if (!IsReadOnly)
+                                        {
+                                            <td class="ns-select-cell">
+                                                @if (current)
+                                                {
+                                                    @Html.JobCheckbox(job.Key)
+                                                }
+                                            </td>
+                                        }
+                                        @if (job.Value == null)
+                                        {
+                                            <td class="ns-job-cell" colspan="3">
+                                                <div class="ns-job-title">@Html.JobIdLink(job.Key)</div>
+                                                <div class="ns-job-meta"><em>@Strings.Common_JobExpired</em></div>
+                                            </td>
+                                        }
+                                        else if (!current)
+                                        {
+                                            <td class="ns-job-cell" colspan="3">
+                                                <div class="ns-job-title">
+                                                    @Html.StateDot(null)
+                                                    @Html.JobNameLink(job.Key, job.Value.Job, false)
+                                                </div>
+                                                <div class="ns-job-meta">
+                                                    <span class="ns-job-id">@Html.JobId(job.Key)</span>
+                                                    <span>@Strings.Common_JobStateChanged_Text</span>
+                                                </div>
+                                            </td>
+                                        }
+                                        else
+                                        {
+                                            <td class="ns-job-cell">
+                                                <div class="ns-job-title">
+                                                    @Html.StateDot(ProcessingState.StateName)
+                                                    @if (job.Value.ServerId != null && servers.All(x => x.Name != job.Value.ServerId || x.Heartbeat < (StorageUtcNow ?? ApplicationUtcNow).Add(DashboardOptions.ServerPossiblyAbortedThreshold.Negate())))
+                                                    {
+                                                        <span class="hf-icon hf-icon-sm text-warning" title="@Strings.ProcessingJobsPage_Aborted" role="img" aria-label="@Strings.ProcessingJobsPage_Aborted">@Html.Icon("exclamation-triangle-fill")</span>
+                                                    }
+                                                    @Html.JobNameLink(job.Key, job.Value.Job, false)
+                                                    @if (overdue)
+                                                    {
+                                                        <span class="badge text-bg-danger text-uppercase" title="@Strings.Common_Overdue_Tooltip">@Strings.Common_Overdue</span>
+                                                    }
+                                                    else if (deadline.HasValue)
+                                                    {
+                                                        <span class="badge text-bg-secondary" title="@Strings.Common_Deadline">@Strings.Common_Deadline @Html.RelativeTime(deadline.Value)</span>
+                                                    }
+                                                </div>
+                                                <div class="ns-job-meta">
+                                                    <span class="ns-job-id">@Html.JobId(job.Key)</span>
+                                                    @if (job.Value.Job?.Queue != null)
+                                                    {
+                                                        @Html.QueueChip(job.Value.Job.Queue)
+                                                    }
+                                                    <span>@Html.ServerId(job.Value.ServerId)</span>
+                                                </div>
+                                            </td>
+                                            <td class="min-width job-live-cell js-live-row" data-job-id="@job.Key">
+                                                @{
+                                                    JobProgress? jobProgress = progressByJob.TryGetValue(job.Key, out JobProgress? p) ? p : null;
+                                                    double jobPercent = jobProgress != null ? jobProgress.Percent : 0;
+                                                    JobInsight? jobInsight = insightByJob.TryGetValue(job.Key, out JobInsight? ins) ? ins : null;
+                                                    DateTime? expectedEnd = jobInsight != null && job.Value.StartedAt.HasValue ? jobInsight.EstimateCompletion(job.Value.StartedAt.Value) : null;
+                                                    int etaPercent = 0;
+                                                    string? etaText = null;
+                                                    bool etaLate = false;
+
+                                                    if (jobProgress == null && expectedEnd.HasValue && job.Value.StartedAt.HasValue)
+                                                    {
+                                                        TimeSpan elapsed = now - job.Value.StartedAt.Value;
+                                                        TimeSpan remaining = expectedEnd.Value - now;
+                                                        etaLate = elapsed.TotalMilliseconds > Math.Max(jobInsight!.P95Ms, jobInsight.MedianMs * 2);
+                                                        etaPercent = (int)Math.Min(97, Math.Max(2, 100.0 * elapsed.Ticks / Math.Max(1, (expectedEnd.Value - job.Value.StartedAt.Value).Ticks)));
+                                                        etaText = etaLate
+                                                            ? Strings.ProcessingJobsPage_LongerThanUsual
+                                                            : String.Format(Strings.ProcessingJobsPage_Eta, Html.ToHumanDuration(TimeSpan.FromSeconds(Math.Max(1, Math.Ceiling(remaining.TotalSeconds))), false));
+                                                    }
+                                                }
+                                                <div class="progress job-live-progress-sm @(etaText != null ? "job-live-progress-eta" : null) @(etaLate ? "job-live-progress-late" : null)" title="@(jobProgress != null ? jobProgress.Message : etaText != null ? Strings.ProcessingJobsPage_Eta_Tooltip : null)" role="progressbar" aria-label="@Strings.ProcessingJobsPage_Table_Progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@(jobProgress != null ? jobPercent : etaPercent)">
+                                                    <div class="progress-bar progress-bar-striped progress-bar-animated js-live-bar" style="width: @(jobProgress != null ? jobPercent : etaPercent)%"></div>
+                                                </div>
+                                                <small class="text-muted js-live-progress-message" data-eta="@etaText">@(jobProgress != null ? (jobProgress.Percent + "% " + jobProgress.Message) : etaText)</small>
+                                            </td>
+                                            <td class="ns-time-cell">@(job.Value.StartedAt.HasValue ? Html.RelativeTime(job.Value.StartedAt.Value) : null)</td>
+                                        }
+                                        <td class="ns-actions-cell">
+                                            <div class="ns-row-actions">
+                                                @if (current && !IsReadOnly)
+                                                {
+                                                    @Html.JobCommandButton(Url.To("/jobs/processing/requeue"), job.Key, "arrow-repeat", Strings.Common_RequeueJob)
+                                                    @Html.JobDeleteButton(Url.To("/jobs/processing/delete"), job.Key)
+                                                }
+                                                @Html.CopyJobIdButton(job.Key)
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
                 @Html.Paginator(pager)

@@ -34,15 +34,20 @@
 <div class="row">
     <div class="col-md-12">
         @Html.Breadcrumbs(Tag, new Dictionary<string, string> { { Strings.TagsPage_Title, Url.To("/tags") } })
-        <h1 id="page-title" class="hf-page-header">@title</h1>
+        <header class="ns-page-head">
+            <div class="ns-page-heading">
+                @Html.PageTitle(title, null, total)
+            </div>
+        </header>
 
         @if (expired.Count > 0)
         {
-            <div class="alert alert-info">
-                @String.Format(Strings.TaggedJobsPage_Expired, expired.Count)
+            <div class="ns-note" role="note">
+                @Html.Icon("info-circle-fill")
+                <div class="ns-note-text">@String.Format(Strings.TaggedJobsPage_Expired, expired.Count)</div>
                 @if (!IsReadOnly)
                 {
-                    <button class="btn hf-btn-xs btn-outline-secondary"
+                    <button class="btn btn-sm ns-btn-text"
                             data-ajax="@(Url.To("/tags/forget-expired/" + RouteValues.Encode(Tag)) + "?from=" + finalPager.FromRecord + "&count=" + finalPager.RecordsPerPage)"
                             data-loading-text="@Strings.TaggedJobsPage_ForgetExpired">
                         @Html.Icon("x-lg")
@@ -54,38 +59,54 @@
 
         @if (jobs.Count == 0)
         {
-            <div class="alert alert-info">@Strings.TaggedJobsPage_NoJobs</div>
+            @Html.EmptyState("tag-fill", Strings.TaggedJobsPage_NoJobs, null, Url.To("/tags"), Strings.TagsPage_Title)
         }
         else
         {
             <div class="js-jobs-list">
-                <div class="btn-toolbar btn-toolbar-top">
-                    <span class="hf-tag hf-tag-lg">@Html.Icon("tag-fill") @Tag <span class="hf-tag-count">@total</span></span>
+                <div class="btn-toolbar btn-toolbar-top ns-list-toolbar">
                     @Html.PerPageSelector(finalPager)
                 </div>
 
-                <div class="table-responsive">
-                    <table class="table" aria-describedby="page-title">
-                        <thead>
-                            <tr>
-                                <th scope="col" class="min-width">@Strings.Common_Id</th>
-                                <th scope="col" class="min-width">@Strings.Common_State</th>
-                                <th scope="col">@Strings.Common_Job</th>
-                                <th scope="col" class="align-right">@Strings.Common_Created</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (KeyValuePair<string, JobData> job in jobs)
-                            {
-                                <tr class="js-jobs-list-row hover">
-                                    <td class="min-width">@Html.JobIdLink(job.Key)</td>
-                                    <td class="min-width">@Html.StateLabel(job.Value.State)</td>
-                                    <td class="word-break">@Html.JobNameLink(job.Key, job.Value.Job)</td>
-                                    <td class="align-right">@Html.RelativeTime(job.Value.CreatedAt)</td>
+                <div class="hf-card ns-table-card">
+                    <div class="table-responsive">
+                        <table class="table ns-job-table ns-table-reflow" aria-describedby="page-title">
+                            <thead>
+                                <tr>
+                                    <th scope="col">@Strings.Common_Job</th>
+                                    <th scope="col" class="ns-time-cell">@Strings.Common_Created</th>
+                                    @Html.ActionsColumnHeader()
                                 </tr>
-                            }
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                @foreach (KeyValuePair<string, JobData> job in jobs)
+                                {
+                                    <tr class="js-jobs-list-row hover">
+                                        <td class="ns-job-cell">
+                                            <div class="ns-job-title">
+                                                @Html.StateDot(job.Value.State)
+                                                @Html.JobNameLink(job.Key, job.Value.Job, false)
+                                            </div>
+                                            <div class="ns-job-meta">
+                                                <span class="ns-job-id">@Html.JobId(job.Key)</span>
+                                                <span>@Html.StateLabel(job.Value.State)</span>
+                                                @if (job.Value.Job?.Queue != null)
+                                                {
+                                                    @Html.QueueChip(job.Value.Job.Queue)
+                                                }
+                                            </div>
+                                        </td>
+                                        <td class="ns-time-cell">@Html.RelativeTime(job.Value.CreatedAt)</td>
+                                        <td class="ns-actions-cell">
+                                            <div class="ns-row-actions">
+                                                @Html.CopyJobIdButton(job.Key)
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
                 @Html.Paginator(finalPager)

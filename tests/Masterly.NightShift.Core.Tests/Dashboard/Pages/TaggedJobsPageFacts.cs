@@ -27,9 +27,9 @@ public class TaggedJobsPageFacts
     {
         string html = _renderer.Render(new TaggedJobsPage("urgent"));
 
-        Assert.Contains($"<h1 id=\"page-title\" class=\"hf-page-header\">{Encode(string.Format(Strings.TaggedJobsPage_Title, "urgent"))}</h1>", html);
+        Assert.Contains($"<h1 id=\"page-title\" class=\"hf-page-header\"><span class=\"ns-page-name\">{Encode(string.Format(Strings.TaggedJobsPage_Title, "urgent"))}</span> <span class=\"ns-count-chip js-list-count\">0</span></h1>", html);
         Assert.Contains("href=\"/tags\"", html);
-        Assert.Contains($"<div class=\"alert alert-info\">{Encode(Strings.TaggedJobsPage_NoJobs)}</div>", html);
+        Assert.Contains($"<h2 class=\"ns-empty-state-title\">{Encode(Strings.TaggedJobsPage_NoJobs)}</h2>", html);
         Assert.DoesNotContain("js-jobs-list", html);
         Assert.DoesNotContain(Encode(string.Format(Strings.TaggedJobsPage_Expired, 0)), html);
     }
@@ -43,9 +43,11 @@ public class TaggedJobsPageFacts
 
         string html = _renderer.Render(new TaggedJobsPage("Urgent"));
 
-        Assert.Contains("<span class=\"hf-tag hf-tag-lg\">" + DashboardMarkup.Icon("tag-fill") + " Urgent <span class=\"hf-tag-count\">2</span></span>", html);
-        Assert.Contains("<td class=\"min-width\"><a href=\"/jobs/details/1\">#1</a></td>", html);
-        Assert.Contains(">Succeeded</span></span></td>", html);
+        Assert.Contains("<span class=\"ns-count-chip js-list-count\">2</span>", html);
+        Assert.Contains("<span class=\"ns-job-id\">#1</span>", html);
+        Assert.Contains(">Succeeded</span></span></span>", html);
+        Assert.Contains("data-copy=\"1\"", html);
+        Assert.DoesNotContain("js-jobs-list-checkbox", html);
         Assert.Contains("TaggedPageJobs.Work", html);
         Assert.True(html.IndexOf("/jobs/details/2", StringComparison.Ordinal) < html.IndexOf("/jobs/details/1", StringComparison.Ordinal));
         Assert.DoesNotContain(Encode(Strings.TaggedJobsPage_NoJobs), html);

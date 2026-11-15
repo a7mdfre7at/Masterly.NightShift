@@ -20,117 +20,140 @@
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="hf-page-header">@Strings.ScheduledJobsPage_Title</h1>
-
-        @if (pager.TotalPageCount == 0)
-        {
-            <div class="alert alert-info">
-                @Strings.ScheduledJobsPage_NoJobs
+        <header class="ns-page-head">
+            <div class="ns-page-heading">
+                @Html.PageTitle(Strings.ScheduledJobsPage_Title, null, pager.TotalRecordCount)
             </div>
-        }
-        else
-        {
-            <div class="js-jobs-list">
-                <div class="btn-toolbar btn-toolbar-top">
-                    <button type="button" class="btn btn-sm btn-outline-secondary js-download" data-url="@Url.To("/jobs/scheduled/export")" data-filename="nightshift-scheduled-jobs.csv">
-                        @Html.Icon("download")
-                        @Strings.Common_DownloadCsv
-                    </button>
+            @if (pager.TotalPageCount > 0)
+            {
+                <div class="ns-page-actions">
                     @if (!IsReadOnly)
                     {
-                        <button class="btn btn-sm btn-outline-secondary btn-delete-all"
+                        <button class="btn btn-sm ns-btn-outlined-error btn-delete-all"
                                 data-ajax="@Url.To("/jobs/scheduled/delete-all")"
                                 data-loading-text="@Strings.Common_Deleting"
                                 @Html.ConfirmAttributes(Strings.Common_DeleteAllConfirm_Title, Strings.Common_DeleteAllConfirm, Strings.Common_DeleteAll, destructive: true)>
                             @Html.Icon("trash-fill")
                             @Strings.Common_DeleteAll
                         </button>
+                        <span class="ns-actions-divider" aria-hidden="true"></span>
                     }
+                    <button type="button" class="btn btn-sm btn-outline-secondary js-download" data-url="@Url.To("/jobs/scheduled/export")" data-filename="nightshift-scheduled-jobs.csv">
+                        @Html.Icon("download")
+                        @Strings.Common_DownloadCsv
+                    </button>
+                </div>
+            }
+        </header>
+
+        @if (pager.TotalPageCount == 0)
+        {
+            @Html.EmptyState("clock", Strings.ScheduledJobsPage_NoJobs, null, Url.To("/recurring"), Strings.RecurringJobsPage_Title)
+        }
+        else
+        {
+            <div class="js-jobs-list">
+                <div class="btn-toolbar btn-toolbar-top ns-list-toolbar">
                     @if (!IsReadOnly)
                     {
-                        <button class="js-jobs-list-command btn btn-sm btn-primary"
-                                data-url="@Url.To("/jobs/scheduled/enqueue")"
-                                data-loading-text="@Strings.Common_Enqueueing"
-                                disabled="disabled">
-                            @Html.Icon("play-fill")
-                            @Strings.ScheduledJobsPage_EnqueueNow
-                        </button>
-                    }
-                    @if (!IsReadOnly)
-                    {
-                        <button class="js-jobs-list-command btn btn-sm btn-outline-secondary"
-                                data-url="@Url.To("/jobs/scheduled/delete")"
-                                data-loading-text="@Strings.Common_Deleting"
-                                @Html.ConfirmAttributes(Strings.Common_DeleteSelected_Title, Strings.Common_DeleteConfirm, Strings.Common_Delete, destructive: true) data-confirm-one="@Strings.Common_DeleteSelected_TitleOne"
-                                disabled="disabled">
-                            @Html.Icon("x-lg")
-                            @Strings.Common_DeleteSelected
-                        </button>
+                        <div class="ns-list-commands">
+                            <button class="js-jobs-list-command btn btn-sm ns-btn-tonal"
+                                    data-list-primary="true"
+                                    data-url="@Url.To("/jobs/scheduled/enqueue")"
+                                    data-loading-text="@Strings.Common_Enqueueing"
+                                    disabled="disabled">
+                                @Html.Icon("play-fill")
+                                @Strings.ScheduledJobsPage_EnqueueNow
+                            </button>
+                            <button class="js-jobs-list-command btn btn-sm btn-outline-secondary"
+                                    data-url="@Url.To("/jobs/scheduled/delete")"
+                                    data-loading-text="@Strings.Common_Deleting"
+                                    @Html.ConfirmAttributes(Strings.Common_DeleteSelected_Title, Strings.Common_DeleteConfirm, Strings.Common_Delete, destructive: true) data-confirm-one="@Strings.Common_DeleteSelected_TitleOne"
+                                    disabled="disabled">
+                                @Html.Icon("trash-fill")
+                                @Strings.Common_DeleteSelected
+                            </button>
+                        </div>
                     }
                     @Html.PerPageSelector(pager)
                 </div>
 
-                <div class="table-responsive">
-                    <table class="table" aria-describedby="page-title">
-                        <thead>
-                            <tr>
-                                @if (!IsReadOnly)
-                                {
-                                    <th scope="col" class="min-width">
-                                        @Html.SelectAllCheckbox()
-                                    </th>
-                                }
-                                <th scope="col" class="min-width">@Strings.Common_Id</th>
-                                <th scope="col">@Strings.ScheduledJobsPage_Table_Enqueue</th>
-                                <th scope="col">@Strings.Common_Job</th>
-                                <th scope="col" class="align-right">@Strings.ScheduledJobsPage_Table_Scheduled</th>
-                            </tr>
-                        </thead>
-                        @foreach (KeyValuePair<string, ScheduledJobDto?> job in scheduledJobs)
-                        {
-                            <tr class="js-jobs-list-row @(job.Value == null || !job.Value.InScheduledState ? "obsolete-data" : null) @(job.Value != null && job.Value.InScheduledState ? "hover" : null)">
-                                @if (!IsReadOnly)
-                                {
-                                    <td>
-                                        @if (job.Value != null && job.Value.InScheduledState)
-                                        {
-                                            @Html.JobCheckbox(job.Key)
-                                        }
-                                    </td>
-                                }
-                                <td class="min-width">
-                                    @Html.JobIdLink(job.Key)
-                                    @if (job.Value != null && !job.Value.InScheduledState)
+                <div class="hf-card ns-table-card">
+                    <div class="table-responsive">
+                        <table class="table ns-job-table ns-table-reflow" aria-describedby="page-title">
+                            <thead>
+                                <tr>
+                                    @if (!IsReadOnly)
                                     {
-                                        <span class="hf-icon" title="@Strings.Common_JobStateChanged_Text" role="img" aria-label="@Strings.Common_JobStateChanged_Text">@Html.Icon("question-circle-fill")</span>
+                                        <th scope="col" class="ns-select-cell">
+                                            @Html.SelectAllCheckbox()
+                                        </th>
                                     }
-                                </td>
-                                @if (job.Value == null)
+                                    <th scope="col">@Strings.Common_Job</th>
+                                    <th scope="col" class="min-width">@Strings.ScheduledJobsPage_Table_Enqueue</th>
+                                    <th scope="col" class="ns-time-cell">@Strings.ScheduledJobsPage_Table_Scheduled</th>
+                                    @Html.ActionsColumnHeader()
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (KeyValuePair<string, ScheduledJobDto?> job in scheduledJobs)
                                 {
-                                    <td colspan="3"><em>@Strings.Common_JobExpired</em></td>
-                                }
-                                else
-                                {
-                                    <td class="min-width">
-                                        @* Storages answer DateTime.MinValue for a state without a readable EnqueueAt *@
-                                        @if (job.Value.EnqueueAt != DateTime.MinValue)
+                                    bool current = job.Value != null && job.Value.InScheduledState;
+                                    <tr class="js-jobs-list-row @(current ? "hover" : "obsolete-data")">
+                                        @if (!IsReadOnly)
                                         {
-                                            @Html.RelativeTime(job.Value.EnqueueAt)
+                                            <td class="ns-select-cell">
+                                                @if (current)
+                                                {
+                                                    @Html.JobCheckbox(job.Key)
+                                                }
+                                            </td>
                                         }
-                                    </td>
-                                    <td class="word-break">
-                                        @Html.JobNameLink(job.Key, job.Value.Job)
-                                    </td>
-                                    <td class="align-right">
-                                        @if (job.Value.ScheduledAt.HasValue)
+                                        @if (job.Value == null)
                                         {
-                                            @Html.RelativeTime(job.Value.ScheduledAt.Value)
+                                            <td class="ns-job-cell" colspan="3">
+                                                <div class="ns-job-title">@Html.JobIdLink(job.Key)</div>
+                                                <div class="ns-job-meta"><em>@Strings.Common_JobExpired</em></div>
+                                            </td>
                                         }
-                                    </td>
+                                        else
+                                        {
+                                            <td class="ns-job-cell">
+                                                <div class="ns-job-title">
+                                                    @Html.StateDot(ScheduledState.StateName)
+                                                    @Html.JobNameLink(job.Key, job.Value.Job, false)
+                                                    @if (!current)
+                                                    {
+                                                        <span class="hf-icon" title="@Strings.Common_JobStateChanged_Text" role="img" aria-label="@Strings.Common_JobStateChanged_Text">@Html.Icon("question-circle-fill")</span>
+                                                    }
+                                                </div>
+                                                <div class="ns-job-meta">
+                                                    <span class="ns-job-id">@Html.JobId(job.Key)</span>
+                                                    @if (job.Value.Job?.Queue != null)
+                                                    {
+                                                        @Html.QueueChip(job.Value.Job.Queue)
+                                                    }
+                                                </div>
+                                            </td>
+                                            @* Storages answer DateTime.MinValue for a state without a readable EnqueueAt *@
+                                            <td class="min-width" data-label="@Strings.ScheduledJobsPage_Table_Enqueue">@(job.Value.EnqueueAt != DateTime.MinValue ? Html.RelativeTime(job.Value.EnqueueAt) : null)</td>
+                                            <td class="ns-time-cell">@(job.Value.ScheduledAt.HasValue ? Html.RelativeTime(job.Value.ScheduledAt.Value) : null)</td>
+                                        }
+                                        <td class="ns-actions-cell">
+                                            <div class="ns-row-actions">
+                                                @if (current && !IsReadOnly)
+                                                {
+                                                    @Html.JobCommandButton(Url.To("/jobs/scheduled/enqueue"), job.Key, "play-fill", Strings.Common_EnqueueJob)
+                                                    @Html.JobDeleteButton(Url.To("/jobs/scheduled/delete"), job.Key)
+                                                }
+                                                @Html.CopyJobIdButton(job.Key)
+                                            </div>
+                                        </td>
+                                    </tr>
                                 }
-                            </tr>
-                        }
-                    </table>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
                 @Html.Paginator(pager)

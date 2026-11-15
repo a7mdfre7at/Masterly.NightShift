@@ -165,9 +165,11 @@ public class ProcessingJobsPageFacts
 
         string html = _renderer.Render(new ProcessingJobsPage());
 
-        Assert.Contains($"<td colspan=\"4\"><em>{Encode(Strings.Common_JobExpired)}</em></td>", html);
-        Assert.Contains($"<td colspan=\"4\">{Encode(Strings.Common_JobStateChanged_Text)}</td>", html);
-        Assert.Contains("class=\"js-jobs-list-row obsolete-data  \"", html);
+        Assert.Contains($"<div class=\"ns-job-meta\"><em>{Encode(Strings.Common_JobExpired)}</em></div>", html);
+        Assert.Contains($"<span>{Encode(Strings.Common_JobStateChanged_Text)}</span>", html);
+        Assert.Equal(2, html.Split("class=\"js-jobs-list-row obsolete-data\"").Length - 1);
+        Assert.Equal(2, html.Split("<td class=\"ns-job-cell\" colspan=\"3\">").Length - 1);
+        Assert.DoesNotContain("js-job-command", html);
         Assert.DoesNotContain("js-jobs-list-checkbox", html);
         _renderer.Connection.Verify(x => x.GetJobParameter(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }

@@ -27,11 +27,11 @@ public class QueuesPageFacts
         string html = _renderer.Render(new QueuesPage());
 
         Assert.Contains("<a href=\"/jobs/enqueued/default\">default</a>", html);
-        Assert.Contains($"<em>{Encode(Strings.Common_NotAvailable)}</em>", html);
+        Assert.Contains($"<em class=\"text-muted\">{Encode(Strings.Common_NotAvailable)}</em>", html);
         Assert.Contains($"<em class=\"text-muted\" title=\"{Encode(Strings.QueuesPage_Insights_Hint)}\">&ndash;</em>", html);
         Assert.Contains("<span class=\"text-muted\">&ndash;</span>", html);
         Assert.Contains(Encode(Strings.QueuesPage_NoJobs), html);
-        Assert.Contains($"title=\"{Encode(Strings.QueuesPage_Table_Latency_Hint)}\">{Encode(Strings.QueuesPage_Table_Latency)}</th>", html);
+        Assert.Contains($"<dt title=\"{Encode(Strings.QueuesPage_Table_Latency_Hint)}\">{Encode(Strings.QueuesPage_Table_Latency)}</dt>", html);
         Assert.DoesNotContain(Encode(Strings.QueuesPage_Stalled), html);
     }
 
@@ -42,7 +42,7 @@ public class QueuesPageFacts
 
         string html = _renderer.Render(new QueuesPage());
 
-        Assert.Contains("<td>5</td>", html);
+        Assert.Contains("<dd>5</dd>", html);
         Assert.Contains("<em class=\"text-muted\">&ndash;</em>", html);
         Assert.DoesNotContain("<span class=\"text-muted\">&ndash;</span>", html);
         Assert.DoesNotContain("&infin;", html);
@@ -55,7 +55,8 @@ public class QueuesPageFacts
 
         string html = _renderer.Render(new QueuesPage());
 
-        Assert.Contains("<tr class=\"\">", html);
+        Assert.Contains("<section class=\"hf-card ns-queue-card\" aria-labelledby=\"queue-1\">", html);
+        Assert.Contains("<h2 id=\"queue-1\">", html);
         Assert.Contains("data-ajax=\"/queues/pause/my%20queue\"", html);
         Assert.Contains($"data-confirm=\"{Encode(Strings.QueuesPage_PauseConfirm)}\"", html);
         Assert.DoesNotContain("/queues/resume/", html);
@@ -83,7 +84,7 @@ public class QueuesPageFacts
 
         string html = _renderer.Render(new QueuesPage());
 
-        Assert.Contains("<tr class=\"hf-queue-paused\">", html);
+        Assert.Contains("<section class=\"hf-card ns-queue-card hf-queue-paused\"", html);
         Assert.Contains($"<span class=\"badge text-bg-warning text-uppercase\" title=\"SMTP &lt;down&gt;\">{Encode(Strings.QueuesPage_Paused)}</span>", html);
         Assert.Contains("data-ajax=\"/queues/resume/emails\"", html);
         Assert.DoesNotContain("/queues/pause/emails", html);
@@ -100,7 +101,7 @@ public class QueuesPageFacts
         Assert.Contains("<a href=\"/jobs/enqueued/fetched/critical\">", html);
         Assert.Contains($"<span title=\"{Encode(Strings.QueuesPage_Table_Latency_Hint)}\">", html);
         // Two jobs in each of the last five whole minutes: two per minute
-        Assert.Matches(@"<td class=""min-width hf-queue-health"">\s*2\s*</td>", html);
+        Assert.Matches(@"<dd class=""js-queue-throughput"">\s*2\s*</dd>", html);
         Assert.Contains("<strong>", html);
         Assert.DoesNotContain(Encode(Strings.QueuesPage_Stalled), html);
     }
@@ -142,13 +143,14 @@ public class QueuesPageFacts
 
         string html = _renderer.Render(new QueuesPage());
 
-        Assert.Contains("table table-sm table-inner", html);
-        Assert.Contains("<a href=\"/jobs/details/1\">#1</a>", html);
+        Assert.Contains("<ul class=\"ns-list\">", html);
+        Assert.Contains("<span class=\"ns-job-id\">#1</span>", html);
+        Assert.Contains("<a href=\"/jobs/details/3\">#3</a>", html);
         Assert.Contains("QueuesPageJobs.Work", html);
         Assert.Contains("<span data-moment=", html);
         Assert.Contains(DashboardMarkup.TitledIcon("question-circle-fill", Encode(Strings.Common_JobStateChanged_Text)), html);
-        Assert.Contains($"<td colspan=\"3\"><em>{Encode(Strings.Common_JobExpired)}</em></td>", html);
-        Assert.Contains("<tr class=\"obsolete-data\">", html);
+        Assert.Contains($"<div class=\"ns-job-meta\"><em>{Encode(Strings.Common_JobExpired)}</em></div>", html);
+        Assert.Contains("<li class=\"ns-list-item obsolete-data\">", html);
     }
 
     private void SetupQueues(params QueueWithTopEnqueuedJobsDto[] queues)
