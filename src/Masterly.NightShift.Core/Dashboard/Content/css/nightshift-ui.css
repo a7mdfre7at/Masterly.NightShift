@@ -218,8 +218,10 @@
     --bs-code-color: var(--hf-text);
 }
 
-/* Bootstrap 5 sizes its components in rem: with 14px, the size of the dashboard's text, they keep the sizes the
-   pages were designed with (Bootstrap 3's 14px base) */
+/* Bootstrap 5 sizes its components in rem, which is relative to the font size of html: 14px, the size of the
+   dashboard's text, keeps them at the sizes the pages were designed with. Bootstrap 3 set html to 10px and body to
+   14px and sized its components in px, so a rem in an extension's stylesheet written for it was 10px, and is 14px
+   now. */
 html {
     font-size: 14px;
 }
