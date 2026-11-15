@@ -2455,4 +2455,13 @@
   <data name="Metrics_EnqueuedCount" xml:space="preserve">
     <value>Köade jobb</value>
   </data>
+  <data name="FailedJobsPage_Sheet_NotFailed" xml:space="preserve">
+    <value>Det här jobbet har inget fel att visa.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_NoLongerFailed" xml:space="preserve">
+    <value>Det här jobbet är inte längre misslyckat. Det här är dess senaste fel.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
+    <value>Kopiera stackspårningen</value>
+  </data>
 </root>

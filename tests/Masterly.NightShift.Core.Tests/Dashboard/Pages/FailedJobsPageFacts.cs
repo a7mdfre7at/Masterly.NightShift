@@ -207,22 +207,22 @@ public class FailedJobsPageFacts
     }
 
     [Fact]
-    public void Render_WithAFailure_ShowsItsExceptionInTheRow_AndItsDetailsInASideSheetTemplate()
+    public void Render_WithAFailure_ShowsItsExceptionInTheRow_AndLoadsItsDetailsWhenTheSheetOpens()
     {
         FailedJobDto failed = Failed("System.InvalidOperationException", "Connection <lost>");
-        failed.ExceptionDetails = "System.InvalidOperationException: Connection lost";
+        failed.ExceptionDetails = "System.InvalidOperationException: Connection lost\r\n   at FailedPageJobs.Work() in C:\\Work.cs:line 1";
         failed.StateData = new Dictionary<string, string> { { "ServerId", "web-1:42:abc" } };
-        SetupJobs(new Dictionary<string, FailedJobDto> { { "7", failed } });
+        SetupJobs(new Dictionary<string, FailedJobDto> { { "7/a", failed } });
 
         string html = _renderer.Render(new FailedJobsPage());
 
         Assert.Contains("<code class=\"ns-exception-type\" title=\"System.InvalidOperationException\">InvalidOperationException</code>", html);
         Assert.Contains("<span class=\"ns-job-error-message\">Connection &lt;lost&gt;</span>", html);
-        Assert.Contains("class=\"btn btn-sm ns-btn-text js-sheet-open\" aria-haspopup=\"dialog\" data-sheet-title=\"FailedPageJobs.Work\" data-sheet-overline=\"#7\"", html);
-        Assert.Contains("<template class=\"js-sheet-template\">", html);
-        Assert.Contains("<pre class=\"stack-trace\"><code>", html);
-        Assert.Contains("<div class=\"js-sheet-actions\">", html);
-        Assert.Contains("data-url=\"/jobs/failed/requeue\" data-job=\"7\"", html);
+        Assert.Contains("class=\"btn btn-sm ns-btn-text js-sheet-open\" aria-haspopup=\"dialog\" data-sheet-title=\"FailedPageJobs.Work\" data-sheet-overline=\"#7/a\" data-sheet-url=\"/jobs/failed/details/7~2Fa\"", html);
+        // Every load and Live refresh carried each row's formatted stack trace
+        Assert.DoesNotContain("js-sheet-template", html);
+        Assert.DoesNotContain("stack-trace", html);
+        Assert.DoesNotContain("Work.cs", html);
         Assert.DoesNotContain("failed-job-details", html);
         Assert.DoesNotContain("class=\"expander\"", html);
     }

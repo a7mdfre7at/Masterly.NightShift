@@ -2453,4 +2453,13 @@
   <data name="Metrics_EnqueuedCount" xml:space="preserve">
     <value>Jobber i kø</value>
   </data>
+  <data name="FailedJobsPage_Sheet_NotFailed" xml:space="preserve">
+    <value>Denne jobben har ingen feil å vise.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_NoLongerFailed" xml:space="preserve">
+    <value>Denne jobben er ikke lenger feilet. Dette er dens siste feil.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
+    <value>Kopier stakksporingen</value>
+  </data>
 </root>

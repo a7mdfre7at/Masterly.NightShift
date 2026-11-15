@@ -2402,4 +2402,13 @@
   <data name="Metrics_EnqueuedCount" xml:space="preserve">
     <value>队列中的作业</value>
   </data>
+  <data name="FailedJobsPage_Sheet_NotFailed" xml:space="preserve">
+    <value>此作业没有可显示的失败。</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_NoLongerFailed" xml:space="preserve">
+    <value>此作业已不再处于失败状态。这是它最近一次的失败。</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
+    <value>复制堆栈跟踪</value>
+  </data>
 </root>

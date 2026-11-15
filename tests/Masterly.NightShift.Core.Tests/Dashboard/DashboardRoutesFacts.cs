@@ -535,6 +535,22 @@ public class DashboardRoutesFacts
         Assert.IsType(dispatcherType, route.Item1);
     }
 
+    [Fact]
+    public async Task FailureSheetRoute_ReadsTheJobOnce_FromAnEncodedId_AndWritesNothing()
+    {
+        // The id of the path is written by RouteValues.Encode, so a "/" and a "~" in an id reach the page intact
+        DashboardContextStub context = Create("/jobs/failed/details/" + RouteValues.Encode("a/b~1"), method: "GET");
+
+        await Dispatch(context);
+
+        Assert.IsType<RazorPageDispatcher>(DashboardRoutes.Routes.FindDispatcher(context.Request.Path, "GET")!.Item1);
+        _monitor.Verify(x => x.JobDetails("a/b~1"), Times.Once);
+        _storage.Verify(x => x.GetConnection(), Times.Never);
+        _connection.Verify(x => x.CreateWriteTransaction(), Times.Never);
+        Assert.Equal("text/html", context.Response.ContentType);
+        Assert.DoesNotContain("<html", context.Response.Text);
+    }
+
     private static JobList<T> List<T>(string jobId, T dto)
     {
         return new JobList<T>([new KeyValuePair<string, T>(jobId, dto)]);

@@ -2394,4 +2394,13 @@
   <data name="Metrics_EnqueuedCount" xml:space="preserve">
     <value>Aufträge in Warteschlange</value>
   </data>
+  <data name="FailedJobsPage_Sheet_NotFailed" xml:space="preserve">
+    <value>Für diesen Auftrag gibt es keinen Fehler anzuzeigen.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_NoLongerFailed" xml:space="preserve">
+    <value>Dieser Auftrag ist nicht mehr fehlgeschlagen. Dies ist sein letzter Fehler.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
+    <value>Stacktrace kopieren</value>
+  </data>
 </root>

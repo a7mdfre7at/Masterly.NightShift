@@ -2416,4 +2416,13 @@ Vous devriez les remettre en file d'attente ou les supprimer manuellement, ou ap
   <data name="Metrics_EnqueuedCount" xml:space="preserve">
     <value>Tâches en file d'attente</value>
   </data>
+  <data name="FailedJobsPage_Sheet_NotFailed" xml:space="preserve">
+    <value>Cette tâche n'a aucun échec à afficher.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_NoLongerFailed" xml:space="preserve">
+    <value>Cette tâche n'est plus en échec. Voici son dernier échec.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
+    <value>Copier la pile d'appels</value>
+  </data>
 </root>

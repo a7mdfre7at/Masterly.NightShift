@@ -2456,4 +2456,13 @@
   <data name="Metrics_EnqueuedCount" xml:space="preserve">
     <value>Tarefas na fila</value>
   </data>
+  <data name="FailedJobsPage_Sheet_NotFailed" xml:space="preserve">
+    <value>Esta tarefa não tem nenhuma falha para mostrar.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_NoLongerFailed" xml:space="preserve">
+    <value>Esta tarefa já não está com falha. Esta é a sua falha mais recente.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
+    <value>Copiar o rastreamento da pilha</value>
+  </data>
 </root>

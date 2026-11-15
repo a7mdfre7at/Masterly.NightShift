@@ -207,6 +207,8 @@ public static class DashboardRoutes
             static (client, jobId) => client.ChangeState(jobId, CreateEnqueuedState(), SucceededState.StateName));
 
         Routes.AddRazorPage("/jobs/failed", static _ => new FailedJobsPage());
+        // The failure side sheet of the list: one job's latest failure, read when the sheet opens
+        Routes.AddRazorPage("/jobs/failed/details/(?<JobId>.+)", static x => new FailedJobSheet(RouteValues.Decode(x.Groups["JobId"].Value)));
 
         Routes.AddClientBatchCommand(
             "/jobs/failed/requeue",

@@ -130,7 +130,7 @@ Finished jobs with the time they finished, the latency (from creation until proc
 ### Jobs > Failed
 
 - **Failure clusters**: the latest 500 failures grouped by exception and method (up to 8 groups of 2 or more), with first and last occurrence. **Requeue all** or **Delete all** for a whole group.
-- The list shows the exception type and message; **More details** opens the stack trace. Jobs with an acknowledging note show **Acknowledged** (on pages of more than 100 rows, only the first 100 rows are checked for notes).
+- The list shows the exception type and message; **More details** opens the job's latest failure in a side sheet, read when the sheet opens (`/jobs/failed/details/{id}`), so the list doesn't carry every stack trace: the exception, when and on which server it failed, the stack trace with **Copy stack trace**, and **View job**, **Requeue** and **Delete**. A job that is gone, or that never failed, says so there. Jobs with an acknowledging note show **Acknowledged** (on pages of more than 100 rows, only the first 100 rows are checked for notes).
 - Actions: **Requeue**, **Delete selected**, **Delete all**, **Requeue all**, **Download CSV**. **Requeue all** puts every job that is still failed back in its queue, like **Delete all** does for deleting.
 
 Failed jobs don't expire unless you set a retention period ([Failed jobs](../filters/timing.md#failed-jobs)), so you can requeue them later. Delete the ones you don't need.

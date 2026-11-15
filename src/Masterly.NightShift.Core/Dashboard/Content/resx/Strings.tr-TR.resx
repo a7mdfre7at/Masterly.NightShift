@@ -2425,4 +2425,13 @@
   <data name="Metrics_EnqueuedCount" xml:space="preserve">
     <value>Kuyruktaki İşler</value>
   </data>
+  <data name="FailedJobsPage_Sheet_NotFailed" xml:space="preserve">
+    <value>Bu işin gösterilecek bir hatası yok.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_NoLongerFailed" xml:space="preserve">
+    <value>Bu iş artık başarısız değil. Bu, son hatasıdır.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
+    <value>Yığın izini kopyala</value>
+  </data>
 </root>

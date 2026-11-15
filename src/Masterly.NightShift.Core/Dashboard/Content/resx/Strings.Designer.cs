@@ -7228,5 +7228,32 @@ namespace Masterly.NightShift.Dashboard.Resources {
                 return ResourceManager.GetString("Metrics_EnqueuedCount", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to This job has no failure to show..
+        /// </summary>
+        public static string FailedJobsPage_Sheet_NotFailed {
+            get {
+                return ResourceManager.GetString("FailedJobsPage_Sheet_NotFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to This job is no longer failed. This is its latest failure..
+        /// </summary>
+        public static string FailedJobsPage_Sheet_NoLongerFailed {
+            get {
+                return ResourceManager.GetString("FailedJobsPage_Sheet_NoLongerFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy stack trace.
+        /// </summary>
+        public static string FailedJobsPage_Sheet_CopyStackTrace {
+            get {
+                return ResourceManager.GetString("FailedJobsPage_Sheet_CopyStackTrace", resourceCulture);
+            }
+        }
     }
 }

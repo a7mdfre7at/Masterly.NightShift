@@ -1,0 +1,87 @@
+﻿@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True *@
+@using System
+@using Masterly.NightShift
+@using Masterly.NightShift.Dashboard
+@using Masterly.NightShift.Dashboard.Pages
+@using Masterly.NightShift.Dashboard.Resources
+@using Masterly.NightShift.States
+@using Masterly.NightShift.Storage.Monitoring
+@inherits RazorPage
+@{
+    JobDetailsDto? job = Storage.GetMonitoringApi().JobDetails(JobId);
+    StateHistoryDto? failure = LatestFailure(job);
+}
+@if (job == null)
+{
+    <div class="ns-empty-state ns-empty-state-compact" role="status">
+        @Html.Icon("question-circle-fill")
+        <p>@String.Format(Strings.JobDetailsPage_JobExpired, JobId)</p>
+    </div>
+}
+else if (failure == null)
+{
+    <div class="ns-empty-state ns-empty-state-compact" role="status">
+        @Html.Icon("info-circle-fill")
+        <p>@Strings.FailedJobsPage_Sheet_NotFailed</p>
+    </div>
+    <div class="js-sheet-actions">
+        <a class="btn btn-sm btn-outline-secondary" href="@Url.JobDetails(JobId)">@String.Format(Strings.Common_ViewJob, HtmlHelper.ShortJobId(JobId))</a>
+    </div>
+}
+else
+{
+    bool current = IsCurrent(job, failure);
+    string? exceptionType = DataValue(failure, "ExceptionType");
+    string? exceptionMessage = DataValue(failure, "ExceptionMessage");
+    string? exceptionDetails = DataValue(failure, "ExceptionDetails");
+    string? serverId = DataValue(failure, "ServerId");
+    if (!current)
+    {
+        <div class="ns-note" role="note">@Html.Icon("info-circle-fill")<div class="ns-note-text">@Strings.FailedJobsPage_Sheet_NoLongerFailed</div></div>
+    }
+    if (exceptionType != null)
+    {
+        <p class="ns-exception-type">@exceptionType</p>
+    }
+    if (exceptionMessage != null)
+    {
+        <p class="ns-sheet-lead">@exceptionMessage</p>
+    }
+    <dl class="ns-kv">
+        @if (!String.IsNullOrEmpty(failure.Reason))
+        {
+            <dt>@Strings.Common_Reason</dt>
+            <dd>@failure.Reason</dd>
+        }
+        <dt>@Strings.FailedJobsPage_Table_Failed</dt>
+        <dd>@Html.LocalTime(failure.CreatedAt) (@Html.RelativeTime(failure.CreatedAt))</dd>
+        @if (serverId != null)
+        {
+            <dt>@Strings.Common_Server</dt>
+            <dd>@Html.ServerId(serverId)</dd>
+        }
+    </dl>
+    if (exceptionDetails != null)
+    {
+        <div class="ns-sheet-trace-head">
+            <h3>@Strings.JobDetailsPage_StackTrace</h3>
+            @Html.CopyButton(exceptionDetails, Strings.FailedJobsPage_Sheet_CopyStackTrace)
+        </div>
+        <pre class="stack-trace"><code>@Html.StackTrace(exceptionDetails)</code></pre>
+    }
+    <div class="js-sheet-actions">
+        @if (current && !IsReadOnly)
+        {
+            <button type="button" class="btn btn-sm ns-btn-text ns-btn-text-error js-job-command me-auto" data-url="@Url.To("/jobs/failed/delete")" data-job="@JobId" data-loading-text="@Strings.Common_Deleting" @Html.ConfirmAttributes(Strings.Common_DeleteSelected_TitleOne, Strings.Common_DeleteConfirm, Strings.Common_Delete, destructive: true)>
+                @Html.Icon("trash-fill") @Strings.Common_Delete
+            </button>
+        }
+        <a class="btn btn-sm btn-outline-secondary" href="@Url.JobDetails(JobId)">@String.Format(Strings.Common_ViewJob, HtmlHelper.ShortJobId(JobId))</a>
+        @if (current && !IsReadOnly)
+        {
+            <button type="button" class="btn btn-sm btn-primary js-job-command" data-url="@Url.To("/jobs/failed/requeue")" data-job="@JobId" data-loading-text="@Strings.Common_Enqueueing">
+                @Html.Icon("arrow-repeat") @Strings.JobDetailsPage_Requeue
+            </button>
+        }
+    </div>
+}

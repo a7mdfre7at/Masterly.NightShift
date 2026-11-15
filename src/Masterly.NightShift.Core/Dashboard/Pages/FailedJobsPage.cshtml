@@ -237,53 +237,7 @@
                                                     <span class="ns-job-error-message">@(!String.IsNullOrEmpty(job.Value.ExceptionMessage) ? job.Value.ExceptionMessage : job.Value.Reason)</span>
                                                     @if (withDetails)
                                                     {
-                                                        <button type="button" class="btn btn-sm ns-btn-text js-sheet-open" aria-haspopup="dialog" data-sheet-title="@Html.JobName(job.Value.Job, false)" data-sheet-overline="@HtmlHelper.ShortJobId(job.Key)">@Strings.Common_MoreDetails</button>
-                                                        <template class="js-sheet-template">
-                                                            @if (!String.IsNullOrEmpty(exceptionType))
-                                                            {
-                                                                <p class="ns-exception-type">@exceptionType</p>
-                                                            }
-                                                            @if (!String.IsNullOrEmpty(job.Value.ExceptionMessage))
-                                                            {
-                                                                <p class="ns-sheet-lead">@job.Value.ExceptionMessage</p>
-                                                            }
-                                                            <dl class="ns-kv">
-                                                                @if (!String.IsNullOrEmpty(job.Value.Reason))
-                                                                {
-                                                                    <dt>@Strings.Common_Reason</dt>
-                                                                    <dd>@job.Value.Reason</dd>
-                                                                }
-                                                                @if (job.Value.FailedAt.HasValue)
-                                                                {
-                                                                    <dt>@Strings.FailedJobsPage_Table_Failed</dt>
-                                                                    <dd>@Html.LocalTime(job.Value.FailedAt.Value) (@Html.RelativeTime(job.Value.FailedAt.Value))</dd>
-                                                                }
-                                                                @if (serverId != null)
-                                                                {
-                                                                    <dt>@Strings.Common_Server</dt>
-                                                                    <dd>@Html.ServerId(serverId)</dd>
-                                                                }
-                                                            </dl>
-                                                            @if (!String.IsNullOrEmpty(job.Value.ExceptionDetails))
-                                                            {
-                                                                <pre class="stack-trace"><code>@Html.StackTrace(job.Value.ExceptionDetails)</code></pre>
-                                                            }
-                                                            <div class="js-sheet-actions">
-                                                                @if (current && !IsReadOnly)
-                                                                {
-                                                                    <button type="button" class="btn btn-sm ns-btn-text ns-btn-text-error js-job-command me-auto" data-url="@Url.To("/jobs/failed/delete")" data-job="@job.Key" data-loading-text="@Strings.Common_Deleting" @Html.ConfirmAttributes(Strings.Common_DeleteSelected_TitleOne, Strings.Common_DeleteConfirm, Strings.Common_Delete, destructive: true)>
-                                                                        @Html.Icon("trash-fill") @Strings.Common_Delete
-                                                                    </button>
-                                                                }
-                                                                <a class="btn btn-sm btn-outline-secondary" href="@Url.JobDetails(job.Key)">@String.Format(Strings.Common_ViewJob, HtmlHelper.ShortJobId(job.Key))</a>
-                                                                @if (current && !IsReadOnly)
-                                                                {
-                                                                    <button type="button" class="btn btn-sm btn-primary js-job-command" data-url="@Url.To("/jobs/failed/requeue")" data-job="@job.Key" data-loading-text="@Strings.Common_Enqueueing">
-                                                                        @Html.Icon("arrow-repeat") @Strings.JobDetailsPage_Requeue
-                                                                    </button>
-                                                                }
-                                                            </div>
-                                                        </template>
+                                                        <button type="button" class="btn btn-sm ns-btn-text js-sheet-open" aria-haspopup="dialog" data-sheet-title="@Html.JobName(job.Value.Job, false)" data-sheet-overline="@HtmlHelper.ShortJobId(job.Key)" data-sheet-url="@Url.To("/jobs/failed/details/" + RouteValues.Encode(job.Key))">@Strings.Common_MoreDetails</button>
                                                     }
                                                 </div>
                                             </td>

@@ -2516,4 +2516,13 @@
   <data name="Metrics_EnqueuedCount" xml:space="preserve">
     <value>Enqueued Jobs</value>
   </data>
+  <data name="FailedJobsPage_Sheet_NotFailed" xml:space="preserve">
+    <value>This job has no failure to show.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_NoLongerFailed" xml:space="preserve">
+    <value>This job is no longer failed. This is its latest failure.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
+    <value>Copy stack trace</value>
+  </data>
 </root>

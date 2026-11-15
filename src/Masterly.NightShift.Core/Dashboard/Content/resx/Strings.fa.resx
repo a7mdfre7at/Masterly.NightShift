@@ -2447,4 +2447,13 @@
   <data name="Metrics_EnqueuedCount" xml:space="preserve">
     <value>کارهای وارد صف شده</value>
   </data>
+  <data name="FailedJobsPage_Sheet_NotFailed" xml:space="preserve">
+    <value>این کار خطایی برای نمایش ندارد.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_NoLongerFailed" xml:space="preserve">
+    <value>این کار دیگر ناموفق نیست. این آخرین خطای آن است.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
+    <value>کپی ردیابی پشته</value>
+  </data>
 </root>

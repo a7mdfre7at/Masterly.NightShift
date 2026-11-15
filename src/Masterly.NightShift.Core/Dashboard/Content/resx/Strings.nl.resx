@@ -2414,4 +2414,13 @@
   <data name="Metrics_EnqueuedCount" xml:space="preserve">
     <value>Taken in wachtrij</value>
   </data>
+  <data name="FailedJobsPage_Sheet_NotFailed" xml:space="preserve">
+    <value>Deze taak heeft geen fout om te tonen.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_NoLongerFailed" xml:space="preserve">
+    <value>Deze taak is niet meer mislukt. Dit is de laatste fout.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
+    <value>Stacktrace kopiëren</value>
+  </data>
 </root>

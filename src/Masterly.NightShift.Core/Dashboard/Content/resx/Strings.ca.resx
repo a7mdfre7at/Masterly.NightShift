@@ -2392,4 +2392,13 @@
   <data name="Metrics_EnqueuedCount" xml:space="preserve">
     <value>Tasques a la cua</value>
   </data>
+  <data name="FailedJobsPage_Sheet_NotFailed" xml:space="preserve">
+    <value>Aquesta tasca no té cap error per mostrar.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_NoLongerFailed" xml:space="preserve">
+    <value>Aquesta tasca ja no ha fallat. Aquest és el seu error més recent.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
+    <value>Copia la traça de la pila</value>
+  </data>
 </root>

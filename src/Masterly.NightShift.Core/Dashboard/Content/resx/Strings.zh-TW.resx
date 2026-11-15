@@ -2391,4 +2391,13 @@
   <data name="Metrics_EnqueuedCount" xml:space="preserve">
     <value>佇列中的作業</value>
   </data>
+  <data name="FailedJobsPage_Sheet_NotFailed" xml:space="preserve">
+    <value>此作業沒有可顯示的失敗。</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_NoLongerFailed" xml:space="preserve">
+    <value>此作業已不再處於失敗狀態。這是它最近一次的失敗。</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
+    <value>複製堆疊追蹤</value>
+  </data>
 </root>

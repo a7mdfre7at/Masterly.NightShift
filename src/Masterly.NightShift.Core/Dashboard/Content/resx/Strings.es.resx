@@ -2392,4 +2392,13 @@
   <data name="Metrics_EnqueuedCount" xml:space="preserve">
     <value>Tareas en la cola</value>
   </data>
+  <data name="FailedJobsPage_Sheet_NotFailed" xml:space="preserve">
+    <value>Esta tarea no tiene ningún error que mostrar.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_NoLongerFailed" xml:space="preserve">
+    <value>Esta tarea ya no está fallida. Este es su error más reciente.</value>
+  </data>
+  <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
+    <value>Copiar el seguimiento de la pila</value>
+  </data>
 </root>

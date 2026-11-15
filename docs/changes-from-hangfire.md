@@ -285,7 +285,7 @@ The dashboard registers these routes in addition to Hangfire's. **What to do:** 
 
 | Area | Routes |
 |---|---|
-| Jobs | `/jobs/live`, `/jobs/export/{id}`, `/jobs/notes/add/{id}`, `/jobs/{scheduled,processing,succeeded,failed,awaiting}/delete-all`, `/jobs/enqueued/delete-all/{queue}`, `/jobs/failed/requeue-all`, `/jobs/{failed,succeeded,scheduled,processing,deleted}/export`, `/jobs/enqueued/export/{queue}`, `/retries/delete-all` |
+| Jobs | `/jobs/live`, `/jobs/export/{id}`, `/jobs/notes/add/{id}`, `/jobs/{scheduled,processing,succeeded,failed,awaiting}/delete-all`, `/jobs/enqueued/delete-all/{queue}`, `/jobs/failed/requeue-all`, `/jobs/failed/details/{id}`, `/jobs/{failed,succeeded,scheduled,processing,deleted}/export`, `/jobs/enqueued/export/{queue}`, `/retries/delete-all` |
 | Recurring jobs | `/recurring/pause`, `/recurring/resume`, `/recurring/update/{id}`, `/recurring/preview`, `/recurring/remove-all`, `/recurring/forecast`, `/recurring/export`, `/recurring/import`, `/recurring/details/{id}`, `/recurring/trigger-one/{id}`, `/recurring/pause-one/{id}`, `/recurring/resume-one/{id}` |
 | Batches | `/batches`, `/batches/{id}`, `/batches/requeue-failed/{id}`, `/batches/delete/{id}` |
 | Chains and policies | `/chains`, `/chains/{id}`, `/chains/retry/{jobId}`, `/chains/delete/{id}`, `/policies`, `/policies/save`, `/policies/delete/{name}/{revision}` |
