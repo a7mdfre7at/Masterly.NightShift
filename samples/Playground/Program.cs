@@ -49,6 +49,20 @@ builder.Services.AddNightShiftServer(o =>
     o.LongRunningWorkerCount = 1;              // a separate worker for [LongRunning] jobs
     o.SchedulePollingInterval = TimeSpan.FromSeconds(2);
     o.CancellationCheckInterval = TimeSpan.FromSeconds(2);
+    o.HeartbeatInterval = TimeSpan.FromSeconds(5);   // the Servers page's busy workers follow within seconds
+});
+
+// A second server in the same process, with a name and workers of its own. It also takes "reports", which the
+// first one doesn't, so a report runs only here. Each server writes how many of its workers are busy with every
+// heartbeat, and the Servers page shows each one's count.
+builder.Services.AddNightShiftServer(o =>
+{
+    o.ServerName = "playground-reports";
+    o.WorkerCount = 3;
+    o.Queues = ["reports", "default"];
+    o.SchedulePollingInterval = TimeSpan.FromSeconds(2);
+    o.CancellationCheckInterval = TimeSpan.FromSeconds(2);
+    o.HeartbeatInterval = TimeSpan.FromSeconds(5);
 });
 
 // ILogger lines written inside a job show in its console on the dashboard

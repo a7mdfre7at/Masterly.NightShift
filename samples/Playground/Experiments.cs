@@ -42,7 +42,7 @@ public static class Experiments
             static c => Task.FromResult(JobLink(c.Jobs.Schedule<BasicJobs>(x => x.Remind("stand-up"), "in 1 minute")))),
 
         new("queues", "2. Creating jobs", "Queues",
-            "Jobs go to named queues; each server says which queues it takes, in priority order. This server takes \"critical\" then \"default\", and nobody takes \"nowhere\".",
+            "Jobs go to named queues; each server says which queues it takes, in priority order. The \"playground\" server takes \"critical\" then \"default\", \"playground-reports\" takes \"reports\" then \"default\", and nobody takes \"nowhere\".",
             $"The \"critical\" job runs at once. The \"nowhere\" job stays on {D("/jobs/enqueued", "Enqueued")} forever, and {D("/health", "/health")} reports the storage as degraded: a queue has jobs and no server listens to it.",
             "jobs.Enqueue<BasicJobs>(\"critical\", x => x.Hello(\"VIP\"));\njobs.Enqueue<BasicJobs>(\"nowhere\", x => x.Hello(\"anyone?\"));",
             static c => Task.FromResult(
@@ -373,7 +373,7 @@ public static class Experiments
 
         new("long-running", "7. Scheduling rules", "Long-running jobs get their own worker",
             "[LongRunning] sends a job to the \"long-running\" queue, which a separate pool of workers takes (LongRunningWorkerCount = 1 here), so long jobs never take all the normal workers.",
-            $"{D("/servers", "Servers")}: the server has 8 workers plus 1 for long-running jobs. Run this twice: the second waits on {D("/jobs/enqueued", "Enqueued")} in queue long-running until the first is done.",
+            $"{D("/servers", "Servers")}: the \"playground\" server has 8 workers plus 1 for long-running jobs. Run this twice: the second waits on {D("/jobs/enqueued", "Enqueued")} in queue long-running until the first is done.",
             "[LongRunning]\nbuilder.Services.AddNightShiftServer(o => o.LongRunningWorkerCount = 1);",
             static c => Task.FromResult(JobLink(c.Jobs.Enqueue<RuleJobs>(x => x.ReindexAsync(null!, CancellationToken.None))))),
 
@@ -593,9 +593,20 @@ public static class Experiments
                 return Task.FromResult("Processing paused: try a step, its job will wait");
             }, "Toggle"),
 
-        new("server", "11. Operations", "Stop and start the server",
-            "IBackgroundJobServerControl stops and starts this process's server (for a maintenance window, or with StartMode = Manual).",
-            $"Stop: the server leaves {D("/servers", "Servers")}, jobs pile up on Enqueued, <a href=\"/health/live\" target=\"_blank\">/health/live</a> turns unhealthy. Start: a new server id, and the backlog runs.",
+        new("two-servers", "11. Operations", "Two servers, each with its busy workers",
+            "This process runs two servers: \"playground\" (8 workers, queues critical and default) and \"playground-reports\" (3 workers, queues reports and default). A job in a queue only one server takes runs there. Each server writes how many of its workers are busy with every heartbeat (every 5 seconds here).",
+            $"{D("/servers", "Servers")}: for 30 seconds, \"playground\" has 2 busy workers and \"playground-reports\" 3 of 3. {D("/jobs/processing", "Processing")} shows which server runs each job.",
+            "builder.Services.AddNightShiftServer(o => { o.ServerName = \"playground-reports\"; o.WorkerCount = 3; o.Queues = [\"reports\", \"default\"]; });\njobs.Enqueue<ReportJobs>(\"reports\", x => x.Render(\"sales\", 30));",
+            static c =>
+            {
+                string[] onFirst = [.. new[] { "audit", "billing" }.Select(name => JobLink(c.Jobs.Enqueue<ReportJobs>("critical", x => x.Render(name, 30)), name))];
+                string[] onSecond = [.. new[] { "sales", "stock", "payroll" }.Select(name => JobLink(c.Jobs.Enqueue<ReportJobs>("reports", x => x.Render(name, 30)), name))];
+                return Task.FromResult($"On playground (critical): {string.Join(" · ", onFirst)}<br>On playground-reports (reports): {string.Join(" · ", onSecond)}");
+            }),
+
+        new("server", "11. Operations", "Stop and start the servers",
+            "IBackgroundJobServerControl stops and starts this process's servers (for a maintenance window, or with StartMode = Manual).",
+            $"Stop: both servers leave {D("/servers", "Servers")}, jobs pile up on Enqueued, <a href=\"/health/live\" target=\"_blank\">/health/live</a> turns unhealthy. Start: new server ids, and the backlog runs.",
             "await control.StopAsync();\nawait control.StartAsync();",
             static async c =>
             {
@@ -603,11 +614,11 @@ public static class Experiments
                 if (control.IsRunning)
                 {
                     await control.StopAsync();
-                    return "Server stopped";
+                    return "Servers stopped";
                 }
 
                 await control.StartAsync();
-                return "Server started";
+                return "Servers started";
             }, "Toggle"),
 
         new("read-only", "11. Operations", "A read-only dashboard",

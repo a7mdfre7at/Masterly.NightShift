@@ -233,6 +233,16 @@ public class MaintenanceJobs(ILogger<MaintenanceJobs> logger)
         logger.LogInformation("Archiving orders older than {Days} days to {Destination}", olderThanDays, destination);
 }
 
+// Slow work for the two servers: each run keeps one worker busy for the given time
+public class ReportJobs(ILogger<ReportJobs> logger)
+{
+    public void Render(string report, int seconds)
+    {
+        logger.LogInformation("Rendering the {Report} report", report);
+        Thread.Sleep(TimeSpan.FromSeconds(seconds));
+    }
+}
+
 public class RuleJobs(ILogger<RuleJobs> logger)
 {
     [SkipIfLate(60)]
