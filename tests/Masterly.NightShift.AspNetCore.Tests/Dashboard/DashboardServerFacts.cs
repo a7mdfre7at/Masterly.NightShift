@@ -412,6 +412,47 @@ public class DashboardServerFacts
     }
 
     [Fact]
+    public async Task TheBundles_HaveChartJs4_InOrder_WithoutTheStreamingPluginOrChartJs2sStylesheet()
+    {
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+
+        string scripts = await app.GetStringAsync("/nightshift/js1");
+        string styles = await app.GetStringAsync("/nightshift/css1");
+
+        int bootstrap = scripts.IndexOf("* Bootstrap v5.3.9 (https://getbootstrap.com/)", StringComparison.Ordinal);
+        int chart = scripts.IndexOf(" * Chart.js v4.6.1", StringComparison.Ordinal);
+        int intl = scripts.IndexOf("global.NightShiftIntl = NightShiftIntl;", StringComparison.Ordinal);
+        int nightshift = scripts.IndexOf("(function (nightshift) {", StringComparison.Ordinal);
+
+        // Chart.js first, then the date adapter that overrides its own, then the graphs that use both
+        Assert.True(bootstrap >= 0 && bootstrap < chart && chart < intl && intl < nightshift, $"{bootstrap} {chart} {intl} {nightshift}");
+        // chart.umd.min.js ends with a line comment: the date adapter starts on a line of its own
+        Assert.Matches(@"//# sourceMappingURL=chart\.umd\.min\.js\.map\r?\n\s*// Date formatting for the dashboard", scripts);
+        Assert.DoesNotContain("Chart.js v2", scripts);
+        Assert.DoesNotContain(" * chartjs-plugin-streaming v", scripts);
+        Assert.DoesNotContain("chartjs-render-monitor", styles);
+    }
+
+    [Fact]
+    public async Task TheScriptBundle_DrawsTheGraphsWithTheChartJs4Api_NotTheChartJs2One()
+    {
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+
+        string bundle = await app.GetStringAsync("/nightshift/js1");
+        string script = bundle[bundle.IndexOf("// Date formatting for the dashboard", StringComparison.Ordinal)..];
+
+        Assert.Contains("Chart.defaults.font.family = ", script);
+        Assert.Contains("global.Chart._adapters._date.override({", script);
+        Assert.Contains("RealtimeScale.id = 'nightshiftRealtime';", script);
+        Assert.Contains("Chart.register(RealtimeScale);", script);
+        Assert.Contains("this._frameId = window.requestAnimationFrame(this._onFrame);", script);
+        Assert.Contains("this._chart.update('none');", script);
+        Assert.Contains("plugins: {", script);
+        string[] removed = ["xAxes", "yAxes", "gridLines", "scaleLabel", "tooltips:", "Chart.defaults.global", "Chart.helpers", "realtime:", "streaming:", "ticks: { beginAtZero", "fontColor"];
+        Assert.All(removed, api => Assert.DoesNotContain(api, script, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task TheIconSprite_IsServedAtTheUrlThePagesUse_AndTheGlyphiconFontsAreGone()
     {
         await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());

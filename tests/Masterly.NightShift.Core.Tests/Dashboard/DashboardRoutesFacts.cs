@@ -115,6 +115,25 @@ public class DashboardRoutesFacts
     }
 
     [Fact]
+    public void TheBundles_LoadChartJs4_WithoutTheStreamingPluginOrChartJs2sStylesheet()
+    {
+        Assembly assembly = typeof(DashboardRoutes).Assembly;
+        string[] names = assembly.GetManifestResourceNames();
+        string banner;
+        using (Stream? stream = assembly.GetManifestResourceStream(DashboardRoutes.GetContentResourceName("js", "chart.umd.min.js")))
+        using (StreamReader reader = new(stream!))
+        {
+            banner = reader.ReadLine() + "\n" + reader.ReadLine();
+        }
+
+        Assert.Equal("/*!\n * Chart.js v4.6.1", banner);
+        Assert.DoesNotContain(DashboardRoutes.GetContentResourceName("js", "Chart.min.js"), names);
+        Assert.DoesNotContain(DashboardRoutes.GetContentResourceName("js", "chartjs-plugin-streaming.min.js"), names);
+        Assert.DoesNotContain(DashboardRoutes.GetContentResourceName("css", "Chart.min.css"), names);
+        Assert.DoesNotContain(names, static name => name.Contains("streaming", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void CombineResourceHash_IsTheSameInEveryProcessAndOnEveryPlatform()
     {
         // Expected values come from an independent FNV-1a implementation, so a result that depended
