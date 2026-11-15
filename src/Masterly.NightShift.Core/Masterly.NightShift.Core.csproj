@@ -39,16 +39,12 @@
     <EmbeddedResource Include="Dashboard\Content\css\nightshift.css" />
     <EmbeddedResource Include="Dashboard\Content\css\nightshift-ui.css" />
     <EmbeddedResource Include="Dashboard\Content\css\nightshift-dark.css" />
-    <EmbeddedResource Include="Dashboard\Content\fonts\glyphicons-halflings-regular.eot" />
-    <EmbeddedResource Include="Dashboard\Content\fonts\glyphicons-halflings-regular.svg" />
-    <EmbeddedResource Include="Dashboard\Content\fonts\glyphicons-halflings-regular.ttf" />
-    <EmbeddedResource Include="Dashboard\Content\fonts\glyphicons-halflings-regular.woff" />
-    <EmbeddedResource Include="Dashboard\Content\fonts\glyphicons-halflings-regular.woff2" />
+    <EmbeddedResource Include="Dashboard\Content\icons\icons.svg" />
     <!-- The documentation site's fonts (IBM Plex Sans, JetBrains Mono), served by DashboardRoutes -->
     <EmbeddedResource Include="Dashboard\Content\fonts\ibm-plex-sans-*.woff2;Dashboard\Content\fonts\jetbrains-mono-*.woff2" />
-    <EmbeddedResource Include="Dashboard\Content\js\bootstrap.min.js" />
+    <EmbeddedResource Include="Dashboard\Content\js\bootstrap.bundle.min.js" />
     <EmbeddedResource Include="Dashboard\Content\js\nightshift.js" />
-    <EmbeddedResource Include="Dashboard\Content\js\jquery-3.7.1.min.js" />
+    <EmbeddedResource Include="Dashboard\Content\js\jquery-4.0.0.min.js" />
     <EmbeddedResource Include="Dashboard\Content\js\nightshift-intl.js" />
     <EmbeddedResource Include="Dashboard\Content\js\Chart.min.js" />
     <EmbeddedResource Include="Dashboard\Content\js\chartjs-plugin-streaming.min.js" />

@@ -200,11 +200,42 @@ public class HtmlHelper
 
         if (cssSuffix != null)
         {
-            return Raw($"<span class=\"label label-default {cssHover} label-state-{HtmlEncode(cssSuffix)}\">{HtmlEncode(text)}</span>");
+            return Raw($"<span class=\"badge {cssHover} label-state-{HtmlEncode(cssSuffix)}\">{HtmlEncode(text)}</span>");
         }
 
         // No suffix: the neutral label look
-        return Raw($"<span class=\"label label-default {cssHover}\">{HtmlEncode(text)}</span>");
+        return Raw($"<span class=\"badge text-bg-secondary {cssHover}\">{HtmlEncode(text)}</span>");
+    }
+
+    /// <summary>
+    /// Renders an icon of the dashboard's icon sprite (Bootstrap Icons) as an inline SVG that takes the size and color
+    /// of the text around it. The icon is hidden from screen readers: when it is all a button or link shows, give that
+    /// element an accessible name (<c>aria-label</c> or <c>title</c>).
+    /// </summary>
+    /// <param name="name">
+    /// The name of a Bootstrap Icon the sprite holds, without the <c>bi-</c> prefix, such as <c>"trash-fill"</c> or
+    /// <c>"arrow-repeat"</c>. A Glyphicon name the dashboard used before, such as <c>"trash"</c>, gives the icon that
+    /// replaced it.
+    /// </param>
+    public NonEscapedString Icon([NotNull] string name)
+    {
+        return Icon(name, null);
+    }
+
+    /// <summary>
+    /// Renders an icon of the dashboard's icon sprite as an inline SVG, like <see cref="Icon(string)"/>, with more
+    /// CSS classes on the <c>svg</c> element, such as <c>"text-success"</c>.
+    /// </summary>
+    /// <param name="name">The name of the icon, as for <see cref="Icon(string)"/>.</param>
+    /// <param name="cssClass">Classes added to <c>bi</c>, or <c>null</c>.</param>
+    public NonEscapedString Icon([NotNull] string name, [CanBeNull] string? cssClass)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+
+        string symbol = DashboardIcons.Resolve(name) ?? name;
+        string css = string.IsNullOrWhiteSpace(cssClass) ? "bi" : $"bi {cssClass}";
+
+        return Raw($"<svg class=\"{HtmlEncode(css)}\" aria-hidden=\"true\"><use href=\"{HtmlEncode(Page.Url.To(DashboardIcons.Path))}#bi-{HtmlEncode(symbol)}\"></use></svg>");
     }
 
     public NonEscapedString JobIdLink(string jobId)
@@ -302,7 +333,7 @@ public class HtmlHelper
     {
         string label = queue != null
             ? $"<a href=\"{HtmlEncode(Page.Url.Queue(queue))}\">{HtmlEncode(queue)}</a>"
-            : $"<span class=\"label label-danger\"><i>{HtmlEncode(Strings.Common_Unknown)}</i></span>";
+            : $"<span class=\"badge text-bg-danger\"><i>{HtmlEncode(Strings.Common_Unknown)}</i></span>";
 
         return new NonEscapedString(label);
     }
@@ -312,7 +343,7 @@ public class HtmlHelper
         // State data written without a server id (by another writer, or before ServerId replaced ServerName)
         if (serverId == null)
         {
-            return new NonEscapedString($"<span class=\"label label-default\"><i>{HtmlEncode(Strings.Common_Unknown)}</i></span>");
+            return new NonEscapedString($"<span class=\"badge text-bg-secondary\"><i>{HtmlEncode(Strings.Common_Unknown)}</i></span>");
         }
 
         string[] parts = serverId.Split(':');

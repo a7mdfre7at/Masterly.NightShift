@@ -26,8 +26,10 @@ public class MenuItem(string text, string url)
     public bool Active { get; set; }
 
     /// <summary>
-    /// Gets or sets the Glyphicon name (without the <c>glyphicon-</c> prefix) shown next to the item in the
-    /// sidebar, for example <c>"time"</c>. Items without an icon get a chevron.
+    /// Gets or sets the icon shown next to the item in the sidebar: the name of a Bootstrap Icon of the dashboard's
+    /// icon sprite, without the <c>bi-</c> prefix, for example <c>"clock"</c>. A Glyphicon name the dashboard used
+    /// before Bootstrap 5, such as <c>"time"</c>, gives the icon that replaced it. Items without an icon, or with a
+    /// name the sprite doesn't hold, get a chevron.
     /// </summary>
     public string? Icon { get; set; }
 

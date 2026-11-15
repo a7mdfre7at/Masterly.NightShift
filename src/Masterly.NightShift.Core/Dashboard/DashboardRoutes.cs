@@ -65,8 +65,8 @@ public static class DashboardRoutes
 
         AddStylesheetDarkMode(executingAssembly, GetContentResourceName("css", "nightshift-dark.css"));
 
-        AddJavaScript(executingAssembly, GetContentResourceName("js", "jquery-3.7.1.min.js"));
-        AddJavaScript(executingAssembly, GetContentResourceName("js", "bootstrap.min.js"));
+        AddJavaScript(executingAssembly, GetContentResourceName("js", "jquery-4.0.0.min.js"));
+        AddJavaScript(executingAssembly, GetContentResourceName("js", "bootstrap.bundle.min.js"));
         AddJavaScript(executingAssembly, GetContentResourceName("js", "Chart.min.js"));
         AddJavaScript(executingAssembly, GetContentResourceName("js", "nightshift-intl.js"));
         AddJavaScript(executingAssembly, GetContentResourceName("js", "chartjs-plugin-streaming.min.js"));
@@ -80,30 +80,8 @@ public static class DashboardRoutes
         Routes.Add("/css[0-9]+", new CombinedResourceDispatcher("text/css", Stylesheets));
         Routes.Add("/css-dark[0-9]+", new CombinedResourceDispatcher("text/css", StylesheetsDarkMode));
 
-        Routes.Add("/fonts/glyphicons-halflings-regular/eot", new EmbeddedResourceDispatcher(
-            "application/vnd.ms-fontobject",
-            executingAssembly,
-            GetContentResourceName("fonts", "glyphicons-halflings-regular.eot")));
-
-        Routes.Add("/fonts/glyphicons-halflings-regular/svg", new EmbeddedResourceDispatcher(
-            "image/svg+xml",
-            executingAssembly,
-            GetContentResourceName("fonts", "glyphicons-halflings-regular.svg")));
-
-        Routes.Add("/fonts/glyphicons-halflings-regular/ttf", new EmbeddedResourceDispatcher(
-            "application/octet-stream",
-            executingAssembly,
-            GetContentResourceName("fonts", "glyphicons-halflings-regular.ttf")));
-
-        Routes.Add("/fonts/glyphicons-halflings-regular/woff", new EmbeddedResourceDispatcher(
-            "font/woff",
-            executingAssembly,
-            GetContentResourceName("fonts", "glyphicons-halflings-regular.woff")));
-
-        Routes.Add("/fonts/glyphicons-halflings-regular/woff2", new EmbeddedResourceDispatcher(
-            "font/woff2",
-            executingAssembly,
-            GetContentResourceName("fonts", "glyphicons-halflings-regular.woff2")));
+        // The icons of the pages and scripts: one SVG sprite of Bootstrap Icons, whose URL changes with each build
+        Routes.Add("/icons[0-9]+", new EmbeddedResourceDispatcher("image/svg+xml", executingAssembly, DashboardIcons.ResourceName));
 
         // The documentation site's fonts, referenced by the @font-face rules of nightshift-ui.css
         foreach (string font in Fonts)

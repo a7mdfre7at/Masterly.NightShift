@@ -19,6 +19,8 @@ namespace Masterly.NightShift.Dashboard;
 
 internal sealed class CombinedResourceDispatcher : EmbeddedResourceDispatcher
 {
+    private static readonly byte[] NewLine = [(byte)'\n'];
+
     private readonly IEnumerable<Tuple<Assembly, string>> _resources;
 
     public CombinedResourceDispatcher(
@@ -45,6 +47,10 @@ internal sealed class CombinedResourceDispatcher : EmbeddedResourceDispatcher
                 response,
                 resource.Item1,
                 resource.Item2).ConfigureAwait(false);
+
+            // A file can end with a line comment and no line break (bootstrap.bundle.min.js ends with its
+            // sourceMappingURL), which would swallow the start of the next file
+            await response.Body.WriteAsync(NewLine).ConfigureAwait(false);
         }
     }
 }
