@@ -25,7 +25,7 @@ public class AwaitingJobsPageFacts
         string html = _renderer.Render(new AwaitingJobsPage());
 
         Assert.Contains("data-ajax=\"/jobs/awaiting/delete-all\"", html);
-        Assert.Contains($"data-confirm=\"{Encode(Strings.Common_DeleteAllConfirm)}\"", html);
+        Assert.Contains($"data-confirm=\"{Encode(Strings.Common_DeleteAllConfirm_Title)}\" data-confirm-body=\"{Encode(Strings.Common_DeleteAllConfirm)}\"", html);
         Assert.Contains("data-url=\"/jobs/awaiting/enqueue\"", html);
         Assert.Contains("data-url=\"/jobs/awaiting/delete\"", html);
         Assert.Contains("<a href=\"/jobs/details/0\" class=\"text-decoration-none\">", html);

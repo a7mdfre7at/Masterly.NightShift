@@ -58,7 +58,7 @@ public class RecurringJobsPageFacts
         Assert.Contains("data-url=\"/recurring/remove\"", html);
         Assert.Contains("js-jobs-list-select-all", html);
         Assert.Contains("name=\"jobs[]\" value=\"daily\"", html);
-        Assert.Contains("btn-group float-end paginator", html);
+        Assert.Contains("<nav class=\"ns-pagination\"", html);
         Assert.DoesNotContain(H(string.Format(Strings.RecurringJobsPage_LateSummary, 1)), html);
     }
 
@@ -336,7 +336,7 @@ public class RecurringJobsPageFacts
         string html = _renderer.Render(new RecurringJobsPage());
 
         Assert.Contains("value=\"legacy\"", html);
-        Assert.DoesNotContain("paginator", html);
+        Assert.DoesNotContain("ns-pagination-pages", html);
         Assert.Contains("<code title=\"", html);
         Assert.Contains("0 0 * * *", html);
     }

@@ -27,7 +27,7 @@ public class ScheduledJobsPageFacts
 
         Assert.Contains("data-url=\"/jobs/scheduled/export\" data-filename=\"nightshift-scheduled-jobs.csv\"", html);
         Assert.Contains("data-ajax=\"/jobs/scheduled/delete-all\"", html);
-        Assert.Contains($"data-confirm=\"{Encode(Strings.Common_DeleteAllConfirm)}\"", html);
+        Assert.Contains($"data-confirm=\"{Encode(Strings.Common_DeleteAllConfirm_Title)}\" data-confirm-body=\"{Encode(Strings.Common_DeleteAllConfirm)}\"", html);
         Assert.Contains("data-url=\"/jobs/scheduled/enqueue\"", html);
         Assert.Contains("data-url=\"/jobs/scheduled/delete\"", html);
         Assert.Contains("value=\"1\"", html);

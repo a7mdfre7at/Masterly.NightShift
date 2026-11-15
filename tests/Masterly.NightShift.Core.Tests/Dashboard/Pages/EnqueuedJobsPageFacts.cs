@@ -26,7 +26,7 @@ public class EnqueuedJobsPageFacts
         string html = _renderer.Render(new EnqueuedJobsPage("my queue"));
 
         Assert.Contains("data-ajax=\"/jobs/enqueued/delete-all/my%20queue\"", html);
-        Assert.Contains($"data-confirm=\"{Encode(Strings.Common_DeleteAllConfirm)}\"", html);
+        Assert.Contains($"data-confirm=\"{Encode(Strings.Common_DeleteAllConfirm_Title)}\" data-confirm-body=\"{Encode(Strings.Common_DeleteAllConfirm)}\"", html);
         Assert.Contains("data-url=\"/jobs/enqueued/delete\"", html);
         Assert.Contains("value=\"1\"", html);
     }

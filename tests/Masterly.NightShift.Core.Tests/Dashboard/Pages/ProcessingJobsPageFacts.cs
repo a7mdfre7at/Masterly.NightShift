@@ -32,8 +32,8 @@ public class ProcessingJobsPageFacts
         Assert.Contains("data-url=\"/jobs/processing/requeue\"", html);
         Assert.Contains("data-url=\"/jobs/processing/delete\"", html);
         Assert.Contains("class=\"js-jobs-list-select-all\"", html);
-        Assert.Contains("<input type=\"checkbox\" class=\"js-jobs-list-checkbox\" name=\"jobs[]\" value=\"1\"/>", html);
-        Assert.Contains($"<th class=\"min-width\">{Encode(Strings.ProcessingJobsPage_Table_Progress)}</th>", html);
+        Assert.Contains($"<input type=\"checkbox\" class=\"js-jobs-list-checkbox\" name=\"jobs[]\" value=\"1\" aria-label=\"{Encode(string.Format(Strings.Common_SelectJob, "#1"))}\"/>", html);
+        Assert.Contains($"<th scope=\"col\" class=\"min-width\">{Encode(Strings.ProcessingJobsPage_Table_Progress)}</th>", html);
     }
 
     [Fact]

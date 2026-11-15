@@ -142,7 +142,7 @@ public class BatchDetailsPageFacts
         _renderer.Connection.Verify(x => x.GetRangeFromSet(BatchJob.GetJobsKey(BatchId), 20, 29), Times.Once);
         _renderer.Connection.Verify(x => x.GetRangeFromSet(BatchJob.GetJobsKey(BatchId), 0, int.MaxValue - 1), Times.Never);
         _renderer.Connection.Verify(x => x.GetJobData(It.IsAny<string>()), Times.Exactly(10));
-        Assert.Contains("btn-group paginator", html);
+        Assert.Contains("class=\"ns-pagination-pages\"", html);
         Assert.DoesNotContain(H(string.Format(Strings.BatchDetailsPage_MoreJobs, 250)), html);
     }
 
@@ -155,7 +155,7 @@ public class BatchDetailsPageFacts
         string html = _renderer.Render(new BatchDetailsPage(BatchId));
 
         Assert.Contains(H(string.Format(Strings.BatchDetailsPage_MoreJobs, 250)), html);
-        Assert.DoesNotContain("btn-group paginator", html);
+        Assert.DoesNotContain("class=\"ns-pagination-pages\"", html);
     }
 
     private void SetupBatch(Dictionary<string, string> hash, long total, Dictionary<string, long> counts)

@@ -185,6 +185,40 @@ public class HtmlHelperFacts
         }
     }
 
+    [Fact]
+    public void JobCheckbox_IsNamedAfterTheJob_ForScreenReaders()
+    {
+        string html = CreateHelper().JobCheckbox("114").ToString();
+
+        Assert.Equal($"<input type=\"checkbox\" class=\"js-jobs-list-checkbox\" name=\"jobs[]\" value=\"114\" aria-label=\"{WebUtility.HtmlEncode(string.Format(Strings.Common_SelectJob, "#114"))}\"/>", html);
+    }
+
+    [Fact]
+    public void JobCheckbox_EncodesTheValueAndTheName()
+    {
+        string html = CreateHelper().JobCheckbox("a\"<b>", "Pick \"<b>\"").ToString();
+
+        Assert.Equal("<input type=\"checkbox\" class=\"js-jobs-list-checkbox\" name=\"jobs[]\" value=\"a&quot;&lt;b&gt;\" aria-label=\"Pick &quot;&lt;b&gt;&quot;\"/>", html);
+    }
+
+    [Fact]
+    public void SelectAllCheckbox_SaysItSelectsTheJobsOfThePage()
+    {
+        string html = CreateHelper().SelectAllCheckbox().ToString();
+
+        Assert.Equal($"<input type=\"checkbox\" class=\"js-jobs-list-select-all\" aria-label=\"{WebUtility.HtmlEncode(Strings.Common_SelectAllJobs)}\"/>", html);
+    }
+
+    [Fact]
+    public void ConfirmAttributes_WriteTheHeadlineAndOnlyTheOptionsGiven()
+    {
+        HtmlHelper helper = CreateHelper();
+
+        Assert.Equal("data-confirm=\"Pause it?\"", helper.ConfirmAttributes("Pause it?").ToString());
+        Assert.Equal(
+            "data-confirm=\"Delete {0} jobs?\" data-confirm-body=\"They &lt;move&gt;.\" data-confirm-label=\"Delete\" data-confirm-destructive=\"true\" data-confirm-type=\"reset\"",
+            helper.ConfirmAttributes("Delete {0} jobs?", "They <move>.", "Delete", destructive: true, typeToConfirm: "reset").ToString());
+    }
     private HtmlHelper CreateHelper()
     {
         return new HtmlHelper(_page.Object);

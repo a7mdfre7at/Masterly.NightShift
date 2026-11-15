@@ -27,7 +27,7 @@ public class TaggedJobsPageFacts
     {
         string html = _renderer.Render(new TaggedJobsPage("urgent"));
 
-        Assert.Contains($"<div class=\"hf-topbar-title\">{Encode(string.Format(Strings.TaggedJobsPage_Title, "urgent"))}</div>", html);
+        Assert.Contains($"<h1 id=\"page-title\" class=\"hf-page-header\">{Encode(string.Format(Strings.TaggedJobsPage_Title, "urgent"))}</h1>", html);
         Assert.Contains("href=\"/tags\"", html);
         Assert.Contains($"<div class=\"alert alert-info\">{Encode(Strings.TaggedJobsPage_NoJobs)}</div>", html);
         Assert.DoesNotContain("js-jobs-list", html);
@@ -45,7 +45,7 @@ public class TaggedJobsPageFacts
 
         Assert.Contains("<span class=\"hf-tag hf-tag-lg\">" + DashboardMarkup.Icon("tag-fill") + " Urgent <span class=\"hf-tag-count\">2</span></span>", html);
         Assert.Contains("<td class=\"min-width\"><a href=\"/jobs/details/1\">#1</a></td>", html);
-        Assert.Contains(">Succeeded</span></td>", html);
+        Assert.Contains(">Succeeded</span></span></td>", html);
         Assert.Contains("TaggedPageJobs.Work", html);
         Assert.True(html.IndexOf("/jobs/details/2", StringComparison.Ordinal) < html.IndexOf("/jobs/details/1", StringComparison.Ordinal));
         Assert.DoesNotContain(Encode(Strings.TaggedJobsPage_NoJobs), html);

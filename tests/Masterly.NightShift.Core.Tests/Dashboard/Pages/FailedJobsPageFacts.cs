@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Net;
 using Masterly.NightShift.Dashboard;
 using Masterly.NightShift.Dashboard.Pages;
@@ -30,7 +31,7 @@ public class FailedJobsPageFacts
         Assert.Contains("data-url=\"/jobs/failed/export\" data-filename=\"nightshift-failed-jobs.csv\"", html);
         Assert.Contains("data-ajax=\"/jobs/failed/delete-all\"", html);
         Assert.Contains("data-ajax=\"/jobs/failed/requeue-all\"", html);
-        Assert.Contains("data-confirm=\"" + Encode(Strings.FailedJobsPage_RequeueAllConfirm) + "\"", html);
+        Assert.Contains("data-confirm=\"" + Encode(Strings.FailedJobsPage_RequeueAllConfirm_Title) + "\" data-confirm-body=\"" + Encode(Strings.FailedJobsPage_RequeueAllConfirm) + "\"", html);
         Assert.Contains("data-url=\"/jobs/failed/requeue\"", html);
         Assert.Contains("data-url=\"/jobs/failed/delete\"", html);
         Assert.Contains($"{Encode(Strings.Common_DeleteSelected)}", html);
@@ -185,7 +186,7 @@ public class FailedJobsPageFacts
 
         string html = _renderer.Render(new FailedJobsPage());
 
-        Assert.Contains("from=0&amp;count=1000\">" + Encode(1000.ToString("N0")) + "</a>", html);
+        Assert.Matches("from=0&amp;count=1000\"\\s*>" + Regex.Escape(Encode(1000.ToString("N0"))) + "</option>", html);
         Assert.DoesNotContain("count=5000", html);
     }
 

@@ -46,7 +46,7 @@ public class LayoutPageFacts
 
         string html = _renderer.Render(new TagsPage());
 
-        Assert.Contains($"<a href=\"/my-app\" title=\"{Encode(Strings.LayoutPage_Back)}\">", html);
+        Assert.Contains("<a href=\"/my-app\">", html);
     }
 
     [Fact]
@@ -66,12 +66,12 @@ public class LayoutPageFacts
     {
         string html = _renderer.Render(new TagsPage());
 
-        Assert.Contains("<div class=\"hf-topbar-title\">" + Encode(Strings.TagsPage_Title) + "</div>", html);
+        Assert.Contains("<title>" + Encode(Strings.TagsPage_Title) + " – ", html);
         Assert.Contains("data-live-url=\"/jobs/live\"", html);
         Assert.Contains("data-job-url=\"/jobs/details/\"", html);
         Assert.Contains($"data-text-title=\"{Encode(Strings.LayoutPage_Watchlist)}\"", html);
         Assert.Contains($"<span class=\"hf-search-text\">{Encode(Strings.LayoutPage_Search)}</span>", html);
-        Assert.Contains("class=\"hf-icon-button js-page-refresh\"", html);
+        Assert.Contains("class=\"ns-icon-button js-page-refresh\"", html);
         Assert.Contains("id=\"errorAlert\"", html);
         Assert.Contains("data-pollurl=\"/stats\"", html);
         Assert.Contains("data-liveurl=\"/jobs/live\"", html);
@@ -96,7 +96,7 @@ public class LayoutPageFacts
         Assert.Contains("hf-drain-banner hf-drain-banner-queues", html);
         Assert.Contains(Encode(string.Format(Strings.LayoutPage_QueuesPaused, "critical, emails")), html);
         Assert.Contains("href=\"/jobs/enqueued\">" + Encode(Strings.LayoutPage_QueuesPaused_Link), html);
-        Assert.DoesNotContain("href=\"/servers\">" + Encode(Strings.NavigationMenu_Servers) + " &rarr;", html);
+        Assert.DoesNotContain("href=\"/servers\">" + Encode(Strings.NavigationMenu_Servers) + "</a>", html);
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public class LayoutPageFacts
 
         Assert.Contains("hf-drain-banner hf-drain-banner-queues", html);
         Assert.Contains(Encode(string.Format(Strings.LayoutPage_ServersPaused, "web-1")), html);
-        Assert.Contains("href=\"/servers\">" + Encode(Strings.NavigationMenu_Servers) + " &rarr;", html);
+        Assert.Contains("href=\"/servers\">" + Encode(Strings.NavigationMenu_Servers) + "</a>", html);
         Assert.DoesNotContain(Encode(Strings.LayoutPage_QueuesPaused_Link), html);
     }
 
@@ -136,7 +136,7 @@ public class LayoutPageFacts
     }
 
     [Fact]
-    public void Render_WhenDrainModeIsOn_ShowsTheBannerWithSinceReasonAndResumeButton()
+    public void Render_WhenDrainModeIsOn_ShowsTheBannerWithSinceReasonAndResumeButton_AndThePausedQueuesToo()
     {
         SetupControlHash(new Dictionary<string, string>
         {
@@ -148,12 +148,13 @@ public class LayoutPageFacts
 
         string html = _renderer.Render(new TagsPage());
 
-        Assert.Contains("<div class=\"hf-drain-banner\" role=\"status\">", html);
+        Assert.Contains("<div class=\"ns-banner ns-banner-warning hf-drain-banner\" role=\"status\">", html);
         Assert.Contains($"<strong>{Encode(Strings.LayoutPage_Drain_Banner)}</strong>", html);
         Assert.Contains("class=\"hf-drain-banner-since\"", html);
         Assert.Contains("<em class=\"hf-drain-banner-reason\">Database &lt;upgrade&gt;</em>", html);
-        Assert.Contains("data-ajax=\"/maintenance/resume\"", html);
-        Assert.DoesNotContain("hf-drain-banner-queues", html);
+        Assert.Contains("<button type=\"button\" class=\"btn ns-btn-tonal\" data-ajax=\"/maintenance/resume\"", html);
+        Assert.Contains("hf-drain-banner-queues", html);
+        Assert.Contains(Encode(string.Format(Strings.LayoutPage_QueuesPaused, "critical")), html);
     }
 
     [Fact]
@@ -180,6 +181,8 @@ public class LayoutPageFacts
 
         Assert.Contains("js-page-container", html);
         Assert.DoesNotContain("hf-drain-banner", html);
+        Assert.Contains("<div class=\"ns-banner ns-banner-error hf-storage-banner\" role=\"alert\">", html);
+        Assert.Contains(Encode(Strings.LayoutPage_StorageUnavailable), html);
     }
 
     [Fact]
@@ -241,9 +244,10 @@ public class LayoutPageFacts
 
         string html = _renderer.Render(new TagsPage());
 
-        Assert.Contains($"<div class=\"hf-nav-section\">{Encode(Strings.NavigationMenu_Section_Monitor)}</div>", html);
-        Assert.Contains("<a href=\"/tags\" class=\"hf-nav-item active\">", html);
-        Assert.Contains("<a href=\"/batches\" class=\"hf-nav-item \">", html);
+        Assert.Contains($"<div class=\"hf-nav-section\" id=\"hfNavGroup1\">{Encode(Strings.NavigationMenu_Group_Jobs)}</div>", html);
+        Assert.Contains("<a href=\"/tags\" class=\"hf-nav-item active\" aria-current=\"page\">", html);
+        Assert.Contains("<a href=\"/batches\" class=\"hf-nav-item\">", html);
+        Assert.Single(Regex.Matches(html, "aria-current=\"page\""));
         Assert.Contains(DashboardMarkup.Icon("tag-fill", "hf-nav-icon"), html);
     }
 
@@ -255,9 +259,11 @@ public class LayoutPageFacts
 
         string html = _renderer.Render(new FailedJobsPage());
 
-        Assert.Contains("<a href=\"/jobs/enqueued\" class=\"hf-nav-item active\">", html);
+        // One active indicator: the state's own item; the Jobs item is only marked as its parent
+        Assert.Contains("<a href=\"/jobs/enqueued\" class=\"hf-nav-item hf-nav-item-parent\">", html);
         Assert.Contains("<ul class=\"hf-nav-sub\">", html);
-        Assert.Contains("<a href=\"/jobs/failed\" class=\"hf-nav-item active\">", html);
+        Assert.Contains("<a href=\"/jobs/failed\" class=\"hf-nav-item active\" aria-current=\"page\">", html);
+        Assert.Single(Regex.Matches(html, "class=\"hf-nav-item active\""));
         Assert.Contains("data-metric=\"failed:count-or-null\"", html);
         Assert.Contains(">7</span>", html);
     }
@@ -275,7 +281,7 @@ public class LayoutPageFacts
         {
             string html = _renderer.Render(new TagsPage());
 
-            Assert.Contains("<a href=\"/custom\" class=\"hf-nav-item \">", html);
+            Assert.Contains("<a href=\"/custom\" class=\"hf-nav-item\">", html);
             Assert.Contains(DashboardMarkup.Icon("chevron-right", "hf-nav-icon"), html);
             Assert.Contains("<span class=\"hf-nav-text\">Custom &lt;Item&gt;</span>", html);
         }
@@ -301,9 +307,9 @@ public class LayoutPageFacts
         {
             string html = _renderer.Render(new TagsPage());
 
-            Assert.Matches("href=\"/sprite\" class=\"hf-nav-item \">\\s*" + Regex.Escape(DashboardMarkup.Icon("card-list", "hf-nav-icon")), html);
-            Assert.Matches("href=\"/glyphicon\" class=\"hf-nav-item \">\\s*" + Regex.Escape(DashboardMarkup.Icon("clock", "hf-nav-icon")), html);
-            Assert.Matches("href=\"/unknown\" class=\"hf-nav-item \">\\s*" + Regex.Escape(DashboardMarkup.Icon("chevron-right", "hf-nav-icon")), html);
+            Assert.Matches("href=\"/sprite\" class=\"hf-nav-item\">\\s*" + Regex.Escape(DashboardMarkup.Icon("card-list", "hf-nav-icon")), html);
+            Assert.Matches("href=\"/glyphicon\" class=\"hf-nav-item\">\\s*" + Regex.Escape(DashboardMarkup.Icon("clock", "hf-nav-icon")), html);
+            Assert.Matches("href=\"/unknown\" class=\"hf-nav-item\">\\s*" + Regex.Escape(DashboardMarkup.Icon("chevron-right", "hf-nav-icon")), html);
             Assert.DoesNotContain("no-such-icon", html);
         }
         finally
@@ -312,6 +318,84 @@ public class LayoutPageFacts
             NavigationMenu.Items.Remove(glyphiconName);
             NavigationMenu.Items.Remove(unknownName);
         }
+    }
+
+    [Fact]
+    public void Render_Always_StartsWithASkipLinkToTheContent()
+    {
+        string html = _renderer.Render(new TagsPage());
+
+        int skip = html.IndexOf($"<a class=\"ns-skip-link\" href=\"#content\">{Encode(Strings.LayoutPage_SkipToContent)}</a>", StringComparison.Ordinal);
+        Assert.True(skip > 0);
+        Assert.True(skip < html.IndexOf("class=\"hf-nav\"", StringComparison.Ordinal));
+        Assert.Contains("<main id=\"content\" class=\"hf-content js-page-container\" tabindex=\"-1\">", html);
+    }
+
+    [Fact]
+    public void Render_Always_GivesTheMenuButtonItsDrawer_AndTheDrawerACloseButton()
+    {
+        string html = _renderer.Render(new TagsPage());
+
+        Assert.Contains($"aria-label=\"{Encode(Strings.LayoutPage_Menu)}\" aria-expanded=\"false\" aria-controls=\"hfSidebar\"", html);
+        Assert.Contains("id=\"hfSidebar\"", html);
+        Assert.Contains($"class=\"ns-icon-button hf-sidebar-close js-sidebar-close\" aria-label=\"{Encode(Strings.LayoutPage_CloseMenu)}\"", html);
+        Assert.Contains($"<nav class=\"hf-nav\" aria-label=\"{Encode(Strings.LayoutPage_Navigation)}\">", html);
+        Assert.Contains("class=\"hf-scrim js-sidebar-scrim\" hidden", html);
+    }
+
+    [Fact]
+    public void Render_Always_ListsTheMenuInItsGroups()
+    {
+        string html = _renderer.Render(new TagsPage());
+
+        int jobs = html.IndexOf($">{Encode(Strings.NavigationMenu_Group_Jobs)}</div>", StringComparison.Ordinal);
+        int workflows = html.IndexOf($">{Encode(Strings.NavigationMenu_Group_Workflows)}</div>", StringComparison.Ordinal);
+        int observe = html.IndexOf($">{Encode(Strings.NavigationMenu_Group_Observe)}</div>", StringComparison.Ordinal);
+        int system = html.IndexOf($">{Encode(Strings.NavigationMenu_Group_System)}</div>", StringComparison.Ordinal);
+
+        Assert.True(jobs > 0 && jobs < workflows && workflows < observe && observe < system);
+        Assert.InRange(html.IndexOf("href=\"/batches\" class", StringComparison.Ordinal), workflows, observe);
+        Assert.InRange(html.IndexOf("href=\"/servers\" class", StringComparison.Ordinal), system, html.Length);
+        Assert.DoesNotContain($">{Encode(Strings.NavigationMenu_Group_More)}</div>", html);
+    }
+
+    [Fact]
+    public void Render_ShowsTheLiveStatusChip_AndTheReadOnlyChip_OnlyWhenReadOnly()
+    {
+        string html = _renderer.Render(new TagsPage());
+        Assert.Contains("class=\"ns-chip ns-chip-status hf-status js-status\" role=\"status\"", html);
+        Assert.DoesNotContain("hf-readonly-chip", html);
+
+        _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
+        string readOnly = _renderer.Render(new TagsPage());
+        Assert.Contains("hf-readonly-chip", readOnly);
+        Assert.Contains(Encode(Strings.LayoutPage_ReadOnly), readOnly);
+        Assert.Contains("data-readonly=\"true\"", readOnly);
+    }
+
+    [Fact]
+    public void Render_WithDarkModeDisabled_PinsTheLightTheme_SoTheSystemPreferenceDoesntApply()
+    {
+        _renderer.Options = new DashboardOptions { DarkModeEnabled = false };
+        Assert.Contains("<html lang=\"en\" data-theme=\"light\">", _renderer.Render(new TagsPage()));
+
+        _renderer.Options = new DashboardOptions { DarkModeEnabled = true };
+        Assert.DoesNotContain("data-theme=\"light\"", _renderer.Render(new TagsPage()));
+    }
+
+    [Fact]
+    public void Render_Always_GivesTheScriptsTheTextsOfTheDialogsAndSnackbars()
+    {
+        string html = _renderer.Render(new TagsPage());
+
+        Assert.Contains($"data-text-cancel=\"{Encode(Strings.Common_Cancel)}\"", html);
+        Assert.Contains($"data-text-type-to-confirm=\"{Encode(Strings.Dialog_TypeToConfirm)}\"", html);
+        Assert.Contains($"data-text-discard-title=\"{Encode(Strings.Dialog_DiscardTitle)}\"", html);
+        Assert.Contains($"data-text-palette-placeholder=\"{Encode(Strings.Palette_Placeholder)}\"", html);
+        Assert.Contains($"data-text-palette-nothing=\"{Encode(Strings.Palette_NothingFound)}\"", html);
+        Assert.Contains($"data-text-shortcut-search=\"{Encode(Strings.Shortcuts_Search)}\"", html);
+        Assert.Contains($"data-text-remove=\"{Encode(Strings.LayoutPage_Watchlist_Remove)}\"", html);
+        Assert.Contains("class=\"ns-snackbar-host js-snackbar-host\" role=\"status\" aria-live=\"polite\"", html);
     }
 
     [Fact]

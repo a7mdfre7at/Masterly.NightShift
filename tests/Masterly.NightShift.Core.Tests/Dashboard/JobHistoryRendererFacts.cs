@@ -85,7 +85,7 @@ public class JobHistoryRendererFacts
             { "NextState", Masterly.NightShift.Common.SerializationHelper.Serialize<IState>(new EnqueuedState("critical"), Masterly.NightShift.Common.SerializationOption.TypedInternal) },
         }).ToString();
 
-        Assert.Contains("<dt>Next State</dt><dd><span class=\"badge  label-state-active\">Enqueued</span></dd>", html);
+        Assert.Contains($"<dt>Next State</dt><dd><span class=\"ns-state-chip ns-state-enqueued\">{DashboardMarkup.Icon("inbox-fill")}<span>Enqueued</span></span></dd>", html);
     }
 
     [Fact, StaticLock]
@@ -176,20 +176,57 @@ public class JobHistoryRendererFacts
         Assert.Equal("inherit", JobHistoryRenderer.GetBackgroundStateColor("Facts.NoSuffix"));
     }
 
-    [Fact]
-    public void StateLabel_UsesTheSuffixClass_ForABuiltInState()
+    [Theory]
+    [InlineData("Enqueued", "enqueued", "inbox-fill")]
+    [InlineData("Scheduled", "scheduled", "clock")]
+    [InlineData("Processing", "processing", "play-circle-fill")]
+    [InlineData("Succeeded", "succeeded", "check-circle-fill")]
+    [InlineData("Failed", "failed", "x-circle-fill")]
+    [InlineData("Deleted", "deleted", "trash-fill")]
+    [InlineData("Awaiting", "awaiting", "hourglass-split")]
+    public void StateLabel_IsAStateChip_WithTheIconAndColourGroupOfABuiltInState(string state, string group, string icon)
     {
-        string html = CreateHelper().StateLabel(SucceededState.StateName).ToString();
+        string html = CreateHelper().StateLabel(state).ToString();
 
-        Assert.Equal("<span class=\"badge  label-state-success\">Succeeded</span>", html);
+        Assert.Equal($"<span class=\"ns-state-chip ns-state-{group}\">{DashboardMarkup.Icon(icon)}<span>{state}</span></span>", html);
+        Assert.Equal(group, JobHistoryRenderer.GetStateColorGroup(state));
     }
 
     [Fact]
-    public void StateLabel_KeepsTheNeutralLook_ForAStateWithoutASuffix()
+    public void StateLabel_EncodesTheText_AndTurnsIntoTheFilledColourOnHover_WhenAsked()
+    {
+        string html = CreateHelper().StateLabel(FailedState.StateName, "<b>", hover: true).ToString();
+
+        Assert.Equal($"<span class=\"ns-state-chip ns-state-failed label-hover\">{DashboardMarkup.Icon("x-circle-fill")}<span>&lt;b&gt;</span></span>", html);
+    }
+
+    [Fact, StaticLock]
+    public void StateLabel_TakesTheColourGroupOfItsBuiltInSuffix_ForACustomState()
+    {
+        JobHistoryRenderer.AddStateCssSuffix("Facts.Grouped", "warning");
+
+        string html = CreateHelper().StateLabel("Facts.Grouped").ToString();
+
+        Assert.Equal($"<span class=\"ns-state-chip ns-state-processing\">{DashboardMarkup.Icon("play-circle-fill")}<span>Facts.Grouped</span></span>", html);
+    }
+
+    [Fact, StaticLock]
+    public void StateLabel_KeepsTheLabelClassOfACustomSuffix_OnTheNeutralChip()
+    {
+        JobHistoryRenderer.AddStateCssSuffix("Facts.OwnSuffix", "mine");
+
+        string html = CreateHelper().StateLabel("Facts.OwnSuffix").ToString();
+
+        Assert.Equal($"<span class=\"ns-state-chip label-state-mine\">{DashboardMarkup.Icon("circle-fill")}<span>Facts.OwnSuffix</span></span>", html);
+        Assert.Null(JobHistoryRenderer.GetStateColorGroup("Facts.OwnSuffix"));
+    }
+
+    [Fact]
+    public void StateLabel_IsTheNeutralChip_ForAStateWithoutASuffix()
     {
         string html = CreateHelper().StateLabel("Facts.Unknown").ToString();
 
-        Assert.Equal("<span class=\"badge text-bg-secondary \">Facts.Unknown</span>", html);
+        Assert.Equal($"<span class=\"ns-state-chip\">{DashboardMarkup.Icon("circle-fill")}<span>Facts.Unknown</span></span>", html);
     }
 
     [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]

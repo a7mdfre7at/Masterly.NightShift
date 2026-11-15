@@ -28,7 +28,7 @@ public class SucceededJobsFacts
         Assert.Contains("data-url=\"/jobs/succeeded/export\" data-filename=\"nightshift-succeeded-jobs.csv\"", html);
         Assert.Contains(Encode(Strings.Common_DownloadCsv), html);
         Assert.Contains("data-ajax=\"/jobs/succeeded/delete-all\"", html);
-        Assert.Contains($"data-confirm=\"{Encode(Strings.Common_DeleteAllConfirm)}\"", html);
+        Assert.Contains($"data-confirm=\"{Encode(Strings.Common_DeleteAllConfirm_Title)}\" data-confirm-body=\"{Encode(Strings.Common_DeleteAllConfirm)}\"", html);
         Assert.Contains("data-url=\"/jobs/succeeded/requeue\"", html);
         Assert.Contains("value=\"1\"", html);
     }

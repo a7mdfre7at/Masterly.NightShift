@@ -595,14 +595,16 @@ public class DashboardServerFacts
 
         string bundle = await app.GetStringAsync("/nightshift/js1");
 
-        Assert.Contains("role=\"dialog\" aria-modal=\"true\" aria-label=\"Command palette\"", bundle);
+        Assert.Contains("$('<div class=\"hf-palette\" role=\"dialog\" aria-modal=\"true\" style=\"display: none\">').attr('aria-label', TEXT.paletteLabel)", bundle);
         Assert.Contains("role=\"combobox\" aria-autocomplete=\"list\" aria-expanded=\"true\" aria-controls=\"hfPaletteResults\"", bundle);
         Assert.Contains("id=\"hfPaletteResults\" role=\"listbox\"", bundle);
         Assert.Contains("$('<li class=\"hf-palette-item\" role=\"option\">')", bundle);
         Assert.Contains("this._input.attr('aria-activedescendant', 'hfPaletteItem' + this._selected);", bundle);
         Assert.Contains(".attr('aria-pressed', this._enabled ? 'true' : 'false')", bundle);
         Assert.Contains("if (!nightshift.singleKeyShortcuts.enabled()) return;", bundle);
-        Assert.Contains("if (!button.data('confirm') && !confirm(", bundle);
+        // A command without its own confirmation asks in the dashboard's dialog, never window.confirm
+        Assert.Contains("nightshift.confirm({ title: format(TEXT.shortcutConfirm, commandName(button), count)", bundle);
+        Assert.DoesNotContain("!confirm(", bundle);
     }
 
     [Fact]

@@ -25,7 +25,7 @@ public class RetriesPageFacts
         string html = _renderer.Render(new RetriesPage());
 
         Assert.Contains("data-ajax=\"/retries/delete-all\"", html);
-        Assert.Contains($"data-confirm=\"{Encode(Strings.Common_DeleteAllConfirm)}\"", html);
+        Assert.Contains($"data-confirm=\"{Encode(Strings.Common_DeleteAllConfirm_Title)}\" data-confirm-body=\"{Encode(Strings.Common_DeleteAllConfirm)}\"", html);
         Assert.Contains("data-url=\"/jobs/scheduled/enqueue\"", html);
         Assert.Contains("data-url=\"/jobs/scheduled/delete\"", html);
         Assert.Contains("value=\"1\"", html);

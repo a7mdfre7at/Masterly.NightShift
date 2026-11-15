@@ -364,7 +364,8 @@ public class JobDetailsPageFacts
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
         Assert.Contains("id=\"jobLive\"", html);
-        Assert.Contains("aria-valuenow=\"40\" style=\"width: 40%; min-width: 2em;\">40%</div>", html);
+        Assert.Contains("role=\"progressbar\" aria-label=\"" + H(Strings.ProcessingJobsPage_Table_Progress) + "\" aria-valuemin=\"0\" aria-valuemax=\"100\" aria-valuenow=\"40\">", html);
+        Assert.Contains("style=\"width: 40%; min-width: 2em;\">40%</div>", html);
         Assert.Contains("<p class=\"text-muted js-live-progress-message\">Halfway &lt;there&gt;</p>", html);
         Assert.Contains(H(Strings.JobDetailsPage_NoConsoleOutput), html);
     }
@@ -388,7 +389,8 @@ public class JobDetailsPageFacts
             CultureHelper.SetCurrentCulture(culture);
         }
 
-        Assert.Contains("aria-valuenow=\"42.5\" style=\"width: 42.5%; min-width: 2em;\">42,5%</div>", html);
+        Assert.Contains("aria-valuenow=\"42.5\">", html);
+        Assert.Contains("style=\"width: 42.5%; min-width: 2em;\">42,5%</div>", html);
     }
 
     [Fact]
@@ -757,11 +759,12 @@ public class JobDetailsPageFacts
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
         Assert.Contains("<div class=\"hf-state-bar\" title=\"" + H(Strings.JobDetailsPage_StateTimeline) + "\">", html);
-        Assert.Contains("style=\"width: 1.5%; background: ", html);
-        Assert.Contains("style=\"width: 33.33%; background: ", html);
-        Assert.Contains("style=\"width: 66.67%; background: ", html);
+        Assert.Contains("style=\"width: 1.5%\"", html);
+        Assert.Contains("style=\"width: 33.33%\"", html);
+        Assert.Contains("style=\"width: 66.67%\"", html);
         Assert.Contains("<em>Processing</em></span>", html);
-        Assert.Equal(4, CountOf(html, "<div class=\"state-card "));
+        Assert.Equal(4, CountOf(html, "<div class=\"state-card\"") + CountOf(html, "<div class=\"state-card "));
+        Assert.Contains("class=\"hf-state-seg ns-state-processing\"", html);
     }
 
     [Fact]
@@ -771,7 +774,7 @@ public class JobDetailsPageFacts
 
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
-        Assert.Contains("<div class=\"state-card state-card-state-success\">", html);
+        Assert.Contains("<div class=\"state-card state-card-state-success ns-state-succeeded\">", html);
     }
 
     [Fact]
@@ -781,7 +784,7 @@ public class JobDetailsPageFacts
 
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
-        Assert.Contains("<div class=\"state-card \">", html);
+        Assert.Contains("<div class=\"state-card\">", html);
         Assert.Contains("<h4 class=\"state-card-title\">", html);
         Assert.Contains("<div class=\"state-card-body\">", html);
         Assert.DoesNotContain("state-card-state-", html);
