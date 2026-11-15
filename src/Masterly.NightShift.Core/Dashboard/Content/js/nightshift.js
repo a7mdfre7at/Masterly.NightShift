@@ -1793,6 +1793,7 @@
 
             this._enabled = this._read();
             this._build();
+            this._place();
             if (this._enabled) this._schedule();
         }
 
@@ -1812,12 +1813,11 @@
             return url + (url.indexOf('?') >= 0 ? '&' : '?') + LIST_REFRESH_QUERY;
         };
 
+        // The buttons are built even when the list has no toolbar (a list of an extension's page may have none): Live
+        // may be on for the page, and they go in the toolbar of the first refresh that brings one
         LiveTable.prototype._build = function () {
             var self = this;
             var config = this._config;
-            var toolbar = this._container.find('.btn-toolbar-top').first();
-            if (!toolbar.length) return;
-
             var text = (config && config.text) || { refresh: 'Refresh', live: 'Live', liveHint: 'Refresh this list automatically' };
 
             this._refreshButton = $('<button type="button" class="btn btn-sm btn-outline-secondary hf-refresh-button">').attr('title', text.refresh)
@@ -1826,8 +1826,6 @@
                     self._refreshButton.addClass('spinning');
                     self._refresh(true);
                 });
-
-            toolbar.append(this._refreshButton);
 
             this._button = $('<button type="button" class="btn btn-sm btn-outline-secondary hf-live-toggle">').attr('title', text.liveHint)
                 .append('<span class="hf-live-dot"></span>').append(document.createTextNode(' ' + text.live))
@@ -1839,8 +1837,11 @@
                     self._button.toggleClass('active', self._enabled).attr('aria-pressed', self._enabled ? 'true' : 'false');
                     if (self._enabled) self._schedule(); else clearTimeout(self._timer);
                 });
+        };
 
-            toolbar.append(this._button);
+        // Puts the buttons at the end of the list's toolbar, when it has one
+        LiveTable.prototype._place = function () {
+            this._container.find('.btn-toolbar-top').first().append(this._refreshButton).append(this._button);
         };
 
         LiveTable.prototype._schedule = function () {
@@ -1866,11 +1867,11 @@
 
                     if (fresh.length) {
                         // The buttons stay, with their tooltips; the tooltips of the rest go with the old rows
-                        var toggle = self._button.detach();
-                        var refresh = self._refreshButton.detach().removeClass('spinning');
+                        self._button.detach();
+                        self._refreshButton.detach().removeClass('spinning');
                         nightshift.disposeTooltips(self._container.children());
                         self._container.html(fresh.html());
-                        self._container.find('.btn-toolbar-top').first().append(refresh).append(toggle);
+                        self._place();
                         self._page.initJobsList(self._container[0]);
                         self._page.updateRelativeDates();
                         self._button.addClass('hf-live-flash');
