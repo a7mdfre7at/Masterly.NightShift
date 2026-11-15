@@ -1,43 +1,60 @@
 ﻿@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True TrimLeadingUnderscores : true *@
+@using System
+@using System.Globalization
 @using Masterly.NightShift.Dashboard
 @using Masterly.NightShift.Dashboard.Resources;
 
 @inherits RazorPage
-<div class="btn-toolbar">
+@{
+    long firstRecord = _pager.TotalRecordCount == 0 ? 0 : _pager.FromRecord + 1L;
+    long lastRecord = Math.Min(_pager.FromRecord + (long)_pager.RecordsPerPage, _pager.TotalRecordCount);
+}
+<nav class="ns-pagination" aria-label="@Strings.Paginator_Label">
+    <label class="ns-pagination-size">
+        <span>@Strings.Paginator_RowsPerPage</span>
+        <select class="form-select form-select-sm js-per-page">
+            @foreach (int count in new[] { 10, 20, 50, 100, 500, Pager.MaxRecordsPerPage })
+            {
+                <option value="@_pager.RecordsPerPageUrl(count)"@(count == _pager.RecordsPerPage ? Html.Raw(" selected") : null)>@count.ToString("N0", CultureInfo.CurrentCulture)</option>
+            }
+        </select>
+    </label>
+    <span class="ns-pagination-range">@String.Format(CultureInfo.CurrentCulture, Strings.Paginator_Range, firstRecord.ToString("N0", CultureInfo.CurrentCulture), lastRecord.ToString("N0", CultureInfo.CurrentCulture), _pager.TotalRecordCount.ToString("N0", CultureInfo.CurrentCulture))</span>
     @if (_pager.TotalPageCount > 1)
     {
-        <div class="btn-group paginator">
+        <ul class="ns-pagination-pages">
             @foreach (Pager.Item page in _pager.PagerItems)
             {
                 switch (page.Type)
                 {
                     case Pager.ItemType.Page:
-                        <a href="@_pager.PageUrl(page.PageIndex)" class="btn btn-outline-secondary @(_pager.CurrentPage == page.PageIndex ? "active" : null)">
-                            @page.PageIndex  
-                        </a>
-                        break;
-                    case Pager.ItemType.NextPage:
-                        <a href="@_pager.PageUrl(page.PageIndex)" class="btn btn-outline-secondary @(page.Disabled ? "disabled" : null)">
-                            @Strings.Paginator_Next
-                        </a>
+                        <li><a href="@_pager.PageUrl(page.PageIndex)" aria-label="@String.Format(CultureInfo.CurrentCulture, Strings.Paginator_Page, page.PageIndex)"@(_pager.CurrentPage == page.PageIndex ? Html.Raw(" aria-current=\"page\"") : null)>@page.PageIndex</a></li>
                         break;
                     case Pager.ItemType.PrevPage:
-                        <a href="@_pager.PageUrl(page.PageIndex)" class="btn btn-outline-secondary @(page.Disabled ? "disabled" : null)">
-                            @Strings.Paginator_Prev
-                        </a>
+                        if (page.Disabled)
+                        {
+                            <li><a class="ns-icon-button" role="link" aria-disabled="true" aria-label="@Strings.Paginator_PreviousPage">@Html.Icon("chevron-left")</a></li>
+                        }
+                        else
+                        {
+                            <li><a class="ns-icon-button" href="@_pager.PageUrl(page.PageIndex)" rel="prev" aria-label="@Strings.Paginator_PreviousPage" title="@Strings.Paginator_PreviousPage">@Html.Icon("chevron-left")</a></li>
+                        }
+                        break;
+                    case Pager.ItemType.NextPage:
+                        if (page.Disabled)
+                        {
+                            <li><a class="ns-icon-button" role="link" aria-disabled="true" aria-label="@Strings.Paginator_NextPage">@Html.Icon("chevron-right")</a></li>
+                        }
+                        else
+                        {
+                            <li><a class="ns-icon-button" href="@_pager.PageUrl(page.PageIndex)" rel="next" aria-label="@Strings.Paginator_NextPage" title="@Strings.Paginator_NextPage">@Html.Icon("chevron-right")</a></li>
+                        }
                         break;
                     case Pager.ItemType.MorePage:
-                        <a href="#" class="btn btn-outline-secondary disabled">
-                            …
-                        </a>
+                        <li><span aria-hidden="true">…</span></li>
                         break;
                 }
             }
-        </div>
-        <div class="btn-toolbar-spacer"></div>
+        </ul>
     }
-
-    <div class="btn-toolbar-label">
-        @Strings.Paginator_TotalItems: @_pager.TotalRecordCount
-    </div>
-</div>
+</nav>

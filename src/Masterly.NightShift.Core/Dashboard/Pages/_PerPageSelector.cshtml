@@ -1,26 +1,32 @@
 ﻿@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True TrimLeadingUnderscores : true *@
+@using System
+@using System.Globalization
 @using Masterly.NightShift.Dashboard.Resources;
 @inherits Masterly.NightShift.Dashboard.RazorPage
-
+@{
+    long firstRecord = _pager.TotalRecordCount == 0 ? 0 : _pager.FromRecord + 1L;
+    long lastRecord = Math.Min(_pager.FromRecord + (long)_pager.RecordsPerPage, _pager.TotalRecordCount);
+}
+@* The list's position and the previous/next buttons at the top of a list; the pagination footer (Paginator) has the page links and the page size *@
 @if (_pager.TotalPageCount > 1)
 {
-    <div class="btn-group paginator float-end d-none d-md-inline-flex">
-        <a href="@_pager.PageUrl(_pager.CurrentPage > 1 ? _pager.CurrentPage - 1 : 0)" class="btn btn-outline-secondary btn-sm @(_pager.CurrentPage == 1 ? "disabled" : null)">
-            @Strings.Paginator_Prev
-        </a>
-        <a href="@_pager.PageUrl(_pager.CurrentPage < _pager.TotalPageCount ? _pager.CurrentPage + 1 : 0)" class="btn btn-outline-secondary btn-sm @(_pager.CurrentPage == _pager.TotalPageCount ? "disabled" : null)">
-            @Strings.Paginator_Next
-        </a>
-    </div>
-}
-    <div class="btn-group float-end paginator">
-        @foreach (int count in new[] { 10, 20, 50, 100, 500, Pager.MaxRecordsPerPage })
+    <div class="ns-pagination-compact d-none d-md-inline-flex" role="group" aria-label="@Strings.Paginator_Label">
+        <span class="ns-pagination-range">@String.Format(CultureInfo.CurrentCulture, Strings.Paginator_Range, firstRecord.ToString("N0", CultureInfo.CurrentCulture), lastRecord.ToString("N0", CultureInfo.CurrentCulture), _pager.TotalRecordCount.ToString("N0", CultureInfo.CurrentCulture))</span>
+        @if (_pager.CurrentPage > 1)
         {
-            <a class="btn btn-sm btn-outline-secondary @(count == _pager.RecordsPerPage ? "active" : null) @(count > 999 ? "d-none d-xl-inline-block" : null)" 
-                   href="@_pager.RecordsPerPageUrl(count)">@count.ToString("N0")</a>    
+            <a class="ns-icon-button" href="@_pager.PageUrl(_pager.CurrentPage - 1)" aria-label="@Strings.Paginator_PreviousPage" title="@Strings.Paginator_PreviousPage">@Html.Icon("chevron-left")</a>
+        }
+        else
+        {
+            <a class="ns-icon-button" role="link" aria-disabled="true" aria-label="@Strings.Paginator_PreviousPage">@Html.Icon("chevron-left")</a>
+        }
+        @if (_pager.CurrentPage < _pager.TotalPageCount)
+        {
+            <a class="ns-icon-button" href="@_pager.PageUrl(_pager.CurrentPage + 1)" aria-label="@Strings.Paginator_NextPage" title="@Strings.Paginator_NextPage">@Html.Icon("chevron-right")</a>
+        }
+        else
+        {
+            <a class="ns-icon-button" role="link" aria-disabled="true" aria-label="@Strings.Paginator_NextPage">@Html.Icon("chevron-right")</a>
         }
     </div>
-    <div class="btn-toolbar-spacer float-end d-none d-md-block"></div>
-    <div class="btn-toolbar-label btn-toolbar-label-sm float-end d-none d-md-block">
-        @Strings.PerPageSelector_ItemsPerPage:
-    </div>
+}
