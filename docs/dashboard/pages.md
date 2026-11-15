@@ -186,9 +186,9 @@ A removed recurring job comes back if your app registers it again at startup.
 
 ### Policies
 
-[Schedule policies](../jobs/schedule-policies.md) as cards: the time zone, allowed days and time windows, excluded dates, date providers, the policies it requires or is blocked by, and its revision. **New policy** and **Edit** open an editor with the same fields (windows as `09:00-17:00`, dates as `2026-12-24` or `12-25` for every year). Saving sends the revision you opened: when someone else saved the policy in the meantime, the save is refused (`409`) and you reload. **Delete** works the same way. Saving reschedules the recurring jobs that use the policy.
+[Schedule policies](../jobs/schedule-policies.md) as cards: the time zone and revision, the seven days of the week (an allowed day filled, with a check), the time windows (a window that crosses midnight says so), the excluded dates (the first six, then **+N more**), the date providers, and links to the policies it requires, makes an exception for or is used by. **New policy** and **Edit** open the editor in a side sheet, with the same fields (windows as `09:00-17:00`, dates as `2026-12-24` or `12-25` for every year); a value the server refuses is shown under its field. Saving sends the revision you opened: when someone else saved the policy in the meantime, the save is refused (`409`) and the editor offers to reload the policy. **Delete** asks first and works the same way; it is disabled while another policy uses the policy, and the server refuses it while a recurring job follows it. Saving reschedules the recurring jobs that use the policy. `/policies?edit={name}` opens that policy's editor.
 
-**Preview** checks the next 20 occurrences of a CRON expression or plain-English schedule against a policy and marks each one **Allowed** or **Blocked**, with the reason. A date provider that isn't registered in the dashboard's process blocks every date of a policy that uses it, as on a server.
+**Preview** opens a side sheet that checks the next 20 occurrences of a CRON expression or plain-English schedule against a policy and marks each one **Allowed** or **Blocked**, with the reason. A date provider that isn't registered in the dashboard's process blocks every date of a policy that uses it, as on a server. `/policies?preview={name}&cron={schedule}` opens it with that schedule. A read-only dashboard shows the cards and the preview only.
 
 ### Timeline
 
@@ -269,7 +269,7 @@ These routes are meant for scripts and monitoring. They go through the dashboard
 | `/maintenance/pause`, `/maintenance/resume` | `GET` | The current drain mode status as JSON. A `POST` turns drain mode on or off, like the buttons on the Servers page. |
 | `/recurring/trigger-one/{id}`, `/recurring/pause-one/{id}`, `/recurring/resume-one/{id}` | `POST` | Trigger, pause or resume one recurring job. |
 | `/chains/retry/{stepJobId}`, `/chains/delete/{chainId}` | `POST` | Retry a settled chain from a step, or delete a running chain's unfinished steps. `204` when done; `409` with `{ "error": ... }` when another change of the same chain holds its lock; `422` with `{ "error": ... }` when refused or for invalid input. |
-| `/policies/save`, `/policies/delete/{name}/{revision}` | `POST` | Save a schedule policy from the editor's form fields, or delete it. `204` when done; `409` when the revision changed or another save or delete holds the lock; `422` with `{ "error": ... }` for a bad value, such as a number that isn't one or overflows. |
+| `/policies/save`, `/policies/delete/{name}/{revision}` | `POST` | Save a schedule policy from the editor's form fields, or delete it. `204` when done; `409` when the revision changed or another save or delete holds the lock; `422` with `{ "error": ... }` for a bad value, such as a number that isn't one or overflows. A refused save names the form field of the value in `"field"` (`name`, `timezone`, `days`, `windows`, `dates`, `providers`, `require`, `except`...); a new policy whose name is taken answers `409` with `"field": "name"`. |
 
 ## Things to know
 
