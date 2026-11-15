@@ -311,30 +311,39 @@ public class JobChainFacts
     [Fact, CleanDatabase]
     public void FanIn_OverManyParents_KeepsWhatEachFinishedAs_AtACostThatDoesNotGrowWithTheirNumber()
     {
-        const int Count = 3000;
+        const int Count = 1000;
+        const int Rounds = 3;
         SqlServerStorage storage = CreateStorage();
         BackgroundJobClient client = new(storage);
 
-        // A job that waits for all of them (a batch's continuation), once without and once with what each parent
-        // finished as kept for it (KeepsOutcomes is internal to Core, which this project only sees from outside)
+        // A job that waits for all of them (a batch's continuation), without and with what each parent finished as
+        // kept for it (KeepsOutcomes is internal to Core, which this project only sees from outside). The two take
+        // turns, so neither is measured alone on the larger tables, or while a slow machine grows the database's
+        // files: measured one after the other, the second was slower on the CI runners whichever it was.
         PropertyInfo keepsOutcomes = typeof(FanInContinuationsSupportAttribute).GetProperty("KeepsOutcomes", BindingFlags.Static | BindingFlags.NonPublic)!;
-        TimeSpan without;
-        keepsOutcomes.SetValue(null, false);
-        try
+        TimeSpan without = TimeSpan.Zero;
+        TimeSpan with = TimeSpan.Zero;
+        List<string> children = [];
+        for (int round = 0; round < Rounds; round++)
         {
-            without = FinishParents(client, Count, out _);
-        }
-        finally
-        {
-            keepsOutcomes.SetValue(null, true);
+            keepsOutcomes.SetValue(null, false);
+            try
+            {
+                without += FinishParents(client, Count, out _);
+            }
+            finally
+            {
+                keepsOutcomes.SetValue(null, true);
+            }
+
+            with += FinishParents(client, Count, out string child);
+            children.Add(child);
         }
 
-        TimeSpan with = FinishParents(client, Count, out string child);
-
-        Assert.Equal(EnqueuedState.StateName, StateName(storage, child));
+        Assert.All(children, child => Assert.Equal(EnqueuedState.StateName, StateName(storage, child)));
         Assert.True(
             with < (without * 2) + TimeSpan.FromSeconds(3),
-            $"{Count} parents: {with.TotalSeconds:0.0} s keeping what each finished as, {without.TotalSeconds:0.0} s without.");
+            $"{Rounds} x {Count} parents: {with.TotalSeconds:0.0} s keeping what each finished as, {without.TotalSeconds:0.0} s without.");
     }
 
     private static TimeSpan FinishParents(BackgroundJobClient client, int count, out string child)
