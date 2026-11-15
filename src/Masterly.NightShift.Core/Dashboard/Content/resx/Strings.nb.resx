@@ -2183,4 +2183,22 @@
   <data name="Common_EnqueueJob" xml:space="preserve">
     <value>Sett jobb {0} i kø nå</value>
   </data>
+  <data name="JobDetailsPage_OnThisPage" xml:space="preserve">
+    <value>På denne siden</value>
+  </data>
+  <data name="JobDetailsPage_Code" xml:space="preserve">
+    <value>Kode</value>
+  </data>
+  <data name="JobDetailsPage_History" xml:space="preserve">
+    <value>Historikk</value>
+  </data>
+  <data name="JobDetailsPage_Exception" xml:space="preserve">
+    <value>Unntak</value>
+  </data>
+  <data name="JobDetailsPage_StackTrace" xml:space="preserve">
+    <value>Stakksporing</value>
+  </data>
+  <data name="JobDetailsPage_StateDetails" xml:space="preserve">
+    <value>Detaljer</value>
+  </data>
 </root>

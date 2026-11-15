@@ -6418,5 +6418,59 @@ namespace Masterly.NightShift.Dashboard.Resources {
                 return ResourceManager.GetString("Common_EnqueueJob", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to On this page.
+        /// </summary>
+        public static string JobDetailsPage_OnThisPage {
+            get {
+                return ResourceManager.GetString("JobDetailsPage_OnThisPage", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Code.
+        /// </summary>
+        public static string JobDetailsPage_Code {
+            get {
+                return ResourceManager.GetString("JobDetailsPage_Code", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to History.
+        /// </summary>
+        public static string JobDetailsPage_History {
+            get {
+                return ResourceManager.GetString("JobDetailsPage_History", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Exception.
+        /// </summary>
+        public static string JobDetailsPage_Exception {
+            get {
+                return ResourceManager.GetString("JobDetailsPage_Exception", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Stack trace.
+        /// </summary>
+        public static string JobDetailsPage_StackTrace {
+            get {
+                return ResourceManager.GetString("JobDetailsPage_StackTrace", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Details.
+        /// </summary>
+        public static string JobDetailsPage_StateDetails {
+            get {
+                return ResourceManager.GetString("JobDetailsPage_StateDetails", resourceCulture);
+            }
+        }
     }
 }

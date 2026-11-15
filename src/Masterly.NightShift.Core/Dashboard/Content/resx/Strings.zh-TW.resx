@@ -2121,4 +2121,22 @@
   <data name="Common_EnqueueJob" xml:space="preserve">
     <value>立即將工作 {0} 加入佇列</value>
   </data>
+  <data name="JobDetailsPage_OnThisPage" xml:space="preserve">
+    <value>本頁內容</value>
+  </data>
+  <data name="JobDetailsPage_Code" xml:space="preserve">
+    <value>程式碼</value>
+  </data>
+  <data name="JobDetailsPage_History" xml:space="preserve">
+    <value>歷程記錄</value>
+  </data>
+  <data name="JobDetailsPage_Exception" xml:space="preserve">
+    <value>例外狀況</value>
+  </data>
+  <data name="JobDetailsPage_StackTrace" xml:space="preserve">
+    <value>堆疊追蹤</value>
+  </data>
+  <data name="JobDetailsPage_StateDetails" xml:space="preserve">
+    <value>詳細資料</value>
+  </data>
 </root>

@@ -2124,4 +2124,22 @@
   <data name="Common_EnqueueJob" xml:space="preserve">
     <value>Job {0} jetzt in die Warteschlange einfügen</value>
   </data>
+  <data name="JobDetailsPage_OnThisPage" xml:space="preserve">
+    <value>Auf dieser Seite</value>
+  </data>
+  <data name="JobDetailsPage_Code" xml:space="preserve">
+    <value>Code</value>
+  </data>
+  <data name="JobDetailsPage_History" xml:space="preserve">
+    <value>Verlauf</value>
+  </data>
+  <data name="JobDetailsPage_Exception" xml:space="preserve">
+    <value>Ausnahme</value>
+  </data>
+  <data name="JobDetailsPage_StackTrace" xml:space="preserve">
+    <value>Stacktrace</value>
+  </data>
+  <data name="JobDetailsPage_StateDetails" xml:space="preserve">
+    <value>Details</value>
+  </data>
 </root>

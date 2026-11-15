@@ -2177,4 +2177,22 @@
   <data name="Common_EnqueueJob" xml:space="preserve">
     <value>وارد صف کردن کار {0} اکنون</value>
   </data>
+  <data name="JobDetailsPage_OnThisPage" xml:space="preserve">
+    <value>در این صفحه</value>
+  </data>
+  <data name="JobDetailsPage_Code" xml:space="preserve">
+    <value>کد</value>
+  </data>
+  <data name="JobDetailsPage_History" xml:space="preserve">
+    <value>تاریخچه</value>
+  </data>
+  <data name="JobDetailsPage_Exception" xml:space="preserve">
+    <value>استثنا</value>
+  </data>
+  <data name="JobDetailsPage_StackTrace" xml:space="preserve">
+    <value>ردیابی پشته</value>
+  </data>
+  <data name="JobDetailsPage_StateDetails" xml:space="preserve">
+    <value>جزئیات</value>
+  </data>
 </root>

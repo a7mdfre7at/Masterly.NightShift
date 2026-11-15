@@ -6592,3 +6592,463 @@ tr.hf-row-focus .ns-row-actions,
         padding: var(--md-sys-spacing-3) var(--md-sys-spacing-4) var(--md-sys-spacing-4);
     }
 }
+
+/* Job page
+   ------------------------------------------------------------------
+   The header holds the job's state in a large chip, its id with a copy button, its queue and what it belongs to (a
+   recurring job, a chain, a batch, its tags); a failed job's exception comes next, then summary tiles, links to the
+   sections and the sections: diagnosis, code, console, history (a vertical stepper), parameters, lineage, notes. */
+
+.ns-job-state .ns-state-chip {
+    min-height: 32px;
+    padding: 0 var(--md-sys-spacing-3);
+    font: var(--md-sys-typescale-label-large);
+    letter-spacing: var(--md-sys-typescale-label-large-tracking);
+}
+
+.ns-job-state .ns-state-chip .bi {
+    font-size: 1rem;
+}
+
+.ns-job-id-fact {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.ns-job-id-fact .ns-copy-button {
+    width: 32px;
+    height: 32px;
+    font-size: 1rem;
+}
+
+.ns-page-facts .ns-queue-chip {
+    min-height: var(--ns-density-chip-height);
+    padding: 0 var(--md-sys-spacing-3);
+}
+
+/* A failed job's exception: the type, the message, the stack trace (collapsible) and Requeue */
+.hf-app .ns-exception-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.hf-app .ns-exception-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 4px;
+    background-color: var(--ns-state-failed);
+}
+
+.hf-app .ns-exception-card .hf-card-header h2 {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-2);
+}
+
+.hf-app .ns-exception-card .hf-card-header h2 .bi {
+    color: var(--md-sys-color-error);
+}
+
+.ns-exception-head {
+    margin: 0 0 var(--md-sys-spacing-1);
+}
+
+.hf-app .ns-exception-card .ns-exception-type,
+.hf-app .ns-renderer-error .ns-exception-type {
+    font: var(--md-sys-typescale-code-medium);
+    font-weight: 600;
+}
+
+.ns-exception-message {
+    margin: 0 0 var(--md-sys-spacing-3);
+    font: var(--md-sys-typescale-body-large);
+    color: var(--md-sys-color-on-surface);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.ns-exception-trace > summary,
+.ns-step-more > summary {
+    width: fit-content;
+    padding: var(--md-sys-spacing-1) 0;
+    font: var(--md-sys-typescale-label-large);
+    color: var(--md-sys-color-primary);
+    cursor: pointer;
+}
+
+.hf-app .ns-exception-trace .stack-trace {
+    max-height: 24rem;
+    margin: var(--md-sys-spacing-2) 0 0;
+    padding: var(--md-sys-spacing-3);
+    overflow: auto;
+    border: 0;
+    border-radius: var(--md-sys-shape-corner-small);
+    background-color: var(--ns-surface-inset);
+    font: var(--md-sys-typescale-code-small);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.hf-app .ns-alert-heading {
+    margin: 0 0 var(--md-sys-spacing-2);
+    font: var(--md-sys-typescale-title-small);
+}
+
+.hf-card-header h2 small {
+    margin-left: var(--md-sys-spacing-1);
+    font: var(--md-sys-typescale-body-small);
+}
+
+/* Links to the sections of a long page */
+.ns-jump-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--md-sys-spacing-2);
+    margin: 0 0 var(--md-sys-spacing-5);
+}
+
+.hf-app h2[id],
+.hf-app section[id] {
+    scroll-margin-top: calc(var(--ns-app-bar-height) + var(--md-sys-spacing-4));
+}
+
+/* The code: the call in JetBrains Mono, the job's commands in the card's header */
+.hf-app .ns-job-code .job-snippet-toolbar {
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--md-sys-spacing-1);
+    margin: 0;
+}
+
+.hf-app .ns-job-code .job-snippet-code {
+    min-width: 0;
+    padding: var(--md-sys-spacing-4);
+}
+
+.hf-app .ns-job-code .job-snippet-code pre {
+    margin: 0;
+    overflow: auto;
+}
+
+/* The console section: progress in the brand gradient, the console beside the checkpoints */
+.hf-app .job-live.hf-card {
+    padding: 0;
+}
+
+.hf-app .job-live .hf-card-header h2 {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-2);
+}
+
+.hf-app .ns-chip.job-live-indicator {
+    min-height: 24px;
+    margin: 0;
+    padding: 0 var(--md-sys-spacing-2);
+    border-color: transparent;
+    background-color: var(--ns-state-processing-container);
+    color: var(--ns-state-on-processing-container);
+    font: var(--md-sys-typescale-label-medium);
+    vertical-align: middle;
+}
+
+.hf-app .ns-chip.job-live-indicator .bi {
+    font-size: .5rem;
+    color: inherit;
+}
+
+.ns-live-elapsed {
+    font: var(--md-sys-typescale-body-small);
+    font-variant-numeric: tabular-nums;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ns-live-progress-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--md-sys-spacing-1) var(--md-sys-spacing-3);
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ns-live-percent {
+    margin-left: auto;
+    font: var(--md-sys-typescale-label-large);
+    font-variant-numeric: tabular-nums;
+    color: var(--md-sys-color-on-surface);
+}
+
+.ns-meter.ns-meter-lg {
+    height: 8px;
+    margin: var(--md-sys-spacing-2) 0 var(--md-sys-spacing-4);
+}
+
+.ns-meter.ns-meter-active > span {
+    background-size: 200% 100%;
+    animation: ns-list-busy 2.4s linear infinite;
+}
+
+.ns-meter.ns-meter-failed > span {
+    background-image: none;
+    background-color: var(--md-sys-color-error);
+}
+
+.ns-live-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--md-sys-spacing-4);
+}
+
+@media (min-width: 1024px) {
+    .ns-live-columns.ns-live-with-checkpoints {
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    }
+}
+
+.hf-app .ns-live-subhead {
+    margin: 0 0 var(--md-sys-spacing-2);
+    font: var(--md-sys-typescale-title-small);
+}
+
+/* The console: a grid of two columns, the times right-aligned in the first and the text in the second, so every
+   line starts at the same place and a long line wraps under its own text. White space between the lines of the
+   markup is not drawn: only a line's text keeps its spaces and line breaks. */
+.hf-app .job-console {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    column-gap: .75rem;
+    row-gap: 2px;
+    align-content: start;
+    white-space: normal;
+}
+
+.hf-app .job-console-line {
+    display: contents;
+}
+
+.hf-app .job-console-time {
+    grid-column: 1;
+    margin-right: 0;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.hf-app .job-console-text {
+    grid-column: 2;
+    min-width: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.hf-app .job-console-empty {
+    grid-column: 1 / -1;
+}
+
+/* History: a vertical stepper, newest first. Each step has a marker in its state's colour (filled for the current
+   state), its state chip, when it happened, how long after the state before it, its reason and its data. */
+.ns-history .hf-state-bar {
+    margin-bottom: var(--md-sys-spacing-5);
+}
+
+.ns-stepper {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ns-step {
+    position: relative;
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    column-gap: var(--md-sys-spacing-3);
+    padding-bottom: var(--md-sys-spacing-5);
+}
+
+.ns-step:last-child {
+    padding-bottom: 0;
+}
+
+.ns-step::before {
+    content: "";
+    position: absolute;
+    top: 34px;
+    bottom: 6px;
+    left: 13px;
+    width: 2px;
+    border-radius: 1px;
+    background-color: var(--ns-divider);
+}
+
+.ns-step:last-child::before {
+    display: none;
+}
+
+.ns-step-marker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background-color: var(--ns-state-container, var(--ns-surface-chip));
+    color: var(--ns-state-on-container, var(--md-sys-color-on-surface-variant));
+    font-size: .875rem;
+}
+
+.ns-step-current .ns-step-marker {
+    background-color: var(--ns-state-color, var(--md-sys-color-outline));
+    color: var(--ns-state-on-color, var(--md-sys-color-surface));
+    box-shadow: 0 0 0 4px var(--ns-state-container, var(--ns-surface-chip));
+}
+
+.ns-step-content {
+    min-width: 0;
+    padding-top: 2px;
+}
+
+.ns-step-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--md-sys-spacing-1) var(--md-sys-spacing-3);
+    min-height: 24px;
+}
+
+.hf-app .ns-step-title {
+    margin: 0;
+    font: inherit;
+    line-height: 1;
+}
+
+.ns-step-time {
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ns-step-exact::before {
+    content: "\00b7\00a0";
+}
+
+.ns-step-duration {
+    margin-left: auto;
+    font: var(--md-sys-typescale-label-medium);
+    font-variant-numeric: tabular-nums;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.hf-app .ns-step-reason {
+    margin: var(--md-sys-spacing-1) 0 0;
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface-variant);
+    overflow-wrap: anywhere;
+}
+
+.ns-step-data {
+    min-width: 0;
+    margin-top: var(--md-sys-spacing-2);
+    padding: var(--md-sys-spacing-3);
+    border-radius: var(--md-sys-shape-corner-small);
+    background-color: var(--ns-surface-inset);
+    overflow-wrap: anywhere;
+}
+
+.ns-step-data > :last-child {
+    margin-bottom: 0;
+}
+
+/* The data of a state, as the built-in renderers and most extensions write it: names beside their values */
+.hf-app .ns-step-data dl.hf-dl-horizontal,
+.hf-app .ns-step-data dl.dl-horizontal {
+    display: grid;
+    grid-template-columns: minmax(6rem, max-content) minmax(0, 1fr);
+    gap: var(--md-sys-spacing-1) var(--md-sys-spacing-4);
+    margin: 0;
+}
+
+.hf-app .ns-step-data dl.hf-dl-horizontal > dt,
+.hf-app .ns-step-data dl.dl-horizontal > dt {
+    float: none;
+    width: auto;
+    clear: none;
+    text-align: left;
+    white-space: normal;
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.hf-app .ns-step-data dl.hf-dl-horizontal > dd,
+.hf-app .ns-step-data dl.dl-horizontal > dd {
+    min-width: 0;
+    margin: 0;
+    word-break: normal;
+}
+
+.hf-app .ns-step-data dl.hf-dl-horizontal > dd::after,
+.hf-app .ns-step-data dl.dl-horizontal > dd::after {
+    display: none;
+}
+
+.hf-app .ns-step-data .exception-type {
+    margin: 0 0 var(--md-sys-spacing-1);
+    font: var(--md-sys-typescale-title-small);
+    overflow-wrap: anywhere;
+}
+
+.hf-app .ns-step-data .stack-trace {
+    max-height: none;
+    margin: var(--md-sys-spacing-2) 0 0;
+    padding: 0;
+    overflow: visible;
+    border: 0;
+    background: none;
+    font: var(--md-sys-typescale-code-small);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.ns-step-more > .ns-step-data {
+    margin-top: var(--md-sys-spacing-1);
+}
+
+/* Parameters: names beside their values, the values as code */
+.hf-app .ns-job-parameters .ns-kv > dt {
+    overflow-wrap: anywhere;
+}
+
+.hf-app .ns-job-parameters .ns-kv code {
+    padding: 0;
+    background: none;
+    color: var(--ns-syntax-string);
+    font: var(--md-sys-typescale-code-small);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 599.98px) {
+    .ns-step-duration {
+        margin-left: 0;
+    }
+
+    .hf-app .ns-step-data dl.hf-dl-horizontal,
+    .hf-app .ns-step-data dl.dl-horizontal {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+    }
+
+    .hf-app .ns-step-data dl.hf-dl-horizontal > dd,
+    .hf-app .ns-step-data dl.dl-horizontal > dd {
+        margin-bottom: var(--md-sys-spacing-2);
+    }
+}
+
+/* Links inside a diagnosis sentence are underlined: their colour alone doesn't set them apart */
+.hf-app .hf-diagnosis-text a {
+    text-decoration: underline;
+}

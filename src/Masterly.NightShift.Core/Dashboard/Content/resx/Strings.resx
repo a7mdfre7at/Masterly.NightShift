@@ -2246,4 +2246,22 @@
   <data name="Common_EnqueueJob" xml:space="preserve">
     <value>Enqueue job {0} now</value>
   </data>
+  <data name="JobDetailsPage_OnThisPage" xml:space="preserve">
+    <value>On this page</value>
+  </data>
+  <data name="JobDetailsPage_Code" xml:space="preserve">
+    <value>Code</value>
+  </data>
+  <data name="JobDetailsPage_History" xml:space="preserve">
+    <value>History</value>
+  </data>
+  <data name="JobDetailsPage_Exception" xml:space="preserve">
+    <value>Exception</value>
+  </data>
+  <data name="JobDetailsPage_StackTrace" xml:space="preserve">
+    <value>Stack trace</value>
+  </data>
+  <data name="JobDetailsPage_StateDetails" xml:space="preserve">
+    <value>Details</value>
+  </data>
 </root>

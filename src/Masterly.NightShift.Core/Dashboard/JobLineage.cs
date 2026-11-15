@@ -380,7 +380,7 @@ internal static class JobLineageRenderer
         }
 
         StringBuilder svg = new();
-        svg.Append(FormattableString.Invariant($"<svg class=\"hf-lineage-svg\" viewBox=\"0 0 {width} {height}\" width=\"{width}\" height=\"{height}\" role=\"img\" aria-label=\"{Encode(Strings.JobDetailsPage_Lineage)}\">"));
+        svg.Append(FormattableString.Invariant($"<svg class=\"hf-lineage-svg\" viewBox=\"0 0 {width} {height}\" width=\"{width}\" height=\"{height}\" role=\"group\" aria-label=\"{Encode(Strings.JobDetailsPage_Lineage)}\">"));
 
         foreach (JobLineageEdge edge in lineage.Edges)
         {

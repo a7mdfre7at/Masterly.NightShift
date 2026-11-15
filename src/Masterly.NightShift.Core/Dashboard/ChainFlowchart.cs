@@ -486,16 +486,19 @@ internal static class ChainFlowchartRenderer
             string css = entry.Checkpoint != null ? "job-console-checkpoint" : "job-console-" + (entry.Level?.ToString() ?? string.Empty).ToLowerInvariant();
             string source = $"{step.Info.Key} {StepName(page, step.Info)}";
 
+            // The time (the browser shows it in its own time zone) and the text: the two columns of the console's grid
             html.Append("<div class=\"job-console-line ").Append(Encode(css)).Append("\">");
-            html.Append("<span class=\"job-console-time\" data-live-time=\"").Append(entry.Timestamp.ToString(CultureInfo.InvariantCulture)).Append("\">").Append(time).Append("</span>");
-            html.Append("<a class=\"hf-chain-log-step\" href=\"").Append(Encode(page.Url.JobDetails(step.Info.JobId))).Append("\">").Append(Encode(source)).Append("</a> ");
+            html.Append("<span class=\"job-console-time\" data-live-time=\"").Append(entry.Timestamp.ToString(CultureInfo.InvariantCulture))
+                .Append("\" data-moment-local=\"").Append((entry.Timestamp / 1000.0).ToString(CultureInfo.InvariantCulture))
+                .Append("\" data-moment-local-format=\"timeWithSeconds\">").Append(time).Append("</span>");
+            html.Append("<span class=\"job-console-text\"><a class=\"hf-chain-log-step\" href=\"").Append(Encode(page.Url.JobDetails(step.Info.JobId))).Append("\">").Append(Encode(source)).Append("</a> ");
             if (entry.Checkpoint != null)
             {
                 html.Append(page.Html.Icon("flag-fill")).Append(' ');
             }
 
             html.Append(Encode(entry.Checkpoint ?? entry.Message ?? string.Empty));
-            html.Append("</div>");
+            html.Append("</span></div>");
         }
 
         return new NonEscapedString(html.ToString());

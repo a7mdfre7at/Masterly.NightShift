@@ -2146,4 +2146,22 @@ Vous devriez les remettre en file d'attente ou les supprimer manuellement, ou ap
   <data name="Common_EnqueueJob" xml:space="preserve">
     <value>Mettre la tâche {0} en file d'attente maintenant</value>
   </data>
+  <data name="JobDetailsPage_OnThisPage" xml:space="preserve">
+    <value>Sur cette page</value>
+  </data>
+  <data name="JobDetailsPage_Code" xml:space="preserve">
+    <value>Code</value>
+  </data>
+  <data name="JobDetailsPage_History" xml:space="preserve">
+    <value>Historique</value>
+  </data>
+  <data name="JobDetailsPage_Exception" xml:space="preserve">
+    <value>Exception</value>
+  </data>
+  <data name="JobDetailsPage_StackTrace" xml:space="preserve">
+    <value>Pile d'appels</value>
+  </data>
+  <data name="JobDetailsPage_StateDetails" xml:space="preserve">
+    <value>Détails</value>
+  </data>
 </root>

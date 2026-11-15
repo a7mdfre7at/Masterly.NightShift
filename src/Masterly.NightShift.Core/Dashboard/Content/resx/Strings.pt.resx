@@ -2179,4 +2179,22 @@
   <data name="Common_EnqueueJob" xml:space="preserve">
     <value>Colocar a tarefa {0} na fila agora</value>
   </data>
+  <data name="JobDetailsPage_OnThisPage" xml:space="preserve">
+    <value>Nesta página</value>
+  </data>
+  <data name="JobDetailsPage_Code" xml:space="preserve">
+    <value>Código</value>
+  </data>
+  <data name="JobDetailsPage_History" xml:space="preserve">
+    <value>Histórico</value>
+  </data>
+  <data name="JobDetailsPage_Exception" xml:space="preserve">
+    <value>Exceção</value>
+  </data>
+  <data name="JobDetailsPage_StackTrace" xml:space="preserve">
+    <value>Rastreamento de pilha</value>
+  </data>
+  <data name="JobDetailsPage_StateDetails" xml:space="preserve">
+    <value>Detalhes</value>
+  </data>
 </root>

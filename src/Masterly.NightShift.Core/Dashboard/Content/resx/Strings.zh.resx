@@ -2132,4 +2132,22 @@
   <data name="Common_EnqueueJob" xml:space="preserve">
     <value>立即将作业 {0} 加入队列</value>
   </data>
+  <data name="JobDetailsPage_OnThisPage" xml:space="preserve">
+    <value>本页内容</value>
+  </data>
+  <data name="JobDetailsPage_Code" xml:space="preserve">
+    <value>代码</value>
+  </data>
+  <data name="JobDetailsPage_History" xml:space="preserve">
+    <value>历史记录</value>
+  </data>
+  <data name="JobDetailsPage_Exception" xml:space="preserve">
+    <value>异常</value>
+  </data>
+  <data name="JobDetailsPage_StackTrace" xml:space="preserve">
+    <value>堆栈跟踪</value>
+  </data>
+  <data name="JobDetailsPage_StateDetails" xml:space="preserve">
+    <value>详细信息</value>
+  </data>
 </root>

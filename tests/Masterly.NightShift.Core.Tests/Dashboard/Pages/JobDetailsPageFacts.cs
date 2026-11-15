@@ -21,7 +21,7 @@ public class JobDetailsPageFacts
     {
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
-        Assert.Contains("<h1 class=\"hf-page-header\">" + H(Strings.Common_Job) + "</h1>", html);
+        Assert.Contains("<h1 id=\"page-title\" class=\"hf-page-header\"><span class=\"ns-page-name\">" + H(Strings.Common_Job) + "</span></h1>", html);
         Assert.Contains(H(string.Format(Strings.JobDetailsPage_JobExpired, JobId)), html);
         Assert.DoesNotContain("job-snippet", html);
         Assert.Contains("id=\"catalogRunner\"", html);
@@ -140,8 +140,8 @@ public class JobDetailsPageFacts
 
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
-        Assert.Contains("<h1 class=\"hf-page-header\">" + H(Strings.Common_Job) + "</h1>", html);
-        Assert.Contains("id=\"job-details-missing-method\"", html);
+        Assert.Contains("<span class=\"ns-overline\">" + H(Strings.Common_Job) + "</span><span class=\"ns-page-name\">" + H(Strings.Common_Job) + "</span></h1>", html);
+        Assert.Contains("<h2 id=\"job-details-missing-method\" class=\"ns-alert-heading\">", html);
         Assert.Contains("<td class=\"width-15\">Type</td>", html);
         Assert.Contains("<pre><code>Missing.Type, Missing</code></pre>", html);
         Assert.Contains("<td class=\"width-15\">Method</td>", html);
@@ -287,8 +287,8 @@ public class JobDetailsPageFacts
         Assert.Contains("data-live-url=\"/jobs/live\"", html);
         Assert.Contains("data-poll=\"true\"", html);
         Assert.Contains("data-started-at=\"" + JobHelper.ToTimestamp(_now.AddSeconds(-30)), html);
-        Assert.Contains("<span class=\"badge text-bg-info job-live-indicator\">Processing</span>", html);
-        Assert.Contains("progress-bar js-live-bar progress-bar-striped progress-bar-animated", html);
+        Assert.Contains("<span class=\"ns-chip ns-chip-status job-live-indicator\">" + DashboardMarkup.Icon("circle-fill") + " " + H(Strings.JobDetailsPage_Live) + "</span>", html);
+        Assert.Contains("<div class=\"ns-meter ns-meter-lg ns-meter-active\" role=\"progressbar\"", html);
         Assert.Contains("aria-valuenow=\"0\"", html);
         Assert.Contains("<span class=\"js-live-elapsed-label\" style=\"\">", html);
         Assert.Contains(H(Strings.JobDetailsPage_NoConsoleOutput), html);
@@ -328,30 +328,51 @@ public class JobDetailsPageFacts
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
         Assert.Contains("data-poll=\"false\"", html);
-        Assert.Contains("progress-bar js-live-bar bg-success", html);
-        Assert.Contains("aria-valuenow=\"100\"", html);
+        Assert.DoesNotContain("role=\"progressbar\"", html);
         Assert.DoesNotContain(H(Strings.JobDetailsPage_NoConsoleOutput), html);
-        Assert.Contains("<div class=\"job-console-line job-console-info\"><span class=\"job-console-time\" data-live-time=\"1000\">00:00:01</span>Starting</div>", html);
-        Assert.Contains("job-console-warning\"><span class=\"job-console-time\" data-live-time=\"5000\">00:00:05</span>Slow &lt;disk&gt;</div>", html);
-        Assert.Contains("job-console-checkpoint\"><span class=\"job-console-time\" data-live-time=\"2000\">00:00:02</span>" + DashboardMarkup.Icon("flag-fill") + " download</div>", html);
+        Assert.Contains("<div class=\"job-console-line job-console-info\"><span class=\"job-console-time\" data-live-time=\"1000\" data-moment-local=\"1\" data-moment-local-format=\"timeWithSeconds\">00:00:01</span><span class=\"job-console-text\">Starting</span></div>", html);
+        Assert.Contains("job-console-warning\"><span class=\"job-console-time\" data-live-time=\"5000\" data-moment-local=\"5\" data-moment-local-format=\"timeWithSeconds\">00:00:05</span><span class=\"job-console-text\">Slow &lt;disk&gt;</span></div>", html);
+        Assert.Contains("job-console-checkpoint\"><span class=\"job-console-time\" data-live-time=\"2000\" data-moment-local=\"2\" data-moment-local-format=\"timeWithSeconds\">00:00:02</span><span class=\"job-console-text\">" + DashboardMarkup.Icon("flag-fill") + " download</span></div>", html);
+        Assert.Contains("<div class=\"ns-live-columns ns-live-with-checkpoints\">", html);
+        Assert.Contains("<h3 class=\"ns-live-subhead\">" + H(Strings.JobDetailsPage_Checkpoints) + "</h3>", html);
         Assert.True(html.IndexOf(">Starting<", StringComparison.Ordinal) < html.IndexOf(">Slow &lt;", StringComparison.Ordinal));
-        Assert.Contains("<li><span class=\"job-checkpoint-name\">download</span><span class=\"text-muted job-checkpoint-delta\">00:00:02</span></li>", html);
+        Assert.Contains("<li><span class=\"job-checkpoint-name\">download</span><span class=\"text-muted job-checkpoint-delta\" data-moment-local=\"2\" data-moment-local-format=\"timeWithSeconds\">00:00:02</span></li>", html);
         Assert.Contains("<li><span class=\"job-checkpoint-name\">upload</span><span class=\"text-muted job-checkpoint-delta\">+" + Duration(TimeSpan.FromSeconds(5)) + "</span></li>", html);
     }
 
     [Theory]
-    [InlineData("Failed", "progress-bar js-live-bar bg-danger\"")]
-    [InlineData("Enqueued", "progress-bar js-live-bar \"")]
-    [InlineData("Awaiting", "progress-bar js-live-bar \"")]
+    [InlineData("Failed", "class=\"ns-meter ns-meter-lg ns-meter-failed\"")]
+    [InlineData("Processing", "class=\"ns-meter ns-meter-lg ns-meter-active\"")]
+    [InlineData("Succeeded", "class=\"ns-meter ns-meter-lg \"")]
+    [InlineData("Enqueued", "class=\"ns-meter ns-meter-lg \"")]
     public void Render_ColoursTheProgressBar_ByTheStateOfTheJob(string state, string expected)
+    {
+        SetupJob(Details(state));
+        _renderer.Connection.Setup(x => x.GetJobParameter(JobId, JobConsole.ProgressParameter))
+            .Returns(SerializationHelper.Serialize(new JobProgress { Percent = 30, Timestamp = 1 }, SerializationOption.Internal));
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        Assert.Contains(expected, html);
+        Assert.Contains("aria-valuenow=\"30\"", html);
+    }
+
+    [Theory]
+    [InlineData("Failed")]
+    [InlineData("Enqueued")]
+    [InlineData("Awaiting")]
+    public void Render_ShowsTheConsoleWithoutAProgressBar_WhenTheJobReportedNoProgress(string state)
     {
         SetupJob(Details(state));
         SetupConsole(new JobConsoleEntry { Timestamp = 1000, Level = JobConsoleLevel.Info, Message = "Hello" });
 
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
-        Assert.Contains(expected, html);
-        Assert.Contains("aria-valuenow=\"0\"", html);
+        Assert.Contains("id=\"jobLive\"", html);
+        Assert.Contains("<span class=\"job-console-text\">Hello</span>", html);
+        Assert.DoesNotContain("role=\"progressbar\"", html);
+        Assert.Contains("<div class=\"ns-live-columns\">", html);
+        Assert.DoesNotContain("js-live-checkpoints", html);
     }
 
     [Fact]
@@ -365,8 +386,9 @@ public class JobDetailsPageFacts
 
         Assert.Contains("id=\"jobLive\"", html);
         Assert.Contains("role=\"progressbar\" aria-label=\"" + H(Strings.ProcessingJobsPage_Table_Progress) + "\" aria-valuemin=\"0\" aria-valuemax=\"100\" aria-valuenow=\"40\">", html);
-        Assert.Contains("style=\"width: 40%; min-width: 2em;\">40%</div>", html);
-        Assert.Contains("<p class=\"text-muted js-live-progress-message\">Halfway &lt;there&gt;</p>", html);
+        Assert.Contains("<span class=\"js-live-bar\" style=\"width: 40%\"></span>", html);
+        Assert.Contains("<span class=\"ns-live-percent js-live-percent\">40%</span>", html);
+        Assert.Contains("<span class=\"js-live-progress-message\">Halfway &lt;there&gt;</span>", html);
         Assert.Contains(H(Strings.JobDetailsPage_NoConsoleOutput), html);
     }
 
@@ -390,7 +412,8 @@ public class JobDetailsPageFacts
         }
 
         Assert.Contains("aria-valuenow=\"42.5\">", html);
-        Assert.Contains("style=\"width: 42.5%; min-width: 2em;\">42,5%</div>", html);
+        Assert.Contains("<span class=\"js-live-bar\" style=\"width: 42.5%\"></span>", html);
+        Assert.Contains("<span class=\"ns-live-percent js-live-percent\">42,5%</span>", html);
     }
 
     [Fact]
@@ -492,12 +515,10 @@ public class JobDetailsPageFacts
 
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
-        Assert.Contains("<div class=\"hf-tags\" aria-label=\"" + H(Strings.JobDetailsPage_Tags) + "\">", html);
-        Assert.Contains("href=\"/batches/batch%201\">" + DashboardMarkup.Icon("grid-fill") + " " + H(Strings.JobDetailsPage_Batch) + " batch 1</a>", html);
-        Assert.Contains("href=\"/batches/batch-0\">" + DashboardMarkup.Icon("grid-fill") + " " + H(Strings.JobDetailsPage_BatchContinuation) + " batch-0</a>", html);
-        Assert.Contains(DashboardMarkup.Icon("tag-fill", "text-muted"), html);
-        Assert.Contains("<a class=\"hf-tag\" href=\"/tags/billing\">billing</a>", html);
-        Assert.Contains("<a class=\"hf-tag\" href=\"/tags/eu%20west\">eu west</a>", html);
+        Assert.Contains("<a class=\"ns-chip ns-chip-assist\" href=\"/batches/batch%201\">" + DashboardMarkup.Icon("grid-fill") + " " + H(Strings.JobDetailsPage_Batch) + " batch 1</a>", html);
+        Assert.Contains("<a class=\"ns-chip ns-chip-assist\" href=\"/batches/batch-0\">" + DashboardMarkup.Icon("grid-fill") + " " + H(Strings.JobDetailsPage_BatchContinuation) + " batch-0</a>", html);
+        Assert.Contains("<a class=\"ns-chip ns-chip-assist ns-tag-chip\" href=\"/tags/billing\" title=\"" + H(Strings.JobDetailsPage_Tags) + "\">" + DashboardMarkup.Icon("tag-fill") + " billing</a>", html);
+        Assert.Contains("<a class=\"ns-chip ns-chip-assist ns-tag-chip\" href=\"/tags/eu%20west\" title=\"" + H(Strings.JobDetailsPage_Tags) + "\">" + DashboardMarkup.Icon("tag-fill") + " eu west</a>", html);
         Assert.DoesNotContain("id=\"job-details-parameters\"", html);
     }
 
@@ -511,11 +532,11 @@ public class JobDetailsPageFacts
 
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
-        Assert.Contains("href=\"/chains/0123456789abcdef\">" + DashboardMarkup.Icon("link-45deg") + " " + H(string.Format(Strings.ChainDetailsPage_Title, "01234567")) + "</a>", html);
+        Assert.Contains("<a class=\"ns-chip ns-chip-assist\" href=\"/chains/0123456789abcdef\">" + DashboardMarkup.Icon("link-45deg") + " " + H(string.Format(Strings.ChainDetailsPage_Title, "01234567")) + "</a>", html);
     }
 
     [Fact]
-    public void Render_ShowsTheBatch_WithoutTheTagIcon_WhenTheJobHasNoTags()
+    public void Render_ShowsTheBatch_WithoutTagChips_WhenTheJobHasNoTags()
     {
         SetupJob(Details(EnqueuedState.StateName, properties: new Dictionary<string, string>
         {
@@ -524,18 +545,20 @@ public class JobDetailsPageFacts
 
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
-        Assert.Contains("hf-tag hf-tag-batch", html);
-        Assert.DoesNotContain(DashboardMarkup.Icon("tag-fill", "text-muted"), html);
+        Assert.Contains("href=\"/batches/batch-1\">" + DashboardMarkup.Icon("grid-fill"), html);
+        Assert.DoesNotContain("ns-tag-chip", html);
     }
 
     [Fact]
-    public void Render_ShowsNoTagBar_WhenTheJobHasNeitherTagsNorBatches()
+    public void Render_ShowsNoMembershipChips_WhenTheJobHasNeitherTagsNorBatches()
     {
         SetupJob(Details(EnqueuedState.StateName));
 
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
-        Assert.DoesNotContain("class=\"hf-tags\"", html);
+        Assert.DoesNotContain("ns-tag-chip", html);
+        Assert.DoesNotContain("href=\"/batches/", html);
+        Assert.DoesNotContain("href=\"/chains/", html);
     }
 
     [Fact, StaticLock]
@@ -703,7 +726,8 @@ public class JobDetailsPageFacts
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
         Assert.Contains("id=\"job-details-parameters\"", html);
-        Assert.Contains("<td class=\"width-20 word-break\">CurrentCulture</td>", html);
+        Assert.Contains("<dt>CurrentCulture</dt>", html);
+        Assert.Contains("<dd><code>&quot;en-US&quot;</code></dd>", html);
         Assert.DoesNotContain("DBG_Hidden", html);
         Assert.DoesNotContain(">" + JobConsole.ProgressParameter + "<", html);
         Assert.DoesNotContain(">" + FanInContinuationsSupportAttribute.ParameterName + "<", html);
@@ -763,30 +787,31 @@ public class JobDetailsPageFacts
         Assert.Contains("style=\"width: 33.33%\"", html);
         Assert.Contains("style=\"width: 66.67%\"", html);
         Assert.Contains("<em>Processing</em></span>", html);
-        Assert.Equal(4, CountOf(html, "<div class=\"state-card\"") + CountOf(html, "<div class=\"state-card "));
+        Assert.Equal(4, CountOf(html, "<li class=\"ns-step"));
         Assert.Contains("class=\"hf-state-seg ns-state-processing\"", html);
     }
 
     [Fact]
-    public void Render_GivesTheCurrentStateCard_ItsCssSuffixClass()
+    public void Render_GivesTheCurrentStep_ItsColourGroup()
     {
         SetupJob(Details(SucceededState.StateName));
 
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
-        Assert.Contains("<div class=\"state-card state-card-state-success ns-state-succeeded\">", html);
+        Assert.Contains("<li class=\"ns-step ns-step-current ns-state-succeeded\">", html);
+        Assert.Contains("<li class=\"ns-step\">", html);
     }
 
     [Fact]
-    public void Render_GivesTheCurrentStateCard_ANeutralLook_ForAStateWithoutASuffix()
+    public void Render_GivesTheCurrentStep_ANeutralLook_ForAStateWithoutASuffix()
     {
         SetupJob(Details("Facts.Unstyled", new Dictionary<string, string> { { "Reason", "none" } }));
 
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
-        Assert.Contains("<div class=\"state-card\">", html);
-        Assert.Contains("<h4 class=\"state-card-title\">", html);
-        Assert.Contains("<div class=\"state-card-body\">", html);
+        Assert.Contains("<li class=\"ns-step ns-step-current\">", html);
+        Assert.Contains("<h3 class=\"ns-step-title state-card-title\">", html);
+        Assert.Contains("<div class=\"ns-step-data\">", html);
         Assert.DoesNotContain("state-card-state-", html);
         Assert.DoesNotContain("border-color: inherit", html);
     }
@@ -799,6 +824,249 @@ public class JobDetailsPageFacts
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
         Assert.DoesNotContain("hf-state-bar", html);
+    }
+
+    [Fact]
+    public void Render_HasAHeader_WithTheKindTheStateTheIdTheQueueAndTheRecurringJob()
+    {
+        SetupJob(Details(ScheduledState.StateName, new Dictionary<string, string> { { "EnqueueAt", JobHelper.SerializeDateTime(_now.AddMinutes(5)) } },
+            properties: new Dictionary<string, string> { { "RecurringJobId", "\"nightly/report\"" } },
+            job: Job.FromExpression(() => SampleJobs.Work(), "critical")));
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        Assert.Contains("<header class=\"ns-page-head ns-job-head\">", html);
+        Assert.Contains("<span class=\"ns-overline\">" + H(Strings.Common_Job) + "</span><span class=\"ns-page-name\">", html);
+        Assert.Contains("<span class=\"ns-job-state\"><span class=\"ns-state-chip ns-state-scheduled\">", html);
+        Assert.Contains("<span class=\"ns-job-id-fact\"><span class=\"ns-job-id\">#1</span><button type=\"button\" class=\"ns-icon-button ns-copy-button js-copy\" data-copy=\"1\"", html);
+        Assert.Contains("<a class=\"ns-queue-chip\" href=\"/jobs/enqueued/critical\">", html);
+        Assert.Contains("<a class=\"ns-chip ns-chip-assist\" href=\"/recurring/details/nightly~2Freport\" title=\"" + H(Strings.RecurringJobDetailsPage_Kind) + "\">", html);
+    }
+
+    [Theory]
+    [InlineData("Failed", "btn-primary")]
+    [InlineData("Succeeded", "btn-primary")]
+    [InlineData("Deleted", "btn-primary")]
+    [InlineData("Scheduled", "ns-btn-tonal")]
+    [InlineData("Processing", "ns-btn-tonal")]
+    public void Render_SetsDeleteApart_AndMakesRequeueThePrimaryAction_OfAFinishedJob(string state, string requeueClass)
+    {
+        SetupJob(Details(state));
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        int actions = html.IndexOf("<div class=\"ns-page-actions\">", StringComparison.Ordinal);
+        int delete = html.IndexOf("<button class=\"btn btn-sm ns-btn-outlined-error\"\r\n                                data-ajax=\"/jobs/actions/delete/1\"", StringComparison.Ordinal);
+        int divider = html.IndexOf("<span class=\"ns-actions-divider\" aria-hidden=\"true\"></span>", StringComparison.Ordinal);
+        int requeue = html.IndexOf("<button class=\"btn btn-sm " + requeueClass + "\"\r\n                                    data-ajax=\"/jobs/actions/requeue/1\"", StringComparison.Ordinal);
+        Assert.True(actions >= 0 && actions < delete && delete < divider && divider < requeue, $"{actions} {delete} {divider} {requeue}");
+        Assert.Contains("data-confirm=\"" + H(Strings.JobDetailsPage_DeleteConfirm) + "\"", html);
+    }
+
+    [Fact]
+    public void Render_ShowsTheExceptionOfAFailedJob_RightUnderTheHeader_WithItsStackTraceAndRequeue()
+    {
+        Dictionary<string, string> data = new()
+        {
+            { "ExceptionType", "System.InvalidOperationException" },
+            { "ExceptionMessage", "The <input> is empty" },
+            { "ExceptionDetails", "System.InvalidOperationException: The input is empty\r\n   at Jobs.Run()" },
+        };
+        SetupJob(Details(FailedState.StateName, data));
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        int header = html.IndexOf("</header>", StringComparison.Ordinal);
+        int card = html.IndexOf("<section class=\"hf-card ns-exception-card\" aria-labelledby=\"job-details-exception\">", StringComparison.Ordinal);
+        int summary = html.IndexOf("<div class=\"ns-summary ns-job-summary\">", StringComparison.Ordinal);
+        Assert.True(header < card && card < summary, $"{header} {card} {summary}");
+        Assert.Contains("<h2 id=\"job-details-exception\">" + DashboardMarkup.Icon("exclamation-circle-fill") + " " + H(Strings.JobDetailsPage_Exception) + "</h2>", html);
+        Assert.Contains("<p class=\"ns-exception-head\"><code class=\"ns-exception-type\">System.InvalidOperationException</code></p>", html);
+        Assert.Contains("<p class=\"ns-exception-message\">The &lt;input&gt; is empty</p>", html);
+        Assert.Contains("<details class=\"ns-exception-trace js-exception-trace\" open>", html);
+        Assert.Contains("<summary>" + H(Strings.JobDetailsPage_StackTrace) + "</summary>", html);
+        Assert.Contains("<button class=\"btn btn-sm ns-btn-tonal\"\r\n                                    data-ajax=\"/jobs/actions/requeue/1\"", html);
+        // The history keeps the failed state's data, folded, as the card above shows it
+        Assert.Contains("<details class=\"ns-step-more\">", html);
+        Assert.Contains("<summary>" + H(Strings.JobDetailsPage_StateDetails) + "</summary>", html);
+    }
+
+    [Theory]
+    [InlineData("Succeeded")]
+    [InlineData("Processing")]
+    [InlineData("Deleted")]
+    public void Render_ShowsNoExceptionCard_ForAJobThatDidNotFail(string state)
+    {
+        SetupJob(Details(state));
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        Assert.DoesNotContain("ns-exception-card", html);
+        Assert.DoesNotContain("ns-step-more", html);
+    }
+
+    [Fact]
+    public void Render_SummarizesTheLastRun_InTiles()
+    {
+        JobDetailsDto details = Details(SucceededState.StateName, createdAt: _now.AddSeconds(-40), properties: new Dictionary<string, string> { { "RetryCount", "2" } });
+        details.History =
+        [
+            new() { StateName = SucceededState.StateName, CreatedAt = _now, Data = new Dictionary<string, string> { { "PerformanceDuration", "1500" }, { "Latency", "10" } } },
+            new() { StateName = ProcessingState.StateName, CreatedAt = _now.AddSeconds(-30), Data = ProcessingData("web-1:42") },
+            new() { StateName = EnqueuedState.StateName, CreatedAt = _now.AddSeconds(-40), Data = new Dictionary<string, string> { { "Queue", "default" } } },
+        ];
+        SetupJob(details);
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        Assert.Contains("<h2 id=\"summary-created\" class=\"ns-summary-label\">", html);
+        Assert.Contains("<h2 id=\"summary-started\" class=\"ns-summary-label\">", html);
+        Assert.Contains("<h2 id=\"summary-duration\" class=\"ns-summary-label\">" + DashboardMarkup.Icon("hourglass-split") + " " + H(Strings.SucceededJobsPage_Table_Duration) + "</h2>\r\n                        <p class=\"ns-summary-value\">" + Duration(TimeSpan.FromMilliseconds(1500)) + "</p>", html);
+        Assert.Contains("<h2 id=\"summary-retries\" class=\"ns-summary-label\">" + DashboardMarkup.Icon("arrow-repeat") + " " + H(Strings.Metrics_Retries) + "</h2>\r\n                        <p class=\"ns-summary-value\">2</p>", html);
+        Assert.Contains("<h2 id=\"summary-server\" class=\"ns-summary-label\">", html);
+        Assert.Contains("web-1:42", html);
+    }
+
+    [Fact]
+    public void Render_ShowsOnlyTheCreationTile_ForAJobThatNeverRan()
+    {
+        SetupJob(Details(EnqueuedState.StateName));
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        Assert.Contains("id=\"summary-created\"", html);
+        Assert.DoesNotContain("id=\"summary-started\"", html);
+        Assert.DoesNotContain("id=\"summary-duration\"", html);
+        Assert.DoesNotContain("id=\"summary-retries\"", html);
+        Assert.DoesNotContain("id=\"summary-server\"", html);
+    }
+
+    [Fact]
+    public void Summarize_MeasuresTheRunFromItsStart_AndARunningOneUntilNow()
+    {
+        JobDetailsDto failed = Details(FailedState.StateName, createdAt: _now.AddSeconds(-10));
+        failed.History =
+        [
+            new() { StateName = FailedState.StateName, CreatedAt = _now, Data = DefaultData(FailedState.StateName) },
+            new() { StateName = ProcessingState.StateName, CreatedAt = _now.AddSeconds(-5), Data = new Dictionary<string, string> { { "ServerName", "old-server" } } },
+        ];
+        JobDetailsDto running = Details(ProcessingState.StateName);
+
+        JobDetailsSummary failedSummary = JobDetailsPage.Summarize(failed, _now);
+        JobDetailsSummary runningSummary = JobDetailsPage.Summarize(running, _now);
+
+        Assert.Equal(TimeSpan.FromSeconds(5), failedSummary.Duration);
+        Assert.False(failedSummary.Running);
+        Assert.Equal("old-server", failedSummary.ServerId);
+        Assert.Equal(TimeSpan.FromSeconds(30), runningSummary.Duration);
+        Assert.True(runningSummary.Running);
+        Assert.Equal("srv-1", runningSummary.ServerId);
+    }
+
+    [Fact]
+    public void Render_LinksToTheSectionsShown_OnThisPage()
+    {
+        SetupJob(Details(SucceededState.StateName, properties: new Dictionary<string, string> { { "CurrentCulture", "\"en-US\"" } }));
+        SetupConsole(new JobConsoleEntry { Timestamp = 1000, Level = JobConsoleLevel.Info, Message = "Hello" });
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        Assert.Contains("<nav class=\"ns-jump-nav\" aria-label=\"" + H(Strings.JobDetailsPage_OnThisPage) + "\">", html);
+        foreach (string section in new[] { "job-details-code", "job-details-live", "job-details-history", "job-details-parameters", "job-details-notes" })
+        {
+            Assert.Contains("href=\"#" + section + "\"", html);
+            Assert.Contains("<h2 id=\"" + section + "\"", html);
+        }
+
+        Assert.DoesNotContain("href=\"#job-details-lineage\"", html);
+    }
+
+    [Fact]
+    public void Render_LeavesOutTheLinks_ToSectionsThatAreNotShown()
+    {
+        SetupJob(Details(SucceededState.StateName));
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        Assert.DoesNotContain("href=\"#job-details-live\"", html);
+        Assert.DoesNotContain("href=\"#job-details-parameters\"", html);
+        Assert.Contains("href=\"#job-details-history\"", html);
+    }
+
+    [Fact]
+    public void Render_ShowsTheHistory_AsAStepper_WithTheTimeAndTheDurationOfEachStep()
+    {
+        JobDetailsDto details = Details(SucceededState.StateName, SucceededData(), createdAt: _now.AddSeconds(-3));
+        details.History =
+        [
+            new() { StateName = SucceededState.StateName, CreatedAt = _now, Data = SucceededData(), Reason = "Done <fast>" },
+            new() { StateName = ProcessingState.StateName, CreatedAt = _now.AddSeconds(-2), Data = ProcessingData("srv-1") },
+        ];
+        SetupJob(details);
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        Assert.Contains("<ol class=\"ns-stepper\">", html);
+        Assert.Contains("<li class=\"ns-step ns-step-current ns-state-succeeded\">", html);
+        Assert.Contains("<li class=\"ns-step ns-state-processing\">", html);
+        Assert.Contains("<span class=\"ns-step-marker\" aria-hidden=\"true\">" + DashboardMarkup.Icon("check-circle-fill") + "</span>", html);
+        Assert.Contains("<span class=\"ns-step-exact\"><span data-moment-local=", html);
+        Assert.Contains("<span class=\"ns-step-duration\">" + SignedDuration(TimeSpan.FromSeconds(2)) + "</span>", html);
+        Assert.Contains("<p class=\"ns-step-reason\">Done &lt;fast&gt;</p>", html);
+        Assert.True(html.IndexOf("ns-state-succeeded\">", StringComparison.Ordinal) < html.IndexOf("<li class=\"ns-step ns-state-processing\">", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Render_UsesACustomStateRenderer_InTheHistory()
+    {
+        JobHistoryRenderer.Register("Facts.Custom", static (html, data) => new NonEscapedString("<p class=\"facts-custom\">" + html.HtmlEncode(data["Note"]) + "</p>"));
+        JobHistoryRenderer.AddStateCssSuffix("Facts.Custom", "success");
+        SetupJob(Details("Facts.Custom", new Dictionary<string, string> { { "Note", "kept <safe>" } }));
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        Assert.Contains("<div class=\"ns-step-data\"><p class=\"facts-custom\">kept &lt;safe&gt;</p></div>", html);
+        Assert.Contains("<li class=\"ns-step ns-step-current ns-state-succeeded\">", html);
+    }
+
+    [Theory]
+    [InlineData("Failed")]
+    [InlineData("Succeeded")]
+    [InlineData("Processing")]
+    [InlineData("Awaiting")]
+    [InlineData("Deleted")]
+    public void Render_KeepsTheHeadingsInOrder_AndNamesEveryHeaderCell(string state)
+    {
+        SetupJob(Details(state, properties: new Dictionary<string, string> { { "CurrentCulture", "\"en-US\"" } }));
+        SetupConsole(new JobConsoleEntry { Timestamp = 2000, Checkpoint = "download" });
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        PageStructure.AssertHeadingsInOrder(html);
+        PageStructure.AssertNoEmptyHeaderCells(html);
+        Assert.DoesNotContain("<h4", html[..html.IndexOf("id=\"job-details-history\"", StringComparison.Ordinal)]);
+    }
+
+    [Fact]
+    public void Render_KeepsTheHeadingsInOrder_ForAJobThatExpired()
+    {
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        PageStructure.AssertHeadingsInOrder(html);
+    }
+
+    [Fact]
+    public void Render_ShowsNoCommandInTheHeaderOrTheExceptionCard_WhenTheDashboardIsReadOnly()
+    {
+        _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
+        SetupJob(Details(FailedState.StateName));
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        Assert.DoesNotContain("ns-page-actions", html);
+        Assert.Contains("ns-exception-card", html);
+        Assert.DoesNotContain("ns-btn-tonal", html);
+        Assert.Contains("js-copy", html);
     }
 
     private void SetupJob(JobDetailsDto details)
@@ -892,6 +1160,13 @@ public class JobDetailsPageFacts
         JobDetailsPage page = new(JobId);
         page.Assign(new DashboardContextStub(new DashboardOptions()));
         return new HtmlHelper(page).ToHumanDuration(duration, false);
+    }
+
+    private static string SignedDuration(TimeSpan duration)
+    {
+        JobDetailsPage page = new(JobId);
+        page.Assign(new DashboardContextStub(new DashboardOptions()));
+        return new HtmlHelper(page).ToHumanDuration(duration);
     }
 
     private static int CountOf(string html, string fragment)

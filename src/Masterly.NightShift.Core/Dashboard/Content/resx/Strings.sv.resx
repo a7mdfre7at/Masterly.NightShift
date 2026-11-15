@@ -2185,4 +2185,22 @@
   <data name="Common_EnqueueJob" xml:space="preserve">
     <value>Köa upp jobb {0} nu</value>
   </data>
+  <data name="JobDetailsPage_OnThisPage" xml:space="preserve">
+    <value>På den här sidan</value>
+  </data>
+  <data name="JobDetailsPage_Code" xml:space="preserve">
+    <value>Kod</value>
+  </data>
+  <data name="JobDetailsPage_History" xml:space="preserve">
+    <value>Historik</value>
+  </data>
+  <data name="JobDetailsPage_Exception" xml:space="preserve">
+    <value>Undantag</value>
+  </data>
+  <data name="JobDetailsPage_StackTrace" xml:space="preserve">
+    <value>Stackspårning</value>
+  </data>
+  <data name="JobDetailsPage_StateDetails" xml:space="preserve">
+    <value>Detaljer</value>
+  </data>
 </root>

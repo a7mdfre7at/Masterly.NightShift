@@ -2155,4 +2155,22 @@
   <data name="Common_EnqueueJob" xml:space="preserve">
     <value>{0} işini şimdi sıraya al</value>
   </data>
+  <data name="JobDetailsPage_OnThisPage" xml:space="preserve">
+    <value>Bu sayfada</value>
+  </data>
+  <data name="JobDetailsPage_Code" xml:space="preserve">
+    <value>Kod</value>
+  </data>
+  <data name="JobDetailsPage_History" xml:space="preserve">
+    <value>Geçmiş</value>
+  </data>
+  <data name="JobDetailsPage_Exception" xml:space="preserve">
+    <value>Özel durum</value>
+  </data>
+  <data name="JobDetailsPage_StackTrace" xml:space="preserve">
+    <value>Yığın izlemesi</value>
+  </data>
+  <data name="JobDetailsPage_StateDetails" xml:space="preserve">
+    <value>Ayrıntılar</value>
+  </data>
 </root>

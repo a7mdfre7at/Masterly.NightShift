@@ -1785,7 +1785,8 @@
             var percent = job.progress ? job.progress.p : null;
 
             if (percent !== null && percent !== undefined) {
-                bar.css('width', percent + '%').text(percent + '%').closest('.progress').attr('aria-valuenow', percent);
+                bar.css('width', percent + '%').closest('[role="progressbar"]').attr('aria-valuenow', percent);
+                this._details.find('.js-live-percent').text(percent + '%');
                 this._details.find('.js-live-progress-message').text(job.progress.m || '');
             }
 
@@ -1801,16 +1802,17 @@
                 var entry = job.entries[i];
                 var time = $('<span>').addClass('job-console-time').text(NightShiftIntl.format(entry.t, 'timeWithSeconds'));
 
+                // A line is its time and its text, the two columns of the console's grid
                 if (entry.c) {
                     lines.push($('<div>').addClass('job-console-line job-console-checkpoint').append(time)
-                        .append(nightshift.icon('flag-fill')).append(document.createTextNode(' ' + entry.c)));
+                        .append($('<span>').addClass('job-console-text').append(nightshift.icon('flag-fill')).append(document.createTextNode(' ' + entry.c))));
 
                     var delta = previous !== null ? '+' + LiveJobs.formatDuration(entry.t - previous) : NightShiftIntl.format(entry.t, 'timeWithSeconds');
                     checkpoints.push($('<li>').append($('<span>').addClass('job-checkpoint-name').text(entry.c))
                         .append($('<span>').addClass('text-muted job-checkpoint-delta').text(delta)));
                     previous = entry.t;
                 } else {
-                    lines.push($('<div>').addClass('job-console-line job-console-' + (entry.l || 'info')).append(time).append(document.createTextNode(entry.m || '')));
+                    lines.push($('<div>').addClass('job-console-line job-console-' + (entry.l || 'info')).append(time).append($('<span>').addClass('job-console-text').text(entry.m || '')));
                 }
             }
 

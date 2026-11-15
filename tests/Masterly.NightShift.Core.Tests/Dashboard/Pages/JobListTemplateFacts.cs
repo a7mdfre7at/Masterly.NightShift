@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text.RegularExpressions;
 using Masterly.NightShift.Dashboard;
 using Masterly.NightShift.Dashboard.Pages;
 using Masterly.NightShift.Dashboard.Resources;
@@ -33,8 +32,8 @@ public class JobListTemplateFacts
         Assert.Contains("data-copy=\"1\"", html);
         Assert.Contains("data-job=\"1\"", html);
         Assert.Equal(list != "enqueued", html.Contains("data-list-primary=\"true\"", StringComparison.Ordinal));
-        AssertHeadingsInOrder(html);
-        AssertNoEmptyHeaderCells(html);
+        PageStructure.AssertHeadingsInOrder(html);
+        PageStructure.AssertNoEmptyHeaderCells(html);
     }
 
     [Theory]
@@ -63,7 +62,7 @@ public class JobListTemplateFacts
         Assert.Matches("<h2 class=\"ns-empty-state-title\">[^<]+</h2><a class=\"btn btn-sm ns-btn-tonal\" href=\"/", html);
         Assert.DoesNotContain("js-jobs-list", html);
         Assert.DoesNotContain("alert alert-info", html);
-        AssertHeadingsInOrder(html);
+        PageStructure.AssertHeadingsInOrder(html);
     }
 
     [Fact]
@@ -163,23 +162,6 @@ public class JobListTemplateFacts
                     .Returns(new JobList<DeletedJobDto>(new Dictionary<string, DeletedJobDto> { { "1", new DeletedJobDto { Job = job, InDeletedState = true, DeletedAt = _now } } }));
                 break;
         }
-    }
-
-    // h1 first, and no heading more than one level below the one before it
-    private static void AssertHeadingsInOrder(string html)
-    {
-        int[] levels = [.. Regex.Matches(html, "<h([1-6])[ >]").Select(static m => m.Groups[1].Value[0] - '0')];
-        Assert.NotEmpty(levels);
-        Assert.Equal(1, levels[0]);
-        for (int i = 1; i < levels.Length; i++)
-        {
-            Assert.True(levels[i] <= levels[i - 1] + 1, $"h{levels[i]} after h{levels[i - 1]}");
-        }
-    }
-
-    private static void AssertNoEmptyHeaderCells(string html)
-    {
-        Assert.DoesNotMatch("<th[^>]*>\\s*</th>", html);
     }
 
     private static Job SampleJob() => Job.FromExpression(() => JobListTemplateJobs.Work());
