@@ -61,6 +61,8 @@
     --md-sys-color-on-primary-rgb: 255, 255, 255;
     --md-sys-color-secondary-rgb: 75, 98, 105;
     --md-sys-color-error-rgb: 187, 16, 57;
+    --md-sys-color-on-error-rgb: 255, 255, 255;
+    --md-sys-color-inverse-on-surface-rgb: 237, 241, 242;
     --md-sys-color-surface-rgb: 246, 250, 251;
     --md-sys-color-surface-container-low-rgb: 240, 244, 245;
     --md-sys-color-surface-container-high-rgb: 229, 233, 233;
@@ -183,6 +185,8 @@ html[data-theme='dark'] {
     --md-sys-color-on-primary-rgb: 0, 56, 47;
     --md-sys-color-secondary-rgb: 177, 204, 196;
     --md-sys-color-error-rgb: 255, 179, 182;
+    --md-sys-color-on-error-rgb: 104, 0, 26;
+    --md-sys-color-inverse-on-surface-rgb: 34, 51, 58;
     --md-sys-color-surface-rgb: 4, 22, 28;
     --md-sys-color-surface-container-low-rgb: 12, 30, 37;
     --md-sys-color-surface-container-high-rgb: 27, 44, 52;
