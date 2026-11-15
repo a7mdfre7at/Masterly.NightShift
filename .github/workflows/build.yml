@@ -1,28 +1,29 @@
 name: Build
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ master ]
+    branches: [master]
     # The docs site has its own workflow (docs.yml); a docs-only change neither builds nor publishes packages
     paths-ignore:
       - 'docs/**'
       - 'website/**'
       - '.github/workflows/docs.yml'
   pull_request:
-    branches: [ master ]
+    branches: [master]
     paths-ignore:
       - 'docs/**'
       - 'website/**'
       - '.github/workflows/docs.yml'
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 # One Build per ref at a time. A newer push to a pull request cancels the older run. A master run that has started is
-# never cancelled, because a successful master Build is what triggers publish.yml.
+# never cancelled, because a successful master Build is what triggers publish.yml. GitHub still replaces a master run
+# that is only queued when an even newer push arrives; the newer run then builds and publishes instead.
 concurrency:
-  group: build-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -33,36 +34,59 @@ env:
 jobs:
   windows:
     name: Windows (build, test, pack)
-    runs-on: windows-2022
+    runs-on: windows-latest
     timeout-minutes: 45
     env:
       NightShift_SqlServer_ConnectionStringTemplate: Server=(localdb)\MSSQLLocalDB;Database={0};Integrated Security=True;TrustServerCertificate=True;
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout
+        uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v6
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
           dotnet-version: 8.0.x # runtime for the net8.0 test target
 
+      # The lock files pin every package, so they key the cache
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json', 'Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
       - name: Start SQL Server LocalDB
         run: sqllocaldb start MSSQLLocalDB
 
-      - name: Restore
+      - name: Restore dependencies
         run: dotnet restore Masterly.NightShift.slnx
 
       - name: Build
         run: dotnet build Masterly.NightShift.slnx -c Release --no-restore
 
+      # Coverage is collected here only, and only on net10.0: this job runs every test project, and the other runs
+      # stay as fast as they were. coverlet.collector writes a Cobertura file per project under TestResults.
       - name: Test
         run: |
           foreach ($framework in 'net8.0', 'net10.0') {
+            $coverage = if ($framework -eq 'net10.0') { @('--collect', 'XPlat Code Coverage', '--results-directory', 'TestResults') } else { @() }
             # Redis and MongoDB have no Windows service here: their tests skip, and the Linux job runs them
             foreach ($project in 'Core', 'SqlServer', 'AspNetCore', 'InMemory', 'EntityFrameworkCore', 'Redis', 'MongoDB') {
-              dotnet test "tests/Masterly.NightShift.$project.Tests" -c Release --no-build -f $framework
+              dotnet test "tests/Masterly.NightShift.$project.Tests" -c Release --no-build -f $framework @coverage
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             }
           }
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v7
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        with:
+          directory: ./TestResults
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+        continue-on-error: true
 
       - name: Pack
         run: |
@@ -72,7 +96,8 @@ jobs:
           }
           dotnet pack src/Masterly.NightShift -c Release --no-build -o artifacts
 
-      - uses: actions/upload-artifact@v7
+      - name: Upload packages
+        uses: actions/upload-artifact@v7
         with:
           name: packages
           path: artifacts/*.nupkg
@@ -85,20 +110,22 @@ jobs:
   consumer:
     name: Consumer (install the packages)
     needs: windows
-    runs-on: windows-2022
+    runs-on: windows-latest
     timeout-minutes: 25
     env:
       # MSBuild reads it as a property: the net8.0 apps keep building with -warnaserror after .NET 8 leaves support
       CheckEolTargetFramework: false
     steps:
       # The .NET 8 SDK builds the Worker8 app, the .NET 10 SDK everything else
-      - uses: actions/setup-dotnet@v6
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
             10.0.x
 
-      - uses: actions/download-artifact@v8
+      - name: Download packages
+        uses: actions/download-artifact@v8
         with:
           name: packages
           path: feed
@@ -395,7 +422,7 @@ jobs:
 
   linux:
     name: Linux (tests on ${{ matrix.framework }})
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -430,12 +457,23 @@ jobs:
       NightShift_Redis_Configuration: 127.0.0.1:6379
       NightShift_Mongo_ConnectionString: mongodb://127.0.0.1:27017/?replicaSet=rs0&directConnection=true
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout
+        uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v6
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
           dotnet-version: 8.0.x # runtime for the net8.0 test target
+
+      # The lock files pin every package, so they key the cache
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json', 'Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       # Service containers can't take a command, and MongoDB needs --replSet for transactions: a one-member replica set
       - name: Start MongoDB
@@ -452,8 +490,11 @@ jobs:
           echo "::error::MongoDB didn't become primary."
           exit 1
 
+      - name: Restore dependencies
+        run: dotnet restore Masterly.NightShift.slnx
+
       - name: Build
-        run: dotnet build Masterly.NightShift.slnx -c Release
+        run: dotnet build Masterly.NightShift.slnx -c Release --no-restore
 
       - name: Test Masterly.NightShift.Core
         run: dotnet test tests/Masterly.NightShift.Core.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
@@ -476,7 +517,8 @@ jobs:
       - name: Test Masterly.NightShift.EntityFrameworkCore
         run: dotnet test tests/Masterly.NightShift.EntityFrameworkCore.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
 
-      - uses: actions/upload-artifact@v7
+      - name: Upload test results
+        uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: test-results-linux-${{ matrix.framework }}

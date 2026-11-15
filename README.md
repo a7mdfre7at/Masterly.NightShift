@@ -16,7 +16,7 @@ Stored in the database you already run, retried when they fail, and shown live i
 [![Docs](https://img.shields.io/badge/docs-github.io-145a6b?style=flat-square)](https://a7mdfre7at.github.io/Masterly.NightShift/)
 <br/>
 [![Build](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/build.yml)
-[![CodeQL](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/codeql-analysis.yml/badge.svg?branch=master)](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/codeql-analysis.yml)
+[![CodeQL](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/codeql.yml/badge.svg?branch=master)](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/codeql.yml)
 [![Publish](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/publish.yml/badge.svg?branch=master)](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/publish.yml)
 [![Last commit](https://img.shields.io/github/last-commit/a7mdfre7at/Masterly.NightShift?style=flat-square)](https://github.com/a7mdfre7at/Masterly.NightShift/commits/master)
 

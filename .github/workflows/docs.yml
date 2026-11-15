@@ -5,7 +5,7 @@ name: Docs
 on:
   workflow_dispatch:
   push:
-    branches: [ master ]
+    branches: [master]
     paths:
       - 'docs/**'
       - 'website/**'
@@ -13,7 +13,7 @@ on:
       - 'src/Directory.Build.props'
       - '.github/workflows/docs.yml'
   pull_request:
-    branches: [ master ]
+    branches: [master]
     paths:
       - 'docs/**'
       - 'website/**'
@@ -25,25 +25,27 @@ permissions:
 
 # A newer push to a pull request cancels the older check. A master deployment that has started is never cancelled.
 concurrency:
-  group: docs-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
     name: Build site
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
       run:
         working-directory: website
 
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout
+        uses: actions/checkout@v7
         with:
           # Full history, so each page can show when it was last updated
           fetch-depth: 0
 
-      - uses: actions/setup-node@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -66,7 +68,7 @@ jobs:
     name: Deploy to GitHub Pages
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
     needs: build
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     permissions:
       pages: write
       id-token: write

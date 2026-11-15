@@ -2,36 +2,36 @@ name: CodeQL Analysis
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
   schedule:
     - cron: '0 8 1 * *'
 
-permissions:
-  contents: read
-  security-events: write
-
 jobs:
   analyze:
-    name: CodeQL Analysis
-    runs-on: ubuntu-24.04
+    name: Analyze C#
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout
+        uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: global.json
-
+      # build-mode none reads the sources without a build, so every project (the packages, the tests and the samples)
+      # is analyzed without setting up .NET
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: csharp
+          build-mode: none
           queries: security-and-quality
-
-      # The whole solution, so every package (SqlServer included), the tests and the samples are analyzed
-      - name: Build
-        run: dotnet build Masterly.NightShift.slnx -c Release
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:csharp
