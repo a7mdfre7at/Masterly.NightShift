@@ -210,6 +210,37 @@ public class LayoutPageFacts
     }
 
     [Fact]
+    public void Render_SaysWhyNoServerIsAProblem_InTheTooltipOfTheServersCount_InTheReadersLanguage()
+    {
+        CultureInfo previous = CultureInfo.CurrentUICulture;
+        string html;
+        string tooltip;
+        try
+        {
+            CultureHelper.SetCurrentUICulture("de");
+            html = _renderer.Render(new TagsPage());
+            tooltip = Strings.Metrics_NoServers_Title;
+        }
+        finally
+        {
+            CultureHelper.SetCurrentUICulture(previous);
+        }
+
+        Assert.Equal("Keine aktiven Server gefunden. Jobs werden nicht verarbeitet.", tooltip);
+        Assert.Contains($"<span data-metric=\"servers:count\" class=\"metric metric-warning highlighted\" title=\"{Encode(tooltip)}\">0</span>", html);
+    }
+
+    [Fact]
+    public void Render_GivesTheServersCount_NoTooltip_WhileServersRun()
+    {
+        _renderer.Monitoring.Setup(x => x.GetStatistics()).Returns(new StatisticsDto { Servers = 2 });
+
+        string html = _renderer.Render(new TagsPage());
+
+        Assert.Contains("<span data-metric=\"servers:count\" class=\"metric metric-default \">2</span>", html);
+    }
+
+    [Fact]
     public void Render_WhenStorageDisplayIsOn_ListsTheStorageInTheFooter()
     {
         _renderer.Storage.Setup(x => x.ToString()).Returns("Test <Storage>");

@@ -2400,4 +2400,76 @@
   <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
     <value>複製堆疊追蹤</value>
   </data>
+  <data name="Metrics_NoServers_Title" xml:space="preserve">
+    <value>找不到作用中的伺服器。工作將不會被處理。</value>
+  </data>
+  <data name="JobHistory_Latency" xml:space="preserve">
+    <value>延遲：</value>
+  </data>
+  <data name="JobHistory_Duration" xml:space="preserve">
+    <value>耗時：</value>
+  </data>
+  <data name="JobHistory_Result" xml:space="preserve">
+    <value>結果：</value>
+  </data>
+  <data name="JobHistory_Server" xml:space="preserve">
+    <value>伺服器：</value>
+  </data>
+  <data name="JobHistory_Worker" xml:space="preserve">
+    <value>工作執行緒：</value>
+  </data>
+  <data name="JobHistory_Queue" xml:space="preserve">
+    <value>佇列：</value>
+  </data>
+  <data name="JobHistory_EnqueueAt" xml:space="preserve">
+    <value>排入佇列時間：</value>
+  </data>
+  <data name="JobHistory_Parents" xml:space="preserve">
+    <value>父工作</value>
+  </data>
+  <data name="JobHistory_Parent" xml:space="preserve">
+    <value>父工作</value>
+  </data>
+  <data name="JobHistory_NextState" xml:space="preserve">
+    <value>下一個狀態</value>
+  </data>
+  <data name="JobHistory_Options" xml:space="preserve">
+    <value>選項</value>
+  </data>
+  <data name="JobHistory_NoState" xml:space="preserve">
+    <value>（無狀態）</value>
+  </data>
+  <data name="JobHistory_UnknownState" xml:space="preserve">
+    <value>（未知狀態）</value>
+  </data>
+  <data name="Common_ChangeUnderWay" xml:space="preserve">
+    <value>同一個項目的另一項變更正在進行中。請稍後再試。</value>
+  </data>
+  <data name="Common_ScheduleRequired" xml:space="preserve">
+    <value>必須提供排程。</value>
+  </data>
+  <data name="ServersPage_PurgeFailed" xml:space="preserve">
+    <value>無法清空儲存區。錯誤已記錄在伺服器的記錄檔中。</value>
+  </data>
+  <data name="RecurringJobsPage_Import_ManifestRequired" xml:space="preserve">
+    <value>必須提供資訊清單。</value>
+  </data>
+  <data name="Common_TypeNotLoadedForBatch" xml:space="preserve">
+    <value>{1} 個中有 {0} 個無法處理，因為無法在儀表板的處理序中載入其工作類型：{2}。此動作需要工作的組件。</value>
+  </data>
+  <data name="CatalogPage_Run_IdRequired" xml:space="preserve">
+    <value>必須提供目錄項目 ID 或來源工作 ID。</value>
+  </data>
+  <data name="CatalogPage_Run_CannotRunAgain" xml:space="preserve">
+    <value>無法從此儀表板再次執行工作 {0}：{1}</value>
+  </data>
+  <data name="CatalogPage_Run_MethodNotLoaded" xml:space="preserve">
+    <value>無法在此處載入其方法</value>
+  </data>
+  <data name="PoliciesPage_NotARevision" xml:space="preserve">
+    <value>「{0}」不是修訂版本。</value>
+  </data>
+  <data name="PoliciesPage_NotADay" xml:space="preserve">
+    <value>「{0}」不是星期幾。</value>
+  </data>
 </root>

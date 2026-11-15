@@ -2425,4 +2425,76 @@ Vous devriez les remettre en file d'attente ou les supprimer manuellement, ou ap
   <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
     <value>Copier la pile d'appels</value>
   </data>
+  <data name="Metrics_NoServers_Title" xml:space="preserve">
+    <value>Aucun serveur actif trouvé. Les tâches ne seront pas traitées.</value>
+  </data>
+  <data name="JobHistory_Latency" xml:space="preserve">
+    <value>Latence :</value>
+  </data>
+  <data name="JobHistory_Duration" xml:space="preserve">
+    <value>Durée :</value>
+  </data>
+  <data name="JobHistory_Result" xml:space="preserve">
+    <value>Résultat :</value>
+  </data>
+  <data name="JobHistory_Server" xml:space="preserve">
+    <value>Serveur :</value>
+  </data>
+  <data name="JobHistory_Worker" xml:space="preserve">
+    <value>Unité de travail :</value>
+  </data>
+  <data name="JobHistory_Queue" xml:space="preserve">
+    <value>File d'attente :</value>
+  </data>
+  <data name="JobHistory_EnqueueAt" xml:space="preserve">
+    <value>Mise en file d'attente :</value>
+  </data>
+  <data name="JobHistory_Parents" xml:space="preserve">
+    <value>Parents</value>
+  </data>
+  <data name="JobHistory_Parent" xml:space="preserve">
+    <value>Parent</value>
+  </data>
+  <data name="JobHistory_NextState" xml:space="preserve">
+    <value>État suivant</value>
+  </data>
+  <data name="JobHistory_Options" xml:space="preserve">
+    <value>Options</value>
+  </data>
+  <data name="JobHistory_NoState" xml:space="preserve">
+    <value>(aucun état)</value>
+  </data>
+  <data name="JobHistory_UnknownState" xml:space="preserve">
+    <value>(état inconnu)</value>
+  </data>
+  <data name="Common_ChangeUnderWay" xml:space="preserve">
+    <value>Une autre modification du même élément est en cours. Réessayez dans un instant.</value>
+  </data>
+  <data name="Common_ScheduleRequired" xml:space="preserve">
+    <value>Une planification est requise.</value>
+  </data>
+  <data name="ServersPage_PurgeFailed" xml:space="preserve">
+    <value>Le stockage n'a pas pu être vidé. L'erreur figure dans le journal du serveur.</value>
+  </data>
+  <data name="RecurringJobsPage_Import_ManifestRequired" xml:space="preserve">
+    <value>Un manifeste est requis.</value>
+  </data>
+  <data name="Common_TypeNotLoadedForBatch" xml:space="preserve">
+    <value>{0} sur {1} n'ont pas pu être traités, car leur type de tâche ne peut pas être chargé dans le processus du tableau de bord : {2}. Cette action a besoin des assemblys des tâches.</value>
+  </data>
+  <data name="CatalogPage_Run_IdRequired" xml:space="preserve">
+    <value>L'identifiant de l'entrée du catalogue ou celui de la tâche source est requis.</value>
+  </data>
+  <data name="CatalogPage_Run_CannotRunAgain" xml:space="preserve">
+    <value>La tâche {0} ne peut pas être relancée depuis ce tableau de bord : {1}</value>
+  </data>
+  <data name="CatalogPage_Run_MethodNotLoaded" xml:space="preserve">
+    <value>sa méthode ne peut pas être chargée ici</value>
+  </data>
+  <data name="PoliciesPage_NotARevision" xml:space="preserve">
+    <value>'{0}' n'est pas une révision.</value>
+  </data>
+  <data name="PoliciesPage_NotADay" xml:space="preserve">
+    <value>'{0}' n'est pas un jour de la semaine.</value>
+  </data>
 </root>

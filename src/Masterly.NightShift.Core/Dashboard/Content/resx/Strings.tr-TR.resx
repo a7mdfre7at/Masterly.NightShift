@@ -2434,4 +2434,76 @@
   <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
     <value>Yığın izini kopyala</value>
   </data>
+  <data name="Metrics_NoServers_Title" xml:space="preserve">
+    <value>Etkin sunucu bulunamadı. İşler işlenmeyecek.</value>
+  </data>
+  <data name="JobHistory_Latency" xml:space="preserve">
+    <value>Gecikme:</value>
+  </data>
+  <data name="JobHistory_Duration" xml:space="preserve">
+    <value>Süre:</value>
+  </data>
+  <data name="JobHistory_Result" xml:space="preserve">
+    <value>Sonuç:</value>
+  </data>
+  <data name="JobHistory_Server" xml:space="preserve">
+    <value>Sunucu:</value>
+  </data>
+  <data name="JobHistory_Worker" xml:space="preserve">
+    <value>Çalışan servis:</value>
+  </data>
+  <data name="JobHistory_Queue" xml:space="preserve">
+    <value>Kuyruk:</value>
+  </data>
+  <data name="JobHistory_EnqueueAt" xml:space="preserve">
+    <value>Sıraya alınma:</value>
+  </data>
+  <data name="JobHistory_Parents" xml:space="preserve">
+    <value>Üst işler</value>
+  </data>
+  <data name="JobHistory_Parent" xml:space="preserve">
+    <value>Üst iş</value>
+  </data>
+  <data name="JobHistory_NextState" xml:space="preserve">
+    <value>Sonraki durum</value>
+  </data>
+  <data name="JobHistory_Options" xml:space="preserve">
+    <value>Ayarlar</value>
+  </data>
+  <data name="JobHistory_NoState" xml:space="preserve">
+    <value>(durum yok)</value>
+  </data>
+  <data name="JobHistory_UnknownState" xml:space="preserve">
+    <value>(bilinmeyen durum)</value>
+  </data>
+  <data name="Common_ChangeUnderWay" xml:space="preserve">
+    <value>Aynı öğede başka bir değişiklik sürüyor. Birazdan tekrar deneyin.</value>
+  </data>
+  <data name="Common_ScheduleRequired" xml:space="preserve">
+    <value>Bir zamanlama gerekli.</value>
+  </data>
+  <data name="ServersPage_PurgeFailed" xml:space="preserve">
+    <value>Depolama temizlenemedi. Hata sunucunun günlüğünde.</value>
+  </data>
+  <data name="RecurringJobsPage_Import_ManifestRequired" xml:space="preserve">
+    <value>Bir bildirim dosyası gerekli.</value>
+  </data>
+  <data name="Common_TypeNotLoadedForBatch" xml:space="preserve">
+    <value>{1} işten {0} tanesi işlenemedi, çünkü iş türleri panonun işleminde yüklenemiyor: {2}. Bu eylem işlerin derlemelerine ihtiyaç duyar.</value>
+  </data>
+  <data name="CatalogPage_Run_IdRequired" xml:space="preserve">
+    <value>Katalog girdisinin kimliği veya kaynak işin kimliği gerekli.</value>
+  </data>
+  <data name="CatalogPage_Run_CannotRunAgain" xml:space="preserve">
+    <value>{0} işi bu panodan yeniden çalıştırılamaz: {1}</value>
+  </data>
+  <data name="CatalogPage_Run_MethodNotLoaded" xml:space="preserve">
+    <value>yöntemi burada yüklenemiyor</value>
+  </data>
+  <data name="PoliciesPage_NotARevision" xml:space="preserve">
+    <value>'{0}' bir revizyon değil.</value>
+  </data>
+  <data name="PoliciesPage_NotADay" xml:space="preserve">
+    <value>'{0}' haftanın bir günü değil.</value>
+  </data>
 </root>

@@ -2450,4 +2450,76 @@
   <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
     <value>Копировать трассировку стека</value>
   </data>
+  <data name="Metrics_NoServers_Title" xml:space="preserve">
+    <value>Активные серверы не найдены. Задания не будут обработаны.</value>
+  </data>
+  <data name="JobHistory_Latency" xml:space="preserve">
+    <value>Задержка:</value>
+  </data>
+  <data name="JobHistory_Duration" xml:space="preserve">
+    <value>Длительность:</value>
+  </data>
+  <data name="JobHistory_Result" xml:space="preserve">
+    <value>Результат:</value>
+  </data>
+  <data name="JobHistory_Server" xml:space="preserve">
+    <value>Сервер:</value>
+  </data>
+  <data name="JobHistory_Worker" xml:space="preserve">
+    <value>Рабочий узел:</value>
+  </data>
+  <data name="JobHistory_Queue" xml:space="preserve">
+    <value>Очередь:</value>
+  </data>
+  <data name="JobHistory_EnqueueAt" xml:space="preserve">
+    <value>Поставить в очередь:</value>
+  </data>
+  <data name="JobHistory_Parents" xml:space="preserve">
+    <value>Родители</value>
+  </data>
+  <data name="JobHistory_Parent" xml:space="preserve">
+    <value>Родитель</value>
+  </data>
+  <data name="JobHistory_NextState" xml:space="preserve">
+    <value>Следующее состояние</value>
+  </data>
+  <data name="JobHistory_Options" xml:space="preserve">
+    <value>Настройки</value>
+  </data>
+  <data name="JobHistory_NoState" xml:space="preserve">
+    <value>(нет состояния)</value>
+  </data>
+  <data name="JobHistory_UnknownState" xml:space="preserve">
+    <value>(неизвестное состояние)</value>
+  </data>
+  <data name="Common_ChangeUnderWay" xml:space="preserve">
+    <value>Этот же элемент сейчас изменяется другим запросом. Повторите попытку через мгновение.</value>
+  </data>
+  <data name="Common_ScheduleRequired" xml:space="preserve">
+    <value>Необходимо указать расписание.</value>
+  </data>
+  <data name="ServersPage_PurgeFailed" xml:space="preserve">
+    <value>Не удалось очистить хранилище. Ошибка записана в журнал сервера.</value>
+  </data>
+  <data name="RecurringJobsPage_Import_ManifestRequired" xml:space="preserve">
+    <value>Необходим манифест.</value>
+  </data>
+  <data name="Common_TypeNotLoadedForBatch" xml:space="preserve">
+    <value>Не удалось обработать {0} из {1}: их тип задания нельзя загрузить в процессе панели: {2}. Для этого действия нужны сборки заданий.</value>
+  </data>
+  <data name="CatalogPage_Run_IdRequired" xml:space="preserve">
+    <value>Требуется идентификатор записи каталога или исходного задания.</value>
+  </data>
+  <data name="CatalogPage_Run_CannotRunAgain" xml:space="preserve">
+    <value>Задание {0} нельзя запустить снова из этой панели: {1}</value>
+  </data>
+  <data name="CatalogPage_Run_MethodNotLoaded" xml:space="preserve">
+    <value>его метод нельзя загрузить здесь</value>
+  </data>
+  <data name="PoliciesPage_NotARevision" xml:space="preserve">
+    <value>'{0}' не является номером версии.</value>
+  </data>
+  <data name="PoliciesPage_NotADay" xml:space="preserve">
+    <value>'{0}' не является днём недели.</value>
+  </data>
 </root>

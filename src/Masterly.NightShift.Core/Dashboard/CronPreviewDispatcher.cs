@@ -1,3 +1,4 @@
+using Masterly.NightShift.Dashboard.Resources;
 using System.Globalization;
 
 namespace Masterly.NightShift.Dashboard;
@@ -25,7 +26,7 @@ internal sealed class CronPreviewDispatcher : IDashboardDispatcher
 
         if (string.IsNullOrWhiteSpace(text))
         {
-            return DashboardJson.WriteAsync(context, 200, new { error = "A schedule is required." });
+            return DashboardJson.WriteAsync(context, 200, new { error = Strings.Common_ScheduleRequired });
         }
 
         try

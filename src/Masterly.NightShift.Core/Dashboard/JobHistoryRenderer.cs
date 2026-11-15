@@ -317,7 +317,7 @@ public static class JobHistoryRenderer
         {
             TimeSpan latency = TimeSpan.FromMilliseconds(long.Parse(latencyString, CultureInfo.InvariantCulture));
 
-            builder.Append(FormattableString.Invariant($"<dt>Latency:</dt><dd>{html.HtmlEncode(html.ToHumanDuration(latency, false))}</dd>"));
+            builder.Append(FormattableString.Invariant($"<dt>{html.HtmlEncode(Strings.JobHistory_Latency)}</dt><dd>{html.HtmlEncode(html.ToHumanDuration(latency, false))}</dd>"));
 
             itemsAdded = true;
         }
@@ -325,7 +325,7 @@ public static class JobHistoryRenderer
         if (stateData.TryGetValue("PerformanceDuration", out string? durationString))
         {
             TimeSpan duration = TimeSpan.FromMilliseconds(long.Parse(durationString, CultureInfo.InvariantCulture));
-            builder.Append(FormattableString.Invariant($"<dt>Duration:</dt><dd>{html.HtmlEncode(html.ToHumanDuration(duration, false))}</dd>"));
+            builder.Append(FormattableString.Invariant($"<dt>{html.HtmlEncode(Strings.JobHistory_Duration)}</dt><dd>{html.HtmlEncode(html.ToHumanDuration(duration, false))}</dd>"));
 
             itemsAdded = true;
         }
@@ -334,7 +334,7 @@ public static class JobHistoryRenderer
         if (stateData.TryGetValue("Result", out string? resultString) && !string.IsNullOrWhiteSpace(resultString))
         {
             string result = stateData["Result"];
-            builder.Append(FormattableString.Invariant($"<dt>Result:</dt><dd>{html.HtmlEncode(result)}</dd>"));
+            builder.Append(FormattableString.Invariant($"<dt>{html.HtmlEncode(Strings.JobHistory_Result)}</dt><dd>{html.HtmlEncode(result)}</dd>"));
 
             itemsAdded = true;
         }
@@ -378,18 +378,18 @@ public static class JobHistoryRenderer
 
         if (serverId != null)
         {
-            builder.Append("<dt>Server:</dt>");
+            builder.Append(FormattableString.Invariant($"<dt>{helper.HtmlEncode(Strings.JobHistory_Server)}</dt>"));
             builder.Append(FormattableString.Invariant($"<dd>{helper.ServerId(serverId)}</dd>"));
         }
 
         if (stateData.TryGetValue("WorkerId", out string? workerId))
         {
-            builder.Append("<dt>Worker:</dt>");
+            builder.Append(FormattableString.Invariant($"<dt>{helper.HtmlEncode(Strings.JobHistory_Worker)}</dt>"));
             builder.Append(FormattableString.Invariant($"<dd>{helper.HtmlEncode(workerId[..8])}</dd>"));
         }
         else if (stateData.TryGetValue("WorkerNumber", out string? workerNumber))
         {
-            builder.Append("<dt>Worker:</dt>");
+            builder.Append(FormattableString.Invariant($"<dt>{helper.HtmlEncode(Strings.JobHistory_Worker)}</dt>"));
             builder.Append(FormattableString.Invariant($"<dd>#{helper.HtmlEncode(workerNumber)}</dd>"));
         }
 
@@ -413,7 +413,7 @@ public static class JobHistoryRenderer
         if (!string.IsNullOrEmpty(queue) && !EnqueuedState.DefaultQueue.Equals(queue, StringComparison.OrdinalIgnoreCase))
         {
             return new NonEscapedString(
-                $"<dl class=\"hf-dl-horizontal\"><dt>Queue:</dt><dd>{helper.QueueLabel(queue)}</dd></dl>");
+                $"<dl class=\"hf-dl-horizontal\"><dt>{helper.HtmlEncode(Strings.JobHistory_Queue)}</dt><dd>{helper.QueueLabel(queue)}</dd></dl>");
         }
 
         return null;
@@ -426,11 +426,11 @@ public static class JobHistoryRenderer
 
         StringBuilder sb = new();
         sb.Append("<dl class=\"hf-dl-horizontal\">");
-        sb.Append(FormattableString.Invariant($"<dt>Enqueue at:</dt><dd data-moment=\"{helper.HtmlEncode(JobHelper.ToTimestamp(enqueueAt).ToString(CultureInfo.InvariantCulture))}\">{helper.HtmlEncode(enqueueAt.ToString(CultureInfo.CurrentCulture))}</dd>"));
+        sb.Append(FormattableString.Invariant($"<dt>{helper.HtmlEncode(Strings.JobHistory_EnqueueAt)}</dt><dd data-moment=\"{helper.HtmlEncode(JobHelper.ToTimestamp(enqueueAt).ToString(CultureInfo.InvariantCulture))}\">{helper.HtmlEncode(enqueueAt.ToString(CultureInfo.CurrentCulture))}</dd>"));
 
         if (!string.IsNullOrWhiteSpace(queue))
         {
-            sb.Append(FormattableString.Invariant($"<dt>Queue:</dt><dd>{helper.QueueLabel(queue)}</dd>"));
+            sb.Append(FormattableString.Invariant($"<dt>{helper.HtmlEncode(Strings.JobHistory_Queue)}</dt><dd>{helper.QueueLabel(queue)}</dd>"));
         }
 
         sb.Append("</dl>");
@@ -454,16 +454,16 @@ public static class JobHistoryRenderer
                 : string.Empty;
             string mode = stateData.TryGetValue("Mode", out string? modeValue) ? modeValue : "All";
 
-            builder.Append(FormattableString.Invariant($"<dt>Parents</dt><dd>{string.Join(" ", links)}{more} <span class=\"badge text-bg-secondary\">{helper.HtmlEncode(mode)}</span></dd>"));
+            builder.Append(FormattableString.Invariant($"<dt>{helper.HtmlEncode(Strings.JobHistory_Parents)}</dt><dd>{string.Join(" ", links)}{more} <span class=\"badge text-bg-secondary\">{helper.HtmlEncode(mode)}</span></dd>"));
         }
         else if (stateData.TryGetValue("ParentId", out string? parentId))
         {
-            builder.Append(FormattableString.Invariant($"<dt>Parent</dt><dd>{helper.JobIdLink(parentId)}</dd>"));
+            builder.Append(FormattableString.Invariant($"<dt>{helper.HtmlEncode(Strings.JobHistory_Parent)}</dt><dd>{helper.JobIdLink(parentId)}</dd>"));
         }
 
         if (stateData.TryGetValue("NextState", out string? nextStateString))
         {
-            builder.Append(FormattableString.Invariant($"<dt>Next State</dt><dd>{RenderNextState(helper, nextStateString)}</dd>"));
+            builder.Append(FormattableString.Invariant($"<dt>{helper.HtmlEncode(Strings.JobHistory_NextState)}</dt><dd>{RenderNextState(helper, nextStateString)}</dd>"));
         }
 
         if (stateData.TryGetValue("Options", out string? optionsDescription))
@@ -473,7 +473,7 @@ public static class JobHistoryRenderer
                 optionsDescription = options.ToString("G");
             }
 
-            builder.Append(FormattableString.Invariant($"<dt>Options</dt><dd><code>{helper.HtmlEncode(optionsDescription)}</code></dd>"));
+            builder.Append(FormattableString.Invariant($"<dt>{helper.HtmlEncode(Strings.JobHistory_Options)}</dt><dd><code>{helper.HtmlEncode(optionsDescription)}</code></dd>"));
         }
 
         builder.Append("</dl>");
@@ -486,13 +486,13 @@ public static class JobHistoryRenderer
         try
         {
             IState? nextState = SerializationHelper.Deserialize<IState>(nextStateString, SerializationOption.TypedInternal);
-            return helper.StateLabel(nextState?.Name ?? "(no state)").ToString();
+            return helper.StateLabel(nextState?.Name ?? Strings.JobHistory_NoState).ToString();
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
             // The state's type isn't loaded here (a custom state from another application, or one that was
             // renamed): show the type name that was stored instead
-            return $"<code>{helper.HtmlEncode(GetStoredTypeName(nextStateString) ?? "(unknown state)")}</code>";
+            return $"<code>{helper.HtmlEncode(GetStoredTypeName(nextStateString) ?? Strings.JobHistory_UnknownState)}</code>";
         }
     }
 

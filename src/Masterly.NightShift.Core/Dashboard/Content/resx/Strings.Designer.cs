@@ -7255,5 +7255,221 @@ namespace Masterly.NightShift.Dashboard.Resources {
                 return ResourceManager.GetString("FailedJobsPage_Sheet_CopyStackTrace", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No active servers found. Jobs will not be processed..
+        /// </summary>
+        public static string Metrics_NoServers_Title {
+            get {
+                return ResourceManager.GetString("Metrics_NoServers_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Latency:.
+        /// </summary>
+        public static string JobHistory_Latency {
+            get {
+                return ResourceManager.GetString("JobHistory_Latency", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Duration:.
+        /// </summary>
+        public static string JobHistory_Duration {
+            get {
+                return ResourceManager.GetString("JobHistory_Duration", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Result:.
+        /// </summary>
+        public static string JobHistory_Result {
+            get {
+                return ResourceManager.GetString("JobHistory_Result", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Server:.
+        /// </summary>
+        public static string JobHistory_Server {
+            get {
+                return ResourceManager.GetString("JobHistory_Server", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Worker:.
+        /// </summary>
+        public static string JobHistory_Worker {
+            get {
+                return ResourceManager.GetString("JobHistory_Worker", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Queue:.
+        /// </summary>
+        public static string JobHistory_Queue {
+            get {
+                return ResourceManager.GetString("JobHistory_Queue", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Enqueue at:.
+        /// </summary>
+        public static string JobHistory_EnqueueAt {
+            get {
+                return ResourceManager.GetString("JobHistory_EnqueueAt", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Parents.
+        /// </summary>
+        public static string JobHistory_Parents {
+            get {
+                return ResourceManager.GetString("JobHistory_Parents", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Parent.
+        /// </summary>
+        public static string JobHistory_Parent {
+            get {
+                return ResourceManager.GetString("JobHistory_Parent", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Next State.
+        /// </summary>
+        public static string JobHistory_NextState {
+            get {
+                return ResourceManager.GetString("JobHistory_NextState", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Options.
+        /// </summary>
+        public static string JobHistory_Options {
+            get {
+                return ResourceManager.GetString("JobHistory_Options", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to (no state).
+        /// </summary>
+        public static string JobHistory_NoState {
+            get {
+                return ResourceManager.GetString("JobHistory_NoState", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to (unknown state).
+        /// </summary>
+        public static string JobHistory_UnknownState {
+            get {
+                return ResourceManager.GetString("JobHistory_UnknownState", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Another change of the same item is under way. Try again in a moment..
+        /// </summary>
+        public static string Common_ChangeUnderWay {
+            get {
+                return ResourceManager.GetString("Common_ChangeUnderWay", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to A schedule is required..
+        /// </summary>
+        public static string Common_ScheduleRequired {
+            get {
+                return ResourceManager.GetString("Common_ScheduleRequired", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The storage could not be purged. The error is in the server's log..
+        /// </summary>
+        public static string ServersPage_PurgeFailed {
+            get {
+                return ResourceManager.GetString("ServersPage_PurgeFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to A manifest is required..
+        /// </summary>
+        public static string RecurringJobsPage_Import_ManifestRequired {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Import_ManifestRequired", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} of {1} could not be handled, because their job type can't be loaded in the dashboard's process: {2}. This action needs the job assemblies..
+        /// </summary>
+        public static string Common_TypeNotLoadedForBatch {
+            get {
+                return ResourceManager.GetString("Common_TypeNotLoadedForBatch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The catalog entry id or the source job id is required..
+        /// </summary>
+        public static string CatalogPage_Run_IdRequired {
+            get {
+                return ResourceManager.GetString("CatalogPage_Run_IdRequired", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Job {0} can't be run again from this dashboard: {1}.
+        /// </summary>
+        public static string CatalogPage_Run_CannotRunAgain {
+            get {
+                return ResourceManager.GetString("CatalogPage_Run_CannotRunAgain", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to its method can't be loaded here.
+        /// </summary>
+        public static string CatalogPage_Run_MethodNotLoaded {
+            get {
+                return ResourceManager.GetString("CatalogPage_Run_MethodNotLoaded", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to '{0}' isn't a revision..
+        /// </summary>
+        public static string PoliciesPage_NotARevision {
+            get {
+                return ResourceManager.GetString("PoliciesPage_NotARevision", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to '{0}' isn't a day of the week..
+        /// </summary>
+        public static string PoliciesPage_NotADay {
+            get {
+                return ResourceManager.GetString("PoliciesPage_NotADay", resourceCulture);
+            }
+        }
     }
 }

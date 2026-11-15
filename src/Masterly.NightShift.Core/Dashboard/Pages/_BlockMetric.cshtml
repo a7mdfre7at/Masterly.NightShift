@@ -6,13 +6,15 @@
     Metric? metric = DashboardMetric.Func(this);
     string className = metric == null ? "metric-null" : metric.Style.ToClassName();
     string? highlighted = metric != null && metric.Highlighted ? "highlighted" : null;
+    // The value's own tooltip (Metric.Title), such as why no server is a problem
+    string? title = String.IsNullOrEmpty(metric?.Title) ? null : " title=\"" + Html.HtmlEncode(metric.Title) + "\"";
  }
 
 @if (!string.IsNullOrEmpty(DashboardMetric.Url))
 {
 @:<a href="@Html.HtmlEncode(DashboardMetric.Url)" class="clickable-metric">
 }
-<div class="metric @className @highlighted">
+<div class="metric @className @highlighted"@Html.Raw(title)>
     <div class="metric-body" data-metric="@DashboardMetric.Name">
         @(metric?.Value)
     </div>

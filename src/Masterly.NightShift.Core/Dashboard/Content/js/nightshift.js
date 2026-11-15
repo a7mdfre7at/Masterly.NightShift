@@ -2296,11 +2296,18 @@
                         var highlighted = metric && metric.highlighted ? "highlighted" : null;
                         var value = metric ? metric.value : null;
 
-                        $(elements[i])
+                        var container = $(elements[i])
                             .text(value)
                             .closest('.metric')
                             .removeClass()
                             .addClass(["metric", metricClass, highlighted].join(' '));
+
+                        // The value's own tooltip (Metric.Title) comes and goes with the value
+                        var title = metric && metric.title ? metric.title : '';
+                        if (title || container.is('[title], [data-bs-original-title]')) {
+                            nightshift.setTitle(container, title);
+                            if (title) nightshift.tooltips(container);
+                        }
                     }
                 }
             });

@@ -2456,4 +2456,76 @@
   <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
     <value>کپی ردیابی پشته</value>
   </data>
+  <data name="Metrics_NoServers_Title" xml:space="preserve">
+    <value>هیچ سرویس دهنده فعالی یافت نشد. کارها پردازش نخواهند شد.</value>
+  </data>
+  <data name="JobHistory_Latency" xml:space="preserve">
+    <value>تأخیر:</value>
+  </data>
+  <data name="JobHistory_Duration" xml:space="preserve">
+    <value>مدت زمان:</value>
+  </data>
+  <data name="JobHistory_Result" xml:space="preserve">
+    <value>نتیجه:</value>
+  </data>
+  <data name="JobHistory_Server" xml:space="preserve">
+    <value>سرویس دهنده:</value>
+  </data>
+  <data name="JobHistory_Worker" xml:space="preserve">
+    <value>اجرا کننده:</value>
+  </data>
+  <data name="JobHistory_Queue" xml:space="preserve">
+    <value>صف:</value>
+  </data>
+  <data name="JobHistory_EnqueueAt" xml:space="preserve">
+    <value>زمان ورود به صف:</value>
+  </data>
+  <data name="JobHistory_Parents" xml:space="preserve">
+    <value>والدها</value>
+  </data>
+  <data name="JobHistory_Parent" xml:space="preserve">
+    <value>والد</value>
+  </data>
+  <data name="JobHistory_NextState" xml:space="preserve">
+    <value>وضعیت بعدی</value>
+  </data>
+  <data name="JobHistory_Options" xml:space="preserve">
+    <value>گزینه ها</value>
+  </data>
+  <data name="JobHistory_NoState" xml:space="preserve">
+    <value>(بدون وضعیت)</value>
+  </data>
+  <data name="JobHistory_UnknownState" xml:space="preserve">
+    <value>(وضعیت ناشناخته)</value>
+  </data>
+  <data name="Common_ChangeUnderWay" xml:space="preserve">
+    <value>تغییر دیگری روی همین مورد در حال انجام است. لحظه‌ای بعد دوباره تلاش کنید.</value>
+  </data>
+  <data name="Common_ScheduleRequired" xml:space="preserve">
+    <value>زمان‌بندی لازم است.</value>
+  </data>
+  <data name="ServersPage_PurgeFailed" xml:space="preserve">
+    <value>پاک‌سازی فضای ذخیره‌سازی ممکن نشد. خطا در گزارش سرویس دهنده ثبت شده است.</value>
+  </data>
+  <data name="RecurringJobsPage_Import_ManifestRequired" xml:space="preserve">
+    <value>مانیفست لازم است.</value>
+  </data>
+  <data name="Common_TypeNotLoadedForBatch" xml:space="preserve">
+    <value>{0} از {1} انجام نشد، زیرا نوع کار آن‌ها در فرایند داشبورد بارگذاری نمی‌شود: {2}. این عمل به اسمبلی‌های کارها نیاز دارد.</value>
+  </data>
+  <data name="CatalogPage_Run_IdRequired" xml:space="preserve">
+    <value>شناسه مورد کاتالوگ یا شناسه کار مبدأ لازم است.</value>
+  </data>
+  <data name="CatalogPage_Run_CannotRunAgain" xml:space="preserve">
+    <value>کار {0} را نمی‌توان از این داشبورد دوباره اجرا کرد: {1}</value>
+  </data>
+  <data name="CatalogPage_Run_MethodNotLoaded" xml:space="preserve">
+    <value>متد آن در اینجا بارگذاری نمی‌شود</value>
+  </data>
+  <data name="PoliciesPage_NotARevision" xml:space="preserve">
+    <value>'{0}' یک نسخه نیست.</value>
+  </data>
+  <data name="PoliciesPage_NotADay" xml:space="preserve">
+    <value>'{0}' یک روز هفته نیست.</value>
+  </data>
 </root>

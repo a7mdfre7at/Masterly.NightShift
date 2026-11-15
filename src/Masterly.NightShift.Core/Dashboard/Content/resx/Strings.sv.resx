@@ -2464,4 +2464,76 @@
   <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
     <value>Kopiera stackspårningen</value>
   </data>
+  <data name="Metrics_NoServers_Title" xml:space="preserve">
+    <value>Inga aktiva servrar hittades. Jobb kommer inte att behandlas.</value>
+  </data>
+  <data name="JobHistory_Latency" xml:space="preserve">
+    <value>Fördröjning:</value>
+  </data>
+  <data name="JobHistory_Duration" xml:space="preserve">
+    <value>Tidsåtgång:</value>
+  </data>
+  <data name="JobHistory_Result" xml:space="preserve">
+    <value>Resultat:</value>
+  </data>
+  <data name="JobHistory_Server" xml:space="preserve">
+    <value>Server:</value>
+  </data>
+  <data name="JobHistory_Worker" xml:space="preserve">
+    <value>Arbetare:</value>
+  </data>
+  <data name="JobHistory_Queue" xml:space="preserve">
+    <value>Kö:</value>
+  </data>
+  <data name="JobHistory_EnqueueAt" xml:space="preserve">
+    <value>Köas:</value>
+  </data>
+  <data name="JobHistory_Parents" xml:space="preserve">
+    <value>Föräldrar</value>
+  </data>
+  <data name="JobHistory_Parent" xml:space="preserve">
+    <value>Förälder</value>
+  </data>
+  <data name="JobHistory_NextState" xml:space="preserve">
+    <value>Nästa tillstånd</value>
+  </data>
+  <data name="JobHistory_Options" xml:space="preserve">
+    <value>Inställningar</value>
+  </data>
+  <data name="JobHistory_NoState" xml:space="preserve">
+    <value>(inget tillstånd)</value>
+  </data>
+  <data name="JobHistory_UnknownState" xml:space="preserve">
+    <value>(okänt tillstånd)</value>
+  </data>
+  <data name="Common_ChangeUnderWay" xml:space="preserve">
+    <value>En annan ändring av samma objekt pågår. Försök igen om en stund.</value>
+  </data>
+  <data name="Common_ScheduleRequired" xml:space="preserve">
+    <value>Ett schema krävs.</value>
+  </data>
+  <data name="ServersPage_PurgeFailed" xml:space="preserve">
+    <value>Lagringen kunde inte tömmas. Felet finns i serverns logg.</value>
+  </data>
+  <data name="RecurringJobsPage_Import_ManifestRequired" xml:space="preserve">
+    <value>Ett manifest krävs.</value>
+  </data>
+  <data name="Common_TypeNotLoadedForBatch" xml:space="preserve">
+    <value>{0} av {1} kunde inte hanteras, eftersom deras jobbtyp inte kan läsas in i instrumentpanelens process: {2}. Den här åtgärden behöver jobbens assemblyer.</value>
+  </data>
+  <data name="CatalogPage_Run_IdRequired" xml:space="preserve">
+    <value>Id för katalogposten eller källjobbet krävs.</value>
+  </data>
+  <data name="CatalogPage_Run_CannotRunAgain" xml:space="preserve">
+    <value>Jobb {0} kan inte köras igen från den här instrumentpanelen: {1}</value>
+  </data>
+  <data name="CatalogPage_Run_MethodNotLoaded" xml:space="preserve">
+    <value>dess metod kan inte läsas in här</value>
+  </data>
+  <data name="PoliciesPage_NotARevision" xml:space="preserve">
+    <value>'{0}' är inte en revision.</value>
+  </data>
+  <data name="PoliciesPage_NotADay" xml:space="preserve">
+    <value>'{0}' är inte en veckodag.</value>
+  </data>
 </root>

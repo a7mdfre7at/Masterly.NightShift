@@ -2465,4 +2465,76 @@
   <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
     <value>Copiar o rastreamento da pilha</value>
   </data>
+  <data name="Metrics_NoServers_Title" xml:space="preserve">
+    <value>Nenhum servidor ativo encontrado. As tarefas não serão processadas.</value>
+  </data>
+  <data name="JobHistory_Latency" xml:space="preserve">
+    <value>Latência:</value>
+  </data>
+  <data name="JobHistory_Duration" xml:space="preserve">
+    <value>Duração:</value>
+  </data>
+  <data name="JobHistory_Result" xml:space="preserve">
+    <value>Resultado:</value>
+  </data>
+  <data name="JobHistory_Server" xml:space="preserve">
+    <value>Servidor:</value>
+  </data>
+  <data name="JobHistory_Worker" xml:space="preserve">
+    <value>Serviço de execução:</value>
+  </data>
+  <data name="JobHistory_Queue" xml:space="preserve">
+    <value>Fila:</value>
+  </data>
+  <data name="JobHistory_EnqueueAt" xml:space="preserve">
+    <value>Colocar na fila em:</value>
+  </data>
+  <data name="JobHistory_Parents" xml:space="preserve">
+    <value>Pais</value>
+  </data>
+  <data name="JobHistory_Parent" xml:space="preserve">
+    <value>Pai</value>
+  </data>
+  <data name="JobHistory_NextState" xml:space="preserve">
+    <value>Próximo estado</value>
+  </data>
+  <data name="JobHistory_Options" xml:space="preserve">
+    <value>Opções</value>
+  </data>
+  <data name="JobHistory_NoState" xml:space="preserve">
+    <value>(sem estado)</value>
+  </data>
+  <data name="JobHistory_UnknownState" xml:space="preserve">
+    <value>(estado desconhecido)</value>
+  </data>
+  <data name="Common_ChangeUnderWay" xml:space="preserve">
+    <value>Outra alteração do mesmo item está em andamento. Tente novamente em instantes.</value>
+  </data>
+  <data name="Common_ScheduleRequired" xml:space="preserve">
+    <value>É necessário um agendamento.</value>
+  </data>
+  <data name="ServersPage_PurgeFailed" xml:space="preserve">
+    <value>Não foi possível limpar o armazenamento. O erro está no log do servidor.</value>
+  </data>
+  <data name="RecurringJobsPage_Import_ManifestRequired" xml:space="preserve">
+    <value>É necessário um manifesto.</value>
+  </data>
+  <data name="Common_TypeNotLoadedForBatch" xml:space="preserve">
+    <value>{0} de {1} não puderam ser processadas, porque o tipo de tarefa não pode ser carregado no processo do painel: {2}. Esta ação precisa dos assemblies das tarefas.</value>
+  </data>
+  <data name="CatalogPage_Run_IdRequired" xml:space="preserve">
+    <value>É necessário o id da entrada do catálogo ou o id da tarefa de origem.</value>
+  </data>
+  <data name="CatalogPage_Run_CannotRunAgain" xml:space="preserve">
+    <value>A tarefa {0} não pode ser executada novamente a partir deste painel: {1}</value>
+  </data>
+  <data name="CatalogPage_Run_MethodNotLoaded" xml:space="preserve">
+    <value>o método não pode ser carregado aqui</value>
+  </data>
+  <data name="PoliciesPage_NotARevision" xml:space="preserve">
+    <value>'{0}' não é uma revisão.</value>
+  </data>
+  <data name="PoliciesPage_NotADay" xml:space="preserve">
+    <value>'{0}' não é um dia da semana.</value>
+  </data>
 </root>

@@ -44,7 +44,7 @@ internal static class SchedulePolicyDispatchers
 
         if (!TryParseRevision(revisionText, out long revision))
         {
-            return CommandResult.Refused(UnprocessableEntity, $"'{revisionText}' isn't a revision.");
+            return CommandResult.Refused(UnprocessableEntity, string.Format(CultureInfo.CurrentCulture, Strings.PoliciesPage_NotARevision, revisionText));
         }
 
         return context.Storage.DeleteSchedulePolicy(name, revision)
@@ -59,7 +59,7 @@ internal static class SchedulePolicyDispatchers
         long revision = 0;
         if (await GetAsync(context, "revision") is { } revisionText && !TryParseRevision(revisionText, out revision))
         {
-            return new CommandResult(UnprocessableEntity, $"'{revisionText}' isn't a revision.", detail) { Field = "revision" };
+            return new CommandResult(UnprocessableEntity, string.Format(CultureInfo.CurrentCulture, Strings.PoliciesPage_NotARevision, revisionText), detail) { Field = "revision" };
         }
 
         SchedulePolicy policy = new(name);
@@ -82,7 +82,7 @@ internal static class SchedulePolicyDispatchers
             {
                 if (!TryParseDay(day, out DayOfWeek parsedDay))
                 {
-                    return new CommandResult(UnprocessableEntity, $"'{day}' isn't a day of the week.", detail) { Field = "days" };
+                    return new CommandResult(UnprocessableEntity, string.Format(CultureInfo.CurrentCulture, Strings.PoliciesPage_NotADay, day), detail) { Field = "days" };
                 }
 
                 allowed.Add(parsedDay);

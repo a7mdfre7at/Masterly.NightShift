@@ -5,5 +5,7 @@
     Metric? metric = DashboardMetric.Func(this);
     string className = metric == null ? "metric-null" : metric.Style.ToClassName();
     string? highlighted = metric != null && metric.Highlighted ? "highlighted" : null;
+    // The value's own tooltip (Metric.Title), such as why no server is a problem
+    string? title = String.IsNullOrEmpty(metric?.Title) ? null : " title=\"" + Html.HtmlEncode(metric.Title) + "\"";
 }
-<span data-metric="@DashboardMetric.Name" class="metric @className @highlighted">@(metric?.Value)</span>
+<span data-metric="@DashboardMetric.Name" class="metric @className @highlighted"@Html.Raw(title)>@(metric?.Value)</span>

@@ -68,7 +68,7 @@ public static class DashboardMetrics
             Style = page.Statistics.Servers == 0 ? MetricStyle.Warning : MetricStyle.Default,
             Highlighted = page.Statistics.Servers == 0,
             Title = page.Statistics.Servers == 0
-                ? "No active servers found. Jobs will not be processed."
+                ? Strings.Metrics_NoServers_Title
                 : null
         });
 

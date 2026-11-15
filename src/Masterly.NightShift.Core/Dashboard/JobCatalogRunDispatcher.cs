@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Net;
+using Masterly.NightShift.Dashboard.Resources;
 
 namespace Masterly.NightShift.Dashboard;
 
@@ -38,7 +39,7 @@ internal sealed class JobCatalogRunDispatcher : IDashboardDispatcher
         if (string.IsNullOrEmpty(id) && string.IsNullOrEmpty(source))
         {
             AuditLog.Record(context, null, null, 422);
-            await DashboardJson.WriteAsync(context, 422, new { error = "The catalog entry id or the source job id is required." }).ConfigureAwait(false);
+            await DashboardJson.WriteAsync(context, 422, new { error = Strings.CatalogPage_Run_IdRequired }).ConfigureAwait(false);
             return;
         }
 
@@ -66,9 +67,9 @@ internal sealed class JobCatalogRunDispatcher : IDashboardDispatcher
             {
                 // The job exists, but its type or method isn't loaded in this process (a dashboard hosted
                 // without the job's assemblies, or code that changed since)
-                string reason = sourceData.LoadException?.InnerException?.Message ?? sourceData.LoadException?.Message ?? "its method can't be loaded here";
+                string reason = sourceData.LoadException?.InnerException?.Message ?? sourceData.LoadException?.Message ?? Strings.CatalogPage_Run_MethodNotLoaded;
                 AuditLog.Record(context, [source], null, 422);
-                await DashboardJson.WriteAsync(context, 422, new { error = $"Job {source} can't be run again from this dashboard: {reason}" }).ConfigureAwait(false);
+                await DashboardJson.WriteAsync(context, 422, new { error = string.Format(CultureInfo.CurrentCulture, Strings.CatalogPage_Run_CannotRunAgain, source, reason) }).ConfigureAwait(false);
                 return;
             }
 

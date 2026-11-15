@@ -2411,4 +2411,76 @@
   <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
     <value>复制堆栈跟踪</value>
   </data>
+  <data name="Metrics_NoServers_Title" xml:space="preserve">
+    <value>未找到活动的服务器。任务将不会被处理。</value>
+  </data>
+  <data name="JobHistory_Latency" xml:space="preserve">
+    <value>延迟：</value>
+  </data>
+  <data name="JobHistory_Duration" xml:space="preserve">
+    <value>耗时：</value>
+  </data>
+  <data name="JobHistory_Result" xml:space="preserve">
+    <value>结果：</value>
+  </data>
+  <data name="JobHistory_Server" xml:space="preserve">
+    <value>服务器：</value>
+  </data>
+  <data name="JobHistory_Worker" xml:space="preserve">
+    <value>工作线程：</value>
+  </data>
+  <data name="JobHistory_Queue" xml:space="preserve">
+    <value>队列：</value>
+  </data>
+  <data name="JobHistory_EnqueueAt" xml:space="preserve">
+    <value>入队时间：</value>
+  </data>
+  <data name="JobHistory_Parents" xml:space="preserve">
+    <value>父任务</value>
+  </data>
+  <data name="JobHistory_Parent" xml:space="preserve">
+    <value>父任务</value>
+  </data>
+  <data name="JobHistory_NextState" xml:space="preserve">
+    <value>下一状态</value>
+  </data>
+  <data name="JobHistory_Options" xml:space="preserve">
+    <value>选项</value>
+  </data>
+  <data name="JobHistory_NoState" xml:space="preserve">
+    <value>（无状态）</value>
+  </data>
+  <data name="JobHistory_UnknownState" xml:space="preserve">
+    <value>（未知状态）</value>
+  </data>
+  <data name="Common_ChangeUnderWay" xml:space="preserve">
+    <value>同一项目的另一个更改正在进行中。请稍后重试。</value>
+  </data>
+  <data name="Common_ScheduleRequired" xml:space="preserve">
+    <value>必须提供计划。</value>
+  </data>
+  <data name="ServersPage_PurgeFailed" xml:space="preserve">
+    <value>无法清空存储。错误已记录在服务器日志中。</value>
+  </data>
+  <data name="RecurringJobsPage_Import_ManifestRequired" xml:space="preserve">
+    <value>必须提供清单。</value>
+  </data>
+  <data name="Common_TypeNotLoadedForBatch" xml:space="preserve">
+    <value>{1} 个中有 {0} 个无法处理，因为无法在仪表板的进程中加载其任务类型：{2}。此操作需要任务的程序集。</value>
+  </data>
+  <data name="CatalogPage_Run_IdRequired" xml:space="preserve">
+    <value>必须提供目录项 ID 或源任务 ID。</value>
+  </data>
+  <data name="CatalogPage_Run_CannotRunAgain" xml:space="preserve">
+    <value>无法从此仪表板再次运行任务 {0}：{1}</value>
+  </data>
+  <data name="CatalogPage_Run_MethodNotLoaded" xml:space="preserve">
+    <value>无法在此处加载其方法</value>
+  </data>
+  <data name="PoliciesPage_NotARevision" xml:space="preserve">
+    <value>“{0}”不是修订号。</value>
+  </data>
+  <data name="PoliciesPage_NotADay" xml:space="preserve">
+    <value>“{0}”不是星期几。</value>
+  </data>
 </root>

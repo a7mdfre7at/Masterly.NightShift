@@ -2462,4 +2462,76 @@
   <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
     <value>Kopier stakksporingen</value>
   </data>
+  <data name="Metrics_NoServers_Title" xml:space="preserve">
+    <value>Fant ingen aktive servere. Jobber blir ikke behandlet.</value>
+  </data>
+  <data name="JobHistory_Latency" xml:space="preserve">
+    <value>Ventetid:</value>
+  </data>
+  <data name="JobHistory_Duration" xml:space="preserve">
+    <value>Varighet:</value>
+  </data>
+  <data name="JobHistory_Result" xml:space="preserve">
+    <value>Resultat:</value>
+  </data>
+  <data name="JobHistory_Server" xml:space="preserve">
+    <value>Server:</value>
+  </data>
+  <data name="JobHistory_Worker" xml:space="preserve">
+    <value>Arbeider:</value>
+  </data>
+  <data name="JobHistory_Queue" xml:space="preserve">
+    <value>Kø:</value>
+  </data>
+  <data name="JobHistory_EnqueueAt" xml:space="preserve">
+    <value>Settes i kø:</value>
+  </data>
+  <data name="JobHistory_Parents" xml:space="preserve">
+    <value>Foreldre</value>
+  </data>
+  <data name="JobHistory_Parent" xml:space="preserve">
+    <value>Forelder</value>
+  </data>
+  <data name="JobHistory_NextState" xml:space="preserve">
+    <value>Neste tilstand</value>
+  </data>
+  <data name="JobHistory_Options" xml:space="preserve">
+    <value>Alternativer</value>
+  </data>
+  <data name="JobHistory_NoState" xml:space="preserve">
+    <value>(ingen tilstand)</value>
+  </data>
+  <data name="JobHistory_UnknownState" xml:space="preserve">
+    <value>(ukjent tilstand)</value>
+  </data>
+  <data name="Common_ChangeUnderWay" xml:space="preserve">
+    <value>En annen endring av det samme elementet pågår. Prøv igjen om et øyeblikk.</value>
+  </data>
+  <data name="Common_ScheduleRequired" xml:space="preserve">
+    <value>En tidsplan er påkrevd.</value>
+  </data>
+  <data name="ServersPage_PurgeFailed" xml:space="preserve">
+    <value>Lageret kunne ikke tømmes. Feilen står i serverens logg.</value>
+  </data>
+  <data name="RecurringJobsPage_Import_ManifestRequired" xml:space="preserve">
+    <value>Et manifest er påkrevd.</value>
+  </data>
+  <data name="Common_TypeNotLoadedForBatch" xml:space="preserve">
+    <value>{0} av {1} kunne ikke behandles, fordi jobbtypen deres ikke kan lastes inn i dashbordets prosess: {2}. Denne handlingen trenger jobbenes assemblyer.</value>
+  </data>
+  <data name="CatalogPage_Run_IdRequired" xml:space="preserve">
+    <value>ID-en til katalogoppføringen eller kildejobben er påkrevd.</value>
+  </data>
+  <data name="CatalogPage_Run_CannotRunAgain" xml:space="preserve">
+    <value>Jobb {0} kan ikke kjøres på nytt fra dette dashbordet: {1}</value>
+  </data>
+  <data name="CatalogPage_Run_MethodNotLoaded" xml:space="preserve">
+    <value>metoden kan ikke lastes inn her</value>
+  </data>
+  <data name="PoliciesPage_NotARevision" xml:space="preserve">
+    <value>'{0}' er ikke en revisjon.</value>
+  </data>
+  <data name="PoliciesPage_NotADay" xml:space="preserve">
+    <value>'{0}' er ikke en ukedag.</value>
+  </data>
 </root>

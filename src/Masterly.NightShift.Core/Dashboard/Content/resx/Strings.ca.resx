@@ -2401,4 +2401,76 @@
   <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
     <value>Copia la traça de la pila</value>
   </data>
+  <data name="Metrics_NoServers_Title" xml:space="preserve">
+    <value>No s'ha trobat cap servidor actiu. Les tasques no es processaran.</value>
+  </data>
+  <data name="JobHistory_Latency" xml:space="preserve">
+    <value>Latència:</value>
+  </data>
+  <data name="JobHistory_Duration" xml:space="preserve">
+    <value>Durada:</value>
+  </data>
+  <data name="JobHistory_Result" xml:space="preserve">
+    <value>Resultat:</value>
+  </data>
+  <data name="JobHistory_Server" xml:space="preserve">
+    <value>Servidor:</value>
+  </data>
+  <data name="JobHistory_Worker" xml:space="preserve">
+    <value>Treballador:</value>
+  </data>
+  <data name="JobHistory_Queue" xml:space="preserve">
+    <value>Cua:</value>
+  </data>
+  <data name="JobHistory_EnqueueAt" xml:space="preserve">
+    <value>Es posarà a la cua:</value>
+  </data>
+  <data name="JobHistory_Parents" xml:space="preserve">
+    <value>Pares</value>
+  </data>
+  <data name="JobHistory_Parent" xml:space="preserve">
+    <value>Pare</value>
+  </data>
+  <data name="JobHistory_NextState" xml:space="preserve">
+    <value>Estat següent</value>
+  </data>
+  <data name="JobHistory_Options" xml:space="preserve">
+    <value>Opcions</value>
+  </data>
+  <data name="JobHistory_NoState" xml:space="preserve">
+    <value>(sense estat)</value>
+  </data>
+  <data name="JobHistory_UnknownState" xml:space="preserve">
+    <value>(estat desconegut)</value>
+  </data>
+  <data name="Common_ChangeUnderWay" xml:space="preserve">
+    <value>Ja hi ha un altre canvi en curs del mateix element. Torneu-ho a provar d'aquí a un moment.</value>
+  </data>
+  <data name="Common_ScheduleRequired" xml:space="preserve">
+    <value>Cal una programació.</value>
+  </data>
+  <data name="ServersPage_PurgeFailed" xml:space="preserve">
+    <value>No s'ha pogut buidar l'emmagatzematge. L'error és al registre del servidor.</value>
+  </data>
+  <data name="RecurringJobsPage_Import_ManifestRequired" xml:space="preserve">
+    <value>Cal un manifest.</value>
+  </data>
+  <data name="Common_TypeNotLoadedForBatch" xml:space="preserve">
+    <value>No s'han pogut gestionar {0} de {1}, perquè el seu tipus de tasca no es pot carregar al procés del tauler: {2}. Aquesta acció necessita els assemblatges de les tasques.</value>
+  </data>
+  <data name="CatalogPage_Run_IdRequired" xml:space="preserve">
+    <value>Cal l'identificador de l'entrada del catàleg o el de la tasca d'origen.</value>
+  </data>
+  <data name="CatalogPage_Run_CannotRunAgain" xml:space="preserve">
+    <value>La tasca {0} no es pot tornar a executar des d'aquest tauler: {1}</value>
+  </data>
+  <data name="CatalogPage_Run_MethodNotLoaded" xml:space="preserve">
+    <value>el seu mètode no es pot carregar aquí</value>
+  </data>
+  <data name="PoliciesPage_NotARevision" xml:space="preserve">
+    <value>'{0}' no és una revisió.</value>
+  </data>
+  <data name="PoliciesPage_NotADay" xml:space="preserve">
+    <value>'{0}' no és un dia de la setmana.</value>
+  </data>
 </root>

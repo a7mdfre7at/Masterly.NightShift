@@ -1,3 +1,4 @@
+using Masterly.NightShift.Dashboard.Resources;
 using System.Net;
 using Masterly.NightShift.Logging;
 
@@ -56,7 +57,7 @@ internal sealed class MaintenanceDispatcher(bool keepRecurringJobsAndServers) : 
             // The storage's message can name servers, databases or tables: it goes to the log, not to the browser
             Logger.ErrorException($"Dashboard action {context.Request.Path}: the storage could not be purged.", ex);
             AuditLog.Record(context, null, $"failed: {ex.GetType().Name}", 500);
-            return DashboardJson.WriteAsync(context, 500, new { error = "The storage could not be purged. The error is in the server's log." });
+            return DashboardJson.WriteAsync(context, 500, new { error = Strings.ServersPage_PurgeFailed });
         }
     }
 }

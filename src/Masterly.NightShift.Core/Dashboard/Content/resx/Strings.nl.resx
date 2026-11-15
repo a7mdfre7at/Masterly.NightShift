@@ -2423,4 +2423,76 @@
   <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
     <value>Stacktrace kopiëren</value>
   </data>
+  <data name="Metrics_NoServers_Title" xml:space="preserve">
+    <value>Geen actieve servers gevonden. Taken worden niet verwerkt.</value>
+  </data>
+  <data name="JobHistory_Latency" xml:space="preserve">
+    <value>Latentie:</value>
+  </data>
+  <data name="JobHistory_Duration" xml:space="preserve">
+    <value>Duur:</value>
+  </data>
+  <data name="JobHistory_Result" xml:space="preserve">
+    <value>Resultaat:</value>
+  </data>
+  <data name="JobHistory_Server" xml:space="preserve">
+    <value>Server:</value>
+  </data>
+  <data name="JobHistory_Worker" xml:space="preserve">
+    <value>Werkproces:</value>
+  </data>
+  <data name="JobHistory_Queue" xml:space="preserve">
+    <value>Wachtrij:</value>
+  </data>
+  <data name="JobHistory_EnqueueAt" xml:space="preserve">
+    <value>In wachtrij om:</value>
+  </data>
+  <data name="JobHistory_Parents" xml:space="preserve">
+    <value>Bovenliggende taken</value>
+  </data>
+  <data name="JobHistory_Parent" xml:space="preserve">
+    <value>Bovenliggende taak</value>
+  </data>
+  <data name="JobHistory_NextState" xml:space="preserve">
+    <value>Volgende status</value>
+  </data>
+  <data name="JobHistory_Options" xml:space="preserve">
+    <value>Opties</value>
+  </data>
+  <data name="JobHistory_NoState" xml:space="preserve">
+    <value>(geen status)</value>
+  </data>
+  <data name="JobHistory_UnknownState" xml:space="preserve">
+    <value>(onbekende status)</value>
+  </data>
+  <data name="Common_ChangeUnderWay" xml:space="preserve">
+    <value>Er loopt al een andere wijziging van hetzelfde item. Probeer het zo meteen opnieuw.</value>
+  </data>
+  <data name="Common_ScheduleRequired" xml:space="preserve">
+    <value>Een schema is verplicht.</value>
+  </data>
+  <data name="ServersPage_PurgeFailed" xml:space="preserve">
+    <value>De opslag kon niet worden geleegd. De fout staat in het logboek van de server.</value>
+  </data>
+  <data name="RecurringJobsPage_Import_ManifestRequired" xml:space="preserve">
+    <value>Een manifest is verplicht.</value>
+  </data>
+  <data name="Common_TypeNotLoadedForBatch" xml:space="preserve">
+    <value>{0} van {1} konden niet worden afgehandeld, omdat hun taaktype niet kan worden geladen in het proces van het dashboard: {2}. Deze actie heeft de assembly's van de taken nodig.</value>
+  </data>
+  <data name="CatalogPage_Run_IdRequired" xml:space="preserve">
+    <value>De id van het catalogusitem of van de brontaak is verplicht.</value>
+  </data>
+  <data name="CatalogPage_Run_CannotRunAgain" xml:space="preserve">
+    <value>Taak {0} kan niet opnieuw worden uitgevoerd vanuit dit dashboard: {1}</value>
+  </data>
+  <data name="CatalogPage_Run_MethodNotLoaded" xml:space="preserve">
+    <value>de methode kan hier niet worden geladen</value>
+  </data>
+  <data name="PoliciesPage_NotARevision" xml:space="preserve">
+    <value>'{0}' is geen revisie.</value>
+  </data>
+  <data name="PoliciesPage_NotADay" xml:space="preserve">
+    <value>'{0}' is geen dag van de week.</value>
+  </data>
 </root>

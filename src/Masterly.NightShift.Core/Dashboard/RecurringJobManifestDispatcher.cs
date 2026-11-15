@@ -1,3 +1,4 @@
+using Masterly.NightShift.Dashboard.Resources;
 using System.Net;
 
 namespace Masterly.NightShift.Dashboard;
@@ -54,7 +55,7 @@ internal sealed class RecurringJobManifestDispatcher(bool import) : IDashboardDi
         if (string.IsNullOrWhiteSpace(manifest))
         {
             AuditLog.Record(context, null, "no manifest", 422);
-            await DashboardJson.WriteAsync(context, 422, new { error = "A manifest is required." }).ConfigureAwait(false);
+            await DashboardJson.WriteAsync(context, 422, new { error = Strings.RecurringJobsPage_Import_ManifestRequired }).ConfigureAwait(false);
             return;
         }
 

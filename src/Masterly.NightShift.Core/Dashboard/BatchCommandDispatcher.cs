@@ -13,7 +13,9 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+using System.Globalization;
 using System.Net;
+using Masterly.NightShift.Dashboard.Resources;
 
 namespace Masterly.NightShift.Dashboard;
 
@@ -84,7 +86,7 @@ internal sealed class BatchCommandDispatcher(Action<DashboardContext, string> co
 
         await DashboardJson.WriteAsync(context, 422, new
         {
-            error = $"{failures.Count} of {jobIds.Count} could not be handled, because their job type can't be loaded in the dashboard's process: {string.Join("; ", failures)}. This action needs the job assemblies.",
+            error = string.Format(CultureInfo.CurrentCulture, Strings.Common_TypeNotLoadedForBatch, failures.Count, jobIds.Count, string.Join("; ", failures)),
         }).ConfigureAwait(false);
     }
 

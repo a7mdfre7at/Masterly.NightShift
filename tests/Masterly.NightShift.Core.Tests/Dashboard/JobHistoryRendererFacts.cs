@@ -116,6 +116,29 @@ public class JobHistoryRendererFacts
     }
 
     [Fact]
+    public void RenderHistory_NamesTheStatesData_InTheReadersLanguage()
+    {
+        CultureInfo previous = CultureInfo.CurrentUICulture;
+        string scheduled;
+        string awaiting;
+        try
+        {
+            CultureHelper.SetCurrentUICulture("de");
+            scheduled = CreateHelper().RenderHistory(ScheduledState.StateName, new Dictionary<string, string> { { "EnqueueAt", JobHelper.SerializeDateTime(new DateTime(2026, 11, 15, 9, 0, 0, DateTimeKind.Utc)) }, { "Queue", "emails" } }).ToString();
+            awaiting = CreateHelper().RenderHistory(AwaitingState.StateName, new Dictionary<string, string> { { "ParentId", "7" }, { "Options", "OnlyOnSucceededState" } }).ToString();
+        }
+        finally
+        {
+            CultureHelper.SetCurrentUICulture(previous);
+        }
+
+        Assert.Contains("<dt>Einreihen am:</dt><dd data-moment=", scheduled);
+        Assert.Contains("<dt>Warteschlange:</dt>", scheduled);
+        Assert.Contains("<dt>Elternjob</dt><dd><a href=\"/jobs/details/7\">#7</a></dd>", awaiting);
+        Assert.Contains("<dt>Optionen</dt>", awaiting);
+    }
+
+    [Fact]
     public void RenderHistory_ShowsNoQueue_ForTheDefaultQueue()
     {
         NonEscapedString? html = CreateHelper().RenderHistory(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } });

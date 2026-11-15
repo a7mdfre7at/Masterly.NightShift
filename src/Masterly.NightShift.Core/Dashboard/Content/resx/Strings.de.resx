@@ -2403,4 +2403,76 @@
   <data name="FailedJobsPage_Sheet_CopyStackTrace" xml:space="preserve">
     <value>Stacktrace kopieren</value>
   </data>
+  <data name="Metrics_NoServers_Title" xml:space="preserve">
+    <value>Keine aktiven Server gefunden. Jobs werden nicht verarbeitet.</value>
+  </data>
+  <data name="JobHistory_Latency" xml:space="preserve">
+    <value>Latenz:</value>
+  </data>
+  <data name="JobHistory_Duration" xml:space="preserve">
+    <value>Dauer:</value>
+  </data>
+  <data name="JobHistory_Result" xml:space="preserve">
+    <value>Ergebnis:</value>
+  </data>
+  <data name="JobHistory_Server" xml:space="preserve">
+    <value>Server:</value>
+  </data>
+  <data name="JobHistory_Worker" xml:space="preserve">
+    <value>Worker:</value>
+  </data>
+  <data name="JobHistory_Queue" xml:space="preserve">
+    <value>Warteschlange:</value>
+  </data>
+  <data name="JobHistory_EnqueueAt" xml:space="preserve">
+    <value>Einreihen am:</value>
+  </data>
+  <data name="JobHistory_Parents" xml:space="preserve">
+    <value>Eltern</value>
+  </data>
+  <data name="JobHistory_Parent" xml:space="preserve">
+    <value>Elternjob</value>
+  </data>
+  <data name="JobHistory_NextState" xml:space="preserve">
+    <value>Nächster Status</value>
+  </data>
+  <data name="JobHistory_Options" xml:space="preserve">
+    <value>Optionen</value>
+  </data>
+  <data name="JobHistory_NoState" xml:space="preserve">
+    <value>(kein Status)</value>
+  </data>
+  <data name="JobHistory_UnknownState" xml:space="preserve">
+    <value>(unbekannter Status)</value>
+  </data>
+  <data name="Common_ChangeUnderWay" xml:space="preserve">
+    <value>Eine andere Änderung desselben Elements ist im Gange. Versuchen Sie es gleich noch einmal.</value>
+  </data>
+  <data name="Common_ScheduleRequired" xml:space="preserve">
+    <value>Ein Zeitplan ist erforderlich.</value>
+  </data>
+  <data name="ServersPage_PurgeFailed" xml:space="preserve">
+    <value>Der Speicher konnte nicht geleert werden. Der Fehler steht im Protokoll des Servers.</value>
+  </data>
+  <data name="RecurringJobsPage_Import_ManifestRequired" xml:space="preserve">
+    <value>Ein Manifest ist erforderlich.</value>
+  </data>
+  <data name="Common_TypeNotLoadedForBatch" xml:space="preserve">
+    <value>{0} von {1} konnten nicht bearbeitet werden, weil ihr Jobtyp im Prozess des Dashboards nicht geladen werden kann: {2}. Diese Aktion braucht die Assemblys der Jobs.</value>
+  </data>
+  <data name="CatalogPage_Run_IdRequired" xml:space="preserve">
+    <value>Die ID des Katalogeintrags oder die ID des Ausgangsjobs ist erforderlich.</value>
+  </data>
+  <data name="CatalogPage_Run_CannotRunAgain" xml:space="preserve">
+    <value>Job {0} kann von diesem Dashboard aus nicht erneut ausgeführt werden: {1}</value>
+  </data>
+  <data name="CatalogPage_Run_MethodNotLoaded" xml:space="preserve">
+    <value>seine Methode kann hier nicht geladen werden</value>
+  </data>
+  <data name="PoliciesPage_NotARevision" xml:space="preserve">
+    <value>'{0}' ist keine Revision.</value>
+  </data>
+  <data name="PoliciesPage_NotADay" xml:space="preserve">
+    <value>'{0}' ist kein Wochentag.</value>
+  </data>
 </root>

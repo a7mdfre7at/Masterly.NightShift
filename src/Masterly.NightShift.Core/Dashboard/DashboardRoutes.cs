@@ -13,8 +13,10 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+using System.Globalization;
 using System.Reflection;
 using Masterly.NightShift.Dashboard.Pages;
+using Masterly.NightShift.Dashboard.Resources;
 
 namespace Masterly.NightShift.Dashboard;
 
@@ -301,7 +303,9 @@ public static class DashboardRoutes
             return CommandResult.Done();
         }));
         Routes.Add("/chains/delete/(?<Id>.+)", new JsonCommandDispatcher(static context =>
-            context.Storage.DeleteChain(RouteValues.Get(context, "Id")) >= 0 ? CommandResult.Done() : CommandResult.Refused(404, "The chain isn't recorded any more.")));
+            context.Storage.DeleteChain(RouteValues.Get(context, "Id")) >= 0
+                ? CommandResult.Done()
+                : CommandResult.Refused(404, string.Format(CultureInfo.CurrentCulture, Strings.ChainDetailsPage_NotFound, RouteValues.Get(context, "Id")))));
         Routes.AddRazorPage("/chains/(?<Id>.+)", static x => new ChainDetailsPage(x.Groups["Id"].Value));
 
         Routes.AddRazorPage("/policies", static _ => new SchedulePoliciesPage());

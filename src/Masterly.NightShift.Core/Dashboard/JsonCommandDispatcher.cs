@@ -1,3 +1,4 @@
+using Masterly.NightShift.Dashboard.Resources;
 using System.Net;
 
 namespace Masterly.NightShift.Dashboard;
@@ -42,7 +43,7 @@ internal sealed class JsonCommandDispatcher(Func<DashboardContext, Task<CommandR
         }
         catch (DistributedLockTimeoutException)
         {
-            result = CommandResult.Refused((int)HttpStatusCode.Conflict, "Another change of the same item is under way. Try again in a moment.");
+            result = CommandResult.Refused((int)HttpStatusCode.Conflict, Strings.Common_ChangeUnderWay);
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or FormatException or OverflowException or TimeZoneNotFoundException or InvalidTimeZoneException)
         {
