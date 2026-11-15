@@ -84,7 +84,7 @@ public class QueuesPageFacts
         string html = _renderer.Render(new QueuesPage());
 
         Assert.Contains("<tr class=\"hf-queue-paused\">", html);
-        Assert.Contains($"<span class=\"label label-warning text-uppercase\" title=\"SMTP &lt;down&gt;\">{Encode(Strings.QueuesPage_Paused)}</span>", html);
+        Assert.Contains($"<span class=\"badge text-bg-warning text-uppercase\" title=\"SMTP &lt;down&gt;\">{Encode(Strings.QueuesPage_Paused)}</span>", html);
         Assert.Contains("data-ajax=\"/queues/resume/emails\"", html);
         Assert.DoesNotContain("/queues/pause/emails", html);
     }
@@ -113,7 +113,7 @@ public class QueuesPageFacts
 
         string html = _renderer.Render(new QueuesPage());
 
-        Assert.Contains($"<span class=\"label label-danger text-uppercase\" title=\"{Encode(Strings.QueuesPage_Stalled_Tooltip)}\">{Encode(Strings.QueuesPage_Stalled)}</span>", html);
+        Assert.Contains($"<span class=\"badge text-bg-danger text-uppercase\" title=\"{Encode(Strings.QueuesPage_Stalled_Tooltip)}\">{Encode(Strings.QueuesPage_Stalled)}</span>", html);
         Assert.Contains("<span class=\"text-muted\">&infin;</span>", html);
         Assert.Contains($"<em class=\"text-muted\" title=\"{Encode(Strings.QueuesPage_Insights_Hint)}\">&ndash;</em>", html);
     }
@@ -142,11 +142,11 @@ public class QueuesPageFacts
 
         string html = _renderer.Render(new QueuesPage());
 
-        Assert.Contains("table table-condensed table-inner", html);
+        Assert.Contains("table table-sm table-inner", html);
         Assert.Contains("<a href=\"/jobs/details/1\">#1</a>", html);
         Assert.Contains("QueuesPageJobs.Work", html);
         Assert.Contains("<span data-moment=", html);
-        Assert.Contains($"<span title=\"{Encode(Strings.Common_JobStateChanged_Text)}\" class=\"glyphicon glyphicon-question-sign\"></span>", html);
+        Assert.Contains(DashboardMarkup.TitledIcon("question-circle-fill", Encode(Strings.Common_JobStateChanged_Text)), html);
         Assert.Contains($"<td colspan=\"3\"><em>{Encode(Strings.Common_JobExpired)}</em></td>", html);
         Assert.Contains("<tr class=\"obsolete-data\">", html);
     }

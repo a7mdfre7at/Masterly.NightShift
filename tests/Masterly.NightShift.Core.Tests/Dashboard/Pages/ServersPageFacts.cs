@@ -35,10 +35,11 @@ public class ServersPageFacts
 
         string html = _renderer.Render(new ServersPage());
 
-        Assert.Contains("glyphicon-ok text-success\" title=\"" + H(Strings.ServersPage_Active) + "\"", html);
+        Assert.Contains(DashboardMarkup.TitledIcon("check-lg", H(Strings.ServersPage_Active), "text-success"), html);
         // Past ServerPossiblyAbortedThreshold (one minute) is possibly aborted, as on the job pages; it took twice that
-        Assert.DoesNotContain("glyphicon margin-right-14p", html);
-        Assert.Equal(2, (html.Length - html.Replace("glyphicon-alert text-danger", string.Empty).Length) / "glyphicon-alert text-danger".Length);
+        Assert.DoesNotContain("bi margin-right-14p", html);
+        string possiblyAborted = DashboardMarkup.TitledIcon("exclamation-triangle-fill", H(Strings.ServersPage_Possibly_Aborted), "text-danger");
+        Assert.Equal(2, (html.Length - html.Replace(possiblyAborted, string.Empty).Length) / possiblyAborted.Length);
         Assert.Contains(H(Strings.ServersPage_Note_Title), html);
         Assert.Contains("/jobs/processing", html);
         Assert.Contains("fresh-server", html);
@@ -53,7 +54,7 @@ public class ServersPageFacts
         string html = _renderer.Render(new ServersPage());
 
         Assert.DoesNotContain(H(Strings.ServersPage_Note_Title), html);
-        Assert.DoesNotContain("glyphicon-alert text-danger", html);
+        Assert.DoesNotContain("hf-icon text-danger", html);
     }
 
     [Fact]
@@ -234,7 +235,7 @@ public class ServersPageFacts
         {
             string html = _renderer.Render(new ServersPage());
 
-            Assert.Contains("label-info\">" + H(Strings.ServersPage_KeepAlive_Pending), html);
+            Assert.Contains("text-bg-info\">" + H(Strings.ServersPage_KeepAlive_Pending), html);
             Assert.DoesNotContain(H(Strings.ServersPage_KeepAlive_NotConfigured), html);
         }
     }
@@ -247,7 +248,7 @@ public class ServersPageFacts
 
         string html = _renderer.Render(new ServersPage());
 
-        Assert.Contains("label-success\">" + H(Strings.ServersPage_KeepAlive_Ok), html);
+        Assert.Contains("text-bg-success\">" + H(Strings.ServersPage_KeepAlive_Ok), html);
         Assert.Contains("<code>http://keep.alive/ok</code>", html);
     }
 
@@ -259,7 +260,7 @@ public class ServersPageFacts
 
         string html = _renderer.Render(new ServersPage());
 
-        Assert.Contains("label-danger\" title=\"no route to host\">" + H(Strings.ServersPage_KeepAlive_Failed), html);
+        Assert.Contains("text-bg-danger\" title=\"no route to host\">" + H(Strings.ServersPage_KeepAlive_Failed), html);
         Assert.Contains("&middot; no route to host", html);
     }
 

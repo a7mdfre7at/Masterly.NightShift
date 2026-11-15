@@ -21,7 +21,7 @@ public class JobDetailsPageFacts
     {
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
-        Assert.Contains("<h1 class=\"page-header\">" + H(Strings.Common_Job) + "</h1>", html);
+        Assert.Contains("<h1 class=\"hf-page-header\">" + H(Strings.Common_Job) + "</h1>", html);
         Assert.Contains(H(string.Format(Strings.JobDetailsPage_JobExpired, JobId)), html);
         Assert.DoesNotContain("job-snippet", html);
         Assert.Contains("id=\"catalogRunner\"", html);
@@ -140,7 +140,7 @@ public class JobDetailsPageFacts
 
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
-        Assert.Contains("<h1 class=\"page-header\">" + H(Strings.Common_Job) + "</h1>", html);
+        Assert.Contains("<h1 class=\"hf-page-header\">" + H(Strings.Common_Job) + "</h1>", html);
         Assert.Contains("id=\"job-details-missing-method\"", html);
         Assert.Contains("<td class=\"width-15\">Type</td>", html);
         Assert.Contains("<pre><code>Missing.Type, Missing</code></pre>", html);
@@ -287,8 +287,8 @@ public class JobDetailsPageFacts
         Assert.Contains("data-live-url=\"/jobs/live\"", html);
         Assert.Contains("data-poll=\"true\"", html);
         Assert.Contains("data-started-at=\"" + JobHelper.ToTimestamp(_now.AddSeconds(-30)), html);
-        Assert.Contains("<span class=\"label label-info job-live-indicator\">Processing</span>", html);
-        Assert.Contains("progress-bar js-live-bar progress-bar-striped active", html);
+        Assert.Contains("<span class=\"badge text-bg-info job-live-indicator\">Processing</span>", html);
+        Assert.Contains("progress-bar js-live-bar progress-bar-striped progress-bar-animated", html);
         Assert.Contains("aria-valuenow=\"0\"", html);
         Assert.Contains("<span class=\"js-live-elapsed-label\" style=\"\">", html);
         Assert.Contains(H(Strings.JobDetailsPage_NoConsoleOutput), html);
@@ -328,19 +328,19 @@ public class JobDetailsPageFacts
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
         Assert.Contains("data-poll=\"false\"", html);
-        Assert.Contains("progress-bar js-live-bar progress-bar-success", html);
+        Assert.Contains("progress-bar js-live-bar bg-success", html);
         Assert.Contains("aria-valuenow=\"100\"", html);
         Assert.DoesNotContain(H(Strings.JobDetailsPage_NoConsoleOutput), html);
         Assert.Contains("<div class=\"job-console-line job-console-info\"><span class=\"job-console-time\" data-live-time=\"1000\">00:00:01</span>Starting</div>", html);
         Assert.Contains("job-console-warning\"><span class=\"job-console-time\" data-live-time=\"5000\">00:00:05</span>Slow &lt;disk&gt;</div>", html);
-        Assert.Contains("job-console-checkpoint\"><span class=\"job-console-time\" data-live-time=\"2000\">00:00:02</span><span class=\"glyphicon glyphicon-flag\"></span> download</div>", html);
+        Assert.Contains("job-console-checkpoint\"><span class=\"job-console-time\" data-live-time=\"2000\">00:00:02</span>" + DashboardMarkup.Icon("flag-fill") + " download</div>", html);
         Assert.True(html.IndexOf(">Starting<", StringComparison.Ordinal) < html.IndexOf(">Slow &lt;", StringComparison.Ordinal));
         Assert.Contains("<li><span class=\"job-checkpoint-name\">download</span><span class=\"text-muted job-checkpoint-delta\">00:00:02</span></li>", html);
         Assert.Contains("<li><span class=\"job-checkpoint-name\">upload</span><span class=\"text-muted job-checkpoint-delta\">+" + Duration(TimeSpan.FromSeconds(5)) + "</span></li>", html);
     }
 
     [Theory]
-    [InlineData("Failed", "progress-bar js-live-bar progress-bar-danger\"")]
+    [InlineData("Failed", "progress-bar js-live-bar bg-danger\"")]
     [InlineData("Enqueued", "progress-bar js-live-bar \"")]
     [InlineData("Awaiting", "progress-bar js-live-bar \"")]
     public void Render_ColoursTheProgressBar_ByTheStateOfTheJob(string state, string expected)
@@ -430,7 +430,7 @@ public class JobDetailsPageFacts
 
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
-        Assert.Contains("<div class=\"alert alert-info\">\r\n                        <span class=\"glyphicon glyphicon-time\"></span>", html);
+        Assert.Contains("<div class=\"alert alert-info\">\r\n                        " + DashboardMarkup.Icon("clock"), html);
         Assert.Contains(H(Strings.Common_Deadline) + ": <span data-moment=", html);
         Assert.DoesNotContain(H(Strings.Common_Overdue), html);
     }
@@ -442,8 +442,8 @@ public class JobDetailsPageFacts
 
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
-        Assert.Contains("<div class=\"alert alert-danger\">\r\n                        <span class=\"glyphicon glyphicon-time\"></span>", html);
-        Assert.Contains("<span class=\"label label-danger text-uppercase\">" + H(Strings.Common_Overdue) + "</span>", html);
+        Assert.Contains("<div class=\"alert alert-danger\">\r\n                        " + DashboardMarkup.Icon("clock"), html);
+        Assert.Contains("<span class=\"badge text-bg-danger text-uppercase\">" + H(Strings.Common_Overdue) + "</span>", html);
     }
 
     [Fact]
@@ -491,9 +491,9 @@ public class JobDetailsPageFacts
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
         Assert.Contains("<div class=\"hf-tags\" aria-label=\"" + H(Strings.JobDetailsPage_Tags) + "\">", html);
-        Assert.Contains("href=\"/batches/batch%201\"><span class=\"glyphicon glyphicon-th-large\"></span> " + H(Strings.JobDetailsPage_Batch) + " batch 1</a>", html);
-        Assert.Contains("href=\"/batches/batch-0\"><span class=\"glyphicon glyphicon-th-large\"></span> " + H(Strings.JobDetailsPage_BatchContinuation) + " batch-0</a>", html);
-        Assert.Contains("<span class=\"glyphicon glyphicon-tag text-muted\"></span>", html);
+        Assert.Contains("href=\"/batches/batch%201\">" + DashboardMarkup.Icon("grid-fill") + " " + H(Strings.JobDetailsPage_Batch) + " batch 1</a>", html);
+        Assert.Contains("href=\"/batches/batch-0\">" + DashboardMarkup.Icon("grid-fill") + " " + H(Strings.JobDetailsPage_BatchContinuation) + " batch-0</a>", html);
+        Assert.Contains(DashboardMarkup.Icon("tag-fill", "text-muted"), html);
         Assert.Contains("<a class=\"hf-tag\" href=\"/tags/billing\">billing</a>", html);
         Assert.Contains("<a class=\"hf-tag\" href=\"/tags/eu%20west\">eu west</a>", html);
         Assert.DoesNotContain("id=\"job-details-parameters\"", html);
@@ -509,7 +509,7 @@ public class JobDetailsPageFacts
 
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
-        Assert.Contains("href=\"/chains/0123456789abcdef\"><span class=\"glyphicon glyphicon-link\"></span> " + H(string.Format(Strings.ChainDetailsPage_Title, "01234567")) + "</a>", html);
+        Assert.Contains("href=\"/chains/0123456789abcdef\">" + DashboardMarkup.Icon("link-45deg") + " " + H(string.Format(Strings.ChainDetailsPage_Title, "01234567")) + "</a>", html);
     }
 
     [Fact]
@@ -523,7 +523,7 @@ public class JobDetailsPageFacts
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
         Assert.Contains("hf-tag hf-tag-batch", html);
-        Assert.DoesNotContain("glyphicon-tag text-muted", html);
+        Assert.DoesNotContain(DashboardMarkup.Icon("tag-fill", "text-muted"), html);
     }
 
     [Fact]
@@ -546,7 +546,7 @@ public class JobDetailsPageFacts
 
         Assert.Contains("id=\"job-details-diagnosis\"", html);
         Assert.Contains("<li class=\"hf-diagnosis-item hf-diagnosis-problem\" data-code=\"no-servers\">", html);
-        Assert.Contains("glyphicon glyphicon-remove-sign", html);
+        Assert.Contains(DashboardMarkup.Icon("x-circle-fill", "hf-diagnosis-icon"), html);
         Assert.Contains("<a class=\"hf-diagnosis-link\" href=\"/servers\">" + H(Strings.NavigationMenu_Servers) + " &rarr;</a>", html);
     }
 
@@ -560,7 +560,7 @@ public class JobDetailsPageFacts
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
         Assert.Contains("hf-diagnosis-warning\" data-code=\"waiting\"", html);
-        Assert.Contains("glyphicon glyphicon-warning-sign", html);
+        Assert.Contains(DashboardMarkup.Icon("exclamation-triangle-fill", "hf-diagnosis-icon"), html);
         Assert.Contains("href=\"/jobs/enqueued/default\"", html);
     }
 
@@ -574,7 +574,7 @@ public class JobDetailsPageFacts
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
         Assert.Contains("hf-diagnosis-info\" data-code=\"healthy\"", html);
-        Assert.Contains("glyphicon glyphicon-info-sign", html);
+        Assert.Contains(DashboardMarkup.Icon("info-circle-fill", "hf-diagnosis-icon"), html);
         Assert.DoesNotContain("hf-diagnosis-link", html);
     }
 
@@ -627,7 +627,7 @@ public class JobDetailsPageFacts
 
         string html = _renderer.Render(new JobDetailsPage(JobId));
 
-        Assert.Contains("<span class=\"label label-info hf-ack\">", html);
+        Assert.Contains("<span class=\"badge text-bg-info hf-ack\">", html);
         Assert.DoesNotContain("hf-note-empty", html);
         Assert.Contains("<strong>alice</strong>", html);
         Assert.Contains("<div class=\"hf-note-text\">Partner API &lt;down&gt;</div>", html);

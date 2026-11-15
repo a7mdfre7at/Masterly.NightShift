@@ -58,7 +58,7 @@ public class RecurringJobsPageFacts
         Assert.Contains("data-url=\"/recurring/remove\"", html);
         Assert.Contains("js-jobs-list-select-all", html);
         Assert.Contains("name=\"jobs[]\" value=\"daily\"", html);
-        Assert.Contains("btn-group pull-right paginator", html);
+        Assert.Contains("btn-group float-end paginator", html);
         Assert.DoesNotContain(H(string.Format(Strings.RecurringJobsPage_LateSummary, 1)), html);
     }
 
@@ -117,8 +117,8 @@ public class RecurringJobsPageFacts
 
         Assert.Contains("title=\"" + H(Strings.RecurringJobsPage_Paused_Tooltip) + "\">" + H(Strings.RecurringJobsPage_Paused) + "</span>", html);
         Assert.Contains("title=\"" + H(Strings.RecurringJobsPage_RecurringJobDisabled_Tooltip) + "\">" + H(Strings.Common_Disabled) + "</span>", html);
-        Assert.Contains("<span class=\"label label-danger text-uppercase\">" + H(Strings.Common_Error) + "</span>", html);
-        Assert.Contains("<span class=\"label label-warning\"><span data-moment=", html);
+        Assert.Contains("<span class=\"badge text-bg-danger text-uppercase\">" + H(Strings.Common_Error) + "</span>", html);
+        Assert.Contains("<span class=\"badge text-bg-warning\"><span data-moment=", html);
         Assert.DoesNotContain(H(string.Format(Strings.RecurringJobsPage_LateSummary, 1)), html);
         Assert.Contains("<td rowspan=\"2\">", html);
         Assert.Contains("<td colspan=\"8\" class=\"failed-job-details\">", html);
@@ -143,7 +143,7 @@ public class RecurringJobsPageFacts
         Assert.Contains("data-queue=\"critical\"", html);
         Assert.Contains("data-misfire=\"Strict\"", html);
         Assert.Contains("data-misfire=\"Relaxed\"", html);
-        Assert.Contains("<span title=\"" + H(TimeZoneInfo.Utc.DisplayName) + "\" data-container=\"body\">" + H(TimeZoneInfo.Utc.Id), html);
+        Assert.Contains("<span title=\"" + H(TimeZoneInfo.Utc.DisplayName) + "\" data-bs-container=\"body\">" + H(TimeZoneInfo.Utc.Id), html);
         Assert.Contains("data-start-at=\"\"", html);
         Assert.Contains("data-end-at=\"\"", html);
     }
@@ -159,7 +159,7 @@ public class RecurringJobsPageFacts
 
         string html = _renderer.Render(new RecurringJobsPage());
 
-        Assert.Contains("class=\"btn btn-xs btn-default js-recurring-edit hidden\"", html);
+        Assert.Contains("class=\"btn hf-btn-xs btn-outline-secondary js-recurring-edit d-none\"", html);
         Assert.Contains("data-id=\"elsewhere\" data-cron=\"0 5 * * *\"", html);
         Assert.Contains("data-queue=\"reports\"", html);
         Assert.Equal(2, CountOf(html, "data-misfire="));
@@ -251,7 +251,7 @@ public class RecurringJobsPageFacts
         string html = _renderer.Render(new RecurringJobsPage());
 
         Assert.Contains(H(Strings.RecurringJobsPage_Paused_Tooltip), html);
-        Assert.Contains("<span class=\"label label-danger text-uppercase\">" + H(Strings.Common_Error) + "</span>", html);
+        Assert.Contains("<span class=\"badge text-bg-danger text-uppercase\">" + H(Strings.Common_Error) + "</span>", html);
         Assert.DoesNotContain(H(Strings.RecurringJobsPage_Ended_Tooltip), html);
     }
 
@@ -267,8 +267,9 @@ public class RecurringJobsPageFacts
 
         string html = _renderer.Render(new RecurringJobsPage());
 
-        Assert.Contains("<span title=\"\" data-container=\"body\">Mars/Olympus_Mons", html);
-        Assert.Contains("<span class=\"glyphicon glyphicon-exclamation-sign\" title=\"", html);
+        Assert.Contains("<span title=\"\" data-bs-container=\"body\">Mars/Olympus_Mons", html);
+        Assert.Contains("<span class=\"hf-icon\" title=\"", html);
+        Assert.Contains(DashboardMarkup.Icon("exclamation-circle-fill") + "</span>", html);
     }
 
     [Fact]
@@ -279,7 +280,7 @@ public class RecurringJobsPageFacts
         string html = _renderer.Render(new RecurringJobsPage());
 
         Assert.Contains("<code title=\"", html);
-        Assert.Contains("<span class=\"glyphicon glyphicon-exclamation-sign\"></span>", html);
+        Assert.Contains(DashboardMarkup.Icon("exclamation-circle-fill"), html);
         Assert.Contains("every day", html);
     }
 
@@ -316,7 +317,7 @@ public class RecurringJobsPageFacts
         Assert.Contains("href=\"/jobs/details/101\"", html);
         Assert.Contains("label-state-success", html);
         Assert.Contains("href=\"/jobs/details/102\"", html);
-        Assert.Contains("<span class=\"label label-default label-hover\">", html);
+        Assert.Contains("<span class=\"badge text-bg-secondary label-hover\">", html);
         Assert.DoesNotContain("label-state-inherit", html);
         Assert.Contains("label-state-inactive\" title=\"" + H(Strings.RecurringJobsPage_Canceled) + "\"", html);
         Assert.Contains("<em>N/A</em>", html);

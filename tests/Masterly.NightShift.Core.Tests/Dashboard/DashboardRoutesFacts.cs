@@ -61,6 +61,60 @@ public class DashboardRoutesFacts
     }
 
     [Fact]
+    public void TheIconSprite_HasARoute_ThatChangesWithTheBuild_AndAnEmbeddedFile()
+    {
+        Assembly assembly = typeof(DashboardRoutes).Assembly;
+        using Stream? sprite = assembly.GetManifestResourceStream(DashboardIcons.ResourceName);
+
+        Assert.NotNull(sprite);
+        Assert.Equal("Masterly.NightShift.Dashboard.Content.icons.icons.svg", DashboardIcons.ResourceName);
+        Assert.NotNull(DashboardRoutes.Routes.FindDispatcher(DashboardIcons.Path));
+        Assert.Equal(
+            $"/icons{DashboardRoutes.CombineResourceHash(DashboardRoutes.InitialResourceHash, assembly.ManifestModule.ModuleVersionId, DashboardIcons.ResourceName)}",
+            DashboardIcons.Path);
+    }
+
+    [Theory]
+    [InlineData("/fonts/glyphicons-halflings-regular/eot")]
+    [InlineData("/fonts/glyphicons-halflings-regular/svg")]
+    [InlineData("/fonts/glyphicons-halflings-regular/ttf")]
+    [InlineData("/fonts/glyphicons-halflings-regular/woff")]
+    [InlineData("/fonts/glyphicons-halflings-regular/woff2")]
+    public void TheGlyphiconFonts_AreGone(string path)
+    {
+        Assert.Null(DashboardRoutes.Routes.FindDispatcher(path));
+        Assert.DoesNotContain(typeof(DashboardRoutes).Assembly.GetManifestResourceNames(), static name => name.Contains("glyphicons", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void EveryIconTheScriptDraws_IsInTheSprite()
+    {
+        string script;
+        using (Stream? stream = typeof(DashboardRoutes).Assembly.GetManifestResourceStream(DashboardRoutes.GetContentResourceName("js", "nightshift.js")))
+        using (StreamReader reader = new(stream!))
+        {
+            script = reader.ReadToEnd();
+        }
+
+        string[] icons = [.. Regex.Matches(script, @"nightshift\.icon\('([a-z0-9-]+)'").Select(static x => x.Groups[1].Value)];
+
+        Assert.NotEmpty(icons);
+        Assert.All(icons, icon => Assert.Contains(icon, DashboardIcons.Names));
+        Assert.DoesNotContain("glyphicon", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheBundles_LoadJQuery4AndBootstrap5_InsteadOfJQuery3AndBootstrap3()
+    {
+        string[] names = typeof(DashboardRoutes).Assembly.GetManifestResourceNames();
+
+        Assert.Contains(DashboardRoutes.GetContentResourceName("js", "jquery-4.0.0.min.js"), names);
+        Assert.Contains(DashboardRoutes.GetContentResourceName("js", "bootstrap.bundle.min.js"), names);
+        Assert.DoesNotContain(DashboardRoutes.GetContentResourceName("js", "jquery-3.7.1.min.js"), names);
+        Assert.DoesNotContain(DashboardRoutes.GetContentResourceName("js", "bootstrap.min.js"), names);
+    }
+
+    [Fact]
     public void CombineResourceHash_IsTheSameInEveryProcessAndOnEveryPlatform()
     {
         // Expected values come from an independent FNV-1a implementation, so a result that depended

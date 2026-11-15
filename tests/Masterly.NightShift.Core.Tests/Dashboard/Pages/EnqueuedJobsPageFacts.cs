@@ -38,7 +38,7 @@ public class EnqueuedJobsPageFacts
 
         string html = _renderer.Render(new EnqueuedJobsPage("my queue"));
 
-        Assert.Contains("<button type=\"button\" class=\"btn btn-sm btn-default js-download\" data-url=\"/jobs/enqueued/export/my%20queue\" data-filename=\"nightshift-enqueued-jobs-my queue.csv\">", html);
+        Assert.Contains("<button type=\"button\" class=\"btn btn-sm btn-outline-secondary js-download\" data-url=\"/jobs/enqueued/export/my%20queue\" data-filename=\"nightshift-enqueued-jobs-my queue.csv\">", html);
         Assert.Contains(Encode(Strings.Common_DownloadCsv), html);
     }
 

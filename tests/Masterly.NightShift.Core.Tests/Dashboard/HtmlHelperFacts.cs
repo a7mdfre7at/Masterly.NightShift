@@ -59,6 +59,58 @@ public class HtmlHelperFacts
     {
     }
 
+    [Fact]
+    public void Icon_WritesAnSvgThatUsesTheSpriteSymbol_HiddenFromScreenReaders()
+    {
+        string html = new Pages.PageRenderer().Render(new IconPage(page => page.Html.Icon("trash-fill")));
+
+        Assert.Equal($"<svg class=\"bi\" aria-hidden=\"true\"><use href=\"{DashboardIcons.Path}#bi-trash-fill\"></use></svg>", html);
+        Assert.Matches("^/icons[0-9]+$", DashboardIcons.Path);
+    }
+
+    [Fact]
+    public void Icon_AddsTheGivenClasses_AndEncodesThem()
+    {
+        string html = new Pages.PageRenderer().Render(new IconPage(page => page.Html.Icon("check-lg", "text-success \"x\"")));
+
+        Assert.StartsWith("<svg class=\"bi text-success &quot;x&quot;\" aria-hidden=\"true\">", html);
+    }
+
+    [Theory]
+    [InlineData("trash", "trash-fill")]
+    [InlineData("glyphicon-time", "clock")]
+    [InlineData("bi-card-list", "card-list")]
+    [InlineData("warning-sign", "exclamation-triangle-fill")]
+    public void Icon_GivesTheReplacement_OfAGlyphiconName(string name, string symbol)
+    {
+        string html = new Pages.PageRenderer().Render(new IconPage(page => page.Html.Icon(name)));
+
+        Assert.Contains($"#bi-{symbol}\"", html);
+    }
+
+    [Fact]
+    public void Icon_Throws_WithoutAName()
+    {
+        Assert.Throws<ArgumentNullException>(() => new Pages.PageRenderer().Render(new IconPage(page => page.Html.Icon(null!))));
+    }
+
+    [Fact]
+    public void DashboardIcons_TheSpriteHoldsEveryIconAGlyphiconWasReplacedWith()
+    {
+        Assert.Contains(DashboardIcons.DefaultMenuIcon, DashboardIcons.Names);
+        Assert.All(DashboardIcons.GlyphiconNames.Values, symbol => Assert.Contains(symbol, DashboardIcons.Names));
+        Assert.Null(DashboardIcons.Resolve("no-such-icon"));
+        Assert.Null(DashboardIcons.Resolve(null));
+    }
+
+    private sealed class IconPage(Func<RazorPage, NonEscapedString> icon) : RazorPage
+    {
+        public override void Execute()
+        {
+            Write(icon(this));
+        }
+    }
+
     private HtmlHelper CreateHelper()
     {
         return new HtmlHelper(_page.Object);

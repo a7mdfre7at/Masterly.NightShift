@@ -73,7 +73,7 @@ public class ProcessingJobsPageFacts
 
         string html = _renderer.Render(new ProcessingJobsPage());
 
-        Assert.Contains($"<span title=\"{Encode(Strings.ProcessingJobsPage_Aborted)}\" class=\"glyphicon glyphicon-warning-sign", html);
+        Assert.Contains(DashboardMarkup.TitledIcon("exclamation-triangle-fill", Encode(Strings.ProcessingJobsPage_Aborted), "hf-icon-sm text-warning"), html);
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public class ProcessingJobsPageFacts
         string html = _renderer.Render(new ProcessingJobsPage());
 
         Assert.Contains(" overdue\">", html);
-        Assert.Contains($"<span class=\"label label-danger text-uppercase\" title=\"{Encode(Strings.Common_Overdue_Tooltip)}\">{Encode(Strings.Common_Overdue)}</span>", html);
+        Assert.Contains($"<span class=\"badge text-bg-danger text-uppercase\" title=\"{Encode(Strings.Common_Overdue_Tooltip)}\">{Encode(Strings.Common_Overdue)}</span>", html);
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public class ProcessingJobsPageFacts
 
         string html = _renderer.Render(new ProcessingJobsPage());
 
-        Assert.Contains($"<span class=\"label label-default\" title=\"{Encode(Strings.Common_Deadline)}\">{Encode(Strings.Common_Deadline)} <span data-moment=", html);
+        Assert.Contains($"<span class=\"badge text-bg-secondary\" title=\"{Encode(Strings.Common_Deadline)}\">{Encode(Strings.Common_Deadline)} <span data-moment=", html);
         Assert.DoesNotContain(Encode(Strings.Common_Overdue_Tooltip), html);
     }
 

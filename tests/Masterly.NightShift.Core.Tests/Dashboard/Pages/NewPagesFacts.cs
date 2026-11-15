@@ -162,7 +162,7 @@ public class NewPagesFacts
 
         string list = _renderer.Render(new ChainsPage());
 
-        Assert.Contains("label-default text-uppercase\">Waiting<", list, StringComparison.Ordinal);
+        Assert.Contains("text-bg-secondary text-uppercase\">Waiting<", list, StringComparison.Ordinal);
     }
 
     [Fact]

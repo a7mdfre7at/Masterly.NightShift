@@ -29,7 +29,7 @@ public class TagsPageFacts
         Assert.Contains($"<span class=\"hf-catalog-summary text-muted\">2 {Encode(Strings.TagsPage_Title.ToLowerInvariant())}</span>", html);
         Assert.Contains("<a class=\"hf-tag hf-tag-lg js-tag\" href=\"/tags/billing\" data-tag=\"billing\" style=\"--hf-weight: 1.00\">", html);
         Assert.Contains("<a class=\"hf-tag hf-tag-lg js-tag\" href=\"/tags/urgent\" data-tag=\"urgent\" style=\"--hf-weight: 0.50\">", html);
-        Assert.Contains("<span class=\"glyphicon glyphicon-tag\"></span> billing <span class=\"hf-tag-count\">4</span>", html);
+        Assert.Contains(DashboardMarkup.Icon("tag-fill") + " billing <span class=\"hf-tag-count\">4</span>", html);
         Assert.True(html.IndexOf("data-tag=\"billing\"", StringComparison.Ordinal) < html.IndexOf("data-tag=\"urgent\"", StringComparison.Ordinal));
     }
 
@@ -41,7 +41,7 @@ public class TagsPageFacts
         string html = _renderer.Render(new TagsPage());
 
         Assert.Contains("<tr class=\"js-tag-row\" data-tag=\"on call\">", html);
-        Assert.Contains("<td><a href=\"/tags/on%20call\" class=\"hf-tag\"><span class=\"glyphicon glyphicon-tag\"></span> on call</a></td>", html);
+        Assert.Contains("<td><a href=\"/tags/on%20call\" class=\"hf-tag\">" + DashboardMarkup.Icon("tag-fill") + " on call</a></td>", html);
         Assert.Contains("<td class=\"align-right\">1</td>", html);
         Assert.Contains("data-ajax=\"/tags/forget/on%20call\"", html);
         Assert.Contains($"data-confirm=\"{Encode(Strings.TagsPage_ForgetConfirm)}\"", html);

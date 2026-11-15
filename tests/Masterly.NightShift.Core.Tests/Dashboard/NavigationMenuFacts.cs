@@ -21,8 +21,9 @@ public class NavigationMenuFacts
 
         Assert.Equal(BuiltInUrls, items.Select(x => x.Url));
         Assert.Equal(
-            ["tasks", "th-large", "repeat", "time", "align-left", "stats", "book", "tag", "hdd", "list-alt", "blackboard"],
+            ["list-task", "grid-fill", "arrow-repeat", "clock", "text-left", "bar-chart-fill", "book-fill", "tag-fill", "hdd-fill", "card-list", "easel-fill"],
             items.Select(x => x.Icon));
+        Assert.All(items, item => Assert.Contains(item.Icon!, DashboardIcons.Names));
     }
 
     [Fact]

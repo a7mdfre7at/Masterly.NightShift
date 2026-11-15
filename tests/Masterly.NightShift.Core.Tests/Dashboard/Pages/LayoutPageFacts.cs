@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using Masterly.NightShift.Core.Tests.Stubs;
 using Masterly.NightShift.Dashboard;
 using Masterly.NightShift.Dashboard.Pages;
@@ -189,7 +190,7 @@ public class LayoutPageFacts
 
         string html = _renderer.Render(new TagsPage());
 
-        Assert.Contains("<li>Test &lt;Storage&gt; ", html);
+        Assert.Contains("<li class=\"list-inline-item\">Test &lt;Storage&gt; ", html);
     }
 
     [Fact]
@@ -210,7 +211,7 @@ public class LayoutPageFacts
 
         string html = _renderer.Render(new TagsPage());
 
-        Assert.Contains($"<li>{Encode(Strings.LayoutPage_Footer_StorageTime)} <span data-moment-local=", html);
+        Assert.Contains($"<li class=\"list-inline-item\">{Encode(Strings.LayoutPage_Footer_StorageTime)} <span data-moment-local=", html);
         Assert.DoesNotContain(Encode(Strings.LayoutPage_Footer_TimeIsOutOfSync), html);
     }
 
@@ -243,7 +244,7 @@ public class LayoutPageFacts
         Assert.Contains($"<div class=\"hf-nav-section\">{Encode(Strings.NavigationMenu_Section_Monitor)}</div>", html);
         Assert.Contains("<a href=\"/tags\" class=\"hf-nav-item active\">", html);
         Assert.Contains("<a href=\"/batches\" class=\"hf-nav-item \">", html);
-        Assert.Contains("glyphicon glyphicon-tag\"", html);
+        Assert.Contains(DashboardMarkup.Icon("tag-fill", "hf-nav-icon"), html);
     }
 
     [Fact]
@@ -275,7 +276,7 @@ public class LayoutPageFacts
             string html = _renderer.Render(new TagsPage());
 
             Assert.Contains("<a href=\"/custom\" class=\"hf-nav-item \">", html);
-            Assert.Contains("glyphicon glyphicon-chevron-right\"", html);
+            Assert.Contains(DashboardMarkup.Icon("chevron-right", "hf-nav-icon"), html);
             Assert.Contains("<span class=\"hf-nav-text\">Custom &lt;Item&gt;</span>", html);
         }
         finally
@@ -284,6 +285,42 @@ public class LayoutPageFacts
             NavigationMenu.Items.Remove(customItem);
             JobsSidebarMenu.Items.Remove(nullItem);
         }
+    }
+
+    [Fact, GlobalLock(Reason = "Changes NavigationMenu.Items")]
+    public void Render_WithMenuItemIcons_TakesSpriteNames_GlyphiconNamesItReplaced_AndFallsBackToTheChevron()
+    {
+        Func<RazorPage, MenuItem> spriteName = page => new MenuItem("Sprite", page.Url.To("/sprite")) { Icon = "card-list" };
+        Func<RazorPage, MenuItem> glyphiconName = page => new MenuItem("Glyphicon", page.Url.To("/glyphicon")) { Icon = "time" };
+        Func<RazorPage, MenuItem> unknownName = page => new MenuItem("Unknown", page.Url.To("/unknown")) { Icon = "no-such-icon" };
+        NavigationMenu.Items.Add(spriteName);
+        NavigationMenu.Items.Add(glyphiconName);
+        NavigationMenu.Items.Add(unknownName);
+
+        try
+        {
+            string html = _renderer.Render(new TagsPage());
+
+            Assert.Matches("href=\"/sprite\" class=\"hf-nav-item \">\\s*" + Regex.Escape(DashboardMarkup.Icon("card-list", "hf-nav-icon")), html);
+            Assert.Matches("href=\"/glyphicon\" class=\"hf-nav-item \">\\s*" + Regex.Escape(DashboardMarkup.Icon("clock", "hf-nav-icon")), html);
+            Assert.Matches("href=\"/unknown\" class=\"hf-nav-item \">\\s*" + Regex.Escape(DashboardMarkup.Icon("chevron-right", "hf-nav-icon")), html);
+            Assert.DoesNotContain("no-such-icon", html);
+        }
+        finally
+        {
+            NavigationMenu.Items.Remove(spriteName);
+            NavigationMenu.Items.Remove(glyphiconName);
+            NavigationMenu.Items.Remove(unknownName);
+        }
+    }
+
+    [Fact]
+    public void Render_Always_GivesTheScriptsTheIconSpriteUrl_AndNoGlyphicons()
+    {
+        string html = _renderer.Render(new TagsPage());
+
+        Assert.Contains($"data-icons-url=\"{DashboardIcons.Path}\"", html);
+        Assert.DoesNotContain("glyphicon", html);
     }
 
     [Fact, GlobalLock(Reason = "Changes NavigationMenu.Items")]

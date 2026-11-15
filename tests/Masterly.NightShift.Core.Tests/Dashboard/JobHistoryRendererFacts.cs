@@ -19,7 +19,7 @@ public class JobHistoryRendererFacts
 
         Assert.Contains("<dt>Parents</dt>", html);
         Assert.Contains("<a href=\"/jobs/details/11\">#11</a> <a href=\"/jobs/details/12\">#12</a>", html);
-        Assert.Contains("<span class=\"label label-default\">Any</span>", html);
+        Assert.Contains("<span class=\"badge text-bg-secondary\">Any</span>", html);
         Assert.DoesNotContain("<dt>Parent</dt>", html);
     }
 
@@ -45,7 +45,7 @@ public class JobHistoryRendererFacts
             { "ParentIds", "11" },
         }).ToString();
 
-        Assert.Contains("<a href=\"/jobs/details/11\">#11</a> <span class=\"label label-default\">All</span>", html);
+        Assert.Contains("<a href=\"/jobs/details/11\">#11</a> <span class=\"badge text-bg-secondary\">All</span>", html);
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public class JobHistoryRendererFacts
             { "NextState", Masterly.NightShift.Common.SerializationHelper.Serialize<IState>(new EnqueuedState("critical"), Masterly.NightShift.Common.SerializationOption.TypedInternal) },
         }).ToString();
 
-        Assert.Contains("<dt>Next State</dt><dd><span class=\"label label-default  label-state-active\">Enqueued</span></dd>", html);
+        Assert.Contains("<dt>Next State</dt><dd><span class=\"badge  label-state-active\">Enqueued</span></dd>", html);
     }
 
     [Fact, StaticLock]
@@ -95,7 +95,7 @@ public class JobHistoryRendererFacts
 
         string html = CreateHelper().RenderHistory("Facts.Throwing", new Dictionary<string, string> { { "Size", "<large>" } }).ToString();
 
-        Assert.Equal("<dl class=\"dl-horizontal\"><dt>Size</dt><dd>&lt;large&gt;</dd></dl>", html);
+        Assert.Equal("<dl class=\"hf-dl-horizontal\"><dt>Size</dt><dd>&lt;large&gt;</dd></dl>", html);
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class JobHistoryRendererFacts
         // Written by another version: Latency isn't a number
         string html = CreateHelper().RenderHistory(SucceededState.StateName, new Dictionary<string, string> { { "Latency", "fast" } }).ToString();
 
-        Assert.Equal("<dl class=\"dl-horizontal\"><dt>Latency</dt><dd>fast</dd></dl>", html);
+        Assert.Equal("<dl class=\"hf-dl-horizontal\"><dt>Latency</dt><dd>fast</dd></dl>", html);
     }
 
     [Fact]
@@ -181,7 +181,7 @@ public class JobHistoryRendererFacts
     {
         string html = CreateHelper().StateLabel(SucceededState.StateName).ToString();
 
-        Assert.Equal("<span class=\"label label-default  label-state-success\">Succeeded</span>", html);
+        Assert.Equal("<span class=\"badge  label-state-success\">Succeeded</span>", html);
     }
 
     [Fact]
@@ -189,7 +189,7 @@ public class JobHistoryRendererFacts
     {
         string html = CreateHelper().StateLabel("Facts.Unknown").ToString();
 
-        Assert.Equal("<span class=\"label label-default \">Facts.Unknown</span>", html);
+        Assert.Equal("<span class=\"badge text-bg-secondary \">Facts.Unknown</span>", html);
     }
 
     [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]

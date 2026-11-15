@@ -376,6 +376,60 @@ public class DashboardServerFacts
     }
 
     [Fact]
+    public async Task TheBundles_HaveJQuery4AndBootstrap5_EachFileOnItsOwnLines()
+    {
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+
+        string scripts = await app.GetStringAsync("/nightshift/js1");
+        string styles = await app.GetStringAsync("/nightshift/css1");
+
+        Assert.Contains("/*! jQuery v4.0.0 |", scripts);
+        Assert.Contains("* Bootstrap v5.3.9 (https://getbootstrap.com/)", scripts);
+        Assert.Contains("* Bootstrap  v5.3.9 (https://getbootstrap.com/)", styles);
+        Assert.DoesNotContain("Bootstrap v3", scripts);
+        Assert.DoesNotContain("glyphicons-halflings", styles);
+        // bootstrap.bundle.min.js ends with a line comment and no line break: the next file starts on a line of its own
+        Assert.Contains("//# sourceMappingURL=bootstrap.bundle.min.js.map\n", scripts);
+    }
+
+    [Fact]
+    public async Task TheScriptBundle_UsesBootstrap5AndJQuery4Apis_NotTheRemovedOnes()
+    {
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+
+        string bundle = await app.GetStringAsync("/nightshift/js1");
+        string script = bundle[bundle.IndexOf("(function (nightshift) {", StringComparison.Ordinal)..];
+
+        Assert.Contains("bootstrap.Modal.getOrCreateInstance(this._modal[0]).show();", script);
+        Assert.Contains("bootstrap.Tooltip.getOrCreateInstance(this);", script);
+        Assert.Contains("nightshift.setLoading = function (element, loading) {", script);
+        Assert.DoesNotContain("$.trim(", script);
+        Assert.DoesNotContain(".button('loading')", script);
+        Assert.DoesNotContain(".modal('show')", script);
+        Assert.DoesNotContain(".tooltip()", script);
+        Assert.DoesNotContain(".modal.in", script);
+        Assert.DoesNotContain("glyphicon", script);
+    }
+
+    [Fact]
+    public async Task TheIconSprite_IsServedAtTheUrlThePagesUse_AndTheGlyphiconFontsAreGone()
+    {
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+
+        string page = await app.GetStringAsync("/nightshift/");
+        string url = Regex.Match(page, "data-icons-url=\"([^\"]+)\"").Groups[1].Value;
+        HttpResponseMessage sprite = await app.GetAsync(url);
+        HttpResponseMessage font = await app.GetAsync("/nightshift/fonts/glyphicons-halflings-regular/woff2");
+
+        Assert.Matches("^/nightshift/icons[0-9]+$", url);
+        Assert.Contains($"<use href=\"{url}#bi-", page);
+        Assert.Equal(HttpStatusCode.OK, sprite.StatusCode);
+        Assert.Equal("image/svg+xml", sprite.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("<symbol id=\"bi-trash-fill\" viewBox=\"0 0 16 16\">", await sprite.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(HttpStatusCode.NotFound, font.StatusCode);
+    }
+
+    [Fact]
     public async Task TheScriptBundle_OpensOnlyTheClickedPaletteEntry()
     {
         // The group headers are list items too, so the position among them isn't the entry's index: a click
@@ -459,7 +513,7 @@ public class DashboardServerFacts
         string bundle = await app.GetStringAsync("/nightshift/js1");
 
         Assert.Contains("this._timezone.append($('<option>').val(timezone).text(timezone));", bundle);
-        Assert.Contains("queue: $.trim(this._queue.val()),", bundle);
+        Assert.Contains("queue: trim(this._queue.val()),", bundle);
     }
 
     [Fact]

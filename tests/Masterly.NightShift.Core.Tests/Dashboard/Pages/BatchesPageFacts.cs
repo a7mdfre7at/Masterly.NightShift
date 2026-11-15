@@ -27,7 +27,7 @@ public class BatchesPageFacts
         string html = _renderer.Render(new BatchesPage());
 
         Assert.Contains("<a class=\"hf-batch-link\" href=\"/batches/nightly\">", html);
-        Assert.Contains($"<span class=\"label label-success text-uppercase\">{Encode(Strings.BatchesPage_State_Finished)}</span>", html);
+        Assert.Contains($"<span class=\"badge text-bg-success text-uppercase\">{Encode(Strings.BatchesPage_State_Finished)}</span>", html);
         Assert.Contains("<strong>Nightly &lt;import&gt;</strong>", html);
         Assert.Contains("<code class=\"hf-batch-id\">nightly</code>", html);
         Assert.Contains("<span class=\"hf-batch-seg hf-batch-seg-success\" style=\"width: 100%\"></span>", html);
@@ -45,7 +45,7 @@ public class BatchesPageFacts
 
         string html = _renderer.Render(new BatchesPage());
 
-        Assert.Contains($"<span class=\"label label-danger text-uppercase\">{Encode(Strings.BatchesPage_State_Failed)}</span>", html);
+        Assert.Contains($"<span class=\"badge text-bg-danger text-uppercase\">{Encode(Strings.BatchesPage_State_Failed)}</span>", html);
         Assert.Contains("<strong>b-2</strong>", html);
         Assert.DoesNotContain("hf-batch-id", html);
         Assert.Contains("<span class=\"hf-batch-seg hf-batch-seg-success\" style=\"width: 75%\"></span>", html);
@@ -61,7 +61,7 @@ public class BatchesPageFacts
 
         string html = _renderer.Render(new BatchesPage());
 
-        Assert.Contains($"<span class=\"label label-info text-uppercase\">{Encode(Strings.BatchesPage_State_Running)}</span>", html);
+        Assert.Contains($"<span class=\"badge text-bg-info text-uppercase\">{Encode(Strings.BatchesPage_State_Running)}</span>", html);
         Assert.Contains("<span class=\"hf-batch-seg hf-batch-seg-processing\" style=\"width: 33.3%\"></span>", html);
         Assert.Contains("<span class=\"hf-batch-seg hf-batch-seg-deleted\" style=\"width: 33.3%\"></span>", html);
         Assert.Contains(Encode(string.Format(Strings.BatchesPage_Counts, 1, 0, 1)), html);
@@ -75,7 +75,7 @@ public class BatchesPageFacts
 
         string html = _renderer.Render(new BatchesPage());
 
-        Assert.Contains($"<span class=\"label label-info text-uppercase\">{Encode(Strings.BatchesPage_State_Running)}</span>", html);
+        Assert.Contains($"<span class=\"badge text-bg-info text-uppercase\">{Encode(Strings.BatchesPage_State_Running)}</span>", html);
         Assert.Contains("<span class=\"hf-batch-seg hf-batch-seg-success\" style=\"width: 0%\"></span>", html);
     }
 

@@ -44,11 +44,11 @@ public class JobCatalogPageFacts : IDisposable
         Assert.Contains("<code class=\"hf-catalog-method\">Import</code>", html);
         Assert.Contains("<code class=\"hf-catalog-method\">async SendAsync</code>", html);
         Assert.Contains("<code class=\"hf-catalog-method\">Cleanup</code>", html);
-        Assert.Contains($"<span class=\"label label-default\">{Encode(Strings.CatalogPage_Static)}</span>", html);
+        Assert.Contains($"<span class=\"badge text-bg-secondary\">{Encode(Strings.CatalogPage_Static)}</span>", html);
         Assert.Contains("<span class=\"hf-param \" title=\"string\">", html);
         Assert.Contains("<span class=\"hf-param-type\">int</span> count", html);
         Assert.Contains($"<span class=\"hf-param hf-param-injected\" title=\"{Encode(Strings.CatalogPage_Injected)}\">", html);
-        Assert.Contains("<span class=\"label label-info\">AutomaticRetry</span>", html);
+        Assert.Contains("<span class=\"badge text-bg-info\">AutomaticRetry</span>", html);
     }
 
     [Fact, StaticLock]

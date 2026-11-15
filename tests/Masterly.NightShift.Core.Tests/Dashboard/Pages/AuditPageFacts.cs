@@ -44,8 +44,8 @@ public class AuditPageFacts
 
         Assert.Contains("<span class=\"hf-catalog-summary text-muted\">1 / 3</span>", html);
         Assert.Contains("<a class=\"btn btn-sm btn-primary active\" href=\"/audit?count=100\">100</a>", html);
-        Assert.Contains("<a class=\"btn btn-sm btn-default\" href=\"/audit?count=50\">50</a>", html);
-        Assert.Contains("<a class=\"btn btn-sm btn-default\" href=\"/audit?count=1000\">1000</a>", html);
+        Assert.Contains("<a class=\"btn btn-sm btn-outline-secondary\" href=\"/audit?count=50\">50</a>", html);
+        Assert.Contains("<a class=\"btn btn-sm btn-outline-secondary\" href=\"/audit?count=1000\">1000</a>", html);
         _renderer.Connection.Verify(x => x.GetRangeFromList(AuditLog.ListKey, 0, 99));
     }
 
@@ -89,7 +89,7 @@ public class AuditPageFacts
         Assert.Contains("<code>abc</code>", html);
         Assert.Contains("<td class=\"word-break text-muted\">partner API is back</td>", html);
         Assert.DoesNotContain(Encode(Strings.AuditPage_Anonymous), html);
-        Assert.DoesNotContain("label label-danger", html);
+        Assert.DoesNotContain("badge text-bg-danger", html);
     }
 
     [Theory]
@@ -124,7 +124,7 @@ public class AuditPageFacts
         Assert.Contains($"<em class=\"text-muted\">{Encode(Strings.AuditPage_Anonymous)}</em>", html);
         Assert.DoesNotContain("hf-audit-ip", html);
         Assert.Contains("<span class=\"text-danger\">", html);
-        Assert.Contains("<span class=\"label label-danger\">500</span>", html);
+        Assert.Contains("<span class=\"badge text-bg-danger\">500</span>", html);
         Assert.Contains("<a href=\"/jobs/details/99\">#99</a>", html);
         Assert.Contains($"<span class=\"text-muted\">{Encode(string.Format(Strings.AuditPage_More, 29))}</span>", html);
     }

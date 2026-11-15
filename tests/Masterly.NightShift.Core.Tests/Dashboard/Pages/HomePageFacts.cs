@@ -45,8 +45,8 @@ public class HomePageFacts
 
         string html = _renderer.Render(new HomePage());
 
-        Assert.Contains($"<a href=\"?period=day\" class=\"btn btn-sm btn-default active\">{Encode(Strings.Common_PeriodDay)}</a>", html);
-        Assert.Contains($"<a href=\"?period=week\" class=\"btn btn-sm btn-default \">{Encode(Strings.Common_PeriodWeek)}</a>", html);
+        Assert.Contains($"<a href=\"?period=day\" class=\"btn btn-sm btn-outline-secondary active\">{Encode(Strings.Common_PeriodDay)}</a>", html);
+        Assert.Contains($"<a href=\"?period=week\" class=\"btn btn-sm btn-outline-secondary \">{Encode(Strings.Common_PeriodWeek)}</a>", html);
         Assert.Contains("id=\"historyGraph\"", html);
         Assert.Contains($"data-succeeded=\"{Encode(JsonSerializer.Serialize(succeeded))}\"", html);
         Assert.Contains($"data-failed=\"{Encode(JsonSerializer.Serialize(failed))}\"", html);
@@ -64,8 +64,8 @@ public class HomePageFacts
 
         string html = _renderer.Render(new HomePage());
 
-        Assert.Contains($"<a href=\"?period=day\" class=\"btn btn-sm btn-default \">", html);
-        Assert.Contains($"<a href=\"?period=week\" class=\"btn btn-sm btn-default active\">", html);
+        Assert.Contains($"<a href=\"?period=day\" class=\"btn btn-sm btn-outline-secondary \">", html);
+        Assert.Contains($"<a href=\"?period=week\" class=\"btn btn-sm btn-outline-secondary active\">", html);
         Assert.Contains($"data-succeeded=\"{Encode(JsonSerializer.Serialize(succeeded))}\"", html);
         Assert.Contains("data-period=\"WEEK\"", html);
         _renderer.Monitoring.Verify(x => x.HourlySucceededJobs(), Times.Never);
@@ -80,7 +80,7 @@ public class HomePageFacts
 
         Assert.Contains($"<h3>{Encode(Strings.HomePage_HistoryGraph)}</h3>", html);
         Assert.DoesNotContain("historyGraph", html);
-        Assert.DoesNotContain("btn-default active", html);
+        Assert.DoesNotContain("btn-outline-secondary active", html);
     }
 
     [Theory]

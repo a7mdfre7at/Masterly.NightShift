@@ -135,7 +135,7 @@ public class FailedJobsPageFacts
 
         string html = _renderer.Render(new FailedJobsPage());
 
-        Assert.Contains($"<span class=\"label label-info hf-ack\" title=\"bob: ticket OPS-1\"><span class=\"glyphicon glyphicon-ok\"></span> {Encode(Strings.FailedJobsPage_Acknowledged)}</span>", html);
+        Assert.Contains($"<span class=\"badge text-bg-info hf-ack\" title=\"bob: ticket OPS-1\">{DashboardMarkup.Icon("check-lg")} {Encode(Strings.FailedJobsPage_Acknowledged)}</span>", html);
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public class FailedJobsPageFacts
 
         string html = _renderer.Render(new FailedJobsPage());
 
-        Assert.Contains($"<span class=\"label label-info hf-ack\" title=\"{Encode(Strings.Common_Anonymous)}\">", html);
+        Assert.Contains($"<span class=\"badge text-bg-info hf-ack\" title=\"{Encode(Strings.Common_Anonymous)}\">", html);
     }
 
     [Fact]

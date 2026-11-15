@@ -24,8 +24,8 @@ public class ForecastPageFacts
 
         Assert.Contains(H(Strings.RecurringJobsPage_NoJobs), html);
         Assert.DoesNotContain("hf-forecast-row", html);
-        Assert.Contains("href=\"?window=24h\" class=\"btn btn-sm btn-default active\"", html);
-        Assert.Contains("href=\"?window=7d\" class=\"btn btn-sm btn-default \"", html);
+        Assert.Contains("href=\"?window=24h\" class=\"btn btn-sm btn-outline-secondary active\"", html);
+        Assert.Contains("href=\"?window=7d\" class=\"btn btn-sm btn-outline-secondary \"", html);
         Assert.Contains("href=\"/recurring\"", html);
     }
 
@@ -49,7 +49,7 @@ public class ForecastPageFacts
 
         string html = _renderer.Render(new ForecastPage());
 
-        Assert.Contains("href=\"?window=7d\" class=\"btn btn-sm btn-default active\"", html);
+        Assert.Contains("href=\"?window=7d\" class=\"btn btn-sm btn-outline-secondary active\"", html);
         Assert.Equal(8, CountOf(html, "class=\"hf-forecast-tick\""));
         Assert.Equal(8, CountOf(html, "data-moment-local-format=\"shortDate\""));
         Assert.Contains("data-moment-local-format=\"shortDateTime\"", html);
@@ -67,7 +67,7 @@ public class ForecastPageFacts
         Assert.Contains("<a href=\"/recurring?edit=beta\">beta</a>", html);
         Assert.Contains("insights-tile insights-tile-danger", html);
         Assert.Contains("id=\"forecast-hotspots\"", html);
-        Assert.Equal(10, CountOf(html, "<span class=\"label label-danger\">2</span>"));
+        Assert.Equal(10, CountOf(html, "<span class=\"badge text-bg-danger\">2</span>"));
         Assert.Contains("<a class=\"hf-chip\" href=\"/recurring?edit=alpha\">alpha</a>", html);
         Assert.Contains("hf-forecast-run hf-forecast-run-hot hf-forecast-run-estimated", html);
         Assert.Contains("UTC &middot; ", html);
@@ -128,7 +128,7 @@ public class ForecastPageFacts
         string html = _renderer.Render(new ForecastPage());
 
         Assert.Contains("hf-forecast-row hf-forecast-row-paused", html);
-        Assert.Contains("<span class=\"label label-warning\">" + H(Strings.ForecastPage_Paused) + "</span>", html);
+        Assert.Contains("<span class=\"badge text-bg-warning\">" + H(Strings.ForecastPage_Paused) + "</span>", html);
         Assert.DoesNotContain("UTC &middot;", html);
         Assert.Contains("<div class=\"insights-tile-value\">&ndash;</div>", html);
     }

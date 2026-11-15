@@ -43,7 +43,7 @@ public class TaggedJobsPageFacts
 
         string html = _renderer.Render(new TaggedJobsPage("Urgent"));
 
-        Assert.Contains("<span class=\"hf-tag hf-tag-lg\"><span class=\"glyphicon glyphicon-tag\"></span> Urgent <span class=\"hf-tag-count\">2</span></span>", html);
+        Assert.Contains("<span class=\"hf-tag hf-tag-lg\">" + DashboardMarkup.Icon("tag-fill") + " Urgent <span class=\"hf-tag-count\">2</span></span>", html);
         Assert.Contains("<td class=\"min-width\"><a href=\"/jobs/details/1\">#1</a></td>", html);
         Assert.Contains(">Succeeded</span></td>", html);
         Assert.Contains("TaggedPageJobs.Work", html);

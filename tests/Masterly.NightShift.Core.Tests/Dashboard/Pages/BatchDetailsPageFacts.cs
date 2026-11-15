@@ -45,7 +45,7 @@ public class BatchDetailsPageFacts
         string html = _renderer.Render(new BatchDetailsPage(BatchId));
 
         Assert.Contains("Nightly import", html);
-        Assert.Contains("label label-info text-uppercase\">" + H(Strings.BatchesPage_State_Running), html);
+        Assert.Contains("badge text-bg-info text-uppercase\">" + H(Strings.BatchesPage_State_Running), html);
         Assert.Contains("<code class=\"hf-batch-id\">b-1</code>", html);
         Assert.Contains(H(Strings.BatchesPage_Table_Created) + " <span data-moment=", html);
         Assert.Contains("hf-batch-seg-success\" style=\"width: 33.3%\"", html);
@@ -81,7 +81,7 @@ public class BatchDetailsPageFacts
 
         string html = _renderer.Render(new BatchDetailsPage(BatchId));
 
-        Assert.Contains("label label-success text-uppercase\">" + H(Strings.BatchesPage_State_Finished), html);
+        Assert.Contains("badge text-bg-success text-uppercase\">" + H(Strings.BatchesPage_State_Finished), html);
         Assert.Contains("hf-batch-actions", html);
         Assert.DoesNotContain("/batches/requeue-failed/", html);
         Assert.DoesNotContain("/batches/delete/", html);
@@ -94,7 +94,7 @@ public class BatchDetailsPageFacts
 
         string html = _renderer.Render(new BatchDetailsPage(BatchId));
 
-        Assert.Contains("label label-danger text-uppercase\">" + H(Strings.BatchesPage_State_Failed), html);
+        Assert.Contains("badge text-bg-danger text-uppercase\">" + H(Strings.BatchesPage_State_Failed), html);
         Assert.Contains("data-ajax=\"/batches/requeue-failed/b-1\"", html);
         Assert.Contains(H(string.Format(Strings.BatchDetailsPage_RequeueFailed, 1)), html);
         Assert.Contains(H(string.Format(Strings.BatchDetailsPage_DeletePending, 1)), html);

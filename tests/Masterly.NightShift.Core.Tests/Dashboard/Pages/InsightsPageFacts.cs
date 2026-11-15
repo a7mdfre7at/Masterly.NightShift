@@ -84,9 +84,9 @@ public class InsightsPageFacts
         Assert.Contains("<code>Jobs.Slow</code>", html);
         Assert.Contains("<code>Jobs.Failing</code>", html);
         Assert.Equal(2, CountOf(html, "<div class=\"hf-anomaly\">"));
-        Assert.Contains("<span class=\"label label-warning\">" + H(string.Format(Strings.InsightsPage_Anomaly_SlowingDown, Duration(2000), Duration(100))) + "</span>", html);
-        Assert.Contains("<span class=\"label label-warning\">" + H(string.Format(Strings.InsightsPage_Anomaly_SlowRun, Duration(7000))) + "</span>", html);
-        Assert.Contains("<span class=\"label label-danger\">" + H(string.Format(Strings.InsightsPage_Anomaly_FailureRate, 0.5.ToString("P0"))) + "</span>", html);
+        Assert.Contains("<span class=\"badge text-bg-warning\">" + H(string.Format(Strings.InsightsPage_Anomaly_SlowingDown, Duration(2000), Duration(100))) + "</span>", html);
+        Assert.Contains("<span class=\"badge text-bg-warning\">" + H(string.Format(Strings.InsightsPage_Anomaly_SlowRun, Duration(7000))) + "</span>", html);
+        Assert.Contains("<span class=\"badge text-bg-danger\">" + H(string.Format(Strings.InsightsPage_Anomaly_FailureRate, 0.5.ToString("P0"))) + "</span>", html);
         Assert.Equal(1, CountOf(html, "<span class=\"hf-anomaly-link\">"));
         Assert.Contains("<span class=\"hf-anomaly-link\"><a href=\"/jobs/details/42\">#42</a></span>", html);
         Assert.Contains("insights-tile insights-tile-danger", html);
@@ -102,12 +102,12 @@ public class InsightsPageFacts
         string html = _renderer.Render(new InsightsPage());
 
         Assert.Contains("id=\"insights-jobs\"", html);
-        Assert.Contains("<span class=\"label label-danger\">10 (" + 0.5.ToString("P0"), html);
-        Assert.Contains("<span class=\"label label-warning\">1 (" + 0.1.ToString("P0"), html);
-        Assert.Contains("<span class=\"label label-default\">0 (" + 0d.ToString("P0"), html);
-        Assert.Contains("<span class=\"label label-success\">Generated</span>", html);
-        Assert.Contains("<span class=\"label label-info\">Compiled</span>", html);
-        Assert.Contains("<span class=\"label label-default\">Reflection</span>", html);
+        Assert.Contains("<span class=\"badge text-bg-danger\">10 (" + 0.5.ToString("P0"), html);
+        Assert.Contains("<span class=\"badge text-bg-warning\">1 (" + 0.1.ToString("P0"), html);
+        Assert.Contains("<span class=\"badge text-bg-secondary\">0 (" + 0d.ToString("P0"), html);
+        Assert.Contains("<span class=\"badge text-bg-success\">Generated</span>", html);
+        Assert.Contains("<span class=\"badge text-bg-info\">Compiled</span>", html);
+        Assert.Contains("<span class=\"badge text-bg-secondary\">Reflection</span>", html);
         Assert.Contains("title=\"" + H(Strings.InsightsPage_SlowRun_Tooltip) + "\"", html);
         Assert.Contains("<a href=\"/jobs/details/42\" class=\"text-decoration-none\"><span data-moment=", html);
         Assert.Contains("sparkline-last sparkline-last-failed", html);
@@ -136,9 +136,9 @@ public class InsightsPageFacts
         string html = _renderer.Render(new InsightsPage());
 
         Assert.Contains("id=\"insights-circuits\"", html);
-        Assert.Contains("label label-danger text-uppercase\">Open</span>", html);
-        Assert.Contains("label label-warning text-uppercase\">HalfOpen</span>", html);
-        Assert.Equal(2, CountOf(html, "label label-success text-uppercase\">Closed</span>"));
+        Assert.Contains("badge text-bg-danger text-uppercase\">Open</span>", html);
+        Assert.Contains("badge text-bg-warning text-uppercase\">HalfOpen</span>", html);
+        Assert.Equal(2, CountOf(html, "badge text-bg-success text-uppercase\">Closed</span>"));
         Assert.True(html.IndexOf("<code>mail</code>", StringComparison.Ordinal) < html.IndexOf("<code>archive</code>", StringComparison.Ordinal));
         Assert.True(html.IndexOf("<code>payments</code>", StringComparison.Ordinal) < html.IndexOf("<code>search</code>", StringComparison.Ordinal));
         Assert.Contains("data-ajax=\"/insights/circuits/reset/payments\"", html);
