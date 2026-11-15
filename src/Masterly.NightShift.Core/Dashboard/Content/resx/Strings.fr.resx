@@ -142,7 +142,7 @@
     <value>Supprimer</value>
   </data>
   <data name="Common_DeleteConfirm" xml:space="preserve">
-    <value>Voulez-vous vraiment SUPPRIMER TOUTES les tâches sélectionnées ?</value>
+    <value>Les tâches sélectionnées passent dans Supprimées, où elles peuvent être remises en file jusqu’à leur expiration.</value>
   </data>
   <data name="Common_Deleting" xml:space="preserve">
     <value>Suppression…</value>
@@ -251,7 +251,7 @@ Vous devriez les remettre en file d'attente ou les supprimer manuellement, ou ap
     <value>Créée</value>
   </data>
   <data name="JobDetailsPage_DeleteConfirm" xml:space="preserve">
-    <value>Voulez-vous vraiment supprimer cette tâche ?</value>
+    <value>Supprimer cette tâche ?</value>
   </data>
   <data name="JobDetailsPage_State" xml:space="preserve">
     <value>État</value>
@@ -794,13 +794,13 @@ Vous devriez les remettre en file d'attente ou les supprimer manuellement, ou ap
     <value>Tout supprimer</value>
   </data>
   <data name="Common_DeleteAllConfirm" xml:space="preserve">
-    <value>Supprimer TOUTES les tâches de cette liste ? Cette action est irréversible.</value>
+    <value>Toutes les tâches de la liste, sur cette page et les autres, passent dans Supprimées, où elles peuvent être remises en file jusqu’à leur expiration.</value>
   </data>
   <data name="RecurringJobsPage_RemoveAll" xml:space="preserve">
     <value>Tout retirer</value>
   </data>
   <data name="RecurringJobsPage_RemoveAllConfirm" xml:space="preserve">
-    <value>Retirer TOUTES les tâches récurrentes ? Elles ne reviendront que lorsque l’application les enregistrera à nouveau.</value>
+    <value>Elles ne reviennent que lorsque l’application les enregistre de nouveau.</value>
   </data>
   <data name="LayoutPage_Refresh" xml:space="preserve">
     <value>Actualiser</value>
@@ -824,7 +824,7 @@ Vous devriez les remettre en file d'attente ou les supprimer manuellement, ou ap
     <value>Supprime chaque tâche avec son historique, les entrées de files, les compteurs, les consoles et les statistiques. Les tâches récurrentes et les serveurs sont conservés.</value>
   </data>
   <data name="ServersPage_ClearJobsConfirm" xml:space="preserve">
-    <value>Supprimer TOUTES les tâches et leur historique du stockage ? Cette action est irréversible.</value>
+    <value>Toutes les tâches et leur historique sont supprimés définitivement. C’est irréversible.</value>
   </data>
   <data name="ServersPage_ResetStorage" xml:space="preserve">
     <value>Réinitialiser le stockage</value>
@@ -833,7 +833,7 @@ Vous devriez les remettre en file d'attente ou les supprimer manuellement, ou ap
     <value>Supprime tout, y compris les tâches récurrentes et les enregistrements de serveurs, comme si le stockage était neuf.</value>
   </data>
   <data name="ServersPage_ResetStorageConfirm" xml:space="preserve">
-    <value>Réinitialiser TOUT le stockage ? Les tâches récurrentes disparaissent jusqu’à ce que l’application les enregistre à nouveau. Cette action est irréversible.</value>
+    <value>Toutes les tâches, tâches récurrentes, statistiques et réglages sont supprimés. Les tâches récurrentes ne reviennent que lorsque l’application les enregistre de nouveau. C’est irréversible.</value>
   </data>
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Effacement…</value>
@@ -1884,5 +1884,239 @@ Vous devriez les remettre en file d'attente ou les supprimer manuellement, ou ap
   </data>
   <data name="ChainsPage_Status_Waiting" xml:space="preserve">
     <value>En attente</value>
+  </data>
+  <data name="LayoutPage_SkipToContent" xml:space="preserve">
+    <value>Aller au contenu</value>
+  </data>
+  <data name="LayoutPage_Navigation" xml:space="preserve">
+    <value>Navigation</value>
+  </data>
+  <data name="LayoutPage_CloseMenu" xml:space="preserve">
+    <value>Fermer le menu</value>
+  </data>
+  <data name="LayoutPage_Offline" xml:space="preserve">
+    <value>Hors ligne – nouvelle tentative</value>
+  </data>
+  <data name="LayoutPage_Live_Hint" xml:space="preserve">
+    <value>Les chiffres de cette page se mettent à jour toutes les quelques secondes.</value>
+  </data>
+  <data name="LayoutPage_Offline_Hint" xml:space="preserve">
+    <value>Le tableau de bord n’atteint pas le serveur. Il continue d’essayer ; Actualiser réessaie tout de suite.</value>
+  </data>
+  <data name="LayoutPage_ReadOnly" xml:space="preserve">
+    <value>Lecture seule</value>
+  </data>
+  <data name="LayoutPage_ReadOnly_Hint" xml:space="preserve">
+    <value>Ce tableau de bord est en lecture seule : il montre les tâches sans pouvoir les modifier.</value>
+  </data>
+  <data name="LayoutPage_StorageUnavailable" xml:space="preserve">
+    <value>Le stockage n’a pas répondu : cette page peut être incomplète ou dépassée.</value>
+  </data>
+  <data name="NavigationMenu_Group_Jobs" xml:space="preserve">
+    <value>Tâches</value>
+  </data>
+  <data name="NavigationMenu_Group_Workflows" xml:space="preserve">
+    <value>Flux de travail</value>
+  </data>
+  <data name="NavigationMenu_Group_Observe" xml:space="preserve">
+    <value>Observer</value>
+  </data>
+  <data name="NavigationMenu_Group_System" xml:space="preserve">
+    <value>Système</value>
+  </data>
+  <data name="NavigationMenu_Group_More" xml:space="preserve">
+    <value>Plus</value>
+  </data>
+  <data name="Common_Breadcrumb" xml:space="preserve">
+    <value>Fil d’Ariane</value>
+  </data>
+  <data name="Paginator_Label" xml:space="preserve">
+    <value>Pagination</value>
+  </data>
+  <data name="Paginator_RowsPerPage" xml:space="preserve">
+    <value>Lignes par page</value>
+  </data>
+  <data name="Paginator_Range" xml:space="preserve">
+    <value>{0}–{1} sur {2}</value>
+  </data>
+  <data name="Paginator_PreviousPage" xml:space="preserve">
+    <value>Page précédente</value>
+  </data>
+  <data name="Paginator_NextPage" xml:space="preserve">
+    <value>Page suivante</value>
+  </data>
+  <data name="Paginator_Page" xml:space="preserve">
+    <value>Page {0}</value>
+  </data>
+  <data name="Common_SelectJob" xml:space="preserve">
+    <value>Sélectionner la tâche {0}</value>
+  </data>
+  <data name="Common_SelectAllJobs" xml:space="preserve">
+    <value>Sélectionner toutes les tâches de cette page</value>
+  </data>
+  <data name="RecurringJobsPage_SelectJob" xml:space="preserve">
+    <value>Sélectionner la tâche récurrente {0}</value>
+  </data>
+  <data name="RecurringJobsPage_SelectAll" xml:space="preserve">
+    <value>Sélectionner toutes les tâches récurrentes de cette page</value>
+  </data>
+  <data name="Common_SelectedCount" xml:space="preserve">
+    <value>{0} sélectionnée(s)</value>
+  </data>
+  <data name="Common_ClearSelection" xml:space="preserve">
+    <value>Effacer la sélection</value>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>Annuler</value>
+  </data>
+  <data name="Common_Confirm" xml:space="preserve">
+    <value>Confirmer</value>
+  </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>Fermer</value>
+  </data>
+  <data name="Dialog_DiscardTitle" xml:space="preserve">
+    <value>Abandonner les modifications ?</value>
+  </data>
+  <data name="Dialog_DiscardBody" xml:space="preserve">
+    <value>Ce que vous avez modifié dans cette boîte de dialogue sera perdu.</value>
+  </data>
+  <data name="Dialog_Discard" xml:space="preserve">
+    <value>Abandonner</value>
+  </data>
+  <data name="Dialog_KeepEditing" xml:space="preserve">
+    <value>Continuer la modification</value>
+  </data>
+  <data name="Dialog_TypeToConfirm" xml:space="preserve">
+    <value>Saisissez {0} pour confirmer</value>
+  </data>
+  <data name="Common_DeleteSelected_Title" xml:space="preserve">
+    <value>Supprimer {0} tâches ?</value>
+  </data>
+  <data name="Common_DeleteSelected_TitleOne" xml:space="preserve">
+    <value>Supprimer 1 tâche ?</value>
+  </data>
+  <data name="Common_DeleteAllConfirm_Title" xml:space="preserve">
+    <value>Supprimer toutes les tâches de cette liste ?</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm_Title" xml:space="preserve">
+    <value>Remettre en file toutes les tâches en échec ?</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm" xml:space="preserve">
+    <value>Toutes les tâches de la liste, sur cette page et les autres, sont mises en file et s’exécutent de nouveau.</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAllConfirm_Title" xml:space="preserve">
+    <value>Retirer toutes les tâches récurrentes ?</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Title" xml:space="preserve">
+    <value>Supprimer toutes les tâches du stockage ?</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Word" xml:space="preserve">
+    <value>supprimer toutes les tâches</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Title" xml:space="preserve">
+    <value>Réinitialiser tout le stockage ?</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Word" xml:space="preserve">
+    <value>réinitialiser le stockage</value>
+  </data>
+  <data name="JobDetailsPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>Elle passe dans Supprimées, où elle peut être remise en file jusqu’à son expiration.</value>
+  </data>
+  <data name="Common_ShortcutConfirm" xml:space="preserve">
+    <value>{0} : {1} sélectionnée(s). Continuer ?</value>
+  </data>
+  <data name="Common_Dismiss" xml:space="preserve">
+    <value>Ignorer</value>
+  </data>
+  <data name="Common_Done" xml:space="preserve">
+    <value>{0} : fait.</value>
+  </data>
+  <data name="Common_ActionFailed" xml:space="preserve">
+    <value>Échec de « {0} » : {1}</value>
+  </data>
+  <data name="Common_ServerResponded" xml:space="preserve">
+    <value>Le serveur a répondu {0}.</value>
+  </data>
+  <data name="Common_NoAnswer" xml:space="preserve">
+    <value>Le serveur n’a pas répondu.</value>
+  </data>
+  <data name="Common_ViewJob" xml:space="preserve">
+    <value>Voir la tâche {0}</value>
+  </data>
+  <data name="Common_ListUpdated" xml:space="preserve">
+    <value>Liste mise à jour</value>
+  </data>
+  <data name="Common_ListUpdatedNew" xml:space="preserve">
+    <value>Liste mise à jour · {0} nouvelle(s)</value>
+  </data>
+  <data name="HomePage_Activity_Pause" xml:space="preserve">
+    <value>Mettre le flux en pause</value>
+  </data>
+  <data name="HomePage_Activity_Summary" xml:space="preserve">
+    <value>{0} nouveau(x) changement(s) d’état</value>
+  </data>
+  <data name="HomePage_RealtimeGraph_Pause" xml:space="preserve">
+    <value>Mettre le graphique en pause</value>
+  </data>
+  <data name="Palette_Label" xml:space="preserve">
+    <value>Recherche et commandes</value>
+  </data>
+  <data name="Palette_Placeholder" xml:space="preserve">
+    <value>Aller à une page, un id de tâche, une tâche récurrente ou une étiquette…</value>
+  </data>
+  <data name="Palette_Results" xml:space="preserve">
+    <value>Résultats</value>
+  </data>
+  <data name="Palette_NothingFound" xml:space="preserve">
+    <value>Aucun résultat</value>
+  </data>
+  <data name="Palette_ResultCount" xml:space="preserve">
+    <value>{0} résultats</value>
+  </data>
+  <data name="Palette_ResultCountOne" xml:space="preserve">
+    <value>1 résultat</value>
+  </data>
+  <data name="Palette_Hint" xml:space="preserve">
+    <value>{0} se déplacer · {1} ouvrir · {2} fermer · {3} commandes</value>
+  </data>
+  <data name="Palette_HintAnywhere" xml:space="preserve">
+    <value>{0} ou {1} l’ouvre partout</value>
+  </data>
+  <data name="Palette_Pages" xml:space="preserve">
+    <value>Pages</value>
+  </data>
+  <data name="Palette_Commands" xml:space="preserve">
+    <value>Commandes</value>
+  </data>
+  <data name="Shortcuts_Search" xml:space="preserve">
+    <value>Rechercher, aller à une page, lancer une commande (tapez &gt;)</value>
+  </data>
+  <data name="Shortcuts_Go" xml:space="preserve">
+    <value>Aller à l’accueil, aux tâches, en cours, en échec, récurrentes, serveurs, analyses, catalogue, étiquettes, lots, audit</value>
+  </data>
+  <data name="Shortcuts_Move" xml:space="preserve">
+    <value>Descendre / monter dans une liste de tâches</value>
+  </data>
+  <data name="Shortcuts_Select" xml:space="preserve">
+    <value>Sélectionner la tâche active</value>
+  </data>
+  <data name="Shortcuts_Open" xml:space="preserve">
+    <value>Ouvrir la tâche active</value>
+  </data>
+  <data name="Shortcuts_Run" xml:space="preserve">
+    <value>Lancer la commande principale de la liste (Remettre en file, Mettre en file maintenant, Déclencher maintenant) pour les éléments sélectionnés, après confirmation</value>
+  </data>
+  <data name="Shortcuts_Delete" xml:space="preserve">
+    <value>Supprimer les tâches sélectionnées</value>
+  </data>
+  <data name="Shortcuts_Help" xml:space="preserve">
+    <value>Cette aide</value>
+  </data>
+  <data name="Shortcuts_SingleKey" xml:space="preserve">
+    <value>Raccourcis à une touche (j, k, x, r, d, g, / et ?). Ctrl K fonctionne dans tous les cas.</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Remove" xml:space="preserve">
+    <value>Ne plus suivre la tâche {0}</value>
   </data>
 </root>

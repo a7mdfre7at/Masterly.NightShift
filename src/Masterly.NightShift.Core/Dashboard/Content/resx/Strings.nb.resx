@@ -142,7 +142,7 @@
     <value>Slett</value>
   </data>
   <data name="Common_DeleteConfirm" xml:space="preserve">
-    <value>Ønsker du virkelig å slette de valgte jobbene?</value>
+    <value>De valgte jobbene flyttes til Slettet, der de kan settes i kø igjen til de utløper.</value>
   </data>
   <data name="Common_Deleting" xml:space="preserve">
     <value>Sletter...</value>
@@ -255,7 +255,7 @@
     <value>Opprettet</value>
   </data>
   <data name="JobDetailsPage_DeleteConfirm" xml:space="preserve">
-    <value>Ønsker du virkelig å slette denne jobben?</value>
+    <value>Slette denne jobben?</value>
   </data>
   <data name="JobDetailsPage_State" xml:space="preserve">
     <value>Tilstand</value>
@@ -831,13 +831,13 @@
     <value>Slett alle</value>
   </data>
   <data name="Common_DeleteAllConfirm" xml:space="preserve">
-    <value>Slette ALLE jobbene i denne listen? Dette kan ikke angres.</value>
+    <value>Alle jobbene i listen, på denne og de andre sidene, flyttes til Slettet, der de kan settes i kø igjen til de utløper.</value>
   </data>
   <data name="RecurringJobsPage_RemoveAll" xml:space="preserve">
     <value>Fjern alle</value>
   </data>
   <data name="RecurringJobsPage_RemoveAllConfirm" xml:space="preserve">
-    <value>Fjerne ALLE gjentakende jobber? De kommer bare tilbake når applikasjonen registrerer dem igjen.</value>
+    <value>De kommer bare tilbake når programmet registrerer dem på nytt.</value>
   </data>
   <data name="LayoutPage_Refresh" xml:space="preserve">
     <value>Oppdater</value>
@@ -861,7 +861,7 @@
     <value>Fjerner hver jobb med historikk, køoppføringer, tellere, konsoller og statistikk. Gjentakende jobber og servere beholdes.</value>
   </data>
   <data name="ServersPage_ClearJobsConfirm" xml:space="preserve">
-    <value>Slette ALLE jobber og historikken deres fra lagringen? Dette kan ikke angres.</value>
+    <value>Alle jobber og historikken deres slettes for godt. Dette kan ikke angres.</value>
   </data>
   <data name="ServersPage_ResetStorage" xml:space="preserve">
     <value>Tilbakestill lagringen</value>
@@ -870,7 +870,7 @@
     <value>Fjerner alt, inkludert gjentakende jobber og serverregistreringer, som om lagringen var ny.</value>
   </data>
   <data name="ServersPage_ResetStorageConfirm" xml:space="preserve">
-    <value>Tilbakestille HELE lagringen? Gjentakende jobber forsvinner til applikasjonen registrerer dem igjen. Dette kan ikke angres.</value>
+    <value>Alle jobber, gjentakende jobber, statistikker og innstillinger slettes. Gjentakende jobber kommer bare tilbake når programmet registrerer dem på nytt. Dette kan ikke angres.</value>
   </data>
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Tømmer…</value>
@@ -1921,5 +1921,239 @@
   </data>
   <data name="ChainsPage_Status_Waiting" xml:space="preserve">
     <value>Venter</value>
+  </data>
+  <data name="LayoutPage_SkipToContent" xml:space="preserve">
+    <value>Hopp til innholdet</value>
+  </data>
+  <data name="LayoutPage_Navigation" xml:space="preserve">
+    <value>Navigasjon</value>
+  </data>
+  <data name="LayoutPage_CloseMenu" xml:space="preserve">
+    <value>Lukk menyen</value>
+  </data>
+  <data name="LayoutPage_Offline" xml:space="preserve">
+    <value>Frakoblet – prøver igjen</value>
+  </data>
+  <data name="LayoutPage_Live_Hint" xml:space="preserve">
+    <value>Tallene på denne siden oppdateres av seg selv med noen sekunders mellomrom.</value>
+  </data>
+  <data name="LayoutPage_Offline_Hint" xml:space="preserve">
+    <value>Dashbordet når ikke serveren. Det fortsetter å prøve; Oppdater prøver igjen nå.</value>
+  </data>
+  <data name="LayoutPage_ReadOnly" xml:space="preserve">
+    <value>Skrivebeskyttet</value>
+  </data>
+  <data name="LayoutPage_ReadOnly_Hint" xml:space="preserve">
+    <value>Dette dashbordet er skrivebeskyttet: det viser jobbene, men kan ikke endre dem.</value>
+  </data>
+  <data name="LayoutPage_StorageUnavailable" xml:space="preserve">
+    <value>Lagringen svarte ikke, så denne siden kan være ufullstendig eller utdatert.</value>
+  </data>
+  <data name="NavigationMenu_Group_Jobs" xml:space="preserve">
+    <value>Jobber</value>
+  </data>
+  <data name="NavigationMenu_Group_Workflows" xml:space="preserve">
+    <value>Arbeidsflyter</value>
+  </data>
+  <data name="NavigationMenu_Group_Observe" xml:space="preserve">
+    <value>Overvåk</value>
+  </data>
+  <data name="NavigationMenu_Group_System" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="NavigationMenu_Group_More" xml:space="preserve">
+    <value>Mer</value>
+  </data>
+  <data name="Common_Breadcrumb" xml:space="preserve">
+    <value>Brødsmulesti</value>
+  </data>
+  <data name="Paginator_Label" xml:space="preserve">
+    <value>Sideinndeling</value>
+  </data>
+  <data name="Paginator_RowsPerPage" xml:space="preserve">
+    <value>Rader per side</value>
+  </data>
+  <data name="Paginator_Range" xml:space="preserve">
+    <value>{0}–{1} av {2}</value>
+  </data>
+  <data name="Paginator_PreviousPage" xml:space="preserve">
+    <value>Forrige side</value>
+  </data>
+  <data name="Paginator_NextPage" xml:space="preserve">
+    <value>Neste side</value>
+  </data>
+  <data name="Paginator_Page" xml:space="preserve">
+    <value>Side {0}</value>
+  </data>
+  <data name="Common_SelectJob" xml:space="preserve">
+    <value>Velg jobb {0}</value>
+  </data>
+  <data name="Common_SelectAllJobs" xml:space="preserve">
+    <value>Velg alle jobbene på denne siden</value>
+  </data>
+  <data name="RecurringJobsPage_SelectJob" xml:space="preserve">
+    <value>Velg gjentakende jobb {0}</value>
+  </data>
+  <data name="RecurringJobsPage_SelectAll" xml:space="preserve">
+    <value>Velg alle gjentakende jobber på denne siden</value>
+  </data>
+  <data name="Common_SelectedCount" xml:space="preserve">
+    <value>{0} valgt</value>
+  </data>
+  <data name="Common_ClearSelection" xml:space="preserve">
+    <value>Fjern utvalget</value>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>Avbryt</value>
+  </data>
+  <data name="Common_Confirm" xml:space="preserve">
+    <value>Bekreft</value>
+  </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>Lukk</value>
+  </data>
+  <data name="Dialog_DiscardTitle" xml:space="preserve">
+    <value>Forkaste endringene?</value>
+  </data>
+  <data name="Dialog_DiscardBody" xml:space="preserve">
+    <value>Det du endret i denne dialogen går tapt.</value>
+  </data>
+  <data name="Dialog_Discard" xml:space="preserve">
+    <value>Forkast</value>
+  </data>
+  <data name="Dialog_KeepEditing" xml:space="preserve">
+    <value>Fortsett å redigere</value>
+  </data>
+  <data name="Dialog_TypeToConfirm" xml:space="preserve">
+    <value>Skriv {0} for å bekrefte</value>
+  </data>
+  <data name="Common_DeleteSelected_Title" xml:space="preserve">
+    <value>Slette {0} jobber?</value>
+  </data>
+  <data name="Common_DeleteSelected_TitleOne" xml:space="preserve">
+    <value>Slette 1 jobb?</value>
+  </data>
+  <data name="Common_DeleteAllConfirm_Title" xml:space="preserve">
+    <value>Slette alle jobbene i denne listen?</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm_Title" xml:space="preserve">
+    <value>Sette alle mislykkede jobber i kø igjen?</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm" xml:space="preserve">
+    <value>Alle jobbene i listen, på denne og de andre sidene, settes i kø og kjøres på nytt.</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAllConfirm_Title" xml:space="preserve">
+    <value>Fjerne alle gjentakende jobber?</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Title" xml:space="preserve">
+    <value>Slette alle jobber fra lagringen?</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Word" xml:space="preserve">
+    <value>slett alle jobber</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Title" xml:space="preserve">
+    <value>Tilbakestille hele lagringen?</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Word" xml:space="preserve">
+    <value>tilbakestill lagringen</value>
+  </data>
+  <data name="JobDetailsPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>Den flyttes til Slettet, der den kan settes i kø igjen til den utløper.</value>
+  </data>
+  <data name="Common_ShortcutConfirm" xml:space="preserve">
+    <value>{0}: {1} valgt. Fortsette?</value>
+  </data>
+  <data name="Common_Dismiss" xml:space="preserve">
+    <value>Lukk</value>
+  </data>
+  <data name="Common_Done" xml:space="preserve">
+    <value>{0}: utført.</value>
+  </data>
+  <data name="Common_ActionFailed" xml:space="preserve">
+    <value>{0} mislyktes: {1}</value>
+  </data>
+  <data name="Common_ServerResponded" xml:space="preserve">
+    <value>Serveren svarte med {0}.</value>
+  </data>
+  <data name="Common_NoAnswer" xml:space="preserve">
+    <value>Serveren svarte ikke.</value>
+  </data>
+  <data name="Common_ViewJob" xml:space="preserve">
+    <value>Vis jobb {0}</value>
+  </data>
+  <data name="Common_ListUpdated" xml:space="preserve">
+    <value>Listen er oppdatert</value>
+  </data>
+  <data name="Common_ListUpdatedNew" xml:space="preserve">
+    <value>Listen er oppdatert · {0} nye</value>
+  </data>
+  <data name="HomePage_Activity_Pause" xml:space="preserve">
+    <value>Sett strømmen på pause</value>
+  </data>
+  <data name="HomePage_Activity_Summary" xml:space="preserve">
+    <value>{0} nye tilstandsendringer</value>
+  </data>
+  <data name="HomePage_RealtimeGraph_Pause" xml:space="preserve">
+    <value>Sett grafen på pause</value>
+  </data>
+  <data name="Palette_Label" xml:space="preserve">
+    <value>Søk og kommandoer</value>
+  </data>
+  <data name="Palette_Placeholder" xml:space="preserve">
+    <value>Gå til en side, en jobb-ID, en gjentakende jobb eller en etikett…</value>
+  </data>
+  <data name="Palette_Results" xml:space="preserve">
+    <value>Resultater</value>
+  </data>
+  <data name="Palette_NothingFound" xml:space="preserve">
+    <value>Fant ingenting</value>
+  </data>
+  <data name="Palette_ResultCount" xml:space="preserve">
+    <value>{0} resultater</value>
+  </data>
+  <data name="Palette_ResultCountOne" xml:space="preserve">
+    <value>1 resultat</value>
+  </data>
+  <data name="Palette_Hint" xml:space="preserve">
+    <value>{0} flytt · {1} åpne · {2} lukk · {3} kommandoer</value>
+  </data>
+  <data name="Palette_HintAnywhere" xml:space="preserve">
+    <value>{0} eller {1} åpner dette hvor som helst</value>
+  </data>
+  <data name="Palette_Pages" xml:space="preserve">
+    <value>Sider</value>
+  </data>
+  <data name="Palette_Commands" xml:space="preserve">
+    <value>Kommandoer</value>
+  </data>
+  <data name="Shortcuts_Search" xml:space="preserve">
+    <value>Søk, gå til en side, kjør en kommando (skriv &gt;)</value>
+  </data>
+  <data name="Shortcuts_Go" xml:space="preserve">
+    <value>Gå til start, jobber, behandles, mislykket, gjentakende, servere, innsikt, katalog, etiketter, grupper, revisjon</value>
+  </data>
+  <data name="Shortcuts_Move" xml:space="preserve">
+    <value>Gå ned / opp i en jobbliste</value>
+  </data>
+  <data name="Shortcuts_Select" xml:space="preserve">
+    <value>Velg jobben i fokus</value>
+  </data>
+  <data name="Shortcuts_Open" xml:space="preserve">
+    <value>Åpne jobben i fokus</value>
+  </data>
+  <data name="Shortcuts_Run" xml:space="preserve">
+    <value>Kjør listens hovedkommando (Sett i kø igjen, Sett i kø nå, Utløs nå) for de valgte elementene, etter en bekreftelse</value>
+  </data>
+  <data name="Shortcuts_Delete" xml:space="preserve">
+    <value>Slett de valgte jobbene</value>
+  </data>
+  <data name="Shortcuts_Help" xml:space="preserve">
+    <value>Denne hjelpen</value>
+  </data>
+  <data name="Shortcuts_SingleKey" xml:space="preserve">
+    <value>Hurtigtaster med én tast (j, k, x, r, d, g, / og ?). Ctrl K virker uansett.</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Remove" xml:space="preserve">
+    <value>Slutt å følge jobb {0}</value>
   </data>
 </root>

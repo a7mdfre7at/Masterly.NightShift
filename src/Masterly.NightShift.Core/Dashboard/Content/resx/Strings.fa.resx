@@ -142,7 +142,7 @@
     <value>حذف شده</value>
   </data>
   <data name="Common_DeleteConfirm" xml:space="preserve">
-    <value>آیا از حذف تمامی موارد انتخاب شده مطمئن هستید؟</value>
+    <value>کارهای انتخاب‌شده به «حذف‌شده» منتقل می‌شوند و تا پیش از انقضا می‌توان آن‌ها را دوباره در صف گذاشت.</value>
   </data>
   <data name="Common_Deleting" xml:space="preserve">
     <value>در حال حذف...</value>
@@ -254,7 +254,7 @@
     <value>ایجاد شده</value>
   </data>
   <data name="JobDetailsPage_DeleteConfirm" xml:space="preserve">
-    <value>آیا از حذف این کار اطمینان دارید؟</value>
+    <value>این کار حذف شود؟</value>
   </data>
   <data name="JobDetailsPage_State" xml:space="preserve">
     <value>وضعیت</value>
@@ -825,13 +825,13 @@
     <value>حذف همه</value>
   </data>
   <data name="Common_DeleteAllConfirm" xml:space="preserve">
-    <value>همه کارهای این فهرست حذف شوند؟ این عمل قابل بازگشت نیست.</value>
+    <value>همه کارهای فهرست، در این صفحه و صفحه‌های دیگر، به «حذف‌شده» منتقل می‌شوند و تا پیش از انقضا می‌توان آن‌ها را دوباره در صف گذاشت.</value>
   </data>
   <data name="RecurringJobsPage_RemoveAll" xml:space="preserve">
     <value>حذف همه</value>
   </data>
   <data name="RecurringJobsPage_RemoveAllConfirm" xml:space="preserve">
-    <value>همه کارهای تکرارشونده حذف شوند؟ فقط وقتی برنامه دوباره آن‌ها را ثبت کند بازمی‌گردند.</value>
+    <value>فقط وقتی برمی‌گردند که برنامه دوباره آن‌ها را ثبت کند.</value>
   </data>
   <data name="LayoutPage_Refresh" xml:space="preserve">
     <value>بازخوانی</value>
@@ -855,7 +855,7 @@
     <value>همه کارها را همراه با تاریخچه، ورودی‌های صف، شمارنده‌ها، کنسول‌ها و آمار حذف می‌کند. تعریف کارهای تکرارشونده و سرورها حفظ می‌شوند.</value>
   </data>
   <data name="ServersPage_ClearJobsConfirm" xml:space="preserve">
-    <value>همه کارها و تاریخچه آن‌ها از ذخیره‌ساز حذف شوند؟ این عمل قابل بازگشت نیست.</value>
+    <value>همه کارها و سابقه آن‌ها برای همیشه حذف می‌شوند. این کار قابل بازگشت نیست.</value>
   </data>
   <data name="ServersPage_ResetStorage" xml:space="preserve">
     <value>بازنشانی ذخیره‌ساز</value>
@@ -864,7 +864,7 @@
     <value>همه چیز، از جمله تعریف کارهای تکرارشونده و ثبت سرورها، حذف می‌شود؛ گویی ذخیره‌ساز نو است.</value>
   </data>
   <data name="ServersPage_ResetStorageConfirm" xml:space="preserve">
-    <value>کل ذخیره‌ساز بازنشانی شود؟ کارهای تکرارشونده تا ثبت مجدد توسط برنامه ناپدید می‌شوند. این عمل قابل بازگشت نیست.</value>
+    <value>همه کارها، کارهای تکرارشونده، آمار و تنظیمات حذف می‌شوند. کارهای تکرارشونده فقط وقتی برمی‌گردند که برنامه دوباره آن‌ها را ثبت کند. این کار قابل بازگشت نیست.</value>
   </data>
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>در حال پاک کردن…</value>
@@ -1915,5 +1915,239 @@
   </data>
   <data name="ChainsPage_Status_Waiting" xml:space="preserve">
     <value>در انتظار</value>
+  </data>
+  <data name="LayoutPage_SkipToContent" xml:space="preserve">
+    <value>رفتن به محتوا</value>
+  </data>
+  <data name="LayoutPage_Navigation" xml:space="preserve">
+    <value>پیمایش</value>
+  </data>
+  <data name="LayoutPage_CloseMenu" xml:space="preserve">
+    <value>بستن منو</value>
+  </data>
+  <data name="LayoutPage_Offline" xml:space="preserve">
+    <value>آفلاین – در حال تلاش دوباره</value>
+  </data>
+  <data name="LayoutPage_Live_Hint" xml:space="preserve">
+    <value>اعداد این صفحه هر چند ثانیه خودبه‌خود به‌روز می‌شوند.</value>
+  </data>
+  <data name="LayoutPage_Offline_Hint" xml:space="preserve">
+    <value>داشبورد به سرور دسترسی ندارد. همچنان تلاش می‌کند؛ «تازه‌سازی» همین حالا دوباره تلاش می‌کند.</value>
+  </data>
+  <data name="LayoutPage_ReadOnly" xml:space="preserve">
+    <value>فقط‌خواندنی</value>
+  </data>
+  <data name="LayoutPage_ReadOnly_Hint" xml:space="preserve">
+    <value>این داشبورد فقط‌خواندنی است: کارها را نشان می‌دهد اما نمی‌تواند آن‌ها را تغییر دهد.</value>
+  </data>
+  <data name="LayoutPage_StorageUnavailable" xml:space="preserve">
+    <value>ذخیره‌ساز پاسخ نداد، بنابراین این صفحه ممکن است ناقص یا قدیمی باشد.</value>
+  </data>
+  <data name="NavigationMenu_Group_Jobs" xml:space="preserve">
+    <value>کارها</value>
+  </data>
+  <data name="NavigationMenu_Group_Workflows" xml:space="preserve">
+    <value>گردش‌های کار</value>
+  </data>
+  <data name="NavigationMenu_Group_Observe" xml:space="preserve">
+    <value>پایش</value>
+  </data>
+  <data name="NavigationMenu_Group_System" xml:space="preserve">
+    <value>سیستم</value>
+  </data>
+  <data name="NavigationMenu_Group_More" xml:space="preserve">
+    <value>بیشتر</value>
+  </data>
+  <data name="Common_Breadcrumb" xml:space="preserve">
+    <value>مسیر صفحه</value>
+  </data>
+  <data name="Paginator_Label" xml:space="preserve">
+    <value>صفحه‌بندی</value>
+  </data>
+  <data name="Paginator_RowsPerPage" xml:space="preserve">
+    <value>ردیف در هر صفحه</value>
+  </data>
+  <data name="Paginator_Range" xml:space="preserve">
+    <value>{0}–{1} از {2}</value>
+  </data>
+  <data name="Paginator_PreviousPage" xml:space="preserve">
+    <value>صفحه قبل</value>
+  </data>
+  <data name="Paginator_NextPage" xml:space="preserve">
+    <value>صفحه بعد</value>
+  </data>
+  <data name="Paginator_Page" xml:space="preserve">
+    <value>صفحه {0}</value>
+  </data>
+  <data name="Common_SelectJob" xml:space="preserve">
+    <value>انتخاب کار {0}</value>
+  </data>
+  <data name="Common_SelectAllJobs" xml:space="preserve">
+    <value>انتخاب همه کارهای این صفحه</value>
+  </data>
+  <data name="RecurringJobsPage_SelectJob" xml:space="preserve">
+    <value>انتخاب کار تکرارشونده {0}</value>
+  </data>
+  <data name="RecurringJobsPage_SelectAll" xml:space="preserve">
+    <value>انتخاب همه کارهای تکرارشونده این صفحه</value>
+  </data>
+  <data name="Common_SelectedCount" xml:space="preserve">
+    <value>{0} انتخاب‌شده</value>
+  </data>
+  <data name="Common_ClearSelection" xml:space="preserve">
+    <value>پاک کردن انتخاب</value>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>انصراف</value>
+  </data>
+  <data name="Common_Confirm" xml:space="preserve">
+    <value>تأیید</value>
+  </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>بستن</value>
+  </data>
+  <data name="Dialog_DiscardTitle" xml:space="preserve">
+    <value>تغییرات کنار گذاشته شوند؟</value>
+  </data>
+  <data name="Dialog_DiscardBody" xml:space="preserve">
+    <value>تغییراتی که در این پنجره داده‌اید از بین می‌رود.</value>
+  </data>
+  <data name="Dialog_Discard" xml:space="preserve">
+    <value>کنار گذاشتن</value>
+  </data>
+  <data name="Dialog_KeepEditing" xml:space="preserve">
+    <value>ادامه ویرایش</value>
+  </data>
+  <data name="Dialog_TypeToConfirm" xml:space="preserve">
+    <value>برای تأیید {0} را بنویسید</value>
+  </data>
+  <data name="Common_DeleteSelected_Title" xml:space="preserve">
+    <value>{0} کار حذف شوند؟</value>
+  </data>
+  <data name="Common_DeleteSelected_TitleOne" xml:space="preserve">
+    <value>۱ کار حذف شود؟</value>
+  </data>
+  <data name="Common_DeleteAllConfirm_Title" xml:space="preserve">
+    <value>همه کارهای این فهرست حذف شوند؟</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm_Title" xml:space="preserve">
+    <value>همه کارهای ناموفق دوباره در صف قرار گیرند؟</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm" xml:space="preserve">
+    <value>همه کارهای فهرست، در این صفحه و صفحه‌های دیگر، در صف قرار می‌گیرند و دوباره اجرا می‌شوند.</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAllConfirm_Title" xml:space="preserve">
+    <value>همه کارهای تکرارشونده حذف شوند؟</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Title" xml:space="preserve">
+    <value>همه کارها از ذخیره‌ساز حذف شوند؟</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Word" xml:space="preserve">
+    <value>حذف همه کارها</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Title" xml:space="preserve">
+    <value>کل ذخیره‌ساز بازنشانی شود؟</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Word" xml:space="preserve">
+    <value>بازنشانی ذخیره‌ساز</value>
+  </data>
+  <data name="JobDetailsPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>به «حذف‌شده» منتقل می‌شود و تا پیش از انقضا می‌توان آن را دوباره در صف گذاشت.</value>
+  </data>
+  <data name="Common_ShortcutConfirm" xml:space="preserve">
+    <value>{0}: {1} انتخاب‌شده. ادامه می‌دهید؟</value>
+  </data>
+  <data name="Common_Dismiss" xml:space="preserve">
+    <value>بستن</value>
+  </data>
+  <data name="Common_Done" xml:space="preserve">
+    <value>{0}: انجام شد.</value>
+  </data>
+  <data name="Common_ActionFailed" xml:space="preserve">
+    <value>{0} ناموفق بود: {1}</value>
+  </data>
+  <data name="Common_ServerResponded" xml:space="preserve">
+    <value>سرور با {0} پاسخ داد.</value>
+  </data>
+  <data name="Common_NoAnswer" xml:space="preserve">
+    <value>سرور پاسخ نداد.</value>
+  </data>
+  <data name="Common_ViewJob" xml:space="preserve">
+    <value>دیدن کار {0}</value>
+  </data>
+  <data name="Common_ListUpdated" xml:space="preserve">
+    <value>فهرست به‌روز شد</value>
+  </data>
+  <data name="Common_ListUpdatedNew" xml:space="preserve">
+    <value>فهرست به‌روز شد · {0} مورد جدید</value>
+  </data>
+  <data name="HomePage_Activity_Pause" xml:space="preserve">
+    <value>توقف فید</value>
+  </data>
+  <data name="HomePage_Activity_Summary" xml:space="preserve">
+    <value>{0} تغییر وضعیت جدید</value>
+  </data>
+  <data name="HomePage_RealtimeGraph_Pause" xml:space="preserve">
+    <value>توقف نمودار</value>
+  </data>
+  <data name="Palette_Label" xml:space="preserve">
+    <value>جستجو و فرمان‌ها</value>
+  </data>
+  <data name="Palette_Placeholder" xml:space="preserve">
+    <value>رفتن به یک صفحه، شناسه کار، کار تکرارشونده یا برچسب…</value>
+  </data>
+  <data name="Palette_Results" xml:space="preserve">
+    <value>نتایج</value>
+  </data>
+  <data name="Palette_NothingFound" xml:space="preserve">
+    <value>چیزی یافت نشد</value>
+  </data>
+  <data name="Palette_ResultCount" xml:space="preserve">
+    <value>{0} نتیجه</value>
+  </data>
+  <data name="Palette_ResultCountOne" xml:space="preserve">
+    <value>۱ نتیجه</value>
+  </data>
+  <data name="Palette_Hint" xml:space="preserve">
+    <value>{0} جابه‌جایی · {1} باز کردن · {2} بستن · {3} فرمان‌ها</value>
+  </data>
+  <data name="Palette_HintAnywhere" xml:space="preserve">
+    <value>{0} یا {1} این را از هر جا باز می‌کند</value>
+  </data>
+  <data name="Palette_Pages" xml:space="preserve">
+    <value>صفحه‌ها</value>
+  </data>
+  <data name="Palette_Commands" xml:space="preserve">
+    <value>فرمان‌ها</value>
+  </data>
+  <data name="Shortcuts_Search" xml:space="preserve">
+    <value>جستجو، رفتن به صفحه، اجرای فرمان (&gt; را بنویسید)</value>
+  </data>
+  <data name="Shortcuts_Go" xml:space="preserve">
+    <value>رفتن به خانه، کارها، در حال اجرا، ناموفق، تکرارشونده، سرورها، بینش‌ها، کاتالوگ، برچسب‌ها، دسته‌ها، ممیزی</value>
+  </data>
+  <data name="Shortcuts_Move" xml:space="preserve">
+    <value>حرکت به پایین / بالا در فهرست کارها</value>
+  </data>
+  <data name="Shortcuts_Select" xml:space="preserve">
+    <value>انتخاب کار فعلی</value>
+  </data>
+  <data name="Shortcuts_Open" xml:space="preserve">
+    <value>باز کردن کار فعلی</value>
+  </data>
+  <data name="Shortcuts_Run" xml:space="preserve">
+    <value>اجرای فرمان اصلی فهرست (صف مجدد، صف‌گذاری اکنون، اجرای اکنون) برای موارد انتخاب‌شده، پس از تأیید</value>
+  </data>
+  <data name="Shortcuts_Delete" xml:space="preserve">
+    <value>حذف کارهای انتخاب‌شده</value>
+  </data>
+  <data name="Shortcuts_Help" xml:space="preserve">
+    <value>همین راهنما</value>
+  </data>
+  <data name="Shortcuts_SingleKey" xml:space="preserve">
+    <value>میان‌برهای تک‌کلیدی (j، k، x، r، d، g، / و ?). Ctrl K در هر صورت کار می‌کند.</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Remove" xml:space="preserve">
+    <value>توقف دنبال کردن کار {0}</value>
   </data>
 </root>

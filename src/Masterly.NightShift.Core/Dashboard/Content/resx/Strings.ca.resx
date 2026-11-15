@@ -143,7 +143,7 @@
     <value>Eliminar</value>
   </data>
   <data name="Common_DeleteConfirm" xml:space="preserve">
-    <value>¿Esteu segur que voleu ELIMINAR TOTES les tasques seleccionades?</value>
+    <value>Les tasques seleccionades passen a Eliminades, on es poden tornar a encuar fins que caduquin.</value>
   </data>
   <data name="Common_Deleting" xml:space="preserve">
     <value>Eliminant...</value>
@@ -256,7 +256,7 @@
     <value>Creat</value>
   </data>
   <data name="JobDetailsPage_DeleteConfirm" xml:space="preserve">
-    <value>¿Esteu segur que voleu eliminar aquesta tasca?</value>
+    <value>Vols suprimir aquesta tasca?</value>
   </data>
   <data name="JobDetailsPage_State" xml:space="preserve">
     <value>Estat</value>
@@ -770,13 +770,13 @@
     <value>Suprimeix-ho tot</value>
   </data>
   <data name="Common_DeleteAllConfirm" xml:space="preserve">
-    <value>Suprimir TOTES les tasques d’aquesta llista? Això no es pot desfer.</value>
+    <value>Totes les tasques de la llista, d’aquesta pàgina i de les altres, passen a Eliminades, on es poden tornar a encuar fins que caduquin.</value>
   </data>
   <data name="RecurringJobsPage_RemoveAll" xml:space="preserve">
     <value>Elimina-les totes</value>
   </data>
   <data name="RecurringJobsPage_RemoveAllConfirm" xml:space="preserve">
-    <value>Eliminar TOTES les tasques recurrents? Només tornen quan l’aplicació les registra de nou.</value>
+    <value>Només tornaran quan l’aplicació les registri de nou.</value>
   </data>
   <data name="LayoutPage_Refresh" xml:space="preserve">
     <value>Actualitza</value>
@@ -800,7 +800,7 @@
     <value>Elimina cada tasca amb el seu historial, entrades de cua, comptadors, consoles i estadístiques. Les tasques recurrents i els servidors es conserven.</value>
   </data>
   <data name="ServersPage_ClearJobsConfirm" xml:space="preserve">
-    <value>Suprimir TOTES les tasques i el seu historial de l’emmagatzematge? Això no es pot desfer.</value>
+    <value>Totes les tasques i el seu historial se suprimeixen definitivament. No es pot desfer.</value>
   </data>
   <data name="ServersPage_ResetStorage" xml:space="preserve">
     <value>Restableix l’emmagatzematge</value>
@@ -809,7 +809,7 @@
     <value>Elimina tot, incloses les tasques recurrents i els registres de servidors, com si l’emmagatzematge fos nou.</value>
   </data>
   <data name="ServersPage_ResetStorageConfirm" xml:space="preserve">
-    <value>Restablir TOT l’emmagatzematge? Les tasques recurrents desapareixen fins que l’aplicació les registri de nou. Això no es pot desfer.</value>
+    <value>Se suprimeixen totes les tasques, tasques recurrents, estadístiques i opcions. Les tasques recurrents només tornaran quan l’aplicació les registri de nou. No es pot desfer.</value>
   </data>
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Esborrant…</value>
@@ -1860,5 +1860,239 @@
   </data>
   <data name="ChainsPage_Status_Waiting" xml:space="preserve">
     <value>En espera</value>
+  </data>
+  <data name="LayoutPage_SkipToContent" xml:space="preserve">
+    <value>Salta al contingut</value>
+  </data>
+  <data name="LayoutPage_Navigation" xml:space="preserve">
+    <value>Navegació</value>
+  </data>
+  <data name="LayoutPage_CloseMenu" xml:space="preserve">
+    <value>Tanca el menú</value>
+  </data>
+  <data name="LayoutPage_Offline" xml:space="preserve">
+    <value>Sense connexió – es torna a provar</value>
+  </data>
+  <data name="LayoutPage_Live_Hint" xml:space="preserve">
+    <value>Les xifres d’aquesta pàgina s’actualitzen soles cada pocs segons.</value>
+  </data>
+  <data name="LayoutPage_Offline_Hint" xml:space="preserve">
+    <value>El tauler no pot connectar amb el servidor. Ho continua provant; Actualitza ho torna a provar ara.</value>
+  </data>
+  <data name="LayoutPage_ReadOnly" xml:space="preserve">
+    <value>Només lectura</value>
+  </data>
+  <data name="LayoutPage_ReadOnly_Hint" xml:space="preserve">
+    <value>Aquest tauler és de només lectura: mostra les tasques però no les pot canviar.</value>
+  </data>
+  <data name="LayoutPage_StorageUnavailable" xml:space="preserve">
+    <value>L’emmagatzematge no ha respost, així que aquesta pàgina pot ser incompleta o no estar al dia.</value>
+  </data>
+  <data name="NavigationMenu_Group_Jobs" xml:space="preserve">
+    <value>Tasques</value>
+  </data>
+  <data name="NavigationMenu_Group_Workflows" xml:space="preserve">
+    <value>Fluxos de treball</value>
+  </data>
+  <data name="NavigationMenu_Group_Observe" xml:space="preserve">
+    <value>Observa</value>
+  </data>
+  <data name="NavigationMenu_Group_System" xml:space="preserve">
+    <value>Sistema</value>
+  </data>
+  <data name="NavigationMenu_Group_More" xml:space="preserve">
+    <value>Més</value>
+  </data>
+  <data name="Common_Breadcrumb" xml:space="preserve">
+    <value>Ruta de navegació</value>
+  </data>
+  <data name="Paginator_Label" xml:space="preserve">
+    <value>Paginació</value>
+  </data>
+  <data name="Paginator_RowsPerPage" xml:space="preserve">
+    <value>Files per pàgina</value>
+  </data>
+  <data name="Paginator_Range" xml:space="preserve">
+    <value>{0}–{1} de {2}</value>
+  </data>
+  <data name="Paginator_PreviousPage" xml:space="preserve">
+    <value>Pàgina anterior</value>
+  </data>
+  <data name="Paginator_NextPage" xml:space="preserve">
+    <value>Pàgina següent</value>
+  </data>
+  <data name="Paginator_Page" xml:space="preserve">
+    <value>Pàgina {0}</value>
+  </data>
+  <data name="Common_SelectJob" xml:space="preserve">
+    <value>Selecciona la tasca {0}</value>
+  </data>
+  <data name="Common_SelectAllJobs" xml:space="preserve">
+    <value>Selecciona totes les tasques d’aquesta pàgina</value>
+  </data>
+  <data name="RecurringJobsPage_SelectJob" xml:space="preserve">
+    <value>Selecciona la tasca recurrent {0}</value>
+  </data>
+  <data name="RecurringJobsPage_SelectAll" xml:space="preserve">
+    <value>Selecciona totes les tasques recurrents d’aquesta pàgina</value>
+  </data>
+  <data name="Common_SelectedCount" xml:space="preserve">
+    <value>{0} seleccionades</value>
+  </data>
+  <data name="Common_ClearSelection" xml:space="preserve">
+    <value>Esborra la selecció</value>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="Common_Confirm" xml:space="preserve">
+    <value>Confirma</value>
+  </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>Tanca</value>
+  </data>
+  <data name="Dialog_DiscardTitle" xml:space="preserve">
+    <value>Vols descartar els canvis?</value>
+  </data>
+  <data name="Dialog_DiscardBody" xml:space="preserve">
+    <value>Es perdrà el que has canviat en aquest diàleg.</value>
+  </data>
+  <data name="Dialog_Discard" xml:space="preserve">
+    <value>Descarta</value>
+  </data>
+  <data name="Dialog_KeepEditing" xml:space="preserve">
+    <value>Continua editant</value>
+  </data>
+  <data name="Dialog_TypeToConfirm" xml:space="preserve">
+    <value>Escriu {0} per confirmar</value>
+  </data>
+  <data name="Common_DeleteSelected_Title" xml:space="preserve">
+    <value>Vols suprimir {0} tasques?</value>
+  </data>
+  <data name="Common_DeleteSelected_TitleOne" xml:space="preserve">
+    <value>Vols suprimir 1 tasca?</value>
+  </data>
+  <data name="Common_DeleteAllConfirm_Title" xml:space="preserve">
+    <value>Vols suprimir totes les tasques d’aquesta llista?</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm_Title" xml:space="preserve">
+    <value>Vols tornar a encuar totes les tasques fallides?</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm" xml:space="preserve">
+    <value>Totes les tasques de la llista, d’aquesta pàgina i de les altres, s’encuen i es tornen a executar.</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAllConfirm_Title" xml:space="preserve">
+    <value>Vols eliminar totes les tasques recurrents?</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Title" xml:space="preserve">
+    <value>Vols suprimir totes les tasques de l’emmagatzematge?</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Word" xml:space="preserve">
+    <value>suprimeix totes les tasques</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Title" xml:space="preserve">
+    <value>Vols restablir tot l’emmagatzematge?</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Word" xml:space="preserve">
+    <value>restableix l’emmagatzematge</value>
+  </data>
+  <data name="JobDetailsPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>Passa a Eliminades, on es pot tornar a encuar fins que caduqui.</value>
+  </data>
+  <data name="Common_ShortcutConfirm" xml:space="preserve">
+    <value>{0}: {1} seleccionades. Vols continuar?</value>
+  </data>
+  <data name="Common_Dismiss" xml:space="preserve">
+    <value>Descarta</value>
+  </data>
+  <data name="Common_Done" xml:space="preserve">
+    <value>{0}: fet.</value>
+  </data>
+  <data name="Common_ActionFailed" xml:space="preserve">
+    <value>{0} ha fallat: {1}</value>
+  </data>
+  <data name="Common_ServerResponded" xml:space="preserve">
+    <value>El servidor ha respost amb {0}.</value>
+  </data>
+  <data name="Common_NoAnswer" xml:space="preserve">
+    <value>El servidor no ha respost.</value>
+  </data>
+  <data name="Common_ViewJob" xml:space="preserve">
+    <value>Mostra la tasca {0}</value>
+  </data>
+  <data name="Common_ListUpdated" xml:space="preserve">
+    <value>Llista actualitzada</value>
+  </data>
+  <data name="Common_ListUpdatedNew" xml:space="preserve">
+    <value>Llista actualitzada · {0} noves</value>
+  </data>
+  <data name="HomePage_Activity_Pause" xml:space="preserve">
+    <value>Posa en pausa el flux</value>
+  </data>
+  <data name="HomePage_Activity_Summary" xml:space="preserve">
+    <value>{0} canvis d’estat nous</value>
+  </data>
+  <data name="HomePage_RealtimeGraph_Pause" xml:space="preserve">
+    <value>Posa en pausa el gràfic</value>
+  </data>
+  <data name="Palette_Label" xml:space="preserve">
+    <value>Cerca i ordres</value>
+  </data>
+  <data name="Palette_Placeholder" xml:space="preserve">
+    <value>Vés a una pàgina, un id de tasca, una tasca recurrent o una etiqueta…</value>
+  </data>
+  <data name="Palette_Results" xml:space="preserve">
+    <value>Resultats</value>
+  </data>
+  <data name="Palette_NothingFound" xml:space="preserve">
+    <value>No s’ha trobat res</value>
+  </data>
+  <data name="Palette_ResultCount" xml:space="preserve">
+    <value>{0} resultats</value>
+  </data>
+  <data name="Palette_ResultCountOne" xml:space="preserve">
+    <value>1 resultat</value>
+  </data>
+  <data name="Palette_Hint" xml:space="preserve">
+    <value>{0} moure · {1} obrir · {2} tancar · {3} ordres</value>
+  </data>
+  <data name="Palette_HintAnywhere" xml:space="preserve">
+    <value>{0} o {1} l’obre des de qualsevol lloc</value>
+  </data>
+  <data name="Palette_Pages" xml:space="preserve">
+    <value>Pàgines</value>
+  </data>
+  <data name="Palette_Commands" xml:space="preserve">
+    <value>Ordres</value>
+  </data>
+  <data name="Shortcuts_Search" xml:space="preserve">
+    <value>Cerca, vés a una pàgina, executa una ordre (escriu &gt;)</value>
+  </data>
+  <data name="Shortcuts_Go" xml:space="preserve">
+    <value>Vés a inici, tasques, en procés, fallides, recurrents, servidors, anàlisi, catàleg, etiquetes, lots, auditoria</value>
+  </data>
+  <data name="Shortcuts_Move" xml:space="preserve">
+    <value>Baixa / puja per una llista de tasques</value>
+  </data>
+  <data name="Shortcuts_Select" xml:space="preserve">
+    <value>Selecciona la tasca enfocada</value>
+  </data>
+  <data name="Shortcuts_Open" xml:space="preserve">
+    <value>Obre la tasca enfocada</value>
+  </data>
+  <data name="Shortcuts_Run" xml:space="preserve">
+    <value>Executa l’ordre principal de la llista (Torna a encuar, Encua ara, Llança ara) per als elements seleccionats, després d’una confirmació</value>
+  </data>
+  <data name="Shortcuts_Delete" xml:space="preserve">
+    <value>Suprimeix les tasques seleccionades</value>
+  </data>
+  <data name="Shortcuts_Help" xml:space="preserve">
+    <value>Aquesta ajuda</value>
+  </data>
+  <data name="Shortcuts_SingleKey" xml:space="preserve">
+    <value>Dreceres d’una sola tecla (j, k, x, r, d, g, / i ?). Ctrl K funciona igualment.</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Remove" xml:space="preserve">
+    <value>Deixa de seguir la tasca {0}</value>
   </data>
 </root>

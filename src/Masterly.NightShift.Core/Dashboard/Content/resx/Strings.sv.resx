@@ -147,7 +147,7 @@
     <value>Ta bort</value>
   </data>
   <data name="Common_DeleteConfirm" xml:space="preserve">
-    <value>Vill du verkligen TA BORT ALLA valda jobb?</value>
+    <value>De valda jobben flyttas till Borttagna, där de kan köas igen tills de går ut.</value>
   </data>
   <data name="Common_Deleting" xml:space="preserve">
     <value>Tar bort...</value>
@@ -259,7 +259,7 @@
     <value>Skapad</value>
   </data>
   <data name="JobDetailsPage_DeleteConfirm" xml:space="preserve">
-    <value>Vill du verkligen ta bort det här jobbet?</value>
+    <value>Ta bort det här jobbet?</value>
   </data>
   <data name="JobDetailsPage_State" xml:space="preserve">
     <value>Tillstånd</value>
@@ -833,13 +833,13 @@
     <value>Ta bort alla</value>
   </data>
   <data name="Common_DeleteAllConfirm" xml:space="preserve">
-    <value>Ta bort ALLA jobb i den här listan? Det går inte att ångra.</value>
+    <value>Alla jobb i listan, på den här och de andra sidorna, flyttas till Borttagna, där de kan köas igen tills de går ut.</value>
   </data>
   <data name="RecurringJobsPage_RemoveAll" xml:space="preserve">
     <value>Ta bort alla</value>
   </data>
   <data name="RecurringJobsPage_RemoveAllConfirm" xml:space="preserve">
-    <value>Ta bort ALLA återkommande jobb? De kommer tillbaka först när programmet registrerar dem igen.</value>
+    <value>De kommer tillbaka först när programmet registrerar dem igen.</value>
   </data>
   <data name="LayoutPage_Refresh" xml:space="preserve">
     <value>Uppdatera</value>
@@ -863,7 +863,7 @@
     <value>Tar bort varje jobb med historik, köposter, räknare, konsoler och statistik. Återkommande jobb och servrar behålls.</value>
   </data>
   <data name="ServersPage_ClearJobsConfirm" xml:space="preserve">
-    <value>Ta bort ALLA jobb och deras historik från lagringen? Det går inte att ångra.</value>
+    <value>Alla jobb och deras historik tas bort för gott. Det går inte att ångra.</value>
   </data>
   <data name="ServersPage_ResetStorage" xml:space="preserve">
     <value>Återställ lagringen</value>
@@ -872,7 +872,7 @@
     <value>Tar bort allt, även återkommande jobb och serverregistreringar, som om lagringen vore ny.</value>
   </data>
   <data name="ServersPage_ResetStorageConfirm" xml:space="preserve">
-    <value>Återställa HELA lagringen? Återkommande jobb försvinner tills programmet registrerar dem igen. Det går inte att ångra.</value>
+    <value>Alla jobb, återkommande jobb, statistik och inställningar tas bort. Återkommande jobb kommer tillbaka först när programmet registrerar dem igen. Det går inte att ångra.</value>
   </data>
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Rensar…</value>
@@ -1923,5 +1923,239 @@
   </data>
   <data name="ChainsPage_Status_Waiting" xml:space="preserve">
     <value>Väntar</value>
+  </data>
+  <data name="LayoutPage_SkipToContent" xml:space="preserve">
+    <value>Hoppa till innehållet</value>
+  </data>
+  <data name="LayoutPage_Navigation" xml:space="preserve">
+    <value>Navigering</value>
+  </data>
+  <data name="LayoutPage_CloseMenu" xml:space="preserve">
+    <value>Stäng menyn</value>
+  </data>
+  <data name="LayoutPage_Offline" xml:space="preserve">
+    <value>Offline – försöker igen</value>
+  </data>
+  <data name="LayoutPage_Live_Hint" xml:space="preserve">
+    <value>Siffrorna på sidan uppdateras av sig själva med några sekunders mellanrum.</value>
+  </data>
+  <data name="LayoutPage_Offline_Hint" xml:space="preserve">
+    <value>Instrumentpanelen når inte servern. Den fortsätter försöka; Uppdatera försöker igen nu.</value>
+  </data>
+  <data name="LayoutPage_ReadOnly" xml:space="preserve">
+    <value>Skrivskyddad</value>
+  </data>
+  <data name="LayoutPage_ReadOnly_Hint" xml:space="preserve">
+    <value>Den här instrumentpanelen är skrivskyddad: den visar jobben men kan inte ändra dem.</value>
+  </data>
+  <data name="LayoutPage_StorageUnavailable" xml:space="preserve">
+    <value>Lagringen svarade inte, så sidan kan vara ofullständig eller inaktuell.</value>
+  </data>
+  <data name="NavigationMenu_Group_Jobs" xml:space="preserve">
+    <value>Jobb</value>
+  </data>
+  <data name="NavigationMenu_Group_Workflows" xml:space="preserve">
+    <value>Arbetsflöden</value>
+  </data>
+  <data name="NavigationMenu_Group_Observe" xml:space="preserve">
+    <value>Övervaka</value>
+  </data>
+  <data name="NavigationMenu_Group_System" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="NavigationMenu_Group_More" xml:space="preserve">
+    <value>Mer</value>
+  </data>
+  <data name="Common_Breadcrumb" xml:space="preserve">
+    <value>Brödsmulor</value>
+  </data>
+  <data name="Paginator_Label" xml:space="preserve">
+    <value>Sidnumrering</value>
+  </data>
+  <data name="Paginator_RowsPerPage" xml:space="preserve">
+    <value>Rader per sida</value>
+  </data>
+  <data name="Paginator_Range" xml:space="preserve">
+    <value>{0}–{1} av {2}</value>
+  </data>
+  <data name="Paginator_PreviousPage" xml:space="preserve">
+    <value>Föregående sida</value>
+  </data>
+  <data name="Paginator_NextPage" xml:space="preserve">
+    <value>Nästa sida</value>
+  </data>
+  <data name="Paginator_Page" xml:space="preserve">
+    <value>Sida {0}</value>
+  </data>
+  <data name="Common_SelectJob" xml:space="preserve">
+    <value>Välj jobb {0}</value>
+  </data>
+  <data name="Common_SelectAllJobs" xml:space="preserve">
+    <value>Välj alla jobb på den här sidan</value>
+  </data>
+  <data name="RecurringJobsPage_SelectJob" xml:space="preserve">
+    <value>Välj återkommande jobb {0}</value>
+  </data>
+  <data name="RecurringJobsPage_SelectAll" xml:space="preserve">
+    <value>Välj alla återkommande jobb på den här sidan</value>
+  </data>
+  <data name="Common_SelectedCount" xml:space="preserve">
+    <value>{0} valda</value>
+  </data>
+  <data name="Common_ClearSelection" xml:space="preserve">
+    <value>Rensa markeringen</value>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>Avbryt</value>
+  </data>
+  <data name="Common_Confirm" xml:space="preserve">
+    <value>Bekräfta</value>
+  </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>Stäng</value>
+  </data>
+  <data name="Dialog_DiscardTitle" xml:space="preserve">
+    <value>Ignorera ändringarna?</value>
+  </data>
+  <data name="Dialog_DiscardBody" xml:space="preserve">
+    <value>Det du ändrade i dialogrutan går förlorat.</value>
+  </data>
+  <data name="Dialog_Discard" xml:space="preserve">
+    <value>Ignorera</value>
+  </data>
+  <data name="Dialog_KeepEditing" xml:space="preserve">
+    <value>Fortsätt redigera</value>
+  </data>
+  <data name="Dialog_TypeToConfirm" xml:space="preserve">
+    <value>Skriv {0} för att bekräfta</value>
+  </data>
+  <data name="Common_DeleteSelected_Title" xml:space="preserve">
+    <value>Ta bort {0} jobb?</value>
+  </data>
+  <data name="Common_DeleteSelected_TitleOne" xml:space="preserve">
+    <value>Ta bort 1 jobb?</value>
+  </data>
+  <data name="Common_DeleteAllConfirm_Title" xml:space="preserve">
+    <value>Ta bort alla jobb i den här listan?</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm_Title" xml:space="preserve">
+    <value>Köa om alla misslyckade jobb?</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm" xml:space="preserve">
+    <value>Alla jobb i listan, på den här och de andra sidorna, köas och körs igen.</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAllConfirm_Title" xml:space="preserve">
+    <value>Ta bort alla återkommande jobb?</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Title" xml:space="preserve">
+    <value>Ta bort alla jobb från lagringen?</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Word" xml:space="preserve">
+    <value>ta bort alla jobb</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Title" xml:space="preserve">
+    <value>Återställa hela lagringen?</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Word" xml:space="preserve">
+    <value>återställ lagringen</value>
+  </data>
+  <data name="JobDetailsPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>Det flyttas till Borttagna, där det kan köas igen tills det går ut.</value>
+  </data>
+  <data name="Common_ShortcutConfirm" xml:space="preserve">
+    <value>{0}: {1} valda. Fortsätta?</value>
+  </data>
+  <data name="Common_Dismiss" xml:space="preserve">
+    <value>Stäng</value>
+  </data>
+  <data name="Common_Done" xml:space="preserve">
+    <value>{0}: klart.</value>
+  </data>
+  <data name="Common_ActionFailed" xml:space="preserve">
+    <value>{0} misslyckades: {1}</value>
+  </data>
+  <data name="Common_ServerResponded" xml:space="preserve">
+    <value>Servern svarade med {0}.</value>
+  </data>
+  <data name="Common_NoAnswer" xml:space="preserve">
+    <value>Servern svarade inte.</value>
+  </data>
+  <data name="Common_ViewJob" xml:space="preserve">
+    <value>Visa jobb {0}</value>
+  </data>
+  <data name="Common_ListUpdated" xml:space="preserve">
+    <value>Listan har uppdaterats</value>
+  </data>
+  <data name="Common_ListUpdatedNew" xml:space="preserve">
+    <value>Listan har uppdaterats · {0} nya</value>
+  </data>
+  <data name="HomePage_Activity_Pause" xml:space="preserve">
+    <value>Pausa flödet</value>
+  </data>
+  <data name="HomePage_Activity_Summary" xml:space="preserve">
+    <value>{0} nya tillståndsändringar</value>
+  </data>
+  <data name="HomePage_RealtimeGraph_Pause" xml:space="preserve">
+    <value>Pausa diagrammet</value>
+  </data>
+  <data name="Palette_Label" xml:space="preserve">
+    <value>Sök och kommandon</value>
+  </data>
+  <data name="Palette_Placeholder" xml:space="preserve">
+    <value>Gå till en sida, ett jobb-id, ett återkommande jobb eller en tagg…</value>
+  </data>
+  <data name="Palette_Results" xml:space="preserve">
+    <value>Resultat</value>
+  </data>
+  <data name="Palette_NothingFound" xml:space="preserve">
+    <value>Inget hittades</value>
+  </data>
+  <data name="Palette_ResultCount" xml:space="preserve">
+    <value>{0} resultat</value>
+  </data>
+  <data name="Palette_ResultCountOne" xml:space="preserve">
+    <value>1 resultat</value>
+  </data>
+  <data name="Palette_Hint" xml:space="preserve">
+    <value>{0} flytta · {1} öppna · {2} stäng · {3} kommandon</value>
+  </data>
+  <data name="Palette_HintAnywhere" xml:space="preserve">
+    <value>{0} eller {1} öppnar detta var som helst</value>
+  </data>
+  <data name="Palette_Pages" xml:space="preserve">
+    <value>Sidor</value>
+  </data>
+  <data name="Palette_Commands" xml:space="preserve">
+    <value>Kommandon</value>
+  </data>
+  <data name="Shortcuts_Search" xml:space="preserve">
+    <value>Sök, gå till en sida, kör ett kommando (skriv &gt;)</value>
+  </data>
+  <data name="Shortcuts_Go" xml:space="preserve">
+    <value>Gå till start, jobb, bearbetas, misslyckade, återkommande, servrar, insikter, katalog, taggar, batcher, granskning</value>
+  </data>
+  <data name="Shortcuts_Move" xml:space="preserve">
+    <value>Gå nedåt / uppåt i en jobblista</value>
+  </data>
+  <data name="Shortcuts_Select" xml:space="preserve">
+    <value>Välj jobbet i fokus</value>
+  </data>
+  <data name="Shortcuts_Open" xml:space="preserve">
+    <value>Öppna jobbet i fokus</value>
+  </data>
+  <data name="Shortcuts_Run" xml:space="preserve">
+    <value>Kör listans huvudkommando (Köa om, Köa nu, Utlös nu) för de valda objekten, efter en bekräftelse</value>
+  </data>
+  <data name="Shortcuts_Delete" xml:space="preserve">
+    <value>Ta bort de valda jobben</value>
+  </data>
+  <data name="Shortcuts_Help" xml:space="preserve">
+    <value>Den här hjälpen</value>
+  </data>
+  <data name="Shortcuts_SingleKey" xml:space="preserve">
+    <value>Kortkommandon med en tangent (j, k, x, r, d, g, / och ?). Ctrl K fungerar ändå.</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Remove" xml:space="preserve">
+    <value>Sluta bevaka jobb {0}</value>
   </data>
 </root>

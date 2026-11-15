@@ -142,7 +142,7 @@
     <value>Remover</value>
   </data>
   <data name="Common_DeleteConfirm" xml:space="preserve">
-    <value>Tem certeza de que deseja REMOVER TODAS as tarefas selecionadas?</value>
+    <value>As tarefas selecionadas vão para Removidas, onde podem ser recolocadas na fila até expirarem.</value>
   </data>
   <data name="Common_Deleting" xml:space="preserve">
     <value>Removendo...</value>
@@ -251,7 +251,7 @@
     <value>Criado</value>
   </data>
   <data name="JobDetailsPage_DeleteConfirm" xml:space="preserve">
-    <value>Tem certeza de que deseja remover esta tarefa?</value>
+    <value>Excluir esta tarefa?</value>
   </data>
   <data name="JobDetailsPage_State" xml:space="preserve">
     <value>Estado</value>
@@ -827,13 +827,13 @@
     <value>Excluir tudo</value>
   </data>
   <data name="Common_DeleteAllConfirm" xml:space="preserve">
-    <value>Excluir TODAS as tarefas desta lista? Isso não pode ser desfeito.</value>
+    <value>Todas as tarefas da lista, desta página e das outras, vão para Removidas, onde podem ser recolocadas na fila até expirarem.</value>
   </data>
   <data name="RecurringJobsPage_RemoveAll" xml:space="preserve">
     <value>Remover todas</value>
   </data>
   <data name="RecurringJobsPage_RemoveAllConfirm" xml:space="preserve">
-    <value>Remover TODAS as tarefas recorrentes? Elas só voltam quando a aplicação as registrar novamente.</value>
+    <value>Elas só voltam quando a aplicação as registrar de novo.</value>
   </data>
   <data name="LayoutPage_Refresh" xml:space="preserve">
     <value>Atualizar</value>
@@ -857,7 +857,7 @@
     <value>Remove todas as tarefas com seu histórico, entradas de fila, contadores, consoles e estatísticas. As tarefas recorrentes e os servidores são mantidos.</value>
   </data>
   <data name="ServersPage_ClearJobsConfirm" xml:space="preserve">
-    <value>Excluir TODAS as tarefas e seu histórico do armazenamento? Isso não pode ser desfeito.</value>
+    <value>Todas as tarefas e o histórico delas são excluídos para sempre. Isso não pode ser desfeito.</value>
   </data>
   <data name="ServersPage_ResetStorage" xml:space="preserve">
     <value>Redefinir armazenamento</value>
@@ -866,7 +866,7 @@
     <value>Remove tudo, incluindo tarefas recorrentes e registros de servidores, como se o armazenamento fosse novo.</value>
   </data>
   <data name="ServersPage_ResetStorageConfirm" xml:space="preserve">
-    <value>Redefinir TODO o armazenamento? As tarefas recorrentes desaparecem até a aplicação registrá-las novamente. Isso não pode ser desfeito.</value>
+    <value>Todas as tarefas, tarefas recorrentes, estatísticas e configurações são excluídas. As tarefas recorrentes só voltam quando a aplicação as registrar de novo. Isso não pode ser desfeito.</value>
   </data>
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Limpando…</value>
@@ -1917,5 +1917,239 @@
   </data>
   <data name="ChainsPage_Status_Waiting" xml:space="preserve">
     <value>Aguardando</value>
+  </data>
+  <data name="LayoutPage_SkipToContent" xml:space="preserve">
+    <value>Ir para o conteúdo</value>
+  </data>
+  <data name="LayoutPage_Navigation" xml:space="preserve">
+    <value>Navegação</value>
+  </data>
+  <data name="LayoutPage_CloseMenu" xml:space="preserve">
+    <value>Fechar o menu</value>
+  </data>
+  <data name="LayoutPage_Offline" xml:space="preserve">
+    <value>Offline – tentando novamente</value>
+  </data>
+  <data name="LayoutPage_Live_Hint" xml:space="preserve">
+    <value>Os números desta página se atualizam sozinhos a cada poucos segundos.</value>
+  </data>
+  <data name="LayoutPage_Offline_Hint" xml:space="preserve">
+    <value>O painel não consegue acessar o servidor. Ele continua tentando; Atualizar tenta de novo agora.</value>
+  </data>
+  <data name="LayoutPage_ReadOnly" xml:space="preserve">
+    <value>Somente leitura</value>
+  </data>
+  <data name="LayoutPage_ReadOnly_Hint" xml:space="preserve">
+    <value>Este painel é somente leitura: mostra as tarefas, mas não pode alterá-las.</value>
+  </data>
+  <data name="LayoutPage_StorageUnavailable" xml:space="preserve">
+    <value>O armazenamento não respondeu, então esta página pode estar incompleta ou desatualizada.</value>
+  </data>
+  <data name="NavigationMenu_Group_Jobs" xml:space="preserve">
+    <value>Tarefas</value>
+  </data>
+  <data name="NavigationMenu_Group_Workflows" xml:space="preserve">
+    <value>Fluxos de trabalho</value>
+  </data>
+  <data name="NavigationMenu_Group_Observe" xml:space="preserve">
+    <value>Observar</value>
+  </data>
+  <data name="NavigationMenu_Group_System" xml:space="preserve">
+    <value>Sistema</value>
+  </data>
+  <data name="NavigationMenu_Group_More" xml:space="preserve">
+    <value>Mais</value>
+  </data>
+  <data name="Common_Breadcrumb" xml:space="preserve">
+    <value>Trilha de navegação</value>
+  </data>
+  <data name="Paginator_Label" xml:space="preserve">
+    <value>Paginação</value>
+  </data>
+  <data name="Paginator_RowsPerPage" xml:space="preserve">
+    <value>Linhas por página</value>
+  </data>
+  <data name="Paginator_Range" xml:space="preserve">
+    <value>{0}–{1} de {2}</value>
+  </data>
+  <data name="Paginator_PreviousPage" xml:space="preserve">
+    <value>Página anterior</value>
+  </data>
+  <data name="Paginator_NextPage" xml:space="preserve">
+    <value>Próxima página</value>
+  </data>
+  <data name="Paginator_Page" xml:space="preserve">
+    <value>Página {0}</value>
+  </data>
+  <data name="Common_SelectJob" xml:space="preserve">
+    <value>Selecionar a tarefa {0}</value>
+  </data>
+  <data name="Common_SelectAllJobs" xml:space="preserve">
+    <value>Selecionar todas as tarefas desta página</value>
+  </data>
+  <data name="RecurringJobsPage_SelectJob" xml:space="preserve">
+    <value>Selecionar a tarefa recorrente {0}</value>
+  </data>
+  <data name="RecurringJobsPage_SelectAll" xml:space="preserve">
+    <value>Selecionar todas as tarefas recorrentes desta página</value>
+  </data>
+  <data name="Common_SelectedCount" xml:space="preserve">
+    <value>{0} selecionadas</value>
+  </data>
+  <data name="Common_ClearSelection" xml:space="preserve">
+    <value>Limpar a seleção</value>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="Common_Confirm" xml:space="preserve">
+    <value>Confirmar</value>
+  </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>Fechar</value>
+  </data>
+  <data name="Dialog_DiscardTitle" xml:space="preserve">
+    <value>Descartar as alterações?</value>
+  </data>
+  <data name="Dialog_DiscardBody" xml:space="preserve">
+    <value>O que você alterou nesta caixa de diálogo será perdido.</value>
+  </data>
+  <data name="Dialog_Discard" xml:space="preserve">
+    <value>Descartar</value>
+  </data>
+  <data name="Dialog_KeepEditing" xml:space="preserve">
+    <value>Continuar editando</value>
+  </data>
+  <data name="Dialog_TypeToConfirm" xml:space="preserve">
+    <value>Digite {0} para confirmar</value>
+  </data>
+  <data name="Common_DeleteSelected_Title" xml:space="preserve">
+    <value>Excluir {0} tarefas?</value>
+  </data>
+  <data name="Common_DeleteSelected_TitleOne" xml:space="preserve">
+    <value>Excluir 1 tarefa?</value>
+  </data>
+  <data name="Common_DeleteAllConfirm_Title" xml:space="preserve">
+    <value>Excluir todas as tarefas desta lista?</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm_Title" xml:space="preserve">
+    <value>Recolocar todas as tarefas com falha na fila?</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm" xml:space="preserve">
+    <value>Todas as tarefas da lista, desta página e das outras, entram na fila e são executadas de novo.</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAllConfirm_Title" xml:space="preserve">
+    <value>Remover todas as tarefas recorrentes?</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Title" xml:space="preserve">
+    <value>Excluir todas as tarefas do armazenamento?</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Word" xml:space="preserve">
+    <value>excluir todas as tarefas</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Title" xml:space="preserve">
+    <value>Redefinir todo o armazenamento?</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Word" xml:space="preserve">
+    <value>redefinir armazenamento</value>
+  </data>
+  <data name="JobDetailsPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>Ela vai para Removidas, onde pode ser recolocada na fila até expirar.</value>
+  </data>
+  <data name="Common_ShortcutConfirm" xml:space="preserve">
+    <value>{0}: {1} selecionadas. Continuar?</value>
+  </data>
+  <data name="Common_Dismiss" xml:space="preserve">
+    <value>Dispensar</value>
+  </data>
+  <data name="Common_Done" xml:space="preserve">
+    <value>{0}: concluído.</value>
+  </data>
+  <data name="Common_ActionFailed" xml:space="preserve">
+    <value>{0} falhou: {1}</value>
+  </data>
+  <data name="Common_ServerResponded" xml:space="preserve">
+    <value>O servidor respondeu com {0}.</value>
+  </data>
+  <data name="Common_NoAnswer" xml:space="preserve">
+    <value>O servidor não respondeu.</value>
+  </data>
+  <data name="Common_ViewJob" xml:space="preserve">
+    <value>Ver a tarefa {0}</value>
+  </data>
+  <data name="Common_ListUpdated" xml:space="preserve">
+    <value>Lista atualizada</value>
+  </data>
+  <data name="Common_ListUpdatedNew" xml:space="preserve">
+    <value>Lista atualizada · {0} novas</value>
+  </data>
+  <data name="HomePage_Activity_Pause" xml:space="preserve">
+    <value>Pausar o feed</value>
+  </data>
+  <data name="HomePage_Activity_Summary" xml:space="preserve">
+    <value>{0} novas mudanças de estado</value>
+  </data>
+  <data name="HomePage_RealtimeGraph_Pause" xml:space="preserve">
+    <value>Pausar o gráfico</value>
+  </data>
+  <data name="Palette_Label" xml:space="preserve">
+    <value>Pesquisa e comandos</value>
+  </data>
+  <data name="Palette_Placeholder" xml:space="preserve">
+    <value>Ir para uma página, um id de tarefa, uma tarefa recorrente ou uma tag…</value>
+  </data>
+  <data name="Palette_Results" xml:space="preserve">
+    <value>Resultados</value>
+  </data>
+  <data name="Palette_NothingFound" xml:space="preserve">
+    <value>Nada encontrado</value>
+  </data>
+  <data name="Palette_ResultCount" xml:space="preserve">
+    <value>{0} resultados</value>
+  </data>
+  <data name="Palette_ResultCountOne" xml:space="preserve">
+    <value>1 resultado</value>
+  </data>
+  <data name="Palette_Hint" xml:space="preserve">
+    <value>{0} mover · {1} abrir · {2} fechar · {3} comandos</value>
+  </data>
+  <data name="Palette_HintAnywhere" xml:space="preserve">
+    <value>{0} ou {1} abre isto em qualquer lugar</value>
+  </data>
+  <data name="Palette_Pages" xml:space="preserve">
+    <value>Páginas</value>
+  </data>
+  <data name="Palette_Commands" xml:space="preserve">
+    <value>Comandos</value>
+  </data>
+  <data name="Shortcuts_Search" xml:space="preserve">
+    <value>Pesquisar, ir para uma página, executar um comando (digite &gt;)</value>
+  </data>
+  <data name="Shortcuts_Go" xml:space="preserve">
+    <value>Ir para início, tarefas, em processamento, com falha, recorrentes, servidores, análises, catálogo, tags, lotes, auditoria</value>
+  </data>
+  <data name="Shortcuts_Move" xml:space="preserve">
+    <value>Descer / subir em uma lista de tarefas</value>
+  </data>
+  <data name="Shortcuts_Select" xml:space="preserve">
+    <value>Selecionar a tarefa em foco</value>
+  </data>
+  <data name="Shortcuts_Open" xml:space="preserve">
+    <value>Abrir a tarefa em foco</value>
+  </data>
+  <data name="Shortcuts_Run" xml:space="preserve">
+    <value>Executar o comando principal da lista (Recolocar na fila, Enfileirar agora, Disparar agora) para os itens selecionados, após uma confirmação</value>
+  </data>
+  <data name="Shortcuts_Delete" xml:space="preserve">
+    <value>Excluir as tarefas selecionadas</value>
+  </data>
+  <data name="Shortcuts_Help" xml:space="preserve">
+    <value>Esta ajuda</value>
+  </data>
+  <data name="Shortcuts_SingleKey" xml:space="preserve">
+    <value>Atalhos de uma tecla (j, k, x, r, d, g, / e ?). Ctrl K funciona de qualquer forma.</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Remove" xml:space="preserve">
+    <value>Deixar de acompanhar a tarefa {0}</value>
   </data>
 </root>

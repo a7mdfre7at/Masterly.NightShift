@@ -142,7 +142,7 @@
     <value>删除</value>
   </data>
   <data name="Common_DeleteConfirm" xml:space="preserve">
-    <value>您确定要删除所选的全部作业吗？</value>
+    <value>所选作业将移到“已删除”，在过期前仍可重新排队。</value>
   </data>
   <data name="Common_Deleting" xml:space="preserve">
     <value>删除中...</value>
@@ -256,7 +256,7 @@
     <value>创建</value>
   </data>
   <data name="JobDetailsPage_DeleteConfirm" xml:space="preserve">
-    <value>确认删除这个作业吗？</value>
+    <value>删除此作业？</value>
   </data>
   <data name="JobDetailsPage_State" xml:space="preserve">
     <value>状态</value>
@@ -780,13 +780,13 @@
     <value>全部删除</value>
   </data>
   <data name="Common_DeleteAllConfirm" xml:space="preserve">
-    <value>删除此列表中的所有作业？此操作无法撤销。</value>
+    <value>列表中的所有作业（包括其他页）都将移到“已删除”，在过期前仍可重新排队。</value>
   </data>
   <data name="RecurringJobsPage_RemoveAll" xml:space="preserve">
     <value>全部移除</value>
   </data>
   <data name="RecurringJobsPage_RemoveAllConfirm" xml:space="preserve">
-    <value>移除所有周期性作业？只有应用重新注册后它们才会回来。</value>
+    <value>只有当应用程序再次注册它们时才会恢复。</value>
   </data>
   <data name="LayoutPage_Refresh" xml:space="preserve">
     <value>刷新</value>
@@ -810,7 +810,7 @@
     <value>删除所有作业及其历史、队列项、计数器、控制台和统计数据。保留周期性作业定义和服务器。</value>
   </data>
   <data name="ServersPage_ClearJobsConfirm" xml:space="preserve">
-    <value>从存储中删除所有作业及其历史？此操作无法撤销。</value>
+    <value>所有作业及其历史记录都将被永久删除，且无法撤销。</value>
   </data>
   <data name="ServersPage_ResetStorage" xml:space="preserve">
     <value>重置存储</value>
@@ -819,7 +819,7 @@
     <value>删除一切，包括周期性作业定义和服务器注册，如同全新的存储。</value>
   </data>
   <data name="ServersPage_ResetStorageConfirm" xml:space="preserve">
-    <value>重置整个存储？周期性作业将消失，直到应用重新注册。此操作无法撤销。</value>
+    <value>所有作业、定期作业、统计信息和设置都将被删除。定期作业只有在应用程序再次注册时才会恢复。此操作无法撤销。</value>
   </data>
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>正在清除…</value>
@@ -1870,5 +1870,239 @@
   </data>
   <data name="ChainsPage_Status_Waiting" xml:space="preserve">
     <value>等待中</value>
+  </data>
+  <data name="LayoutPage_SkipToContent" xml:space="preserve">
+    <value>跳到内容</value>
+  </data>
+  <data name="LayoutPage_Navigation" xml:space="preserve">
+    <value>导航</value>
+  </data>
+  <data name="LayoutPage_CloseMenu" xml:space="preserve">
+    <value>关闭菜单</value>
+  </data>
+  <data name="LayoutPage_Offline" xml:space="preserve">
+    <value>离线 – 正在重试</value>
+  </data>
+  <data name="LayoutPage_Live_Hint" xml:space="preserve">
+    <value>此页面的数字每隔几秒自动更新。</value>
+  </data>
+  <data name="LayoutPage_Offline_Hint" xml:space="preserve">
+    <value>仪表板无法连接到服务器，会持续重试；点击“刷新”可立即重试。</value>
+  </data>
+  <data name="LayoutPage_ReadOnly" xml:space="preserve">
+    <value>只读</value>
+  </data>
+  <data name="LayoutPage_ReadOnly_Hint" xml:space="preserve">
+    <value>此仪表板为只读：可以查看作业，但无法更改。</value>
+  </data>
+  <data name="LayoutPage_StorageUnavailable" xml:space="preserve">
+    <value>存储没有响应，此页面可能不完整或已过时。</value>
+  </data>
+  <data name="NavigationMenu_Group_Jobs" xml:space="preserve">
+    <value>作业</value>
+  </data>
+  <data name="NavigationMenu_Group_Workflows" xml:space="preserve">
+    <value>工作流</value>
+  </data>
+  <data name="NavigationMenu_Group_Observe" xml:space="preserve">
+    <value>观察</value>
+  </data>
+  <data name="NavigationMenu_Group_System" xml:space="preserve">
+    <value>系统</value>
+  </data>
+  <data name="NavigationMenu_Group_More" xml:space="preserve">
+    <value>更多</value>
+  </data>
+  <data name="Common_Breadcrumb" xml:space="preserve">
+    <value>面包屑导航</value>
+  </data>
+  <data name="Paginator_Label" xml:space="preserve">
+    <value>分页</value>
+  </data>
+  <data name="Paginator_RowsPerPage" xml:space="preserve">
+    <value>每页行数</value>
+  </data>
+  <data name="Paginator_Range" xml:space="preserve">
+    <value>第 {0}–{1} 条，共 {2} 条</value>
+  </data>
+  <data name="Paginator_PreviousPage" xml:space="preserve">
+    <value>上一页</value>
+  </data>
+  <data name="Paginator_NextPage" xml:space="preserve">
+    <value>下一页</value>
+  </data>
+  <data name="Paginator_Page" xml:space="preserve">
+    <value>第 {0} 页</value>
+  </data>
+  <data name="Common_SelectJob" xml:space="preserve">
+    <value>选择作业 {0}</value>
+  </data>
+  <data name="Common_SelectAllJobs" xml:space="preserve">
+    <value>选择此页上的所有作业</value>
+  </data>
+  <data name="RecurringJobsPage_SelectJob" xml:space="preserve">
+    <value>选择定期作业 {0}</value>
+  </data>
+  <data name="RecurringJobsPage_SelectAll" xml:space="preserve">
+    <value>选择此页上的所有定期作业</value>
+  </data>
+  <data name="Common_SelectedCount" xml:space="preserve">
+    <value>已选择 {0} 个</value>
+  </data>
+  <data name="Common_ClearSelection" xml:space="preserve">
+    <value>清除选择</value>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="Common_Confirm" xml:space="preserve">
+    <value>确认</value>
+  </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="Dialog_DiscardTitle" xml:space="preserve">
+    <value>放弃更改？</value>
+  </data>
+  <data name="Dialog_DiscardBody" xml:space="preserve">
+    <value>你在此对话框中所做的更改将丢失。</value>
+  </data>
+  <data name="Dialog_Discard" xml:space="preserve">
+    <value>放弃</value>
+  </data>
+  <data name="Dialog_KeepEditing" xml:space="preserve">
+    <value>继续编辑</value>
+  </data>
+  <data name="Dialog_TypeToConfirm" xml:space="preserve">
+    <value>输入 {0} 以确认</value>
+  </data>
+  <data name="Common_DeleteSelected_Title" xml:space="preserve">
+    <value>删除 {0} 个作业？</value>
+  </data>
+  <data name="Common_DeleteSelected_TitleOne" xml:space="preserve">
+    <value>删除 1 个作业？</value>
+  </data>
+  <data name="Common_DeleteAllConfirm_Title" xml:space="preserve">
+    <value>删除此列表中的所有作业？</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm_Title" xml:space="preserve">
+    <value>将所有失败的作业重新排队？</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm" xml:space="preserve">
+    <value>列表中的所有作业（包括其他页）都将排队并重新运行。</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAllConfirm_Title" xml:space="preserve">
+    <value>移除所有定期作业？</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Title" xml:space="preserve">
+    <value>从存储中删除所有作业？</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Word" xml:space="preserve">
+    <value>删除所有作业</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Title" xml:space="preserve">
+    <value>重置整个存储？</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Word" xml:space="preserve">
+    <value>重置存储</value>
+  </data>
+  <data name="JobDetailsPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>它将移到“已删除”，在过期前仍可重新排队。</value>
+  </data>
+  <data name="Common_ShortcutConfirm" xml:space="preserve">
+    <value>{0}：已选择 {1} 个。继续？</value>
+  </data>
+  <data name="Common_Dismiss" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="Common_Done" xml:space="preserve">
+    <value>{0}：已完成。</value>
+  </data>
+  <data name="Common_ActionFailed" xml:space="preserve">
+    <value>{0} 失败：{1}</value>
+  </data>
+  <data name="Common_ServerResponded" xml:space="preserve">
+    <value>服务器响应 {0}。</value>
+  </data>
+  <data name="Common_NoAnswer" xml:space="preserve">
+    <value>服务器没有响应。</value>
+  </data>
+  <data name="Common_ViewJob" xml:space="preserve">
+    <value>查看作业 {0}</value>
+  </data>
+  <data name="Common_ListUpdated" xml:space="preserve">
+    <value>列表已更新</value>
+  </data>
+  <data name="Common_ListUpdatedNew" xml:space="preserve">
+    <value>列表已更新 · {0} 个新项</value>
+  </data>
+  <data name="HomePage_Activity_Pause" xml:space="preserve">
+    <value>暂停动态</value>
+  </data>
+  <data name="HomePage_Activity_Summary" xml:space="preserve">
+    <value>{0} 个新的状态变更</value>
+  </data>
+  <data name="HomePage_RealtimeGraph_Pause" xml:space="preserve">
+    <value>暂停图表</value>
+  </data>
+  <data name="Palette_Label" xml:space="preserve">
+    <value>搜索和命令</value>
+  </data>
+  <data name="Palette_Placeholder" xml:space="preserve">
+    <value>跳转到页面、作业 ID、定期作业或标签…</value>
+  </data>
+  <data name="Palette_Results" xml:space="preserve">
+    <value>结果</value>
+  </data>
+  <data name="Palette_NothingFound" xml:space="preserve">
+    <value>未找到任何内容</value>
+  </data>
+  <data name="Palette_ResultCount" xml:space="preserve">
+    <value>{0} 个结果</value>
+  </data>
+  <data name="Palette_ResultCountOne" xml:space="preserve">
+    <value>1 个结果</value>
+  </data>
+  <data name="Palette_Hint" xml:space="preserve">
+    <value>{0} 移动 · {1} 打开 · {2} 关闭 · {3} 命令</value>
+  </data>
+  <data name="Palette_HintAnywhere" xml:space="preserve">
+    <value>在任何地方按 {0} 或 {1} 均可打开</value>
+  </data>
+  <data name="Palette_Pages" xml:space="preserve">
+    <value>页面</value>
+  </data>
+  <data name="Palette_Commands" xml:space="preserve">
+    <value>命令</value>
+  </data>
+  <data name="Shortcuts_Search" xml:space="preserve">
+    <value>搜索、跳转到页面、运行命令（输入 &gt;）</value>
+  </data>
+  <data name="Shortcuts_Go" xml:space="preserve">
+    <value>跳转到首页、作业、处理中、失败、定期、服务器、洞察、目录、标签、批处理、审计</value>
+  </data>
+  <data name="Shortcuts_Move" xml:space="preserve">
+    <value>在作业列表中下移 / 上移</value>
+  </data>
+  <data name="Shortcuts_Select" xml:space="preserve">
+    <value>选择当前作业</value>
+  </data>
+  <data name="Shortcuts_Open" xml:space="preserve">
+    <value>打开当前作业</value>
+  </data>
+  <data name="Shortcuts_Run" xml:space="preserve">
+    <value>确认后，对所选项目运行列表的主要命令（重新排队、立即排队、立即触发）</value>
+  </data>
+  <data name="Shortcuts_Delete" xml:space="preserve">
+    <value>删除所选作业</value>
+  </data>
+  <data name="Shortcuts_Help" xml:space="preserve">
+    <value>此帮助</value>
+  </data>
+  <data name="Shortcuts_SingleKey" xml:space="preserve">
+    <value>单键快捷键（j、k、x、r、d、g、/ 和 ?）。Ctrl K 始终可用。</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Remove" xml:space="preserve">
+    <value>停止关注作业 {0}</value>
   </data>
 </root>

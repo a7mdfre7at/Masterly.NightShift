@@ -142,7 +142,7 @@
     <value>Удалить</value>
   </data>
   <data name="Common_DeleteConfirm" xml:space="preserve">
-    <value>Вы действительно хотите УДАЛИТЬ ВСЕ выбранные задания?</value>
+    <value>Выбранные задачи переходят в «Удалены», откуда их можно вернуть в очередь, пока они не истекут.</value>
   </data>
   <data name="Common_Deleting" xml:space="preserve">
     <value>Удаление...</value>
@@ -254,7 +254,7 @@
     <value>Создано</value>
   </data>
   <data name="JobDetailsPage_DeleteConfirm" xml:space="preserve">
-    <value>Вы действительно хотите удалить данное задание?</value>
+    <value>Удалить эту задачу?</value>
   </data>
   <data name="JobDetailsPage_State" xml:space="preserve">
     <value>Состояние</value>
@@ -819,13 +819,13 @@
     <value>Удалить все</value>
   </data>
   <data name="Common_DeleteAllConfirm" xml:space="preserve">
-    <value>Удалить ВСЕ задачи из этого списка? Это действие нельзя отменить.</value>
+    <value>Все задачи списка, на этой и других страницах, переходят в «Удалены», откуда их можно вернуть в очередь, пока они не истекут.</value>
   </data>
   <data name="RecurringJobsPage_RemoveAll" xml:space="preserve">
     <value>Удалить все</value>
   </data>
   <data name="RecurringJobsPage_RemoveAllConfirm" xml:space="preserve">
-    <value>Удалить ВСЕ повторяющиеся задачи? Они появятся снова только после повторной регистрации приложением.</value>
+    <value>Они вернутся, только когда приложение снова их зарегистрирует.</value>
   </data>
   <data name="LayoutPage_Refresh" xml:space="preserve">
     <value>Обновить</value>
@@ -849,7 +849,7 @@
     <value>Удаляет все задачи с историей, записи очередей, счётчики, консоли и статистику. Повторяющиеся задачи и серверы сохраняются.</value>
   </data>
   <data name="ServersPage_ClearJobsConfirm" xml:space="preserve">
-    <value>Удалить ВСЕ задачи и их историю из хранилища? Это действие нельзя отменить.</value>
+    <value>Все задачи и их история удаляются навсегда. Это нельзя отменить.</value>
   </data>
   <data name="ServersPage_ResetStorage" xml:space="preserve">
     <value>Сбросить хранилище</value>
@@ -858,7 +858,7 @@
     <value>Удаляет всё, включая повторяющиеся задачи и регистрации серверов, как будто хранилище новое.</value>
   </data>
   <data name="ServersPage_ResetStorageConfirm" xml:space="preserve">
-    <value>Сбросить ВСЁ хранилище? Повторяющиеся задачи исчезнут до повторной регистрации приложением. Это действие нельзя отменить.</value>
+    <value>Удаляются все задачи, повторяющиеся задачи, статистика и настройки. Повторяющиеся задачи вернутся, только когда приложение снова их зарегистрирует. Это нельзя отменить.</value>
   </data>
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Очистка…</value>
@@ -1909,5 +1909,239 @@
   </data>
   <data name="ChainsPage_Status_Waiting" xml:space="preserve">
     <value>Ожидает</value>
+  </data>
+  <data name="LayoutPage_SkipToContent" xml:space="preserve">
+    <value>Перейти к содержимому</value>
+  </data>
+  <data name="LayoutPage_Navigation" xml:space="preserve">
+    <value>Навигация</value>
+  </data>
+  <data name="LayoutPage_CloseMenu" xml:space="preserve">
+    <value>Закрыть меню</value>
+  </data>
+  <data name="LayoutPage_Offline" xml:space="preserve">
+    <value>Нет связи – повторная попытка</value>
+  </data>
+  <data name="LayoutPage_Live_Hint" xml:space="preserve">
+    <value>Числа на этой странице обновляются сами каждые несколько секунд.</value>
+  </data>
+  <data name="LayoutPage_Offline_Hint" xml:space="preserve">
+    <value>Панель не может связаться с сервером. Она продолжает попытки; «Обновить» повторяет попытку сразу.</value>
+  </data>
+  <data name="LayoutPage_ReadOnly" xml:space="preserve">
+    <value>Только чтение</value>
+  </data>
+  <data name="LayoutPage_ReadOnly_Hint" xml:space="preserve">
+    <value>Эта панель только для чтения: она показывает задачи, но не может их менять.</value>
+  </data>
+  <data name="LayoutPage_StorageUnavailable" xml:space="preserve">
+    <value>Хранилище не ответило, поэтому страница может быть неполной или устаревшей.</value>
+  </data>
+  <data name="NavigationMenu_Group_Jobs" xml:space="preserve">
+    <value>Задачи</value>
+  </data>
+  <data name="NavigationMenu_Group_Workflows" xml:space="preserve">
+    <value>Процессы</value>
+  </data>
+  <data name="NavigationMenu_Group_Observe" xml:space="preserve">
+    <value>Наблюдение</value>
+  </data>
+  <data name="NavigationMenu_Group_System" xml:space="preserve">
+    <value>Система</value>
+  </data>
+  <data name="NavigationMenu_Group_More" xml:space="preserve">
+    <value>Ещё</value>
+  </data>
+  <data name="Common_Breadcrumb" xml:space="preserve">
+    <value>Цепочка навигации</value>
+  </data>
+  <data name="Paginator_Label" xml:space="preserve">
+    <value>Страницы</value>
+  </data>
+  <data name="Paginator_RowsPerPage" xml:space="preserve">
+    <value>Строк на странице</value>
+  </data>
+  <data name="Paginator_Range" xml:space="preserve">
+    <value>{0}–{1} из {2}</value>
+  </data>
+  <data name="Paginator_PreviousPage" xml:space="preserve">
+    <value>Предыдущая страница</value>
+  </data>
+  <data name="Paginator_NextPage" xml:space="preserve">
+    <value>Следующая страница</value>
+  </data>
+  <data name="Paginator_Page" xml:space="preserve">
+    <value>Страница {0}</value>
+  </data>
+  <data name="Common_SelectJob" xml:space="preserve">
+    <value>Выбрать задачу {0}</value>
+  </data>
+  <data name="Common_SelectAllJobs" xml:space="preserve">
+    <value>Выбрать все задачи на этой странице</value>
+  </data>
+  <data name="RecurringJobsPage_SelectJob" xml:space="preserve">
+    <value>Выбрать повторяющуюся задачу {0}</value>
+  </data>
+  <data name="RecurringJobsPage_SelectAll" xml:space="preserve">
+    <value>Выбрать все повторяющиеся задачи на этой странице</value>
+  </data>
+  <data name="Common_SelectedCount" xml:space="preserve">
+    <value>Выбрано: {0}</value>
+  </data>
+  <data name="Common_ClearSelection" xml:space="preserve">
+    <value>Снять выделение</value>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>Отмена</value>
+  </data>
+  <data name="Common_Confirm" xml:space="preserve">
+    <value>Подтвердить</value>
+  </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>Закрыть</value>
+  </data>
+  <data name="Dialog_DiscardTitle" xml:space="preserve">
+    <value>Отменить изменения?</value>
+  </data>
+  <data name="Dialog_DiscardBody" xml:space="preserve">
+    <value>Изменения, сделанные в этом окне, будут потеряны.</value>
+  </data>
+  <data name="Dialog_Discard" xml:space="preserve">
+    <value>Отменить</value>
+  </data>
+  <data name="Dialog_KeepEditing" xml:space="preserve">
+    <value>Продолжить</value>
+  </data>
+  <data name="Dialog_TypeToConfirm" xml:space="preserve">
+    <value>Введите {0} для подтверждения</value>
+  </data>
+  <data name="Common_DeleteSelected_Title" xml:space="preserve">
+    <value>Удалить выбранные задачи ({0})?</value>
+  </data>
+  <data name="Common_DeleteSelected_TitleOne" xml:space="preserve">
+    <value>Удалить 1 задачу?</value>
+  </data>
+  <data name="Common_DeleteAllConfirm_Title" xml:space="preserve">
+    <value>Удалить все задачи этого списка?</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm_Title" xml:space="preserve">
+    <value>Вернуть в очередь все неудачные задачи?</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm" xml:space="preserve">
+    <value>Все задачи списка, на этой и других страницах, ставятся в очередь и выполняются снова.</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAllConfirm_Title" xml:space="preserve">
+    <value>Удалить все повторяющиеся задачи?</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Title" xml:space="preserve">
+    <value>Удалить все задачи из хранилища?</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Word" xml:space="preserve">
+    <value>удалить все задачи</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Title" xml:space="preserve">
+    <value>Сбросить всё хранилище?</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Word" xml:space="preserve">
+    <value>сбросить хранилище</value>
+  </data>
+  <data name="JobDetailsPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>Она переходит в «Удалены», откуда её можно вернуть в очередь, пока она не истечёт.</value>
+  </data>
+  <data name="Common_ShortcutConfirm" xml:space="preserve">
+    <value>{0}: выбрано {1}. Продолжить?</value>
+  </data>
+  <data name="Common_Dismiss" xml:space="preserve">
+    <value>Скрыть</value>
+  </data>
+  <data name="Common_Done" xml:space="preserve">
+    <value>{0}: готово.</value>
+  </data>
+  <data name="Common_ActionFailed" xml:space="preserve">
+    <value>{0}: ошибка. {1}</value>
+  </data>
+  <data name="Common_ServerResponded" xml:space="preserve">
+    <value>Сервер ответил: {0}.</value>
+  </data>
+  <data name="Common_NoAnswer" xml:space="preserve">
+    <value>Сервер не ответил.</value>
+  </data>
+  <data name="Common_ViewJob" xml:space="preserve">
+    <value>Открыть задачу {0}</value>
+  </data>
+  <data name="Common_ListUpdated" xml:space="preserve">
+    <value>Список обновлён</value>
+  </data>
+  <data name="Common_ListUpdatedNew" xml:space="preserve">
+    <value>Список обновлён · новых: {0}</value>
+  </data>
+  <data name="HomePage_Activity_Pause" xml:space="preserve">
+    <value>Приостановить ленту</value>
+  </data>
+  <data name="HomePage_Activity_Summary" xml:space="preserve">
+    <value>Новых изменений состояния: {0}</value>
+  </data>
+  <data name="HomePage_RealtimeGraph_Pause" xml:space="preserve">
+    <value>Приостановить график</value>
+  </data>
+  <data name="Palette_Label" xml:space="preserve">
+    <value>Поиск и команды</value>
+  </data>
+  <data name="Palette_Placeholder" xml:space="preserve">
+    <value>Перейти к странице, id задачи, повторяющейся задаче или тегу…</value>
+  </data>
+  <data name="Palette_Results" xml:space="preserve">
+    <value>Результаты</value>
+  </data>
+  <data name="Palette_NothingFound" xml:space="preserve">
+    <value>Ничего не найдено</value>
+  </data>
+  <data name="Palette_ResultCount" xml:space="preserve">
+    <value>Результатов: {0}</value>
+  </data>
+  <data name="Palette_ResultCountOne" xml:space="preserve">
+    <value>1 результат</value>
+  </data>
+  <data name="Palette_Hint" xml:space="preserve">
+    <value>{0} выбор · {1} открыть · {2} закрыть · {3} команды</value>
+  </data>
+  <data name="Palette_HintAnywhere" xml:space="preserve">
+    <value>{0} или {1} открывает это откуда угодно</value>
+  </data>
+  <data name="Palette_Pages" xml:space="preserve">
+    <value>Страницы</value>
+  </data>
+  <data name="Palette_Commands" xml:space="preserve">
+    <value>Команды</value>
+  </data>
+  <data name="Shortcuts_Search" xml:space="preserve">
+    <value>Поиск, переход к странице, запуск команды (введите &gt;)</value>
+  </data>
+  <data name="Shortcuts_Go" xml:space="preserve">
+    <value>Перейти на главную, к задачам, выполняемым, неудачным, повторяющимся, серверам, аналитике, каталогу, тегам, пакетам, аудиту</value>
+  </data>
+  <data name="Shortcuts_Move" xml:space="preserve">
+    <value>Вниз / вверх по списку задач</value>
+  </data>
+  <data name="Shortcuts_Select" xml:space="preserve">
+    <value>Выбрать текущую задачу</value>
+  </data>
+  <data name="Shortcuts_Open" xml:space="preserve">
+    <value>Открыть текущую задачу</value>
+  </data>
+  <data name="Shortcuts_Run" xml:space="preserve">
+    <value>Выполнить основную команду списка (В очередь снова, В очередь сейчас, Запустить сейчас) для выбранных элементов после подтверждения</value>
+  </data>
+  <data name="Shortcuts_Delete" xml:space="preserve">
+    <value>Удалить выбранные задачи</value>
+  </data>
+  <data name="Shortcuts_Help" xml:space="preserve">
+    <value>Эта справка</value>
+  </data>
+  <data name="Shortcuts_SingleKey" xml:space="preserve">
+    <value>Сочетания из одной клавиши (j, k, x, r, d, g, / и ?). Ctrl K работает в любом случае.</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Remove" xml:space="preserve">
+    <value>Перестать следить за задачей {0}</value>
   </data>
 </root>

@@ -142,7 +142,7 @@
     <value>Verwijderen</value>
   </data>
   <data name="Common_DeleteConfirm" xml:space="preserve">
-    <value>Weet u zeker dat u alle geselecteeerde taken wilt VERWIJDEREN?</value>
+    <value>De geselecteerde taken gaan naar Verwijderd, waar ze opnieuw in de wachtrij kunnen tot ze verlopen.</value>
   </data>
   <data name="Common_Deleting" xml:space="preserve">
     <value>Verwijderen...</value>
@@ -252,7 +252,7 @@
     <value>Aangemaakt</value>
   </data>
   <data name="JobDetailsPage_DeleteConfirm" xml:space="preserve">
-    <value>Wilt u deze taak echt verwijderen?</value>
+    <value>Deze taak verwijderen?</value>
   </data>
   <data name="JobDetailsPage_State" xml:space="preserve">
     <value>Status</value>
@@ -792,13 +792,13 @@
     <value>Alles verwijderen</value>
   </data>
   <data name="Common_DeleteAllConfirm" xml:space="preserve">
-    <value>ELKE taak in deze lijst verwijderen? Dit kan niet ongedaan worden gemaakt.</value>
+    <value>Alle taken van de lijst, op deze en de andere pagina’s, gaan naar Verwijderd, waar ze opnieuw in de wachtrij kunnen tot ze verlopen.</value>
   </data>
   <data name="RecurringJobsPage_RemoveAll" xml:space="preserve">
     <value>Alles verwijderen</value>
   </data>
   <data name="RecurringJobsPage_RemoveAllConfirm" xml:space="preserve">
-    <value>ALLE terugkerende taken verwijderen? Ze komen pas terug als de toepassing ze opnieuw registreert.</value>
+    <value>Ze komen pas terug wanneer de toepassing ze opnieuw registreert.</value>
   </data>
   <data name="LayoutPage_Refresh" xml:space="preserve">
     <value>Vernieuwen</value>
@@ -822,7 +822,7 @@
     <value>Verwijdert elke taak met geschiedenis, wachtrij-items, tellers, consoles en statistieken. Terugkerende taken en servers blijven behouden.</value>
   </data>
   <data name="ServersPage_ClearJobsConfirm" xml:space="preserve">
-    <value>ALLE taken en hun geschiedenis uit de opslag verwijderen? Dit kan niet ongedaan worden gemaakt.</value>
+    <value>Alle taken en hun geschiedenis worden definitief verwijderd. Dit kan niet ongedaan worden gemaakt.</value>
   </data>
   <data name="ServersPage_ResetStorage" xml:space="preserve">
     <value>Opslag resetten</value>
@@ -831,7 +831,7 @@
     <value>Verwijdert alles, ook terugkerende taken en serverregistraties, alsof de opslag nieuw is.</value>
   </data>
   <data name="ServersPage_ResetStorageConfirm" xml:space="preserve">
-    <value>De HELE opslag resetten? Terugkerende taken verdwijnen tot de toepassing ze opnieuw registreert. Dit kan niet ongedaan worden gemaakt.</value>
+    <value>Alle taken, terugkerende taken, statistieken en instellingen worden verwijderd. Terugkerende taken komen pas terug wanneer de toepassing ze opnieuw registreert. Dit kan niet ongedaan worden gemaakt.</value>
   </data>
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Wissen…</value>
@@ -1882,5 +1882,239 @@
   </data>
   <data name="ChainsPage_Status_Waiting" xml:space="preserve">
     <value>Wacht</value>
+  </data>
+  <data name="LayoutPage_SkipToContent" xml:space="preserve">
+    <value>Naar de inhoud</value>
+  </data>
+  <data name="LayoutPage_Navigation" xml:space="preserve">
+    <value>Navigatie</value>
+  </data>
+  <data name="LayoutPage_CloseMenu" xml:space="preserve">
+    <value>Menu sluiten</value>
+  </data>
+  <data name="LayoutPage_Offline" xml:space="preserve">
+    <value>Offline – opnieuw proberen</value>
+  </data>
+  <data name="LayoutPage_Live_Hint" xml:space="preserve">
+    <value>De cijfers op deze pagina worden om de paar seconden vanzelf bijgewerkt.</value>
+  </data>
+  <data name="LayoutPage_Offline_Hint" xml:space="preserve">
+    <value>Het dashboard bereikt de server niet. Het blijft het proberen; Vernieuwen probeert het nu opnieuw.</value>
+  </data>
+  <data name="LayoutPage_ReadOnly" xml:space="preserve">
+    <value>Alleen-lezen</value>
+  </data>
+  <data name="LayoutPage_ReadOnly_Hint" xml:space="preserve">
+    <value>Dit dashboard is alleen-lezen: het toont de taken maar kan ze niet wijzigen.</value>
+  </data>
+  <data name="LayoutPage_StorageUnavailable" xml:space="preserve">
+    <value>De opslag gaf geen antwoord, dus deze pagina kan onvolledig of verouderd zijn.</value>
+  </data>
+  <data name="NavigationMenu_Group_Jobs" xml:space="preserve">
+    <value>Taken</value>
+  </data>
+  <data name="NavigationMenu_Group_Workflows" xml:space="preserve">
+    <value>Workflows</value>
+  </data>
+  <data name="NavigationMenu_Group_Observe" xml:space="preserve">
+    <value>Observeren</value>
+  </data>
+  <data name="NavigationMenu_Group_System" xml:space="preserve">
+    <value>Systeem</value>
+  </data>
+  <data name="NavigationMenu_Group_More" xml:space="preserve">
+    <value>Meer</value>
+  </data>
+  <data name="Common_Breadcrumb" xml:space="preserve">
+    <value>Kruimelpad</value>
+  </data>
+  <data name="Paginator_Label" xml:space="preserve">
+    <value>Paginering</value>
+  </data>
+  <data name="Paginator_RowsPerPage" xml:space="preserve">
+    <value>Rijen per pagina</value>
+  </data>
+  <data name="Paginator_Range" xml:space="preserve">
+    <value>{0}–{1} van {2}</value>
+  </data>
+  <data name="Paginator_PreviousPage" xml:space="preserve">
+    <value>Vorige pagina</value>
+  </data>
+  <data name="Paginator_NextPage" xml:space="preserve">
+    <value>Volgende pagina</value>
+  </data>
+  <data name="Paginator_Page" xml:space="preserve">
+    <value>Pagina {0}</value>
+  </data>
+  <data name="Common_SelectJob" xml:space="preserve">
+    <value>Taak {0} selecteren</value>
+  </data>
+  <data name="Common_SelectAllJobs" xml:space="preserve">
+    <value>Alle taken op deze pagina selecteren</value>
+  </data>
+  <data name="RecurringJobsPage_SelectJob" xml:space="preserve">
+    <value>Terugkerende taak {0} selecteren</value>
+  </data>
+  <data name="RecurringJobsPage_SelectAll" xml:space="preserve">
+    <value>Alle terugkerende taken op deze pagina selecteren</value>
+  </data>
+  <data name="Common_SelectedCount" xml:space="preserve">
+    <value>{0} geselecteerd</value>
+  </data>
+  <data name="Common_ClearSelection" xml:space="preserve">
+    <value>Selectie wissen</value>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>Annuleren</value>
+  </data>
+  <data name="Common_Confirm" xml:space="preserve">
+    <value>Bevestigen</value>
+  </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>Sluiten</value>
+  </data>
+  <data name="Dialog_DiscardTitle" xml:space="preserve">
+    <value>Wijzigingen negeren?</value>
+  </data>
+  <data name="Dialog_DiscardBody" xml:space="preserve">
+    <value>Wat u in dit venster hebt gewijzigd, gaat verloren.</value>
+  </data>
+  <data name="Dialog_Discard" xml:space="preserve">
+    <value>Negeren</value>
+  </data>
+  <data name="Dialog_KeepEditing" xml:space="preserve">
+    <value>Verder bewerken</value>
+  </data>
+  <data name="Dialog_TypeToConfirm" xml:space="preserve">
+    <value>Typ {0} om te bevestigen</value>
+  </data>
+  <data name="Common_DeleteSelected_Title" xml:space="preserve">
+    <value>{0} taken verwijderen?</value>
+  </data>
+  <data name="Common_DeleteSelected_TitleOne" xml:space="preserve">
+    <value>1 taak verwijderen?</value>
+  </data>
+  <data name="Common_DeleteAllConfirm_Title" xml:space="preserve">
+    <value>Alle taken in deze lijst verwijderen?</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm_Title" xml:space="preserve">
+    <value>Alle mislukte taken opnieuw in de wachtrij plaatsen?</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm" xml:space="preserve">
+    <value>Alle taken van de lijst, op deze en de andere pagina’s, worden in de wachtrij geplaatst en opnieuw uitgevoerd.</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAllConfirm_Title" xml:space="preserve">
+    <value>Alle terugkerende taken verwijderen?</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Title" xml:space="preserve">
+    <value>Alle taken uit de opslag verwijderen?</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Word" xml:space="preserve">
+    <value>alle taken verwijderen</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Title" xml:space="preserve">
+    <value>De hele opslag opnieuw instellen?</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Word" xml:space="preserve">
+    <value>opslag herstellen</value>
+  </data>
+  <data name="JobDetailsPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>Ze gaat naar Verwijderd, waar ze opnieuw in de wachtrij kan tot ze verloopt.</value>
+  </data>
+  <data name="Common_ShortcutConfirm" xml:space="preserve">
+    <value>{0}: {1} geselecteerd. Doorgaan?</value>
+  </data>
+  <data name="Common_Dismiss" xml:space="preserve">
+    <value>Sluiten</value>
+  </data>
+  <data name="Common_Done" xml:space="preserve">
+    <value>{0}: klaar.</value>
+  </data>
+  <data name="Common_ActionFailed" xml:space="preserve">
+    <value>{0} mislukt: {1}</value>
+  </data>
+  <data name="Common_ServerResponded" xml:space="preserve">
+    <value>De server antwoordde met {0}.</value>
+  </data>
+  <data name="Common_NoAnswer" xml:space="preserve">
+    <value>De server gaf geen antwoord.</value>
+  </data>
+  <data name="Common_ViewJob" xml:space="preserve">
+    <value>Taak {0} bekijken</value>
+  </data>
+  <data name="Common_ListUpdated" xml:space="preserve">
+    <value>Lijst bijgewerkt</value>
+  </data>
+  <data name="Common_ListUpdatedNew" xml:space="preserve">
+    <value>Lijst bijgewerkt · {0} nieuw</value>
+  </data>
+  <data name="HomePage_Activity_Pause" xml:space="preserve">
+    <value>Feed pauzeren</value>
+  </data>
+  <data name="HomePage_Activity_Summary" xml:space="preserve">
+    <value>{0} nieuwe statuswijzigingen</value>
+  </data>
+  <data name="HomePage_RealtimeGraph_Pause" xml:space="preserve">
+    <value>Grafiek pauzeren</value>
+  </data>
+  <data name="Palette_Label" xml:space="preserve">
+    <value>Zoeken en opdrachten</value>
+  </data>
+  <data name="Palette_Placeholder" xml:space="preserve">
+    <value>Naar een pagina, een taak-id, een terugkerende taak of een tag…</value>
+  </data>
+  <data name="Palette_Results" xml:space="preserve">
+    <value>Resultaten</value>
+  </data>
+  <data name="Palette_NothingFound" xml:space="preserve">
+    <value>Niets gevonden</value>
+  </data>
+  <data name="Palette_ResultCount" xml:space="preserve">
+    <value>{0} resultaten</value>
+  </data>
+  <data name="Palette_ResultCountOne" xml:space="preserve">
+    <value>1 resultaat</value>
+  </data>
+  <data name="Palette_Hint" xml:space="preserve">
+    <value>{0} verplaatsen · {1} openen · {2} sluiten · {3} opdrachten</value>
+  </data>
+  <data name="Palette_HintAnywhere" xml:space="preserve">
+    <value>{0} of {1} opent dit overal</value>
+  </data>
+  <data name="Palette_Pages" xml:space="preserve">
+    <value>Pagina’s</value>
+  </data>
+  <data name="Palette_Commands" xml:space="preserve">
+    <value>Opdrachten</value>
+  </data>
+  <data name="Shortcuts_Search" xml:space="preserve">
+    <value>Zoeken, naar een pagina gaan, een opdracht uitvoeren (typ &gt;)</value>
+  </data>
+  <data name="Shortcuts_Go" xml:space="preserve">
+    <value>Naar start, taken, bezig, mislukt, terugkerend, servers, inzichten, catalogus, tags, batches, audit</value>
+  </data>
+  <data name="Shortcuts_Move" xml:space="preserve">
+    <value>Omlaag / omhoog in een takenlijst</value>
+  </data>
+  <data name="Shortcuts_Select" xml:space="preserve">
+    <value>De taak met focus selecteren</value>
+  </data>
+  <data name="Shortcuts_Open" xml:space="preserve">
+    <value>De taak met focus openen</value>
+  </data>
+  <data name="Shortcuts_Run" xml:space="preserve">
+    <value>De hoofdopdracht van de lijst (Opnieuw in wachtrij, Nu in wachtrij, Nu starten) uitvoeren voor de geselecteerde items, na een bevestiging</value>
+  </data>
+  <data name="Shortcuts_Delete" xml:space="preserve">
+    <value>De geselecteerde taken verwijderen</value>
+  </data>
+  <data name="Shortcuts_Help" xml:space="preserve">
+    <value>Deze hulp</value>
+  </data>
+  <data name="Shortcuts_SingleKey" xml:space="preserve">
+    <value>Sneltoetsen met één toets (j, k, x, r, d, g, / en ?). Ctrl K werkt hoe dan ook.</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Remove" xml:space="preserve">
+    <value>Taak {0} niet meer volgen</value>
   </data>
 </root>

@@ -143,7 +143,7 @@
     <value>Eliminar</value>
   </data>
   <data name="Common_DeleteConfirm" xml:space="preserve">
-    <value>¿Estás seguro que quieres ELIMINAR TODAS las tareas seleccionadas?</value>
+    <value>Los trabajos seleccionados pasan a Eliminados, donde se pueden volver a encolar hasta que caduquen.</value>
   </data>
   <data name="Common_Deleting" xml:space="preserve">
     <value>Eliminando...</value>
@@ -256,7 +256,7 @@
     <value>Creado</value>
   </data>
   <data name="JobDetailsPage_DeleteConfirm" xml:space="preserve">
-    <value>¿Estás seguro que quieres eliminar esta tarea?</value>
+    <value>¿Eliminar este trabajo?</value>
   </data>
   <data name="JobDetailsPage_State" xml:space="preserve">
     <value>Estado</value>
@@ -770,13 +770,13 @@
     <value>Eliminar todo</value>
   </data>
   <data name="Common_DeleteAllConfirm" xml:space="preserve">
-    <value>¿Eliminar TODOS los trabajos de esta lista? Esto no se puede deshacer.</value>
+    <value>Todos los trabajos de la lista, de esta página y de las demás, pasan a Eliminados, donde se pueden volver a encolar hasta que caduquen.</value>
   </data>
   <data name="RecurringJobsPage_RemoveAll" xml:space="preserve">
     <value>Quitar todos</value>
   </data>
   <data name="RecurringJobsPage_RemoveAllConfirm" xml:space="preserve">
-    <value>¿Quitar TODOS los trabajos recurrentes? Solo vuelven cuando la aplicación los registre de nuevo.</value>
+    <value>Solo volverán cuando la aplicación los registre de nuevo.</value>
   </data>
   <data name="LayoutPage_Refresh" xml:space="preserve">
     <value>Actualizar</value>
@@ -800,7 +800,7 @@
     <value>Elimina todos los trabajos con su historial, entradas de cola, contadores, consolas y estadísticas. Se conservan los trabajos recurrentes y los servidores.</value>
   </data>
   <data name="ServersPage_ClearJobsConfirm" xml:space="preserve">
-    <value>¿Eliminar TODOS los trabajos y su historial del almacenamiento? Esto no se puede deshacer.</value>
+    <value>Todos los trabajos y su historial se eliminan para siempre. No se puede deshacer.</value>
   </data>
   <data name="ServersPage_ResetStorage" xml:space="preserve">
     <value>Restablecer almacenamiento</value>
@@ -809,7 +809,7 @@
     <value>Elimina todo, incluidos los trabajos recurrentes y los registros de servidores, como si el almacenamiento fuera nuevo.</value>
   </data>
   <data name="ServersPage_ResetStorageConfirm" xml:space="preserve">
-    <value>¿Restablecer TODO el almacenamiento? Los trabajos recurrentes desaparecen hasta que la aplicación los registre de nuevo. Esto no se puede deshacer.</value>
+    <value>Se eliminan todos los trabajos, trabajos recurrentes, estadísticas y ajustes. Los trabajos recurrentes solo vuelven cuando la aplicación los registra de nuevo. No se puede deshacer.</value>
   </data>
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Borrando…</value>
@@ -1860,5 +1860,239 @@
   </data>
   <data name="ChainsPage_Status_Waiting" xml:space="preserve">
     <value>En espera</value>
+  </data>
+  <data name="LayoutPage_SkipToContent" xml:space="preserve">
+    <value>Saltar al contenido</value>
+  </data>
+  <data name="LayoutPage_Navigation" xml:space="preserve">
+    <value>Navegación</value>
+  </data>
+  <data name="LayoutPage_CloseMenu" xml:space="preserve">
+    <value>Cerrar el menú</value>
+  </data>
+  <data name="LayoutPage_Offline" xml:space="preserve">
+    <value>Sin conexión – reintentando</value>
+  </data>
+  <data name="LayoutPage_Live_Hint" xml:space="preserve">
+    <value>Las cifras de esta página se actualizan solas cada pocos segundos.</value>
+  </data>
+  <data name="LayoutPage_Offline_Hint" xml:space="preserve">
+    <value>El panel no puede conectar con el servidor. Lo sigue intentando; Actualizar lo vuelve a intentar ahora.</value>
+  </data>
+  <data name="LayoutPage_ReadOnly" xml:space="preserve">
+    <value>Solo lectura</value>
+  </data>
+  <data name="LayoutPage_ReadOnly_Hint" xml:space="preserve">
+    <value>Este panel es de solo lectura: muestra los trabajos pero no puede cambiarlos.</value>
+  </data>
+  <data name="LayoutPage_StorageUnavailable" xml:space="preserve">
+    <value>El almacenamiento no respondió, así que esta página puede estar incompleta o desactualizada.</value>
+  </data>
+  <data name="NavigationMenu_Group_Jobs" xml:space="preserve">
+    <value>Trabajos</value>
+  </data>
+  <data name="NavigationMenu_Group_Workflows" xml:space="preserve">
+    <value>Flujos de trabajo</value>
+  </data>
+  <data name="NavigationMenu_Group_Observe" xml:space="preserve">
+    <value>Observar</value>
+  </data>
+  <data name="NavigationMenu_Group_System" xml:space="preserve">
+    <value>Sistema</value>
+  </data>
+  <data name="NavigationMenu_Group_More" xml:space="preserve">
+    <value>Más</value>
+  </data>
+  <data name="Common_Breadcrumb" xml:space="preserve">
+    <value>Ruta de navegación</value>
+  </data>
+  <data name="Paginator_Label" xml:space="preserve">
+    <value>Paginación</value>
+  </data>
+  <data name="Paginator_RowsPerPage" xml:space="preserve">
+    <value>Filas por página</value>
+  </data>
+  <data name="Paginator_Range" xml:space="preserve">
+    <value>{0}–{1} de {2}</value>
+  </data>
+  <data name="Paginator_PreviousPage" xml:space="preserve">
+    <value>Página anterior</value>
+  </data>
+  <data name="Paginator_NextPage" xml:space="preserve">
+    <value>Página siguiente</value>
+  </data>
+  <data name="Paginator_Page" xml:space="preserve">
+    <value>Página {0}</value>
+  </data>
+  <data name="Common_SelectJob" xml:space="preserve">
+    <value>Seleccionar el trabajo {0}</value>
+  </data>
+  <data name="Common_SelectAllJobs" xml:space="preserve">
+    <value>Seleccionar todos los trabajos de esta página</value>
+  </data>
+  <data name="RecurringJobsPage_SelectJob" xml:space="preserve">
+    <value>Seleccionar el trabajo recurrente {0}</value>
+  </data>
+  <data name="RecurringJobsPage_SelectAll" xml:space="preserve">
+    <value>Seleccionar todos los trabajos recurrentes de esta página</value>
+  </data>
+  <data name="Common_SelectedCount" xml:space="preserve">
+    <value>{0} seleccionados</value>
+  </data>
+  <data name="Common_ClearSelection" xml:space="preserve">
+    <value>Borrar la selección</value>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="Common_Confirm" xml:space="preserve">
+    <value>Confirmar</value>
+  </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>Cerrar</value>
+  </data>
+  <data name="Dialog_DiscardTitle" xml:space="preserve">
+    <value>¿Descartar los cambios?</value>
+  </data>
+  <data name="Dialog_DiscardBody" xml:space="preserve">
+    <value>Se perderá lo que cambiaste en este diálogo.</value>
+  </data>
+  <data name="Dialog_Discard" xml:space="preserve">
+    <value>Descartar</value>
+  </data>
+  <data name="Dialog_KeepEditing" xml:space="preserve">
+    <value>Seguir editando</value>
+  </data>
+  <data name="Dialog_TypeToConfirm" xml:space="preserve">
+    <value>Escribe {0} para confirmar</value>
+  </data>
+  <data name="Common_DeleteSelected_Title" xml:space="preserve">
+    <value>¿Eliminar {0} trabajos?</value>
+  </data>
+  <data name="Common_DeleteSelected_TitleOne" xml:space="preserve">
+    <value>¿Eliminar 1 trabajo?</value>
+  </data>
+  <data name="Common_DeleteAllConfirm_Title" xml:space="preserve">
+    <value>¿Eliminar todos los trabajos de esta lista?</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm_Title" xml:space="preserve">
+    <value>¿Volver a encolar todos los trabajos fallidos?</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm" xml:space="preserve">
+    <value>Todos los trabajos de la lista, de esta página y de las demás, se encolan y se vuelven a ejecutar.</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAllConfirm_Title" xml:space="preserve">
+    <value>¿Quitar todos los trabajos recurrentes?</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Title" xml:space="preserve">
+    <value>¿Eliminar todos los trabajos del almacenamiento?</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Word" xml:space="preserve">
+    <value>eliminar todos los trabajos</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Title" xml:space="preserve">
+    <value>¿Restablecer todo el almacenamiento?</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Word" xml:space="preserve">
+    <value>restablecer almacenamiento</value>
+  </data>
+  <data name="JobDetailsPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>Pasa a Eliminados, donde se puede volver a encolar hasta que caduque.</value>
+  </data>
+  <data name="Common_ShortcutConfirm" xml:space="preserve">
+    <value>{0}: {1} seleccionados. ¿Continuar?</value>
+  </data>
+  <data name="Common_Dismiss" xml:space="preserve">
+    <value>Descartar</value>
+  </data>
+  <data name="Common_Done" xml:space="preserve">
+    <value>{0}: hecho.</value>
+  </data>
+  <data name="Common_ActionFailed" xml:space="preserve">
+    <value>{0} falló: {1}</value>
+  </data>
+  <data name="Common_ServerResponded" xml:space="preserve">
+    <value>El servidor respondió con {0}.</value>
+  </data>
+  <data name="Common_NoAnswer" xml:space="preserve">
+    <value>El servidor no respondió.</value>
+  </data>
+  <data name="Common_ViewJob" xml:space="preserve">
+    <value>Ver el trabajo {0}</value>
+  </data>
+  <data name="Common_ListUpdated" xml:space="preserve">
+    <value>Lista actualizada</value>
+  </data>
+  <data name="Common_ListUpdatedNew" xml:space="preserve">
+    <value>Lista actualizada · {0} nuevos</value>
+  </data>
+  <data name="HomePage_Activity_Pause" xml:space="preserve">
+    <value>Pausar el flujo</value>
+  </data>
+  <data name="HomePage_Activity_Summary" xml:space="preserve">
+    <value>{0} cambios de estado nuevos</value>
+  </data>
+  <data name="HomePage_RealtimeGraph_Pause" xml:space="preserve">
+    <value>Pausar el gráfico</value>
+  </data>
+  <data name="Palette_Label" xml:space="preserve">
+    <value>Búsqueda y comandos</value>
+  </data>
+  <data name="Palette_Placeholder" xml:space="preserve">
+    <value>Ir a una página, un id de trabajo, un trabajo recurrente o una etiqueta…</value>
+  </data>
+  <data name="Palette_Results" xml:space="preserve">
+    <value>Resultados</value>
+  </data>
+  <data name="Palette_NothingFound" xml:space="preserve">
+    <value>No se encontró nada</value>
+  </data>
+  <data name="Palette_ResultCount" xml:space="preserve">
+    <value>{0} resultados</value>
+  </data>
+  <data name="Palette_ResultCountOne" xml:space="preserve">
+    <value>1 resultado</value>
+  </data>
+  <data name="Palette_Hint" xml:space="preserve">
+    <value>{0} mover · {1} abrir · {2} cerrar · {3} comandos</value>
+  </data>
+  <data name="Palette_HintAnywhere" xml:space="preserve">
+    <value>{0} o {1} lo abre en cualquier lugar</value>
+  </data>
+  <data name="Palette_Pages" xml:space="preserve">
+    <value>Páginas</value>
+  </data>
+  <data name="Palette_Commands" xml:space="preserve">
+    <value>Comandos</value>
+  </data>
+  <data name="Shortcuts_Search" xml:space="preserve">
+    <value>Buscar, ir a una página, ejecutar un comando (escribe &gt;)</value>
+  </data>
+  <data name="Shortcuts_Go" xml:space="preserve">
+    <value>Ir a inicio, trabajos, en proceso, fallidos, recurrentes, servidores, análisis, catálogo, etiquetas, lotes, auditoría</value>
+  </data>
+  <data name="Shortcuts_Move" xml:space="preserve">
+    <value>Bajar / subir por una lista de trabajos</value>
+  </data>
+  <data name="Shortcuts_Select" xml:space="preserve">
+    <value>Seleccionar el trabajo enfocado</value>
+  </data>
+  <data name="Shortcuts_Open" xml:space="preserve">
+    <value>Abrir el trabajo enfocado</value>
+  </data>
+  <data name="Shortcuts_Run" xml:space="preserve">
+    <value>Ejecutar el comando principal de la lista (Volver a encolar, Encolar ahora, Lanzar ahora) para los elementos seleccionados, tras una confirmación</value>
+  </data>
+  <data name="Shortcuts_Delete" xml:space="preserve">
+    <value>Eliminar los trabajos seleccionados</value>
+  </data>
+  <data name="Shortcuts_Help" xml:space="preserve">
+    <value>Esta ayuda</value>
+  </data>
+  <data name="Shortcuts_SingleKey" xml:space="preserve">
+    <value>Atajos de una sola tecla (j, k, x, r, d, g, / y ?). Ctrl K funciona en cualquier caso.</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Remove" xml:space="preserve">
+    <value>Dejar de vigilar el trabajo {0}</value>
   </data>
 </root>

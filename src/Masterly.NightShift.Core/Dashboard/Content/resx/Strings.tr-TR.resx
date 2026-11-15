@@ -144,7 +144,7 @@
     <value>Sil</value>
   </data>
   <data name="Common_DeleteConfirm" xml:space="preserve">
-    <value> TÜM SEÇİLİ işleri silmek istediğine emin misin?</value>
+    <value>Seçili işler Silinenler'e taşınır; süreleri dolana kadar yeniden kuyruğa alınabilirler.</value>
   </data>
   <data name="Common_Deleting" xml:space="preserve">
     <value>Siliniyor...</value>
@@ -254,7 +254,7 @@
     <value>Oluşturulan</value>
   </data>
   <data name="JobDetailsPage_DeleteConfirm" xml:space="preserve">
-    <value>Bu işi gerçekten silmek istediğine emin misin?</value>
+    <value>Bu iş silinsin mi?</value>
   </data>
   <data name="JobDetailsPage_State" xml:space="preserve">
     <value>Durum</value>
@@ -803,13 +803,13 @@
     <value>Tümünü sil</value>
   </data>
   <data name="Common_DeleteAllConfirm" xml:space="preserve">
-    <value>Bu listedeki TÜM işler silinsin mi? Bu işlem geri alınamaz.</value>
+    <value>Listedeki tüm işler, bu sayfada ve diğerlerinde, Silinenler'e taşınır; süreleri dolana kadar yeniden kuyruğa alınabilirler.</value>
   </data>
   <data name="RecurringJobsPage_RemoveAll" xml:space="preserve">
     <value>Tümünü kaldır</value>
   </data>
   <data name="RecurringJobsPage_RemoveAllConfirm" xml:space="preserve">
-    <value>TÜM yinelenen işler kaldırılsın mı? Yalnızca uygulama yeniden kaydettiğinde geri gelirler.</value>
+    <value>Ancak uygulama onları yeniden kaydettiğinde geri gelirler.</value>
   </data>
   <data name="LayoutPage_Refresh" xml:space="preserve">
     <value>Yenile</value>
@@ -833,7 +833,7 @@
     <value>Geçmişi, kuyruk kayıtları, sayaçları, konsolları ve istatistikleriyle birlikte her işi kaldırır. Yinelenen işler ve sunucular korunur.</value>
   </data>
   <data name="ServersPage_ClearJobsConfirm" xml:space="preserve">
-    <value>TÜM işler ve geçmişleri depolamadan silinsin mi? Bu işlem geri alınamaz.</value>
+    <value>Tüm işler ve geçmişleri kalıcı olarak silinir. Bu işlem geri alınamaz.</value>
   </data>
   <data name="ServersPage_ResetStorage" xml:space="preserve">
     <value>Depolamayı sıfırla</value>
@@ -842,7 +842,7 @@
     <value>Yinelenen işler ve sunucu kayıtları dahil her şeyi kaldırır; depolama yeni gibi olur.</value>
   </data>
   <data name="ServersPage_ResetStorageConfirm" xml:space="preserve">
-    <value>TÜM depolama sıfırlansın mı? Yinelenen işler, uygulama yeniden kaydedene kadar kaybolur. Bu işlem geri alınamaz.</value>
+    <value>Tüm işler, yinelenen işler, istatistikler ve ayarlar silinir. Yinelenen işler ancak uygulama onları yeniden kaydettiğinde geri gelir. Bu işlem geri alınamaz.</value>
   </data>
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Temizleniyor…</value>
@@ -1893,5 +1893,239 @@
   </data>
   <data name="ChainsPage_Status_Waiting" xml:space="preserve">
     <value>Bekliyor</value>
+  </data>
+  <data name="LayoutPage_SkipToContent" xml:space="preserve">
+    <value>İçeriğe geç</value>
+  </data>
+  <data name="LayoutPage_Navigation" xml:space="preserve">
+    <value>Gezinme</value>
+  </data>
+  <data name="LayoutPage_CloseMenu" xml:space="preserve">
+    <value>Menüyü kapat</value>
+  </data>
+  <data name="LayoutPage_Offline" xml:space="preserve">
+    <value>Çevrimdışı – yeniden deneniyor</value>
+  </data>
+  <data name="LayoutPage_Live_Hint" xml:space="preserve">
+    <value>Bu sayfadaki sayılar birkaç saniyede bir kendiliğinden güncellenir.</value>
+  </data>
+  <data name="LayoutPage_Offline_Hint" xml:space="preserve">
+    <value>Pano sunucuya ulaşamıyor. Denemeye devam ediyor; Yenile hemen yeniden dener.</value>
+  </data>
+  <data name="LayoutPage_ReadOnly" xml:space="preserve">
+    <value>Salt okunur</value>
+  </data>
+  <data name="LayoutPage_ReadOnly_Hint" xml:space="preserve">
+    <value>Bu pano salt okunurdur: işleri gösterir ama değiştiremez.</value>
+  </data>
+  <data name="LayoutPage_StorageUnavailable" xml:space="preserve">
+    <value>Depolama yanıt vermedi; bu sayfa eksik veya güncel olmayabilir.</value>
+  </data>
+  <data name="NavigationMenu_Group_Jobs" xml:space="preserve">
+    <value>İşler</value>
+  </data>
+  <data name="NavigationMenu_Group_Workflows" xml:space="preserve">
+    <value>İş akışları</value>
+  </data>
+  <data name="NavigationMenu_Group_Observe" xml:space="preserve">
+    <value>Gözlem</value>
+  </data>
+  <data name="NavigationMenu_Group_System" xml:space="preserve">
+    <value>Sistem</value>
+  </data>
+  <data name="NavigationMenu_Group_More" xml:space="preserve">
+    <value>Diğer</value>
+  </data>
+  <data name="Common_Breadcrumb" xml:space="preserve">
+    <value>Gezinti yolu</value>
+  </data>
+  <data name="Paginator_Label" xml:space="preserve">
+    <value>Sayfalama</value>
+  </data>
+  <data name="Paginator_RowsPerPage" xml:space="preserve">
+    <value>Sayfa başına satır</value>
+  </data>
+  <data name="Paginator_Range" xml:space="preserve">
+    <value>{0}–{1} / {2}</value>
+  </data>
+  <data name="Paginator_PreviousPage" xml:space="preserve">
+    <value>Önceki sayfa</value>
+  </data>
+  <data name="Paginator_NextPage" xml:space="preserve">
+    <value>Sonraki sayfa</value>
+  </data>
+  <data name="Paginator_Page" xml:space="preserve">
+    <value>Sayfa {0}</value>
+  </data>
+  <data name="Common_SelectJob" xml:space="preserve">
+    <value>{0} işini seç</value>
+  </data>
+  <data name="Common_SelectAllJobs" xml:space="preserve">
+    <value>Bu sayfadaki tüm işleri seç</value>
+  </data>
+  <data name="RecurringJobsPage_SelectJob" xml:space="preserve">
+    <value>{0} yinelenen işini seç</value>
+  </data>
+  <data name="RecurringJobsPage_SelectAll" xml:space="preserve">
+    <value>Bu sayfadaki tüm yinelenen işleri seç</value>
+  </data>
+  <data name="Common_SelectedCount" xml:space="preserve">
+    <value>{0} seçili</value>
+  </data>
+  <data name="Common_ClearSelection" xml:space="preserve">
+    <value>Seçimi temizle</value>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>İptal</value>
+  </data>
+  <data name="Common_Confirm" xml:space="preserve">
+    <value>Onayla</value>
+  </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>Kapat</value>
+  </data>
+  <data name="Dialog_DiscardTitle" xml:space="preserve">
+    <value>Değişiklikler atılsın mı?</value>
+  </data>
+  <data name="Dialog_DiscardBody" xml:space="preserve">
+    <value>Bu pencerede yaptığınız değişiklikler kaybolur.</value>
+  </data>
+  <data name="Dialog_Discard" xml:space="preserve">
+    <value>At</value>
+  </data>
+  <data name="Dialog_KeepEditing" xml:space="preserve">
+    <value>Düzenlemeye devam et</value>
+  </data>
+  <data name="Dialog_TypeToConfirm" xml:space="preserve">
+    <value>Onaylamak için {0} yazın</value>
+  </data>
+  <data name="Common_DeleteSelected_Title" xml:space="preserve">
+    <value>{0} iş silinsin mi?</value>
+  </data>
+  <data name="Common_DeleteSelected_TitleOne" xml:space="preserve">
+    <value>1 iş silinsin mi?</value>
+  </data>
+  <data name="Common_DeleteAllConfirm_Title" xml:space="preserve">
+    <value>Bu listedeki tüm işler silinsin mi?</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm_Title" xml:space="preserve">
+    <value>Tüm başarısız işler yeniden kuyruğa alınsın mı?</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm" xml:space="preserve">
+    <value>Listedeki tüm işler, bu sayfada ve diğerlerinde, kuyruğa alınır ve yeniden çalışır.</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAllConfirm_Title" xml:space="preserve">
+    <value>Tüm yinelenen işler kaldırılsın mı?</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Title" xml:space="preserve">
+    <value>Tüm işler depolamadan silinsin mi?</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm_Word" xml:space="preserve">
+    <value>tüm işleri sil</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Title" xml:space="preserve">
+    <value>Tüm depolama sıfırlansın mı?</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm_Word" xml:space="preserve">
+    <value>depolamayı sıfırla</value>
+  </data>
+  <data name="JobDetailsPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>Silinenler'e taşınır; süresi dolana kadar yeniden kuyruğa alınabilir.</value>
+  </data>
+  <data name="Common_ShortcutConfirm" xml:space="preserve">
+    <value>{0}: {1} seçili. Devam edilsin mi?</value>
+  </data>
+  <data name="Common_Dismiss" xml:space="preserve">
+    <value>Kapat</value>
+  </data>
+  <data name="Common_Done" xml:space="preserve">
+    <value>{0}: tamamlandı.</value>
+  </data>
+  <data name="Common_ActionFailed" xml:space="preserve">
+    <value>{0} başarısız oldu: {1}</value>
+  </data>
+  <data name="Common_ServerResponded" xml:space="preserve">
+    <value>Sunucu {0} ile yanıt verdi.</value>
+  </data>
+  <data name="Common_NoAnswer" xml:space="preserve">
+    <value>Sunucu yanıt vermedi.</value>
+  </data>
+  <data name="Common_ViewJob" xml:space="preserve">
+    <value>{0} işini görüntüle</value>
+  </data>
+  <data name="Common_ListUpdated" xml:space="preserve">
+    <value>Liste güncellendi</value>
+  </data>
+  <data name="Common_ListUpdatedNew" xml:space="preserve">
+    <value>Liste güncellendi · {0} yeni</value>
+  </data>
+  <data name="HomePage_Activity_Pause" xml:space="preserve">
+    <value>Akışı duraklat</value>
+  </data>
+  <data name="HomePage_Activity_Summary" xml:space="preserve">
+    <value>{0} yeni durum değişikliği</value>
+  </data>
+  <data name="HomePage_RealtimeGraph_Pause" xml:space="preserve">
+    <value>Grafiği duraklat</value>
+  </data>
+  <data name="Palette_Label" xml:space="preserve">
+    <value>Arama ve komutlar</value>
+  </data>
+  <data name="Palette_Placeholder" xml:space="preserve">
+    <value>Bir sayfaya, iş kimliğine, yinelenen işe veya etikete git…</value>
+  </data>
+  <data name="Palette_Results" xml:space="preserve">
+    <value>Sonuçlar</value>
+  </data>
+  <data name="Palette_NothingFound" xml:space="preserve">
+    <value>Hiçbir şey bulunamadı</value>
+  </data>
+  <data name="Palette_ResultCount" xml:space="preserve">
+    <value>{0} sonuç</value>
+  </data>
+  <data name="Palette_ResultCountOne" xml:space="preserve">
+    <value>1 sonuç</value>
+  </data>
+  <data name="Palette_Hint" xml:space="preserve">
+    <value>{0} gezin · {1} aç · {2} kapat · {3} komutlar</value>
+  </data>
+  <data name="Palette_HintAnywhere" xml:space="preserve">
+    <value>{0} veya {1} bunu her yerden açar</value>
+  </data>
+  <data name="Palette_Pages" xml:space="preserve">
+    <value>Sayfalar</value>
+  </data>
+  <data name="Palette_Commands" xml:space="preserve">
+    <value>Komutlar</value>
+  </data>
+  <data name="Shortcuts_Search" xml:space="preserve">
+    <value>Ara, bir sayfaya git, komut çalıştır (&gt; yazın)</value>
+  </data>
+  <data name="Shortcuts_Go" xml:space="preserve">
+    <value>Ana sayfa, işler, işleniyor, başarısız, yinelenen, sunucular, içgörüler, katalog, etiketler, toplu işler, denetim sayfasına git</value>
+  </data>
+  <data name="Shortcuts_Move" xml:space="preserve">
+    <value>İş listesinde aşağı / yukarı git</value>
+  </data>
+  <data name="Shortcuts_Select" xml:space="preserve">
+    <value>Odaktaki işi seç</value>
+  </data>
+  <data name="Shortcuts_Open" xml:space="preserve">
+    <value>Odaktaki işi aç</value>
+  </data>
+  <data name="Shortcuts_Run" xml:space="preserve">
+    <value>Listenin ana komutunu (Yeniden kuyruğa al, Şimdi kuyruğa al, Şimdi tetikle) seçili öğeler için bir onaydan sonra çalıştır</value>
+  </data>
+  <data name="Shortcuts_Delete" xml:space="preserve">
+    <value>Seçili işleri sil</value>
+  </data>
+  <data name="Shortcuts_Help" xml:space="preserve">
+    <value>Bu yardım</value>
+  </data>
+  <data name="Shortcuts_SingleKey" xml:space="preserve">
+    <value>Tek tuşlu kısayollar (j, k, x, r, d, g, / ve ?). Ctrl K her durumda çalışır.</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Remove" xml:space="preserve">
+    <value>{0} işini izlemeyi bırak</value>
   </data>
 </root>
