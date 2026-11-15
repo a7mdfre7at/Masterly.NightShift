@@ -535,7 +535,7 @@
             this._duration = DURATION;
             this._delay = pollInterval;
             this._frameId = null;
-            this._lastFrame = 0;
+            this._lastFrame = null;
 
             var range = this._range(Date.now());
             var options = graphOptions(
@@ -556,7 +556,7 @@
             });
 
             var self = this;
-            this._onFrame = function () { self._frame(); };
+            this._onFrame = function (time) { self._frame(time); };
 
             document.addEventListener('visibilitychange', function () {
                 if (document.hidden) {
@@ -579,6 +579,9 @@
                 var failed = Math.max(newFailed - this._failed, 0);
                 var deleted = Math.max(newDeleted - this._deleted, 0);
                 var succeeded = Math.max(newSucceeded - this._succeeded, 0);
+
+                // Points are kept in the order of their times, which the trimming relies on
+                this._forgetAfterClockJump(now);
 
                 this._chart.data.datasets[0].data.push({ x: now, y: failed });
                 this._chart.data.datasets[1].data.push({ x: now, y: deleted });
@@ -603,7 +606,7 @@
 
         RealtimeGraph.prototype._start = function () {
             if (this._frameId === null && !document.hidden) {
-                this._lastFrame = 0;
+                this._lastFrame = null;
                 this._frameId = window.requestAnimationFrame(this._onFrame);
             }
         };
@@ -615,22 +618,42 @@
             }
         };
 
-        RealtimeGraph.prototype._frame = function () {
-            var now = Date.now();
+        // time is requestAnimationFrame's timestamp: the frames are counted on that monotonic clock, so a wall clock
+        // set back (or forward) doesn't stop them; only the axis follows Date.now()
+        RealtimeGraph.prototype._frame = function (time) {
             this._frameId = window.requestAnimationFrame(this._onFrame);
 
             // A frame of a 60 Hz display comes up to a millisecond early
-            if (now - this._lastFrame < FRAME_INTERVAL - 2) return;
-            this._lastFrame = now;
+            if (this._lastFrame !== null && time - this._lastFrame < FRAME_INTERVAL - 2) return;
+            this._lastFrame = time;
 
+            var now = Date.now();
             var range = this._range(now);
             var x = this._chart.options.scales.x;
             x.min = range.min;
             x.max = range.max;
 
+            this._forgetAfterClockJump(now);
             this._dropOld(range.min);
             // Without animations; an update replays the last mouse event, so an open tooltip follows its points
             this._chart.update('none');
+        };
+
+        // Every point has the time it arrived at, so a point later than now means the clock was set back, and a
+        // newest point that left the axis means it jumped forward (or nothing came for a minute): the points are
+        // dropped, and the graph starts again from the next poll. Points after now would also keep the ones before
+        // them from being trimmed, which relies on their order.
+        RealtimeGraph.prototype._forgetAfterClockJump = function (now) {
+            var datasets = this._chart.data.datasets;
+            var data = datasets[0].data;
+            if (data.length === 0) return;
+
+            var newest = data[data.length - 1].x;
+            if (newest <= now && newest >= this._range(now).min) return;
+
+            for (var i = 0; i < datasets.length; i++) {
+                datasets[i].data = [];
+            }
         };
 
         RealtimeGraph.prototype._dropOld = function (min) {
