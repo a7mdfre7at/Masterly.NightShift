@@ -354,7 +354,7 @@ public class HtmlHelper
             : serverId;
 
         return new NonEscapedString(
-            $"<span class=\"labe label-defult text-uppercase\" title=\"{HtmlEncode(serverId)}\">{HtmlEncode(shortenedId)}</span>");
+            $"<span class=\"badge text-bg-secondary text-uppercase\" title=\"{HtmlEncode(serverId)}\">{HtmlEncode(shortenedId)}</span>");
     }
 
     private static readonly StackTraceHtmlFragments StackTraceHtmlFragments = new()

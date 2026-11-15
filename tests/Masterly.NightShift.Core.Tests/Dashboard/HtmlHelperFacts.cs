@@ -1,5 +1,7 @@
 ﻿using System.ComponentModel;
+using System.Net;
 using Masterly.NightShift.Dashboard;
+using Masterly.NightShift.Dashboard.Resources;
 
 namespace Masterly.NightShift.Core.Tests.Dashboard;
 
@@ -129,6 +131,30 @@ public class HtmlHelperFacts
         Assert.Equal(
             $"<svg class=\"bi a&lt;b&gt; &#39;c&#39;\" aria-hidden=\"true\"><use href=\"{DashboardIcons.Path}#bi-x&quot;&gt;&lt;script&gt;&#39;\"></use></svg>",
             html);
+    }
+
+    [Fact]
+    public void ServerId_WritesABadge_WithoutTheLastPart_AndTheWholeIdInTheTitle()
+    {
+        string html = new Pages.PageRenderer().Render(new IconPage(page => page.Html.ServerId("web-1:4242:<a>")));
+
+        Assert.Equal("<span class=\"badge text-bg-secondary text-uppercase\" title=\"web-1:4242:&lt;a&gt;\">web-1:4242</span>", html);
+    }
+
+    [Fact]
+    public void ServerId_WritesTheWholeId_WhenItHasNoParts()
+    {
+        string html = new Pages.PageRenderer().Render(new IconPage(page => page.Html.ServerId("worker")));
+
+        Assert.Equal("<span class=\"badge text-bg-secondary text-uppercase\" title=\"worker\">worker</span>", html);
+    }
+
+    [Fact]
+    public void ServerId_WritesUnknown_WithoutAnId()
+    {
+        string html = new Pages.PageRenderer().Render(new IconPage(page => page.Html.ServerId(null)));
+
+        Assert.Equal($"<span class=\"badge text-bg-secondary\"><i>{WebUtility.HtmlEncode(Strings.Common_Unknown)}</i></span>", html);
     }
 
     [Theory]
