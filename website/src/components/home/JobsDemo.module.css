@@ -1,75 +1,98 @@
+/* A miniature of the dashboard's jobs page: an elevated card with a data table and MD3 state chips. */
+
 .window {
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--ns-border-strong);
-  border-radius: var(--ns-radius-lg);
-  background: var(--ns-surface-raised);
-  box-shadow: var(--ns-shadow-lg);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-large);
+  background-color: var(--md-sys-color-surface-container-lowest);
+  box-shadow: var(--md-sys-elevation-level3);
+}
+
+html[data-theme='dark'] .window {
+  background-color: var(--md-sys-color-surface-container-low);
 }
 
 .titleBar {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.65rem 0.85rem;
-  border-bottom: 1px solid var(--ns-border);
-  background: var(--ns-surface);
+  gap: var(--md-sys-spacing-3);
+  min-height: 48px;
+  padding: var(--md-sys-spacing-1) var(--md-sys-spacing-2) var(--md-sys-spacing-1) var(--md-sys-spacing-4);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background-color: var(--md-sys-color-surface-container);
 }
 
 .dots {
   display: inline-flex;
-  gap: 0.4rem;
+  gap: 6px;
 }
 
 .dots span {
-  width: 0.7rem;
-  height: 0.7rem;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: var(--ns-border-strong);
+  background-color: var(--md-sys-color-outline-variant);
 }
 
 .path {
   flex: 1;
-  font-family: var(--ifm-font-family-monospace);
-  font-size: 0.78rem;
-  color: var(--ns-ink-muted);
+  color: var(--md-sys-color-on-surface-variant);
+  font-family: var(--md-ref-typeface-mono);
+  font-size: var(--md-sys-typescale-code-small-size);
+  line-height: var(--md-sys-typescale-code-small-line-height);
 }
 
+/* Run: a small tonal button. */
 .runButton {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.3rem 0.7rem;
-  border: 1px solid var(--ns-border-strong);
-  border-radius: 999px;
-  background: var(--ns-surface-raised);
-  color: var(--ns-ink);
-  font-size: 0.78rem;
-  font-weight: 600;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 var(--md-sys-spacing-4) 0 var(--md-sys-spacing-3);
+  border: none;
+  border-radius: var(--md-sys-shape-corner-full);
+  background-color: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  font-family: var(--md-ref-typeface-plain);
+  font-size: var(--md-sys-typescale-label-large-size);
+  font-weight: var(--md-sys-typescale-label-large-weight);
+  line-height: var(--md-sys-typescale-label-large-line-height);
   cursor: pointer;
-  transition: border-color var(--ns-duration) var(--ns-ease);
+  transition: background-color var(--ns-transition), box-shadow var(--ns-transition);
 }
 
 .runButton:hover:not(:disabled) {
-  border-color: var(--ifm-color-primary);
+  background-color: color-mix(in srgb, var(--md-sys-color-on-secondary-container) var(--ns-hover), var(--md-sys-color-secondary-container));
+  box-shadow: var(--md-sys-elevation-level1);
 }
 
+.runButton:active:not(:disabled) {
+  background-color: color-mix(in srgb, var(--md-sys-color-on-secondary-container) var(--ns-pressed), var(--md-sys-color-secondary-container));
+  box-shadow: none;
+}
+
+/* Disabled, as MD3: on-surface at 38% on a 12% container. */
 .runButton:disabled {
+  background-color: color-mix(in srgb, var(--md-sys-color-on-surface) calc(var(--md-sys-state-disabled-container-opacity) * 100%), transparent);
+  color: color-mix(in srgb, var(--md-sys-color-on-surface) calc(var(--md-sys-state-disabled-content-opacity) * 100%), transparent);
   cursor: default;
-  opacity: 0.6;
 }
 
 .counters {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  border-bottom: 1px solid var(--ns-border);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .counter {
-  padding: 0.7rem 0.85rem;
-  border-left: 1px solid var(--ns-border);
-  font-size: 0.75rem;
-  color: var(--ns-ink-muted);
+  padding: var(--md-sys-spacing-3) var(--md-sys-spacing-4);
+  border-left: 1px solid var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-medium-size);
+  font-weight: var(--md-sys-typescale-label-medium-weight);
+  line-height: var(--md-sys-typescale-label-medium-line-height);
+  letter-spacing: var(--md-sys-typescale-label-medium-tracking);
 }
 
 .counter:first-child {
@@ -78,31 +101,31 @@
 
 .counter b {
   display: block;
-  font-size: 1.35rem;
-  font-weight: 700;
-  line-height: 1.2;
+  font-size: var(--md-sys-typescale-headline-small-size);
+  font-weight: var(--md-sys-typescale-headline-small-weight);
+  line-height: var(--md-sys-typescale-headline-small-line-height);
   font-variant-numeric: tabular-nums;
 }
 
 .counter.processing b {
-  color: var(--ns-warn);
+  color: var(--ns-state-processing);
 }
 
 .counter.succeeded b {
-  color: var(--ns-pass);
+  color: var(--ns-state-succeeded);
 }
 
 .counter.failed b {
-  color: var(--ns-fail);
+  color: var(--ns-state-failed);
 }
 
 .counter.scheduled b {
-  color: var(--ns-sched);
+  color: var(--ns-state-scheduled);
 }
 
 .list {
   margin: 0;
-  padding: 0.35rem 0;
+  padding: 0;
   list-style: none;
 }
 
@@ -112,13 +135,14 @@
   grid-template-areas:
     'id method badge'
     'id detail detail';
-  column-gap: 0.75rem;
-  row-gap: 0.15rem;
+  column-gap: var(--md-sys-spacing-3);
+  row-gap: 2px;
   align-items: center;
-  padding: 0.6rem 0.95rem;
-  border-top: 1px solid var(--ns-border);
-  font-family: var(--ifm-font-family-monospace);
-  font-size: 0.8rem;
+  padding: var(--md-sys-spacing-3) var(--md-sys-spacing-4);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  font-family: var(--md-ref-typeface-mono);
+  font-size: var(--md-sys-typescale-code-medium-size);
+  line-height: var(--md-sys-typescale-code-medium-line-height);
 }
 
 .row:first-child {
@@ -128,89 +152,119 @@
 .jobId {
   grid-area: id;
   align-self: start;
-  color: var(--ns-ink-faint);
+  color: var(--md-sys-color-primary);
   overflow-wrap: anywhere;
 }
 
 .method {
   grid-area: method;
-  color: var(--ns-ink);
-  font-weight: 500;
+  color: var(--md-sys-color-on-surface);
+  font-weight: var(--md-ref-typeface-weight-medium);
   overflow-wrap: anywhere;
 }
 
 .detail {
   grid-area: detail;
-  color: var(--ns-ink-faint);
-  font-size: 0.74rem;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-code-small-size);
+  line-height: var(--md-sys-typescale-code-small-line-height);
 }
 
+/* State chips: the state's container and on-container, with a dot in the state colour (the tokens' job-state
+   colour groups, as in the dashboard). */
 .badge {
+  --ns-state: var(--ns-state-deleted);
+  --ns-state-container: var(--ns-state-deleted-container);
+  --ns-state-on-container: var(--ns-state-on-deleted-container);
   grid-area: badge;
   justify-self: end;
-  min-width: 6.4rem;
-  padding: 0.15rem 0.55rem;
-  border-radius: 999px;
-  font-family: var(--ifm-font-family-base);
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-align: center;
-  text-transform: uppercase;
-  transition: background var(--ns-duration) var(--ns-ease), color var(--ns-duration) var(--ns-ease);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 7.25rem;
+  min-height: 24px;
+  padding: 0 var(--md-sys-spacing-3) 0 var(--md-sys-spacing-2);
+  border-radius: var(--md-sys-shape-corner-full);
+  background-color: var(--ns-state-container);
+  color: var(--ns-state-on-container);
+  font-family: var(--md-ref-typeface-plain);
+  font-size: var(--md-sys-typescale-label-medium-size);
+  font-weight: var(--md-ref-typeface-weight-bold);
+  line-height: var(--md-sys-typescale-label-medium-line-height);
+  letter-spacing: var(--md-sys-typescale-label-medium-tracking);
+  transition: background-color var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard),
+    color var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.badge::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background-color: var(--ns-state);
 }
 
 .enqueued {
-  background: var(--ns-accent-soft);
-  color: var(--ifm-color-primary);
+  --ns-state: var(--ns-state-enqueued);
+  --ns-state-container: var(--ns-state-enqueued-container);
+  --ns-state-on-container: var(--ns-state-on-enqueued-container);
 }
 
 .scheduled {
-  background: var(--ns-sched-soft);
-  color: var(--ns-sched);
+  --ns-state: var(--ns-state-scheduled);
+  --ns-state-container: var(--ns-state-scheduled-container);
+  --ns-state-on-container: var(--ns-state-on-scheduled-container);
 }
 
 .awaiting {
-  background: var(--ns-surface-sunken);
-  color: var(--ns-ink-faint);
+  --ns-state: var(--ns-state-awaiting);
+  --ns-state-container: var(--ns-state-awaiting-container);
+  --ns-state-on-container: var(--ns-state-on-awaiting-container);
 }
 
 .processing {
-  background: var(--ns-warn-soft);
-  color: var(--ns-warn);
+  --ns-state: var(--ns-state-processing);
+  --ns-state-container: var(--ns-state-processing-container);
+  --ns-state-on-container: var(--ns-state-on-processing-container);
 }
 
-.badge.processing {
-  animation: pulse 1.2s ease-in-out infinite;
+.badge.processing::before {
+  animation: pulse 1.2s var(--md-sys-motion-easing-standard) infinite;
 }
 
 .succeeded {
-  background: var(--ns-pass-soft);
-  color: var(--ns-pass);
+  --ns-state: var(--ns-state-succeeded);
+  --ns-state-container: var(--ns-state-succeeded-container);
+  --ns-state-on-container: var(--ns-state-on-succeeded-container);
 }
 
 .failed {
-  background: var(--ns-fail-soft);
-  color: var(--ns-fail);
+  --ns-state: var(--ns-state-failed);
+  --ns-state-container: var(--ns-state-failed-container);
+  --ns-state-on-container: var(--ns-state-on-failed-container);
 }
 
 .footer {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.65rem 0.95rem;
-  border-top: 1px solid var(--ns-border);
-  background: var(--ns-surface);
-  font-size: 0.8rem;
-  color: var(--ns-ink-muted);
+  gap: var(--md-sys-spacing-2);
+  min-height: 40px;
+  padding: var(--md-sys-spacing-2) var(--md-sys-spacing-4);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  background-color: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line-height);
 }
 
 .live {
-  width: 0.55rem;
-  height: 0.55rem;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: var(--ns-pass-fill);
-  box-shadow: 0 0 0 3px var(--ns-pass-soft);
+  background-color: var(--ns-state-succeeded);
+  box-shadow: 0 0 0 3px var(--ns-state-succeeded-container);
 }
 
 @keyframes pulse {
@@ -219,7 +273,7 @@
     opacity: 1;
   }
   50% {
-    opacity: 0.55;
+    opacity: 0.35;
   }
 }
 
@@ -233,7 +287,7 @@
   }
 
   .counter:nth-child(n + 3) {
-    border-top: 1px solid var(--ns-border);
+    border-top: 1px solid var(--md-sys-color-outline-variant);
   }
 
   .row {

@@ -199,7 +199,7 @@ function Hero() {
               Get started
               <Icon name="arrowRight" size={18} />
             </Link>
-            <Link className={clsx('button button--lg', styles.secondaryButton)} to="/docs">
+            <Link className={clsx('button button--outline button--lg', styles.secondaryButton)} to="/docs">
               Read the docs
             </Link>
           </div>
@@ -397,7 +397,7 @@ function CallToAction() {
             Open the quick start
             <Icon name="arrowRight" size={18} />
           </Link>
-          <Link className={clsx('button button--lg', styles.secondaryButton)} to="/docs/migrating-from-hangfire">
+          <Link className={clsx('button button--outline button--lg', styles.secondaryButton)} to="/docs/migrating-from-hangfire">
             Migrate from Hangfire
           </Link>
         </div>

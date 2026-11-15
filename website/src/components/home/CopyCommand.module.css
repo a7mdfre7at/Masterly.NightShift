@@ -1,29 +1,31 @@
+/* The install command: a full-rounded field on the code surface with a copy icon button. */
+
 .command {
   display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--md-sys-spacing-3);
   max-width: 100%;
-  padding: 0.4rem 0.4rem 0.4rem 1rem;
-  border: 1px solid var(--ns-border-strong);
-  border-radius: var(--ns-radius);
-  background: var(--ns-surface-raised);
-  box-shadow: var(--ns-shadow-sm);
-  font-family: var(--ifm-font-family-monospace);
-  font-size: 0.875rem;
+  min-height: 48px;
+  padding: var(--md-sys-spacing-1) var(--md-sys-spacing-1) var(--md-sys-spacing-1) var(--md-sys-spacing-5);
+  border-radius: var(--md-sys-shape-corner-full);
+  background-color: var(--md-sys-color-surface-container-high);
+  font-family: var(--md-ref-typeface-mono);
+  font-size: var(--md-sys-typescale-code-large-size);
+  line-height: var(--md-sys-typescale-code-large-line-height);
 }
 
 .prompt {
-  color: var(--ns-ink-faint);
+  color: var(--md-sys-color-on-surface-variant);
   user-select: none;
 }
 
 .text {
-  overflow-x: auto;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: break-word;
   padding: 0;
   border: none;
   background: none;
-  color: var(--ns-ink);
+  color: var(--md-sys-color-on-surface);
   font-size: inherit;
 }
 
@@ -32,27 +34,28 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  background: var(--ns-surface-sunken);
-  color: var(--ns-ink-muted);
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
-  transition: background var(--ns-duration) var(--ns-ease), color var(--ns-duration) var(--ns-ease),
-    border-color var(--ns-duration) var(--ns-ease);
+  transition: background-color var(--ns-transition), color var(--ns-transition);
 }
 
 .button:hover {
-  border-color: var(--ns-border-strong);
-  color: var(--ns-ink);
+  background-color: color-mix(in srgb, var(--md-sys-color-on-surface-variant) var(--ns-hover), transparent);
+}
+
+.button:active {
+  background-color: color-mix(in srgb, var(--md-sys-color-on-surface-variant) var(--ns-pressed), transparent);
 }
 
 .copied,
 .copied:hover {
-  border-color: transparent;
-  background: var(--ns-pass-soft);
-  color: var(--ns-pass);
+  background-color: var(--ns-state-succeeded-container);
+  color: var(--ns-state-on-succeeded-container);
 }
 
 .srOnly {
