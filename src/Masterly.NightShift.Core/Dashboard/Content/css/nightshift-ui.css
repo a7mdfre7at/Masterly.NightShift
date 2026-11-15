@@ -748,10 +748,6 @@ body.hf-app .small {
     white-space: nowrap;
 }
 
-.hf-status .hf-status-icon {
-    color: var(--ns-state-succeeded);
-}
-
 .hf-status .hf-pulse-dot {
     display: inline-block;
     width: 8px;
@@ -1950,8 +1946,7 @@ fieldset:disabled .hf-app .btn {
 }
 
 /* Icon buttons: 40x40 (the hit area of a 24px icon), round, with a state layer */
-.ns-icon-button,
-.hf-icon-button {
+.ns-icon-button {
     --ns-sl-rgb: var(--md-sys-color-on-surface-rgb);
     display: inline-flex;
     align-items: center;
@@ -1972,14 +1967,12 @@ fieldset:disabled .hf-app .btn {
     transition: box-shadow var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
 }
 
-.ns-icon-button:hover,
-.hf-icon-button:hover {
+.ns-icon-button:hover {
     --ns-sl-o: var(--md-sys-state-hover-state-layer-opacity);
     color: var(--md-sys-color-on-surface);
 }
 
-.ns-icon-button:active,
-.hf-icon-button:active {
+.ns-icon-button:active {
     --ns-sl-o: var(--md-sys-state-pressed-state-layer-opacity);
 }
 
@@ -2003,7 +1996,6 @@ fieldset:disabled .hf-app .btn {
 
 /* Spinner of a button that refreshes */
 .spinning .bi,
-.hf-icon-button.spinning .bi,
 .ns-icon-button.spinning .bi {
     animation: hf-spin .8s linear infinite;
 }
@@ -2276,11 +2268,6 @@ button.ns-chip {
     color: var(--ns-state-on-color, var(--md-sys-color-on-primary));
 }
 
-/* Text in a state's colour (the title of the current state's card) */
-.ns-state-text {
-    color: var(--ns-state-color, var(--md-sys-color-on-surface));
-}
-
 /* Job snippet and the state cards of the job page: the current state's card has its state's colour on the left */
 .hf-app .job-snippet {
     background-color: var(--ns-surface-card);
@@ -2408,7 +2395,6 @@ button.ns-chip {
 }
 
 /* An empty list or page: an icon, a title, a sentence and an action */
-.hf-app .alert-info.hf-empty,
 .hf-app .js-jobs-list + .alert-info {
     text-align: center;
 }
@@ -3920,23 +3906,6 @@ label.ns-required::after {
     width: 22px;
     vertical-align: middle;
     margin-right: 4px;
-}
-
-.hf-chip {
-    display: inline-block;
-    margin: 2px 6px 2px 0;
-    padding: 2px 10px;
-    border-radius: 999px;
-    background-color: var(--hf-primary-soft);
-    color: var(--hf-primary-strong);
-    font-size: 0.75rem;
-    text-decoration: none;
-}
-
-.hf-chip:hover {
-    text-decoration: none;
-    background-color: var(--hf-primary);
-    color: var(--hf-on-color);
 }
 
 /* Insights anomalies */

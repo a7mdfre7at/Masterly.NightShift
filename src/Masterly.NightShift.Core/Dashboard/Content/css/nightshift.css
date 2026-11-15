@@ -485,43 +485,6 @@ div.metric-null {
     white-space: nowrap;
 }
 
-.cron-preview {
-    margin-top: .625rem;
-    padding-top: .625rem;
-    border-top: 1px solid var(--ns-divider);
-}
-
-.cron-preview h5 {
-    font-weight: 600;
-}
-
-.cron-preview h5 code {
-    margin-left: .375rem;
-    font-weight: normal;
-}
-
-.cron-preview ul {
-    margin: 0;
-}
-
-.cron-preview li {
-    padding: .1875rem 0;
-    border-bottom: 1px dashed var(--ns-divider);
-}
-
-.cron-preview li:last-child {
-    border-bottom: none;
-}
-
-.cron-preview li .text-muted {
-    margin-left: .5rem;
-    font-size: 90%;
-}
-
-.cron-preview .alert {
-    margin: .625rem 0 0;
-}
-
 /* Live job view: progress, console, checkpoints */
 
 .job-live {
@@ -639,14 +602,6 @@ div.metric-null {
     margin-bottom: 1.25rem;
 }
 
-.insights-tile {
-    border: 1px solid var(--md-sys-color-outline-variant);
-    border-radius: var(--md-sys-shape-corner-medium);
-    padding: .875rem 1rem;
-    margin-bottom: .625rem;
-    background-color: var(--ns-surface-card);
-}
-
 .insights-tile-value {
     font: var(--md-sys-typescale-headline-medium);
 }
@@ -654,13 +609,6 @@ div.metric-null {
 .insights-tile-value .badge {
     font-size: .875rem;
     vertical-align: middle;
-}
-
-.insights-tile-label {
-    color: var(--md-sys-color-on-surface-variant);
-    font: var(--md-sys-typescale-label-medium);
-    letter-spacing: var(--md-sys-typescale-label-medium-tracking);
-    margin-top: .25rem;
 }
 
 .insights-tile-danger {
