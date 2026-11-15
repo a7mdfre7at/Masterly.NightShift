@@ -158,7 +158,7 @@ public class InsightsPageFacts
 
         Assert.Contains("<code>payments</code>", html);
         Assert.DoesNotContain("/insights/circuits/reset/", html);
-        Assert.DoesNotContain("<th scope=\"col\" class=\"min-width\"></th>", html);
+        Assert.DoesNotContain("<span class=\"visually-hidden\">" + H(Strings.Common_Actions) + "</span>", html);
     }
 
     [Fact]

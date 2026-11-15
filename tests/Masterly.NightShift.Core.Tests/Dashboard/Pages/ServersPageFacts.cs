@@ -159,7 +159,7 @@ public class ServersPageFacts
         string html = _renderer.Render(new ServersPage());
 
         Assert.DoesNotContain("/servers/pause/", html);
-        Assert.DoesNotContain("<th scope=\"col\" class=\"min-width\"></th>", html);
+        Assert.DoesNotContain("<span class=\"visually-hidden\">" + H(Strings.Common_Actions) + "</span>", html);
         Assert.DoesNotContain("js-drain-form", html);
         Assert.DoesNotContain("/maintenance/resume", html);
         Assert.DoesNotContain("id=\"servers-maintenance\"", html);
