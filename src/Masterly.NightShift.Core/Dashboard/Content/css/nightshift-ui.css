@@ -3088,7 +3088,15 @@ label.ns-required::after {
     transition: transform var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-emphasized-decelerate);
 }
 
-/* The confirmation dialog */
+/* The confirmation dialog. It may open over another dialog ("Discard changes?"): it and its scrim then go above it */
+.hf-app .ns-dialog-basic {
+    --bs-modal-zindex: 1065;
+}
+
+.modal-backdrop.show ~ .modal-backdrop.show {
+    z-index: 1060;
+}
+
 .ns-dialog-basic .modal-dialog {
     max-width: 420px;
 }
@@ -3109,7 +3117,7 @@ label.ns-required::after {
 }
 
 .ns-dialog-type {
-    margin-top: var(--md-sys-spacing-4);
+    margin: var(--md-sys-spacing-4) 0 0;
 }
 
 .ns-dialog-type code {
