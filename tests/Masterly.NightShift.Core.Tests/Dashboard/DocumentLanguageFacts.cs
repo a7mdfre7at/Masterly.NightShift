@@ -1,6 +1,5 @@
 using System.Globalization;
 using Masterly.NightShift.Dashboard;
-using Xunit;
 
 namespace Masterly.NightShift.Core.Tests.Dashboard;
 
