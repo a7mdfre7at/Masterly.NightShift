@@ -5,8 +5,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {themes as prismThemes} from 'prism-react-renderer';
 import repoLinks from './src/remark/repo-links.mjs';
+import md3Prism from './src/prism/md3-prism.mjs';
 
 const repositoryUrl = 'https://github.com/a7mdfre7at/Masterly.NightShift';
 const branch = 'master';
@@ -88,7 +88,8 @@ const config = {
         },
         blog: false,
         theme: {
-          customCss: './src/css/custom.css',
+          // The MD3 tokens (shared with the dashboard) first, then the theme that maps Infima from them.
+          customCss: ['./src/css/md3-tokens.css', './src/css/custom.css'],
         },
       }),
     ],
@@ -206,8 +207,9 @@ const config = {
         copyright: `MIT AND LGPL-3.0-or-later · © ${new Date().getFullYear()} Ahmad Omar Al-Freihat`,
       },
       prism: {
-        theme: prismThemes.oneLight,
-        darkTheme: prismThemes.oneDark,
+        // One theme for both modes: its colours are CSS variables that follow the site's MD3 tokens.
+        theme: md3Prism,
+        darkTheme: md3Prism,
         additionalLanguages: ['csharp', 'bash', 'json', 'powershell', 'sql'],
       },
     }),

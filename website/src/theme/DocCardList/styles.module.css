@@ -1,8 +1,8 @@
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.85rem;
-  margin: 1.5rem 0 2rem;
+  gap: var(--md-sys-spacing-3);
+  margin: var(--md-sys-spacing-6) 0 var(--md-sys-spacing-8);
   padding: 0;
   list-style: none;
 }
@@ -11,54 +11,55 @@
   margin: 0;
 }
 
+/* An outlined card with a state layer on hover. */
 .card {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 1.15rem 1.25rem;
-  border: 1px solid var(--ns-border);
-  border-radius: var(--ns-radius);
-  background: var(--ns-surface-raised);
+  padding: var(--md-sys-spacing-4) var(--md-sys-spacing-5);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background-color: var(--md-sys-color-surface);
   color: inherit;
-  transition: border-color var(--ns-duration) var(--ns-ease), box-shadow var(--ns-duration) var(--ns-ease),
-    transform var(--ns-duration) var(--ns-ease);
+  transition: background-color var(--ns-transition), box-shadow var(--ns-transition);
 }
 
 .card:hover {
-  border-color: var(--ifm-color-primary);
-  box-shadow: var(--ns-shadow-md);
+  background-color: color-mix(in srgb, var(--md-sys-color-on-surface) var(--ns-hover), var(--md-sys-color-surface));
+  box-shadow: var(--md-sys-elevation-level1);
   color: inherit;
   text-decoration: none;
-  transform: translateY(-2px);
 }
 
 .icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.1rem;
-  height: 2.1rem;
-  margin-bottom: 0.8rem;
-  border-radius: 8px;
-  background: var(--ns-accent-soft);
-  color: var(--ifm-color-primary);
+  width: 40px;
+  height: 40px;
+  margin-bottom: var(--md-sys-spacing-3);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background-color: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
 }
 
 .title {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  margin-bottom: 0.3rem;
-  font-size: 1rem;
-  font-weight: 650;
-  color: var(--ns-ink);
+  gap: var(--md-sys-spacing-1);
+  margin-bottom: var(--md-sys-spacing-1);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--md-sys-typescale-title-medium-size);
+  font-weight: var(--md-sys-typescale-title-medium-weight);
+  line-height: var(--md-sys-typescale-title-medium-line-height);
 }
 
 .arrow {
-  color: var(--ifm-color-primary);
+  color: var(--md-sys-color-primary);
   opacity: 0;
   transform: translateX(-4px);
-  transition: opacity var(--ns-duration) var(--ns-ease), transform var(--ns-duration) var(--ns-ease);
+  transition: opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized-decelerate);
 }
 
 .card:hover .arrow,
@@ -68,9 +69,9 @@
 }
 
 .description {
-  font-size: 0.875rem;
-  line-height: 1.55;
-  color: var(--ns-ink-muted);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-medium-size);
+  line-height: var(--md-sys-typescale-body-medium-line-height);
 }
 
 @media (max-width: 640px) {
