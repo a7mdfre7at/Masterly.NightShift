@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>NightShiftBenchmarks.LibraryBenchmarks-20261111-144014</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26300.9818)
+Intel Core Ultra 7 255H 2.00GHz, 1 CPU, 16 logical and 16 physical cores
+.NET SDK 10.0.404
+  [Host]    : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v3
+  .NET 10.0 : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=.NET 10.0  Runtime=.NET 10.0  Categories=Run a job  
+</code></pre>
+
+<table>
+<thead><tr><th>Method      </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Hangfire_RunSync</td><td>700.0 ns</td><td>19.76 ns</td><td>57.02 ns</td><td>692.2 ns</td><td>1.01</td><td>0.11</td><td>0.1316</td><td>1656 B</td><td>1.00</td>
+</tr><tr><td>NightShift_RunSync</td><td>461.0 ns</td><td>15.84 ns</td><td>46.71 ns</td><td>466.8 ns</td><td>0.66</td><td>0.08</td><td>0.0534</td><td>672 B</td><td>0.41</td>
+</tr><tr><td>Quartz_Run</td><td>508.0 ns</td><td>23.93 ns</td><td>69.03 ns</td><td>484.7 ns</td><td>0.73</td><td>0.11</td><td>0.0572</td><td>720 B</td><td>0.43</td>
+</tr></tbody></table>
+</body>
+</html>
