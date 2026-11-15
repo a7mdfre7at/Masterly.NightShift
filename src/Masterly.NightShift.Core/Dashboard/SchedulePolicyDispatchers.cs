@@ -20,11 +20,11 @@ internal static class SchedulePolicyDispatchers
         string? name = await GetAsync(context, "name");
         if (name == null)
         {
-            return new CommandResult(UnprocessableEntity, "A name is required.", null) { Field = "name" };
+            return new CommandResult(UnprocessableEntity, Strings.PoliciesPage_NameRequired, null) { Field = "name" };
         }
 
         string detail = $"policy '{name}'";
-        StrongBox<string> field = new("name");
+        StrongBox<string?> field = new("name");
 
         try
         {
@@ -52,8 +52,8 @@ internal static class SchedulePolicyDispatchers
             : CommandResult.Refused((int)HttpStatusCode.Conflict, Strings.PoliciesPage_Conflict);
     }
 
-    // field holds the form field being read, so an exception names the value it refuses
-    private static async Task<CommandResult> SaveAsync(DashboardContext context, string name, string detail, StrongBox<string> field)
+    // field holds the form field being read, so an exception names the value it refuses (none: the general error)
+    private static async Task<CommandResult> SaveAsync(DashboardContext context, string name, string detail, StrongBox<string?> field)
     {
         // A form without a revision creates the policy
         long revision = 0;
@@ -130,9 +130,21 @@ internal static class SchedulePolicyDispatchers
             policy.ExceptWhen(excepted);
         }
 
-        // The storage refuses a policy it refers to that isn't stored, or a cycle: the field of its references
-        field.Value = policy.Required.Count == 0 && policy.Excepted.Count > 0 ? "except" : "require";
-        long? saved = context.Storage.UpdateSchedulePolicy(policy, revision);
+        // Whatever else the storage refuses isn't about one field
+        field.Value = null;
+        long? saved;
+        try
+        {
+            saved = context.Storage.UpdateSchedulePolicy(policy, revision);
+        }
+        catch (ArgumentException)
+        {
+            // The storage refuses a policy it refers to that isn't stored, or a cycle: the field of the list that
+            // names the missing policy, or none for a cycle
+            field.Value = FieldOfMissingReference(context.Storage, policy);
+            throw;
+        }
+
         if (saved.HasValue)
         {
             return CommandResult.Done($"{detail}, revision {saved.Value.ToString(CultureInfo.InvariantCulture)}");
@@ -142,6 +154,18 @@ internal static class SchedulePolicyDispatchers
         return revision == 0
             ? new CommandResult((int)HttpStatusCode.Conflict, string.Format(CultureInfo.CurrentCulture, Strings.PoliciesPage_Exists, policy.Name), detail) { Field = "name" }
             : new CommandResult((int)HttpStatusCode.Conflict, Strings.PoliciesPage_Conflict, detail);
+    }
+
+    // The storage checks the required policies first, then the exceptions
+    private static string? FieldOfMissingReference(JobStorage storage, SchedulePolicy policy)
+    {
+        using IStorageConnection connection = storage.GetConnection();
+        if (policy.Required.Any(x => !SchedulePolicies.Exists(connection, x)))
+        {
+            return "require";
+        }
+
+        return policy.Excepted.Any(x => !SchedulePolicies.Exists(connection, x)) ? "except" : null;
     }
 
     private static bool TryParseRevision(string text, out long revision)

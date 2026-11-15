@@ -962,9 +962,9 @@
     // button and the scrim close it (NightShift.sheet.close()), and the focus goes back to the opener (the focused
     // element by default). A button with the class js-sheet-open opens it from its data-sheet-title,
     // data-sheet-overline and data-sheet-url, or the template its data-sheet-content selector names, or else the
-    // template.js-sheet-template of its row. With guard: true, input in a form of the sheet makes it ask "Discard
-    // changes?" before Esc, the close button or a Cancel (js-sheet-close) closes it, and a click on the scrim is
-    // ignored meanwhile; a submit means the input was used.
+    // template.js-sheet-template of its row, with guard: true when it has data-sheet-guard="true". With guard: true,
+    // input in a form of the sheet makes it ask "Discard changes?" before Esc, the close button or a Cancel
+    // (js-sheet-close) closes it, and a click on the scrim is ignored meanwhile; a submit means the input was used.
     nightshift.sheet = (function () {
         var sheet = null;
         var scrim = null;
@@ -1138,6 +1138,7 @@
                 title: button.attr('data-sheet-title') || commandName(button),
                 overline: button.attr('data-sheet-overline') || null,
                 wide: button.attr('data-sheet-wide') === 'true',
+                guard: button.attr('data-sheet-guard') === 'true',
                 opener: this
             };
 

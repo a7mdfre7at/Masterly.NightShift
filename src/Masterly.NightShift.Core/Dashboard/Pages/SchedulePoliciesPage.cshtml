@@ -35,7 +35,7 @@
             @if (!IsReadOnly)
             {
                 <div class="ns-page-actions">
-                    <button type="button" class="btn btn-sm btn-primary js-sheet-open" aria-haspopup="dialog" data-sheet-content="#policy-new" data-sheet-title="@Strings.PoliciesPage_New" data-sheet-wide="true">
+                    <button type="button" class="btn btn-sm btn-primary js-sheet-open" aria-haspopup="dialog" data-sheet-content="#tpl-policy-new" data-sheet-title="@Strings.PoliciesPage_New" data-sheet-wide="true" data-sheet-guard="true">
                         @Html.Icon("plus-lg") @Strings.PoliciesPage_New
                     </button>
                 </div>
@@ -54,7 +54,7 @@
                 }
                 else
                 {
-                    <button type="button" class="btn btn-sm ns-btn-tonal js-sheet-open" aria-haspopup="dialog" data-sheet-content="#policy-new" data-sheet-title="@Strings.PoliciesPage_New" data-sheet-wide="true">
+                    <button type="button" class="btn btn-sm ns-btn-tonal js-sheet-open" aria-haspopup="dialog" data-sheet-content="#tpl-policy-new" data-sheet-title="@Strings.PoliciesPage_New" data-sheet-wide="true" data-sheet-guard="true">
                         @Html.Icon("plus-lg") @Strings.PoliciesPage_New
                     </button>
                 }
@@ -70,8 +70,8 @@
                     IReadOnlyList<string> usedBy = FindUsers(users, policy.Name);
                     List<string> dates = ExcludedDates(policy);
 
-                    <section class="hf-card ns-policy-card" id="policy-@policy.Name" aria-labelledby="policy-title-@number">
-                        <h2 id="policy-title-@number" class="ns-policy-name">@policy.Name</h2>
+                    <section class="hf-card ns-policy-card" id="policy-@policy.Name" aria-labelledby="ns-policy-title-@number">
+                        <h2 id="ns-policy-title-@number" class="ns-policy-name">@policy.Name</h2>
                         @if (policy.Description != null)
                         {
                             <p class="ns-policy-description">@policy.Description</p>
@@ -210,31 +210,31 @@
                             {
                                 if (usedBy.Count > 0)
                                 {
-                                    <button type="button" class="btn btn-sm ns-btn-text ns-btn-text-error" disabled="disabled" aria-describedby="policy-title-@number policy-delete-note-@number">
+                                    <button type="button" class="btn btn-sm ns-btn-text ns-btn-text-error" disabled="disabled" aria-describedby="ns-policy-title-@number ns-policy-delete-note-@number">
                                         @Html.Icon("trash-fill") @Strings.Common_Delete
                                     </button>
                                 }
                                 else
                                 {
-                                    <button type="button" class="btn btn-sm ns-btn-text ns-btn-text-error" aria-describedby="policy-title-@number" data-ajax="@Url.To("/policies/delete/" + RouteValues.Encode(policy.Name) + "/" + policy.Revision.ToString(CultureInfo.InvariantCulture))" data-loading-text="@Strings.Common_Deleting" @Html.ConfirmAttributes(Strings.PoliciesPage_DeleteConfirm, Strings.PoliciesPage_DeleteConfirm_Body, Strings.Common_Delete, destructive: true)>
+                                    <button type="button" class="btn btn-sm ns-btn-text ns-btn-text-error" aria-describedby="ns-policy-title-@number" data-ajax="@Url.To("/policies/delete/" + RouteValues.Encode(policy.Name) + "/" + policy.Revision.ToString(CultureInfo.InvariantCulture))" data-loading-text="@Strings.Common_Deleting" @Html.ConfirmAttributes(Strings.PoliciesPage_DeleteConfirm, Strings.PoliciesPage_DeleteConfirm_Body, Strings.Common_Delete, destructive: true)>
                                         @Html.Icon("trash-fill") @Strings.Common_Delete
                                     </button>
                                 }
                             }
                             <div class="ns-policy-actions-end">
-                                <button type="button" class="btn btn-sm ns-btn-text js-sheet-open@(previewName == policy.Name ? " js-policy-autoopen" : null)" aria-haspopup="dialog" aria-describedby="policy-title-@number" data-sheet-content="#policy-preview-@number" data-sheet-title="@policy.Name" data-sheet-overline="@Strings.PoliciesPage_Preview">
+                                <button type="button" class="btn btn-sm ns-btn-text js-sheet-open@(previewName == policy.Name ? " js-policy-autoopen" : null)" aria-haspopup="dialog" aria-describedby="ns-policy-title-@number" data-sheet-content="#tpl-policy-preview-@number" data-sheet-title="@policy.Name" data-sheet-overline="@Strings.PoliciesPage_Preview">
                                     @Html.Icon("eye-fill") @Strings.PoliciesPage_Preview
                                 </button>
                                 @if (!IsReadOnly)
                                 {
-                                    <button type="button" class="btn btn-sm ns-btn-tonal js-sheet-open@(editName == policy.Name && previewName == null ? " js-policy-autoopen" : null)" aria-haspopup="dialog" aria-describedby="policy-title-@number" data-sheet-content="#policy-edit-@number" data-sheet-title="@policy.Name" data-sheet-overline="@Strings.PoliciesPage_Kind" data-sheet-wide="true">
+                                    <button type="button" class="btn btn-sm ns-btn-tonal js-sheet-open@(editName == policy.Name && previewName == null ? " js-policy-autoopen" : null)" aria-haspopup="dialog" aria-describedby="ns-policy-title-@number" data-sheet-content="#tpl-policy-edit-@number" data-sheet-title="@policy.Name" data-sheet-overline="@Strings.PoliciesPage_Kind" data-sheet-wide="true" data-sheet-guard="true">
                                         @Html.Icon("pencil-fill") @Strings.RecurringJobsPage_Edit
                                     </button>
                                 }
                             </div>
                             @if (!IsReadOnly && usedBy.Count > 0)
                             {
-                                <p id="policy-delete-note-@number" class="ns-policy-delete-note">@Strings.PoliciesPage_DeleteBlocked</p>
+                                <p id="ns-policy-delete-note-@number" class="ns-policy-delete-note">@Strings.PoliciesPage_DeleteBlocked</p>
                             }
                         </div>
                     </section>
@@ -242,24 +242,26 @@
             </div>
         }
 
-        @* The sheets' content: the preview of each policy, and the editor of each policy and of a new one *@
+        @* The sheets' content: the preview of each policy, and the editor of each policy and of a new one. Only the
+           cards' ids start with "policy-" (then the policy's name, which may be "new" or "edit-0"), so the templates'
+           ids start with "tpl-" and the other ids with "ns-policy-". *@
         @for (int index = 0; index < policies.Count; index++)
         {
             SchedulePolicy policy = policies[index];
             string number = index.ToString(CultureInfo.InvariantCulture);
             bool previewed = previewName == policy.Name;
 
-            <template id="policy-preview-@number" data-policy="@policy.Name">
+            <template id="tpl-policy-preview-@number" data-policy="@policy.Name">
                 <form class="ns-policy-preview-form js-policy-preview-form" method="get" action="@Url.To("/policies")">
                     <input type="hidden" name="preview" value="@policy.Name"/>
                     <div class="ns-field">
-                        <label for="policy-preview-@number-cron">@Strings.RecurringJobsPage_Table_Cron</label>
-                        <input id="policy-preview-@number-cron" type="text" name="cron" class="form-control ns-mono" placeholder="0 9 * * 1-5" value="@(previewed ? previewCron : null)" required="required" autocomplete="off" spellcheck="false"/>
+                        <label for="ns-policy-preview-@number-cron">@Strings.RecurringJobsPage_Table_Cron</label>
+                        <input id="ns-policy-preview-@number-cron" type="text" name="cron" class="form-control ns-mono" placeholder="0 9 * * 1-5" value="@(previewed ? previewCron : null)" required="required" autocomplete="off" spellcheck="false"/>
                         <div class="ns-field-supporting">@Strings.PoliciesPage_CronHint</div>
                     </div>
                     <div class="ns-field">
-                        <label for="policy-preview-@number-tz">@Strings.RecurringJobsPage_Table_TimeZone</label>
-                        <input id="policy-preview-@number-tz" type="text" name="tz" class="form-control" placeholder="UTC" value="@(previewed ? previewTimeZone : null)" autocomplete="off" spellcheck="false"/>
+                        <label for="ns-policy-preview-@number-tz">@Strings.RecurringJobsPage_Table_TimeZone</label>
+                        <input id="ns-policy-preview-@number-tz" type="text" name="tz" class="form-control" placeholder="UTC" value="@(previewed ? previewTimeZone : null)" autocomplete="off" spellcheck="false"/>
                     </div>
                     <button type="submit" class="btn btn-sm ns-btn-tonal" data-loading-text="@Strings.PoliciesPage_Preview">@Html.Icon("eye-fill") @Strings.PoliciesPage_Preview</button>
                 </form>
@@ -304,9 +306,9 @@
             {
                 SchedulePolicy? editing = index < 0 ? null : policies[index];
                 string number = index < 0 ? "new" : index.ToString(CultureInfo.InvariantCulture);
-                string prefix = "policy-" + number;
+                string prefix = "ns-policy-" + number;
 
-                <template id="@(editing == null ? "policy-new" : "policy-edit-" + number)">
+                <template id="@(editing == null ? "tpl-policy-new" : "tpl-policy-edit-" + number)">
                     <form id="@prefix-form" class="ns-policy-form js-policy-form" method="post" action="@Url.To("/policies/save")" data-redirect="@Url.To("/policies")" data-name-required="@Strings.PoliciesPage_NameRequired" novalidate="novalidate">
                         <input type="hidden" name="revision" value="@(editing?.Revision ?? 0)"/>
                         <div class="alert alert-danger ns-policy-conflict js-policy-conflict" role="alert" hidden="hidden">

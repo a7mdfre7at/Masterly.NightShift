@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Masterly.NightShift.Dashboard;
 using Masterly.NightShift.Dashboard.Pages;
 using Masterly.NightShift.Server;
@@ -223,8 +224,8 @@ public class NewPagesFacts
         Assert.Contains("<h2 class=\"ns-empty-state-title\">No schedule policies yet</h2>", html, StringComparison.Ordinal);
         Assert.Contains("A schedule policy is a business calendar", html, StringComparison.Ordinal);
         Assert.Contains("<span class=\"ns-count-chip js-list-count\">0</span>", html, StringComparison.Ordinal);
-        Assert.Equal(2, Count(html, "data-sheet-content=\"#policy-new\""));
-        Assert.Contains("<template id=\"policy-new\">", html, StringComparison.Ordinal);
+        Assert.Equal(2, Count(html, "data-sheet-content=\"#tpl-policy-new\""));
+        Assert.Contains("<template id=\"tpl-policy-new\">", html, StringComparison.Ordinal);
         Assert.Contains("/policies/save", html, StringComparison.Ordinal);
     }
 
@@ -237,7 +238,7 @@ public class NewPagesFacts
 
         Assert.Contains("No schedule policies yet", html, StringComparison.Ordinal);
         Assert.Contains("SaveSchedulePolicy or AddPolicy", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("#policy-new", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("#tpl-policy-new", html, StringComparison.Ordinal);
         Assert.DoesNotContain("/policies/save", html, StringComparison.Ordinal);
     }
 
@@ -250,9 +251,9 @@ public class NewPagesFacts
 
         Assert.Contains("<header class=\"ns-page-head\">", html, StringComparison.Ordinal);
         Assert.Contains("<span class=\"ns-count-chip js-list-count\">1</span>", html, StringComparison.Ordinal);
-        Assert.Contains("<button type=\"button\" class=\"btn btn-sm btn-primary js-sheet-open\" aria-haspopup=\"dialog\" data-sheet-content=\"#policy-new\"", html, StringComparison.Ordinal);
+        Assert.Contains("<button type=\"button\" class=\"btn btn-sm btn-primary js-sheet-open\" aria-haspopup=\"dialog\" data-sheet-content=\"#tpl-policy-new\"", html, StringComparison.Ordinal);
         Assert.Contains("<div class=\"ns-policy-grid\">", html, StringComparison.Ordinal);
-        Assert.Contains("<h2 id=\"policy-title-0\" class=\"ns-policy-name\">weekdays</h2>", html, StringComparison.Ordinal);
+        Assert.Contains("<h2 id=\"ns-policy-title-0\" class=\"ns-policy-name\">weekdays</h2>", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -269,7 +270,7 @@ public class NewPagesFacts
         Assert.Contains("revision 3", html, StringComparison.Ordinal);
         Assert.Contains("09:00-17:00", html, StringComparison.Ordinal);
         Assert.Contains("/policies/delete/weekdays/3", html, StringComparison.Ordinal);
-        Assert.Contains("<template id=\"policy-edit-0\">", html, StringComparison.Ordinal);
+        Assert.Contains("<template id=\"tpl-policy-edit-0\">", html, StringComparison.Ordinal);
         Assert.Contains("name=\"revision\" value=\"3\"", html, StringComparison.Ordinal);
         Assert.Contains("value=\"Monday\" checked=\"checked\"", html, StringComparison.Ordinal);
         Assert.Contains("value=\"Sunday\"/>", html, StringComparison.Ordinal);
@@ -283,7 +284,7 @@ public class NewPagesFacts
 
         // The preview of the address opens; the editor opens only without one
         Assert.Equal(1, Count(html, "js-policy-autoopen"));
-        Assert.Contains("js-sheet-open js-policy-autoopen\" aria-haspopup=\"dialog\" aria-describedby=\"policy-title-0\" data-sheet-content=\"#policy-preview-0\"", html, StringComparison.Ordinal);
+        Assert.Contains("js-sheet-open js-policy-autoopen\" aria-haspopup=\"dialog\" aria-describedby=\"ns-policy-title-0\" data-sheet-content=\"#tpl-policy-preview-0\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -294,7 +295,7 @@ public class NewPagesFacts
 
         string html = _renderer.Render(new SchedulePoliciesPage());
 
-        Assert.Contains("js-sheet-open js-policy-autoopen\" aria-haspopup=\"dialog\" aria-describedby=\"policy-title-0\" data-sheet-content=\"#policy-edit-0\"", html, StringComparison.Ordinal);
+        Assert.Contains("js-sheet-open js-policy-autoopen\" aria-haspopup=\"dialog\" aria-describedby=\"ns-policy-title-0\" data-sheet-content=\"#tpl-policy-edit-0\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -345,8 +346,8 @@ public class NewPagesFacts
         string html = _renderer.Render(new SchedulePoliciesPage());
 
         Assert.DoesNotContain("/policies/delete/weekdays/", html, StringComparison.Ordinal);
-        Assert.Contains("disabled=\"disabled\" aria-describedby=\"policy-title-1 policy-delete-note-1\"", html, StringComparison.Ordinal);
-        Assert.Contains("<p id=\"policy-delete-note-1\" class=\"ns-policy-delete-note\">Other policies refer to it", html, StringComparison.Ordinal);
+        Assert.Contains("disabled=\"disabled\" aria-describedby=\"ns-policy-title-1 ns-policy-delete-note-1\"", html, StringComparison.Ordinal);
+        Assert.Contains("<p id=\"ns-policy-delete-note-1\" class=\"ns-policy-delete-note\">Other policies refer to it", html, StringComparison.Ordinal);
         Assert.Contains("data-ajax=\"/policies/delete/trading/2\"", html, StringComparison.Ordinal);
         Assert.Contains("data-confirm=\"Delete this policy?\" data-confirm-body=\"Jobs already scheduled with it run without it.", html, StringComparison.Ordinal);
         Assert.Contains("data-confirm-destructive=\"true\"", html, StringComparison.Ordinal);
@@ -363,10 +364,10 @@ public class NewPagesFacts
         string html = _renderer.Render(new SchedulePoliciesPage());
 
         Assert.Contains("id=\"policy-weekdays\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-sheet-content=\"#policy-preview-0\"", html, StringComparison.Ordinal);
-        Assert.Contains("<template id=\"policy-preview-0\" data-policy=\"weekdays\">", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("#policy-new", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("policy-edit-", html, StringComparison.Ordinal);
+        Assert.Contains("data-sheet-content=\"#tpl-policy-preview-0\"", html, StringComparison.Ordinal);
+        Assert.Contains("<template id=\"tpl-policy-preview-0\" data-policy=\"weekdays\">", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("#tpl-policy-new", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("tpl-policy-edit-", html, StringComparison.Ordinal);
         Assert.DoesNotContain("/policies/save", html, StringComparison.Ordinal);
         Assert.DoesNotContain("/policies/delete/", html, StringComparison.Ordinal);
         Assert.DoesNotContain("js-policy-autoopen", html, StringComparison.Ordinal);
@@ -381,16 +382,16 @@ public class NewPagesFacts
 
         Assert.Contains("<legend>When jobs may start</legend>", html, StringComparison.Ordinal);
         Assert.Contains("<legend>Other policies</legend>", html, StringComparison.Ordinal);
-        Assert.Contains("<label for=\"policy-new-name\">Name</label>", html, StringComparison.Ordinal);
-        Assert.Contains("<input id=\"policy-new-name\" type=\"text\" name=\"name\" class=\"form-control\" required=\"required\"", html, StringComparison.Ordinal);
-        Assert.Contains("<input id=\"policy-0-name\" type=\"text\" name=\"name\" class=\"form-control\" value=\"weekdays\" readonly=\"readonly\"/>", html, StringComparison.Ordinal);
-        Assert.Contains("role=\"group\" aria-labelledby=\"policy-0-days-label\" aria-describedby=\"policy-0-days-hint policy-0-days-error\"", html, StringComparison.Ordinal);
-        Assert.Contains("<button type=\"submit\" form=\"policy-0-form\" class=\"btn btn-sm btn-primary\"", html, StringComparison.Ordinal);
+        Assert.Contains("<label for=\"ns-policy-new-name\">Name</label>", html, StringComparison.Ordinal);
+        Assert.Contains("<input id=\"ns-policy-new-name\" type=\"text\" name=\"name\" class=\"form-control\" required=\"required\"", html, StringComparison.Ordinal);
+        Assert.Contains("<input id=\"ns-policy-0-name\" type=\"text\" name=\"name\" class=\"form-control\" value=\"weekdays\" readonly=\"readonly\"/>", html, StringComparison.Ordinal);
+        Assert.Contains("role=\"group\" aria-labelledby=\"ns-policy-0-days-label\" aria-describedby=\"ns-policy-0-days-hint ns-policy-0-days-error\"", html, StringComparison.Ordinal);
+        Assert.Contains("<button type=\"submit\" form=\"ns-policy-0-form\" class=\"btn btn-sm btn-primary\"", html, StringComparison.Ordinal);
         Assert.Contains("class=\"alert alert-danger ns-policy-conflict js-policy-conflict\" role=\"alert\" hidden=\"hidden\"", html, StringComparison.Ordinal);
         Assert.Contains("href=\"/policies?edit=weekdays\"", html, StringComparison.Ordinal);
         foreach (string name in new[] { "description", "timezone", "windows", "dates", "providers", "require", "except" })
         {
-            Assert.Contains($"<label for=\"policy-0-{name}\">", html, StringComparison.Ordinal);
+            Assert.Contains($"<label for=\"ns-policy-0-{name}\">", html, StringComparison.Ordinal);
             Assert.Contains($"name=\"{name}\"", html, StringComparison.Ordinal);
         }
     }
@@ -413,6 +414,46 @@ public class NewPagesFacts
             PageStructure.AssertHeadingsInOrder(html);
             PageStructure.AssertNoEmptyHeaderCells(html);
         }
+    }
+
+    [Fact]
+    public void Policies_GiveTheirTemplatesAndFieldsIds_ThatNoPolicyNameCanTake()
+    {
+        SetUpPolicies(
+            (new SchedulePolicy("new"), 1),
+            (new SchedulePolicy("edit-0"), 1),
+            (new SchedulePolicy("preview-1"), 1),
+            (new SchedulePolicy("title-2"), 1),
+            (new SchedulePolicy("0-form"), 1));
+
+        string html = _renderer.Render(new SchedulePoliciesPage());
+
+        List<string> ids = [.. Regex.Matches(html, "\\sid=\"([^\"]+)\"").Select(static x => x.Groups[1].Value)];
+        Assert.Equal(ids.Count, ids.Distinct(StringComparer.Ordinal).Count());
+        Assert.Contains("policy-new", ids);
+        Assert.Contains("policy-edit-0", ids);
+        Assert.Contains("tpl-policy-new", ids);
+        Assert.Contains("tpl-policy-edit-0", ids);
+        Assert.Contains("tpl-policy-preview-1", ids);
+        Assert.Contains("ns-policy-0-form", ids);
+        // Only the cards' ids start with "policy-"
+        Assert.Equal(
+            ["policy-0-form", "policy-edit-0", "policy-new", "policy-preview-1", "policy-title-2"],
+            ids.Where(static x => x.StartsWith("policy-", StringComparison.Ordinal)).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void Policies_AskBeforeTheirEditorsDiscardChanges_ButNotTheirPreviews()
+    {
+        SetUpPolicies((new SchedulePolicy("weekdays"), 1), (new SchedulePolicy("nights"), 1));
+
+        string html = _renderer.Render(new SchedulePoliciesPage());
+
+        // New policy and the editor of each policy
+        Assert.Equal(3, Count(html, "data-sheet-guard=\"true\""));
+        Assert.Contains("data-sheet-content=\"#tpl-policy-new\" data-sheet-title=\"New policy\" data-sheet-wide=\"true\" data-sheet-guard=\"true\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-sheet-content=\"#tpl-policy-edit-0\" data-sheet-title=\"nights\" data-sheet-overline=\"Schedule policy\" data-sheet-wide=\"true\" data-sheet-guard=\"true\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-sheet-content=\"#tpl-policy-preview-0\" data-sheet-title=\"nights\" data-sheet-overline=\"Preview\">", html, StringComparison.Ordinal);
     }
 
     [Fact]

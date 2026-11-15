@@ -2,6 +2,7 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Masterly.NightShift.Core.Tests.Stubs;
 using Masterly.NightShift.Dashboard;
+using Masterly.NightShift.Dashboard.Resources;
 
 namespace Masterly.NightShift.Core.Tests.Dashboard;
 
@@ -73,6 +74,41 @@ public class SchedulePolicyDispatchersFacts
     }
 
     [Fact]
+    public async Task SaveAsync_NamesTheListThatNamesTheMissingPolicy_WhenTheOtherListIsSetToo()
+    {
+        _storage.Add(new SchedulePolicy("stored"), revision: 1);
+        DashboardContextStub missingException = Save("p", revision: "0");
+        ((DashboardRequestStub)missingException.Request).Form["require"] = ["stored"];
+        ((DashboardRequestStub)missingException.Request).Form["except"] = ["missing"];
+        DashboardContextStub missingRequirement = Save("q", revision: "0");
+        ((DashboardRequestStub)missingRequirement.Request).Form["require"] = ["missing"];
+        ((DashboardRequestStub)missingRequirement.Request).Form["except"] = ["stored"];
+
+        CommandResult excepted = await SchedulePolicyDispatchers.SaveAsync(missingException);
+        CommandResult required = await SchedulePolicyDispatchers.SaveAsync(missingRequirement);
+
+        Assert.Equal(422, excepted.StatusCode);
+        Assert.Equal("except", excepted.Field);
+        Assert.Equal(422, required.StatusCode);
+        Assert.Equal("require", required.Field);
+    }
+
+    [Fact]
+    public async Task SaveAsync_NamesNoField_ForACycle_SoTheGeneralErrorShows()
+    {
+        _storage.Add(new SchedulePolicy("a").Require("p"), revision: 1);
+        DashboardContextStub context = Save("p", revision: "0");
+        ((DashboardRequestStub)context.Request).Form["except"] = ["a"];
+
+        CommandResult result = await SchedulePolicyDispatchers.SaveAsync(context);
+
+        Assert.Equal(422, result.StatusCode);
+        Assert.Contains("cycle", result.Error, StringComparison.Ordinal);
+        Assert.Null(result.Field);
+        Assert.Null(_storage.Object.GetSchedulePolicy("p"));
+    }
+
+    [Fact]
     public async Task SaveAsync_SaysTheNameIsTaken_WhenANewPolicyHasTheNameOfAStoredOne()
     {
         _storage.Add(new SchedulePolicy("p"), revision: 2);
@@ -109,7 +145,7 @@ public class SchedulePolicyDispatchersFacts
         Assert.Equal("windows", JsonNode.Parse(bad.Response.Text)!["field"]!.GetValue<string>());
         Assert.Equal(422, nameless.Response.StatusCode);
         Assert.Equal("name", JsonNode.Parse(nameless.Response.Text)!["field"]!.GetValue<string>());
-        Assert.Equal("A name is required.", JsonNode.Parse(nameless.Response.Text)!["error"]!.GetValue<string>());
+        Assert.Equal(Strings.PoliciesPage_NameRequired, JsonNode.Parse(nameless.Response.Text)!["error"]!.GetValue<string>());
     }
 
     [Theory]
