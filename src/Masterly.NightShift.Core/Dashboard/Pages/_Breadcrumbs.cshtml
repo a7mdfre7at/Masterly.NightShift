@@ -3,11 +3,13 @@
 @using Masterly.NightShift.Dashboard.Resources
 @inherits RazorPage
 
-<ol class="breadcrumb">
-    <li class="breadcrumb-item"><a href="@Url.Home()" title="@Strings.HomePage_Title" aria-label="@Strings.HomePage_Title">@Html.Icon("house-door-fill")</a></li>
-    @foreach (KeyValuePair<string, string> item in Items)
-    {
-        <li class="breadcrumb-item"><a href="@item.Value">@item.Key</a></li>
-    }
-    <li class="breadcrumb-item active" aria-current="page">@Title</li>
-</ol>
+<nav class="ns-breadcrumbs" aria-label="@Strings.Common_Breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="@Url.Home()" title="@Strings.HomePage_Title" aria-label="@Strings.HomePage_Title">@Html.Icon("house-door-fill")</a></li>
+        @foreach (KeyValuePair<string, string> item in Items)
+        {
+            <li class="breadcrumb-item"><a href="@item.Value">@item.Key</a></li>
+        }
+        <li class="breadcrumb-item active" aria-current="page">@Title</li>
+    </ol>
+</nav>

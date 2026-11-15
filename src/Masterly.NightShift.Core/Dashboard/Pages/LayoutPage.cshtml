@@ -8,10 +8,15 @@
 @using Masterly.NightShift.Dashboard.Pages
 @using Masterly.NightShift.Dashboard.Resources
 @inherits RazorPage
+@{
+    bool htmlTitle = DashboardOptions.DashboardTitle.Contains("<");
+    string plainTitle = htmlTitle ? "Masterly.NightShift Dashboard" : DashboardOptions.DashboardTitle;
+}
 <!DOCTYPE html>
-<html lang="@CultureInfo.CurrentUICulture.TwoLetterISOLanguageName">
+@* Without dark mode the page is always light: the attribute keeps the tokens' system-preference rule from applying *@
+<html lang="@CultureInfo.CurrentUICulture.TwoLetterISOLanguageName"@(DashboardOptions.DarkModeEnabled ? null : Html.Raw(" data-theme=\"light\""))>
 <head>
-    <title>@Title – @(DashboardOptions.DashboardTitle.Contains("<") ? "Masterly.NightShift Dashboard" : DashboardOptions.DashboardTitle)</title>
+    <title>@Title – @plainTitle</title>
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -54,20 +59,24 @@
     }
 </head>
     <body class="hf-app">
+        <a class="ns-skip-link" href="#content">@Strings.LayoutPage_SkipToContent</a>
         <div id="wrap">
-            <aside class="hf-sidebar" id="hfSidebar" aria-label="Navigation">
-                <a class="hf-brand" href="@Url.Home()">
-                    <span class="hf-brand-mark" aria-hidden="true">
-                        <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="hf-logo-sky" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#145A6B"/><stop offset="1" stop-color="#0A2530"/></linearGradient><mask id="hf-logo-moon"><rect width="256" height="256" fill="#000"/><circle cx="122" cy="132" r="58" fill="#fff"/><circle cx="152" cy="112" r="50" fill="#000"/></mask></defs><rect width="256" height="256" rx="58" fill="url(#hf-logo-sky)"/><circle cx="128" cy="128" r="86" fill="none" stroke="#5FE0C8" stroke-opacity=".28" stroke-width="12"/><path d="M128 42A86 86 0 1 1 53.5 171" fill="none" stroke="#5FE0C8" stroke-width="12" stroke-linecap="round"/><rect width="256" height="256" fill="#F6E9CF" mask="url(#hf-logo-moon)"/><circle cx="53.5" cy="171" r="17" fill="#FF7A45"/></svg>
-                    </span>
-                    <span class="hf-brand-text">@Html.Raw(DashboardOptions.DashboardTitle)</span>
-                </a>
+            <aside class="hf-sidebar" id="hfSidebar" aria-label="@Strings.LayoutPage_Navigation">
+                <div class="hf-sidebar-head">
+                    <a class="hf-brand" href="@Url.Home()" @(htmlTitle ? null : Html.Raw("title=\"" + Html.HtmlEncode(plainTitle) + "\""))>
+                        <span class="hf-brand-mark" aria-hidden="true">
+                            <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="hf-logo-sky" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#145A6B"/><stop offset="1" stop-color="#0A2530"/></linearGradient><mask id="hf-logo-moon"><rect width="256" height="256" fill="#000"/><circle cx="122" cy="132" r="58" fill="#fff"/><circle cx="152" cy="112" r="50" fill="#000"/></mask></defs><rect width="256" height="256" rx="58" fill="url(#hf-logo-sky)"/><circle cx="128" cy="128" r="86" fill="none" stroke="#5FE0C8" stroke-opacity=".28" stroke-width="12"/><path d="M128 42A86 86 0 1 1 53.5 171" fill="none" stroke="#5FE0C8" stroke-width="12" stroke-linecap="round"/><rect width="256" height="256" fill="#F6E9CF" mask="url(#hf-logo-moon)"/><circle cx="53.5" cy="171" r="17" fill="#FF7A45"/></svg>
+                        </span>
+                        <span class="hf-brand-text">@Html.Raw(DashboardOptions.DashboardTitle)</span>
+                    </a>
+                    <button type="button" class="ns-icon-button hf-sidebar-close js-sidebar-close" aria-label="@Strings.LayoutPage_CloseMenu">@Html.Icon("x-lg")</button>
+                </div>
 
-                <nav class="hf-nav">
+                <nav class="hf-nav" aria-label="@Strings.LayoutPage_Navigation">
                     @Html.RenderPartial(new Navigation())
                 </nav>
 
-                <div class="hf-watchlist js-watchlist" data-live-url="@Url.To("/jobs/live")" data-job-url="@Url.To("/jobs/details/")" data-text-title="@Strings.LayoutPage_Watchlist" data-text-empty="@Strings.LayoutPage_Watchlist_Empty" data-text-done="@Strings.LayoutPage_Watchlist_Done" style="display: none"></div>
+                <div class="hf-watchlist js-watchlist" data-live-url="@Url.To("/jobs/live")" data-job-url="@Url.To("/jobs/details/")" data-text-title="@Strings.LayoutPage_Watchlist" data-text-empty="@Strings.LayoutPage_Watchlist_Empty" data-text-done="@Strings.LayoutPage_Watchlist_Done" data-text-remove="@Strings.LayoutPage_Watchlist_Remove" data-text-shortcuts="@Strings.LayoutPage_Shortcuts" style="display: none"></div>
 
                 <div class="hf-sidebar-footer">
                     @if (DashboardOptions.DarkModeEnabled)
@@ -84,7 +93,7 @@
                     }
                     @if (AppPath != null)
                     {
-                        <a href="@AppPath" title="@Strings.LayoutPage_Back">@Html.Icon("box-arrow-left") @Strings.LayoutPage_Back</a>
+                        <a href="@AppPath">@Html.Icon("box-arrow-left") @Strings.LayoutPage_Back</a>
                     }
                     else
                     {
@@ -92,90 +101,119 @@
                     }
                 </div>
             </aside>
+            <div class="hf-scrim js-sidebar-scrim" hidden></div>
 
             <div class="hf-main">
                 <header class="hf-topbar">
-                    <button type="button" class="hf-topbar-toggle js-sidebar-toggle" aria-label="@Strings.LayoutPage_Menu">@Html.Icon("list")</button>
-                    <div class="hf-topbar-title">@Title</div>
-                    <div class="hf-topbar-spacer"></div>
-                    <span class="hf-pulse" title="@Strings.LayoutPage_Search_Hint">
-                        <span class="hf-pulse-dot js-pulse-dot"></span>
-                        <span class="hf-pulse-text js-pulse-text">@Strings.LayoutPage_Live</span>
+                    <button type="button" class="ns-icon-button hf-topbar-toggle js-sidebar-toggle" aria-label="@Strings.LayoutPage_Menu" aria-expanded="false" aria-controls="hfSidebar">@Html.Icon("list")</button>
+                    <span class="hf-topbar-title">@plainTitle</span>
+                    <span class="hf-topbar-spacer"></span>
+                    @if (IsReadOnly)
+                    {
+                        <span class="ns-chip ns-chip-assist hf-readonly-chip" title="@Strings.LayoutPage_ReadOnly_Hint">@Html.Icon("lock-fill") <span class="hf-chip-text">@Strings.LayoutPage_ReadOnly</span></span>
+                    }
+                    <span class="ns-chip ns-chip-status hf-status js-status" role="status" title="@Strings.LayoutPage_Live_Hint">
+                        <span class="hf-pulse-dot" aria-hidden="true"></span>
+                        @Html.Icon("wifi-off", "hf-status-offline")
+                        <span class="hf-status-text js-status-text">@Strings.LayoutPage_Live</span>
                     </span>
-                    <button type="button" class="hf-icon-button js-page-refresh" title="@Strings.LayoutPage_Refresh" aria-label="@Strings.LayoutPage_Refresh">
+                    <button type="button" class="ns-icon-button js-page-refresh" title="@Strings.LayoutPage_Refresh" aria-label="@Strings.LayoutPage_Refresh">
                         @Html.Icon("arrow-clockwise")
                     </button>
-                    <button type="button" class="hf-search js-palette-open" title="@Strings.LayoutPage_Search_Hint" aria-haspopup="dialog">
+                    <button type="button" class="hf-search js-palette-open" title="@Strings.LayoutPage_Search_Hint" aria-haspopup="dialog" aria-keyshortcuts="Control+K">
                         @Html.Icon("search")
                         <span class="hf-search-text">@Strings.LayoutPage_Search</span>
-                        <kbd>Ctrl</kbd><kbd>K</kbd>
+                        <kbd aria-hidden="true">Ctrl K</kbd>
                     </button>
                 </header>
 
-                @Html.RenderPartial(new ErrorAlert())
 
-                @{
-                    DrainModeStatus? drainStatus = null;
-                    IList<string> pausedServers = new List<string>();
-                    try
-                    {
-                        using (IStorageConnection drainConnection = Storage.GetReadOnlyConnection())
+
+                <main id="content" class="hf-content js-page-container" tabindex="-1">
+                    @Html.RenderPartial(new ErrorAlert())
+
+                    @{
+                        DrainModeStatus? drainStatus = null;
+                        bool storageUnavailable = false;
+                        IList<string> pausedServers = new List<string>();
+                        try
                         {
-                            drainStatus = DrainMode.Read(drainConnection);
+                            using (IStorageConnection drainConnection = Storage.GetReadOnlyConnection())
+                            {
+                                drainStatus = DrainMode.Read(drainConnection);
+                            }
+
+                            // A pause left by a server that is gone holds nothing back; the Servers page lists it to be cleared
+                            pausedServers = drainStatus.PausedServers.Keys.ToList();
+                            if (pausedServers.Count > 0)
+                            {
+                                IReadOnlyList<string> stale = DashboardHealth.GetStalePausedServers(drainStatus, Storage.GetMonitoringApi().Servers());
+                                pausedServers = pausedServers.Where(id => !stale.Contains(id, StringComparer.OrdinalIgnoreCase)).ToList();
+                            }
                         }
-
-                        // A pause left by a server that is gone holds nothing back; the Servers page lists it to be cleared
-                        pausedServers = drainStatus.PausedServers.Keys.ToList();
-                        if (pausedServers.Count > 0)
+                        catch (Exception)
                         {
-                            IReadOnlyList<string> stale = DashboardHealth.GetStalePausedServers(drainStatus, Storage.GetMonitoringApi().Servers());
-                            pausedServers = pausedServers.Where(id => !stale.Contains(id, StringComparer.OrdinalIgnoreCase)).ToList();
+                            // The storage is unreachable: a banner says so, and the page itself shows what it could read
+                            storageUnavailable = true;
                         }
                     }
-                    catch (Exception)
+                    <div class="hf-banners">@if (storageUnavailable)
                     {
-                        // The storage is unreachable: the page itself will say so.
-                    }
-                }
-                @if (drainStatus != null && !drainStatus.Active && (drainStatus.PausedQueues.Count > 0 || pausedServers.Count > 0))
-                {
-                    <div class="hf-drain-banner hf-drain-banner-queues" role="status">
-                        @Html.Icon("pause-fill")
-                        @if (drainStatus.PausedQueues.Count > 0)
-                        {
-                            <strong>@String.Format(Strings.LayoutPage_QueuesPaused, String.Join(", ", drainStatus.PausedQueues.Keys))</strong>
-                            <a class="btn hf-btn-xs btn-outline-secondary" href="@Url.To("/jobs/enqueued")">@Strings.LayoutPage_QueuesPaused_Link &rarr;</a>
-                        }
-                        @if (pausedServers.Count > 0)
-                        {
-                            <strong>@String.Format(Strings.LayoutPage_ServersPaused, String.Join(", ", pausedServers))</strong>
-                            <a class="btn hf-btn-xs btn-outline-secondary" href="@Url.To("/servers")">@Strings.NavigationMenu_Servers &rarr;</a>
-                        }
-                    </div>
-                }
-                @if (drainStatus != null && drainStatus.Active)
-                {
-                    <div class="hf-drain-banner" role="status">
-                        @Html.Icon("pause-fill")
-                        <strong>@Strings.LayoutPage_Drain_Banner</strong>
-                        @if (drainStatus.Since.HasValue)
-                        {
-                            <span class="hf-drain-banner-since">@Html.Raw(String.Format(Strings.LayoutPage_Drain_Since, Html.RelativeTime(drainStatus.Since.Value)))</span>
-                        }
-                        @if (!String.IsNullOrEmpty(drainStatus.Reason))
-                        {
-                            <em class="hf-drain-banner-reason">@drainStatus.Reason</em>
-                        }
-                        @if (!IsReadOnly)
-                        {
-                            <button type="button" class="btn hf-btn-xs btn-success" data-ajax="@Url.To("/maintenance/resume")" data-loading-text="@Strings.LayoutPage_Drain_Resume">
-                                @Html.Icon("play-fill") @Strings.LayoutPage_Drain_Resume
-                            </button>
-                        }
-                    </div>
-                }
+                        <div class="ns-banner ns-banner-error hf-storage-banner" role="alert">
+                            @Html.Icon("exclamation-triangle-fill")
+                            <span class="ns-banner-text">@Strings.LayoutPage_StorageUnavailable</span>
+                        </div>
+                    }@if (drainStatus != null && drainStatus.Active)
+                    {
+                        <div class="ns-banner ns-banner-warning hf-drain-banner" role="status">
+                            @Html.Icon("pause-fill")
+                            <span class="ns-banner-text">
+                                <strong>@Strings.LayoutPage_Drain_Banner</strong>
+                                @if (drainStatus.Since.HasValue)
+                                {
+                                    <span class="hf-drain-banner-since">@Html.Raw(String.Format(Strings.LayoutPage_Drain_Since, Html.RelativeTime(drainStatus.Since.Value)))</span>
+                                }
+                                @if (!String.IsNullOrEmpty(drainStatus.Reason))
+                                {
+                                    <em class="hf-drain-banner-reason">@drainStatus.Reason</em>
+                                }
+                            </span>
+                            @if (!IsReadOnly)
+                            {
+                                <span class="ns-banner-actions">
+                                    <button type="button" class="btn ns-btn-tonal" data-ajax="@Url.To("/maintenance/resume")" data-loading-text="@Strings.LayoutPage_Drain_Resume">
+                                        @Html.Icon("play-fill") @Strings.LayoutPage_Drain_Resume
+                                    </button>
+                                </span>
+                            }
+                        </div>
+                    }@if (drainStatus != null && (drainStatus.PausedQueues.Count > 0 || pausedServers.Count > 0))
+                    {
+                        <div class="ns-banner ns-banner-info hf-drain-banner hf-drain-banner-queues" role="status">
+                            @Html.Icon("pause-fill")
+                            <span class="ns-banner-text">
+                                @if (drainStatus.PausedQueues.Count > 0)
+                                {
+                                    <strong>@String.Format(Strings.LayoutPage_QueuesPaused, String.Join(", ", drainStatus.PausedQueues.Keys))</strong>
+                                }
+                                @if (pausedServers.Count > 0)
+                                {
+                                    <strong>@String.Format(Strings.LayoutPage_ServersPaused, String.Join(", ", pausedServers))</strong>
+                                }
+                            </span>
+                            <span class="ns-banner-actions">
+                                @if (drainStatus.PausedQueues.Count > 0)
+                                {
+                                    <a class="btn ns-btn-text" href="@Url.To("/jobs/enqueued")">@Strings.LayoutPage_QueuesPaused_Link</a>
+                                }
+                                @if (pausedServers.Count > 0)
+                                {
+                                    <a class="btn ns-btn-text" href="@Url.To("/servers")">@Strings.NavigationMenu_Servers</a>
+                                }
+                            </span>
+                        </div>
+                    }</div>
 
-                <main class="hf-content js-page-container">
                     @RenderBody()
                 </main>
 
@@ -209,17 +247,69 @@
             </div>
         </div>
 
+        <div class="ns-snackbar-host js-snackbar-host" role="status" aria-live="polite"></div>
+        <div class="visually-hidden js-announcer" role="status" aria-live="polite"></div>
+
         <div id="nightshiftConfig"
              data-pollinterval="@DashboardOptions.StatsPollingInterval"
              data-pollurl="@(Url.To("/stats"))"
              data-liveurl="@(Url.To("/jobs/live"))"
              data-icons-url="@(Url.To(DashboardIcons.Path))"
+             data-readonly="@(IsReadOnly ? "true" : "false")"
              data-text-refresh="@Strings.LayoutPage_Refresh"
              data-text-live="@Strings.LayoutPage_LiveToggle"
              data-text-live-hint="@Strings.LayoutPage_LiveToggle_Hint"
              data-text-list-result="@Strings.Common_ListCommandResult"
              data-text-list-remaining="@Strings.Common_ListCommandRemaining"
              data-text-request-failed="@Strings.Common_RequestFailed"
+             data-text-status-live="@Strings.LayoutPage_Live"
+             data-text-status-live-hint="@Strings.LayoutPage_Live_Hint"
+             data-text-status-offline="@Strings.LayoutPage_Offline"
+             data-text-status-offline-hint="@Strings.LayoutPage_Offline_Hint"
+             data-text-close-menu="@Strings.LayoutPage_CloseMenu"
+             data-text-cancel="@Strings.Common_Cancel"
+             data-text-confirm="@Strings.Common_Confirm"
+             data-text-close="@Strings.Common_Close"
+             data-text-dismiss="@Strings.Common_Dismiss"
+             data-text-retry="@Strings.Common_Retry"
+             data-text-discard-title="@Strings.Dialog_DiscardTitle"
+             data-text-discard-body="@Strings.Dialog_DiscardBody"
+             data-text-discard="@Strings.Dialog_Discard"
+             data-text-keep-editing="@Strings.Dialog_KeepEditing"
+             data-text-type-to-confirm="@Strings.Dialog_TypeToConfirm"
+             data-text-done="@Strings.Common_Done"
+             data-text-action-failed="@Strings.Common_ActionFailed"
+             data-text-server-responded="@Strings.Common_ServerResponded"
+             data-text-no-answer="@Strings.Common_NoAnswer"
+             data-text-view-job="@Strings.Common_ViewJob"
+             data-text-list-updated="@Strings.Common_ListUpdated"
+             data-text-list-updated-new="@Strings.Common_ListUpdatedNew"
+             data-text-selected-count="@Strings.Common_SelectedCount"
+             data-text-clear-selection="@Strings.Common_ClearSelection"
+             data-text-shortcut-confirm="@Strings.Common_ShortcutConfirm"
+             data-text-palette-label="@Strings.Palette_Label"
+             data-text-palette-placeholder="@Strings.Palette_Placeholder"
+             data-text-palette-results="@Strings.Palette_Results"
+             data-text-palette-nothing="@Strings.Palette_NothingFound"
+             data-text-palette-count="@Strings.Palette_ResultCount"
+             data-text-palette-count-one="@Strings.Palette_ResultCountOne"
+             data-text-palette-hint="@Strings.Palette_Hint"
+             data-text-palette-hint-anywhere="@Strings.Palette_HintAnywhere"
+             data-text-palette-pages="@Strings.Palette_Pages"
+             data-text-palette-commands="@Strings.Palette_Commands"
+             data-text-palette-jobs="@Strings.NavigationMenu_Jobs"
+             data-text-palette-recurring="@Strings.NavigationMenu_RecurringJobs"
+             data-text-palette-tags="@Strings.NavigationMenu_Tags"
+             data-text-shortcuts="@Strings.LayoutPage_Shortcuts"
+             data-text-shortcut-search="@Strings.Shortcuts_Search"
+             data-text-shortcut-go="@Strings.Shortcuts_Go"
+             data-text-shortcut-move="@Strings.Shortcuts_Move"
+             data-text-shortcut-select="@Strings.Shortcuts_Select"
+             data-text-shortcut-open="@Strings.Shortcuts_Open"
+             data-text-shortcut-run="@Strings.Shortcuts_Run"
+             data-text-shortcut-delete="@Strings.Shortcuts_Delete"
+             data-text-shortcut-help="@Strings.Shortcuts_Help"
+             data-text-shortcut-single-key="@Strings.Shortcuts_SingleKey"
              data-darkmode="@(DashboardOptions.DarkModeEnabled.ToString().ToLowerInvariant())">
         </div>
 

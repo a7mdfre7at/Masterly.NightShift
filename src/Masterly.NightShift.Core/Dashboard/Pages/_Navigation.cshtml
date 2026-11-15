@@ -1,54 +1,79 @@
 ﻿@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True TrimLeadingUnderscores : true *@
 @using System
+@using System.Collections.Generic
+@using System.Linq
 @using Masterly.NightShift.Dashboard
 @using Masterly.NightShift.Dashboard.Resources
 @inherits RazorPage
 @{
     string jobsUrl = Url.LinkToQueues();
+
+    // The items, in their groups: the built-in groups first, then the groups extensions named, then the items without
+    // one ("More"); each group keeps the order its items were added in
+    List<MenuItem> items = NavigationMenu.Items.Select(item => item(this)).Where(item => item != null).ToList();
+    List<string?> groups = NavigationMenuGroup.BuiltIn.Cast<string?>()
+        .Concat(items.Select(item => item.Group).Where(group => group != null && !NavigationMenuGroup.BuiltIn.Contains(group)))
+        .Concat(new string?[] { null })
+        .Distinct()
+        .ToList();
+    int groupIndex = 0;
 }
-@if (NavigationMenu.Items.Count > 0)
+@foreach (string? group in groups)
 {
-    <div class="hf-nav-section">@Strings.NavigationMenu_Section_Monitor</div>
-    foreach (Func<RazorPage, MenuItem> item in NavigationMenu.Items)
-    {
-        MenuItem itemValue = item(this);
+    List<MenuItem> groupItems = items.Where(item => String.Equals(item.Group, group, StringComparison.Ordinal)).ToList();
+    if (groupItems.Count == 0) { continue; }
 
-        if (itemValue == null) { continue; }
+    groupIndex++;
+    string headingId = "hfNavGroup" + groupIndex;
 
-        bool isJobs = String.Equals(itemValue.Url, jobsUrl, StringComparison.OrdinalIgnoreCase);
+    <div class="hf-nav-group">
+        <div class="hf-nav-section" id="@headingId">@NavigationMenuGroup.TitleOf(group)</div>
+        <ul class="hf-nav-list" aria-labelledby="@headingId">
+            @foreach (MenuItem itemValue in groupItems)
+            {
+                bool isJobs = String.Equals(itemValue.Url, jobsUrl, StringComparison.OrdinalIgnoreCase);
+                List<MenuItem> subItems = isJobs
+                    ? JobsSidebarMenu.Items.Select(subItem => subItem(this)).Where(subItem => subItem != null).ToList()
+                    : new List<MenuItem>();
 
-        <a href="@itemValue.Url" class="hf-nav-item @(itemValue.Active ? "active" : null)">
-            @Html.Icon(DashboardIcons.Resolve(itemValue.Icon) ?? DashboardIcons.DefaultMenuIcon, "hf-nav-icon")
-            <span class="hf-nav-text">@itemValue.Text</span>
-            <span class="hf-nav-metrics">
-                @foreach (DashboardMetric metric in itemValue.GetAllMetrics())
-                {
-                    @Html.InlineMetric(metric)
-                }
-            </span>
-        </a>
+                // One active indicator: the page's own item, never its parent too
+                bool childActive = subItems.Any(subItem => subItem.Active);
+                bool active = itemValue.Active && !childActive;
+                string css = active ? "hf-nav-item active" : childActive ? "hf-nav-item hf-nav-item-parent" : "hf-nav-item";
 
-        if (isJobs && JobsSidebarMenu.Items.Count > 0)
-        {
-            <ul class="hf-nav-sub">
-                @foreach (Func<RazorPage, MenuItem> subItem in JobsSidebarMenu.Items)
-                {
-                    MenuItem subValue = subItem(this);
-                    if (subValue == null) { continue; }
+                <li>
+                    <a href="@itemValue.Url" class="@css"@(active ? Html.Raw(" aria-current=\"page\"") : null)>
+                        @Html.Icon(DashboardIcons.Resolve(itemValue.Icon) ?? DashboardIcons.DefaultMenuIcon, "hf-nav-icon")
+                        <span class="hf-nav-text">@itemValue.Text</span>
+                        <span class="hf-nav-metrics">
+                            @foreach (DashboardMetric metric in itemValue.GetAllMetrics())
+                            {
+                                @Html.InlineMetric(metric)
+                            }
+                        </span>
+                    </a>
 
-                    <li>
-                        <a href="@subValue.Url" class="hf-nav-item @(subValue.Active ? "active" : null)">
-                            <span class="hf-nav-text">@subValue.Text</span>
-                            <span class="hf-nav-metrics">
-                                @foreach (DashboardMetric metric in subValue.GetAllMetrics())
-                                {
-                                    @Html.InlineMetric(metric)
-                                }
-                            </span>
-                        </a>
-                    </li>
-                }
-            </ul>
-        }
-    }
+                    @if (subItems.Count > 0)
+                    {
+                        <ul class="hf-nav-sub">
+                            @foreach (MenuItem subValue in subItems)
+                            {
+                                <li>
+                                    <a href="@subValue.Url" class="@(subValue.Active ? "hf-nav-item active" : "hf-nav-item")"@(subValue.Active ? Html.Raw(" aria-current=\"page\"") : null)>
+                                        <span class="hf-nav-text">@subValue.Text</span>
+                                        <span class="hf-nav-metrics">
+                                            @foreach (DashboardMetric metric in subValue.GetAllMetrics())
+                                            {
+                                                @Html.InlineMetric(metric)
+                                            }
+                                        </span>
+                                    </a>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </li>
+            }
+        </ul>
+    </div>
 }

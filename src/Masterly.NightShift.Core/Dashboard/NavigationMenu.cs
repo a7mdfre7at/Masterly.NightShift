@@ -18,7 +18,8 @@ using Masterly.NightShift.Dashboard.Resources;
 namespace Masterly.NightShift.Dashboard;
 
 /// <summary>
-/// The items of the dashboard's top navigation bar. Extensions can add items.
+/// The items of the dashboard's navigation drawer, listed by their <see cref="MenuItem.Group"/> in the order they were
+/// added. Extensions can add items.
 /// </summary>
 public static class NavigationMenu
 {
@@ -29,6 +30,7 @@ public static class NavigationMenu
         Items.Add(static page => new MenuItem(Strings.NavigationMenu_Jobs, page.Url.LinkToQueues())
         {
             Icon = "list-task",
+            Group = NavigationMenuGroup.Jobs,
             Active = page.RequestPath.StartsWith("/jobs", StringComparison.OrdinalIgnoreCase),
             Metrics =
             [
@@ -40,18 +42,21 @@ public static class NavigationMenu
         Items.Add(static page => new MenuItem(Strings.NavigationMenu_Batches, page.Url.To("/batches"))
         {
             Icon = "grid-fill",
+            Group = NavigationMenuGroup.Workflows,
             Active = page.RequestPath.StartsWith("/batches", StringComparison.OrdinalIgnoreCase)
         });
 
         Items.Add(static page => new MenuItem(Strings.NavigationMenu_Chains, page.Url.To("/chains"))
         {
             Icon = "link-45deg",
+            Group = NavigationMenuGroup.Workflows,
             Active = page.RequestPath.StartsWith("/chains", StringComparison.OrdinalIgnoreCase)
         });
 
         Items.Add(static page => new MenuItem(Strings.NavigationMenu_Retries, page.Url.To("/retries"))
         {
             Icon = "arrow-repeat",
+            Group = NavigationMenuGroup.Jobs,
             Active = page.RequestPath.StartsWith("/retries", StringComparison.OrdinalIgnoreCase),
             Metric = DashboardMetrics.RetriesCount
         });
@@ -59,6 +64,7 @@ public static class NavigationMenu
         Items.Add(static page => new MenuItem(Strings.NavigationMenu_RecurringJobs, page.Url.To("/recurring"))
         {
             Icon = "clock",
+            Group = NavigationMenuGroup.Jobs,
             Active = page.RequestPath.StartsWith("/recurring", StringComparison.OrdinalIgnoreCase),
             Metric = DashboardMetrics.RecurringJobCount
         });
@@ -66,36 +72,42 @@ public static class NavigationMenu
         Items.Add(static page => new MenuItem(Strings.NavigationMenu_Policies, page.Url.To("/policies"))
         {
             Icon = "calendar3",
+            Group = NavigationMenuGroup.Workflows,
             Active = page.RequestPath.StartsWith("/policies", StringComparison.OrdinalIgnoreCase)
         });
 
         Items.Add(static page => new MenuItem(Strings.NavigationMenu_Timeline, page.Url.To("/timeline"))
         {
             Icon = "text-left",
+            Group = NavigationMenuGroup.Observe,
             Active = page.RequestPath.StartsWith("/timeline", StringComparison.OrdinalIgnoreCase)
         });
 
         Items.Add(static page => new MenuItem(Strings.NavigationMenu_Insights, page.Url.To("/insights"))
         {
             Icon = "bar-chart-fill",
+            Group = NavigationMenuGroup.Observe,
             Active = page.RequestPath.StartsWith("/insights", StringComparison.OrdinalIgnoreCase)
         });
 
         Items.Add(static page => new MenuItem(Strings.NavigationMenu_Catalog, page.Url.To("/catalog"))
         {
             Icon = "book-fill",
+            Group = NavigationMenuGroup.Jobs,
             Active = page.RequestPath.StartsWith("/catalog", StringComparison.OrdinalIgnoreCase)
         });
 
         Items.Add(static page => new MenuItem(Strings.NavigationMenu_Tags, page.Url.To("/tags"))
         {
             Icon = "tag-fill",
+            Group = NavigationMenuGroup.Jobs,
             Active = page.RequestPath.StartsWith("/tags", StringComparison.OrdinalIgnoreCase)
         });
 
         Items.Add(static page => new MenuItem(Strings.NavigationMenu_Servers, page.Url.To("/servers"))
         {
             Icon = "hdd-fill",
+            Group = NavigationMenuGroup.System,
             Active = page.RequestPath.Equals("/servers", StringComparison.OrdinalIgnoreCase),
             Metric = DashboardMetrics.ServerCount
         });
@@ -103,18 +115,21 @@ public static class NavigationMenu
         Items.Add(static page => new MenuItem(Strings.NavigationMenu_Audit, page.Url.To("/audit"))
         {
             Icon = "card-list",
+            Group = NavigationMenuGroup.Observe,
             Active = page.RequestPath.StartsWith("/audit", StringComparison.OrdinalIgnoreCase)
         });
 
         Items.Add(static page => new MenuItem(Strings.NavigationMenu_About, page.Url.To("/about"))
         {
             Icon = "info-circle-fill",
+            Group = NavigationMenuGroup.System,
             Active = page.RequestPath.StartsWith("/about", StringComparison.OrdinalIgnoreCase)
         });
 
         Items.Add(static page => new MenuItem(Strings.NavigationMenu_Wallboard, page.Url.To("/wallboard"))
         {
             Icon = "easel-fill",
+            Group = NavigationMenuGroup.Observe,
             Active = false
         });
     }

@@ -2,9 +2,8 @@
 @using Masterly.NightShift.Dashboard
 @inherits RazorPage
 
+@* An error that keeps the page from working (NightShift.ErrorAlert); a failed request shows a snackbar instead *@
 <div id="errorAlert" class="alert alert-danger alert-fixed display-none" role="alert">
-    <div class="container">
-        <strong id="errorAlertTitle"></strong> 
-        <span id="errorAlertMessage"></span>
-    </div>
+    <strong id="errorAlertTitle"></strong>
+    <span id="errorAlertMessage"></span>
 </div>

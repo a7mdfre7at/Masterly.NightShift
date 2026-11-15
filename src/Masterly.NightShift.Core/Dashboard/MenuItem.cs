@@ -33,6 +33,14 @@ public class MenuItem(string text, string url)
     /// </summary>
     public string? Icon { get; set; }
 
+    /// <summary>
+    /// Gets or sets the group of the navigation drawer the item is listed in: one of the <see cref="NavigationMenuGroup"/>
+    /// names (<c>Jobs</c>, <c>Workflows</c>, <c>Observe</c>, <c>System</c>), or any other text, which lists the item
+    /// in a group of that title after the built-in ones. Items without a group are listed last, under "More". Only
+    /// <see cref="NavigationMenu"/> reads it.
+    /// </summary>
+    public string? Group { get; set; }
+
     public DashboardMetric? Metric { get; set; }
     public DashboardMetric[]? Metrics { get; set; }
 

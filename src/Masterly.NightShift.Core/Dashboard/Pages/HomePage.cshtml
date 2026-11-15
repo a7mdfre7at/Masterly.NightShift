@@ -54,7 +54,13 @@
         <section class="hf-card">
             <div class="hf-card-header">
                 <h3>@Strings.HomePage_RealtimeGraph</h3>
-                <span class="hf-pulse"><span class="hf-pulse-dot js-pulse-dot"></span></span>
+                <div class="hf-card-actions">
+                    <span class="hf-pulse"><span class="hf-pulse-dot js-pulse-dot js-graph-dot"></span></span>
+                    <label class="ns-switch-label">
+                        <input type="checkbox" role="switch" class="ns-switch js-graph-pause">
+                        @Strings.HomePage_RealtimeGraph_Pause
+                    </label>
+                </div>
             </div>
             <div class="hf-card-body">
                 <canvas width="1140" height="210" id="realtimeGraph" data-succeeded="@Statistics.Succeeded" data-failed="@Statistics.Failed" data-deleted="@Statistics.Deleted"
@@ -72,11 +78,18 @@
         <section class="hf-card hf-activity-card">
             <div class="hf-card-header">
                 <h3>@Strings.HomePage_Activity <small class="text-muted">@Strings.HomePage_Activity_Hint</small></h3>
-                <span class="hf-pulse"><span class="hf-pulse-dot js-pulse-dot"></span></span>
+                <div class="hf-card-actions">
+                    <span class="hf-pulse"><span class="hf-pulse-dot js-pulse-dot js-activity-dot"></span></span>
+                    <label class="ns-switch-label">
+                        <input type="checkbox" role="switch" class="ns-switch js-activity-pause">
+                        @Strings.HomePage_Activity_Pause
+                    </label>
+                </div>
             </div>
-            <ol class="hf-activity js-activity" data-url="@Url.To("/activity")" data-job-url="@Url.To("/jobs/details/")" data-empty="@Strings.HomePage_Activity_Empty" data-off="@Strings.HomePage_Activity_Off" aria-live="polite">
+            <ol class="hf-activity js-activity" data-url="@Url.To("/activity")" data-job-url="@Url.To("/jobs/details/")" data-empty="@Strings.HomePage_Activity_Empty" data-off="@Strings.HomePage_Activity_Off" data-text-summary="@Strings.HomePage_Activity_Summary">
                 <li class="hf-activity-empty text-muted">@Strings.HomePage_Activity_Empty</li>
             </ol>
+            <div class="visually-hidden js-activity-status" role="status"></div>
         </section>
 
         <section class="hf-card">
