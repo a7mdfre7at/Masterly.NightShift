@@ -6688,5 +6688,203 @@ namespace Masterly.NightShift.Dashboard.Resources {
                 return ResourceManager.GetString("TimelinePage_Empty_Title", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No schedule policies yet.
+        /// </summary>
+        public static string PoliciesPage_Empty_Title {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Empty_Title", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to A schedule policy is a business calendar: the days, hours and dates when the jobs that follow it may start. Recurring and delayed jobs follow a policy by its name..
+        /// </summary>
+        public static string PoliciesPage_Empty_Text {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Empty_Text", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Policies are saved in code, with SaveSchedulePolicy or AddPolicy, or here by a user who may edit them..
+        /// </summary>
+        public static string PoliciesPage_Empty_ReadOnly {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Empty_ReadOnly", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to crosses midnight.
+        /// </summary>
+        public static string PoliciesPage_Overnight {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Overnight", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to +{0} more.
+        /// </summary>
+        public static string PoliciesPage_More {
+            get {
+                return ResourceManager.GetString("PoliciesPage_More", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Used by.
+        /// </summary>
+        public static string PoliciesPage_UsedBy {
+            get {
+                return ResourceManager.GetString("PoliciesPage_UsedBy", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Other policies refer to it: it can be deleted once they no longer do..
+        /// </summary>
+        public static string PoliciesPage_DeleteBlocked {
+            get {
+                return ResourceManager.GetString("PoliciesPage_DeleteBlocked", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Jobs already scheduled with it run without it. A policy that recurring jobs follow can't be deleted..
+        /// </summary>
+        public static string PoliciesPage_DeleteConfirm_Body {
+            get {
+                return ResourceManager.GetString("PoliciesPage_DeleteConfirm_Body", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Schedule policy.
+        /// </summary>
+        public static string PoliciesPage_Kind {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Kind", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to When jobs may start.
+        /// </summary>
+        public static string PoliciesPage_Group_When {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Group_When", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Other policies.
+        /// </summary>
+        public static string PoliciesPage_Group_Policies {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Group_Policies", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Letters, digits, '.', '_' and '-', up to 64. It can't be changed later..
+        /// </summary>
+        public static string PoliciesPage_NameHint {
+            get {
+                return ResourceManager.GetString("PoliciesPage_NameHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to A Windows or IANA time zone, such as Europe/Berlin. UTC when empty..
+        /// </summary>
+        public static string PoliciesPage_TimeZoneHint {
+            get {
+                return ResourceManager.GetString("PoliciesPage_TimeZoneHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to None selected: every day..
+        /// </summary>
+        public static string PoliciesPage_DaysHint {
+            get {
+                return ResourceManager.GetString("PoliciesPage_DaysHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to HH:mm-HH:mm, separated by commas. An end before the start crosses midnight. Empty: any time..
+        /// </summary>
+        public static string PoliciesPage_WindowsHint {
+            get {
+                return ResourceManager.GetString("PoliciesPage_WindowsHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Names of stored policies, separated by commas. Requires: they must allow the time too. Except when: a time they allow is blocked..
+        /// </summary>
+        public static string PoliciesPage_PoliciesHint {
+            get {
+                return ResourceManager.GetString("PoliciesPage_PoliciesHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enter a name..
+        /// </summary>
+        public static string PoliciesPage_NameRequired {
+            get {
+                return ResourceManager.GetString("PoliciesPage_NameRequired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to A policy named '{0}' already exists..
+        /// </summary>
+        public static string PoliciesPage_Exists {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Exists", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Reload the policy.
+        /// </summary>
+        public static string PoliciesPage_Reload {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Reload", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to A CRON expression, such as 0 9 * * 1-5, or a schedule in words..
+        /// </summary>
+        public static string PoliciesPage_CronHint {
+            get {
+                return ResourceManager.GetString("PoliciesPage_CronHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Next occurrences.
+        /// </summary>
+        public static string PoliciesPage_Candidates {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Candidates", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} allowed, {1} blocked.
+        /// </summary>
+        public static string PoliciesPage_PreviewSummary {
+            get {
+                return ResourceManager.GetString("PoliciesPage_PreviewSummary", resourceCulture);
+            }
+        }
     }
 }

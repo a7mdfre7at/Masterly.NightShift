@@ -2212,4 +2212,70 @@
   <data name="TimelinePage_Empty_Title" xml:space="preserve">
     <value>Aún no hay ejecuciones</value>
   </data>
+  <data name="PoliciesPage_Empty_Title" xml:space="preserve">
+    <value>Aún no hay políticas de programación</value>
+  </data>
+  <data name="PoliciesPage_Empty_Text" xml:space="preserve">
+    <value>Una política de programación es un calendario laboral: los días, las horas y las fechas en que pueden empezar los trabajos que la siguen. Los trabajos recurrentes y diferidos siguen una política por su nombre.</value>
+  </data>
+  <data name="PoliciesPage_Empty_ReadOnly" xml:space="preserve">
+    <value>Las políticas se guardan en el código, con SaveSchedulePolicy o AddPolicy, o aquí por un usuario que pueda editarlas.</value>
+  </data>
+  <data name="PoliciesPage_Overnight" xml:space="preserve">
+    <value>pasa la medianoche</value>
+  </data>
+  <data name="PoliciesPage_More" xml:space="preserve">
+    <value>+{0} más</value>
+  </data>
+  <data name="PoliciesPage_UsedBy" xml:space="preserve">
+    <value>Usada por</value>
+  </data>
+  <data name="PoliciesPage_DeleteBlocked" xml:space="preserve">
+    <value>Otras políticas hacen referencia a ella: se podrá eliminar cuando ya no lo hagan.</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>Los trabajos ya programados con ella se ejecutan sin ella. No se puede eliminar una política que siguen trabajos recurrentes.</value>
+  </data>
+  <data name="PoliciesPage_Kind" xml:space="preserve">
+    <value>Política de programación</value>
+  </data>
+  <data name="PoliciesPage_Group_When" xml:space="preserve">
+    <value>Cuándo pueden empezar los trabajos</value>
+  </data>
+  <data name="PoliciesPage_Group_Policies" xml:space="preserve">
+    <value>Otras políticas</value>
+  </data>
+  <data name="PoliciesPage_NameHint" xml:space="preserve">
+    <value>Letras, dígitos, «.», «_» y «-», hasta 64. No se puede cambiar después.</value>
+  </data>
+  <data name="PoliciesPage_TimeZoneHint" xml:space="preserve">
+    <value>Una zona horaria de Windows o IANA, como Europe/Berlin. UTC si está vacía.</value>
+  </data>
+  <data name="PoliciesPage_DaysHint" xml:space="preserve">
+    <value>Ninguno seleccionado: todos los días.</value>
+  </data>
+  <data name="PoliciesPage_WindowsHint" xml:space="preserve">
+    <value>HH:mm-HH:mm, separados por comas. Un final anterior al inicio pasa la medianoche. Vacío: a cualquier hora.</value>
+  </data>
+  <data name="PoliciesPage_PoliciesHint" xml:space="preserve">
+    <value>Nombres de políticas guardadas, separados por comas. Requiere: también deben permitir la hora. Excepto cuando: se bloquea una hora que permiten.</value>
+  </data>
+  <data name="PoliciesPage_NameRequired" xml:space="preserve">
+    <value>Introduzca un nombre.</value>
+  </data>
+  <data name="PoliciesPage_Exists" xml:space="preserve">
+    <value>Ya existe una política llamada «{0}».</value>
+  </data>
+  <data name="PoliciesPage_Reload" xml:space="preserve">
+    <value>Volver a cargar la política</value>
+  </data>
+  <data name="PoliciesPage_CronHint" xml:space="preserve">
+    <value>Una expresión CRON, como 0 9 * * 1-5, o una programación en palabras.</value>
+  </data>
+  <data name="PoliciesPage_Candidates" xml:space="preserve">
+    <value>Próximas ocurrencias</value>
+  </data>
+  <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
+    <value>{0} permitidas, {1} bloqueadas</value>
+  </data>
 </root>

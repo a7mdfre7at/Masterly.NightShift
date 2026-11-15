@@ -2336,4 +2336,70 @@
   <data name="TimelinePage_Empty_Title" xml:space="preserve">
     <value>No runs yet</value>
   </data>
+  <data name="PoliciesPage_Empty_Title" xml:space="preserve">
+    <value>No schedule policies yet</value>
+  </data>
+  <data name="PoliciesPage_Empty_Text" xml:space="preserve">
+    <value>A schedule policy is a business calendar: the days, hours and dates when the jobs that follow it may start. Recurring and delayed jobs follow a policy by its name.</value>
+  </data>
+  <data name="PoliciesPage_Empty_ReadOnly" xml:space="preserve">
+    <value>Policies are saved in code, with SaveSchedulePolicy or AddPolicy, or here by a user who may edit them.</value>
+  </data>
+  <data name="PoliciesPage_Overnight" xml:space="preserve">
+    <value>crosses midnight</value>
+  </data>
+  <data name="PoliciesPage_More" xml:space="preserve">
+    <value>+{0} more</value>
+  </data>
+  <data name="PoliciesPage_UsedBy" xml:space="preserve">
+    <value>Used by</value>
+  </data>
+  <data name="PoliciesPage_DeleteBlocked" xml:space="preserve">
+    <value>Other policies refer to it: it can be deleted once they no longer do.</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>Jobs already scheduled with it run without it. A policy that recurring jobs follow can't be deleted.</value>
+  </data>
+  <data name="PoliciesPage_Kind" xml:space="preserve">
+    <value>Schedule policy</value>
+  </data>
+  <data name="PoliciesPage_Group_When" xml:space="preserve">
+    <value>When jobs may start</value>
+  </data>
+  <data name="PoliciesPage_Group_Policies" xml:space="preserve">
+    <value>Other policies</value>
+  </data>
+  <data name="PoliciesPage_NameHint" xml:space="preserve">
+    <value>Letters, digits, '.', '_' and '-', up to 64. It can't be changed later.</value>
+  </data>
+  <data name="PoliciesPage_TimeZoneHint" xml:space="preserve">
+    <value>A Windows or IANA time zone, such as Europe/Berlin. UTC when empty.</value>
+  </data>
+  <data name="PoliciesPage_DaysHint" xml:space="preserve">
+    <value>None selected: every day.</value>
+  </data>
+  <data name="PoliciesPage_WindowsHint" xml:space="preserve">
+    <value>HH:mm-HH:mm, separated by commas. An end before the start crosses midnight. Empty: any time.</value>
+  </data>
+  <data name="PoliciesPage_PoliciesHint" xml:space="preserve">
+    <value>Names of stored policies, separated by commas. Requires: they must allow the time too. Except when: a time they allow is blocked.</value>
+  </data>
+  <data name="PoliciesPage_NameRequired" xml:space="preserve">
+    <value>Enter a name.</value>
+  </data>
+  <data name="PoliciesPage_Exists" xml:space="preserve">
+    <value>A policy named '{0}' already exists.</value>
+  </data>
+  <data name="PoliciesPage_Reload" xml:space="preserve">
+    <value>Reload the policy</value>
+  </data>
+  <data name="PoliciesPage_CronHint" xml:space="preserve">
+    <value>A CRON expression, such as 0 9 * * 1-5, or a schedule in words.</value>
+  </data>
+  <data name="PoliciesPage_Candidates" xml:space="preserve">
+    <value>Next occurrences</value>
+  </data>
+  <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
+    <value>{0} allowed, {1} blocked</value>
+  </data>
 </root>

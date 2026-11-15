@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Runtime.CompilerServices;
 using Masterly.NightShift.Dashboard.Resources;
 
 namespace Masterly.NightShift.Dashboard;
@@ -11,21 +12,28 @@ internal static class SchedulePolicyDispatchers
 
     /// <summary>
     /// Saves the policy of the form. Its name is in the audit entry, whatever the answer, as the save's address
-    /// doesn't carry it.
+    /// doesn't carry it. A refused value names its form field (<see cref="CommandResult.Field"/>), so the editor
+    /// shows the reason under it.
     /// </summary>
     public static async Task<CommandResult> SaveAsync(DashboardContext context)
     {
-        string name = await GetAsync(context, "name") ?? throw new ArgumentException("A name is required.");
+        string? name = await GetAsync(context, "name");
+        if (name == null)
+        {
+            return new CommandResult(UnprocessableEntity, "A name is required.", null) { Field = "name" };
+        }
+
         string detail = $"policy '{name}'";
+        StrongBox<string> field = new("name");
 
         try
         {
-            return await SaveAsync(context, name, detail);
+            return await SaveAsync(context, name, detail, field);
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or FormatException or OverflowException
                                        or TimeZoneNotFoundException or InvalidTimeZoneException)
         {
-            return new CommandResult(UnprocessableEntity, RecurringJobUpdateDispatcher.GetMessage(ex), detail);
+            return new CommandResult(UnprocessableEntity, RecurringJobUpdateDispatcher.GetMessage(ex), detail) { Field = field.Value };
         }
     }
 
@@ -44,22 +52,28 @@ internal static class SchedulePolicyDispatchers
             : CommandResult.Refused((int)HttpStatusCode.Conflict, Strings.PoliciesPage_Conflict);
     }
 
-    private static async Task<CommandResult> SaveAsync(DashboardContext context, string name, string detail)
+    // field holds the form field being read, so an exception names the value it refuses
+    private static async Task<CommandResult> SaveAsync(DashboardContext context, string name, string detail, StrongBox<string> field)
     {
         // A form without a revision creates the policy
         long revision = 0;
         if (await GetAsync(context, "revision") is { } revisionText && !TryParseRevision(revisionText, out revision))
         {
-            return new CommandResult(UnprocessableEntity, $"'{revisionText}' isn't a revision.", detail);
+            return new CommandResult(UnprocessableEntity, $"'{revisionText}' isn't a revision.", detail) { Field = "revision" };
         }
 
-        SchedulePolicy policy = new SchedulePolicy(name).WithDescription(await GetAsync(context, "description"));
+        SchedulePolicy policy = new(name);
 
+        field.Value = "description";
+        policy.WithDescription(await GetAsync(context, "description"));
+
+        field.Value = "timezone";
         if (await GetAsync(context, "timezone") is { } timeZoneId)
         {
             policy.InTimeZone((context.Options.TimeZoneResolver ?? GlobalTimeZoneResolver.Current).GetTimeZoneById(timeZoneId));
         }
 
+        field.Value = "days";
         IList<string> days = await context.Request.GetFormValuesAsync("days");
         if (days is { Count: > 0 })
         {
@@ -68,7 +82,7 @@ internal static class SchedulePolicyDispatchers
             {
                 if (!TryParseDay(day, out DayOfWeek parsedDay))
                 {
-                    return new CommandResult(UnprocessableEntity, $"'{day}' isn't a day of the week.", detail);
+                    return new CommandResult(UnprocessableEntity, $"'{day}' isn't a day of the week.", detail) { Field = "days" };
                 }
 
                 allowed.Add(parsedDay);
@@ -77,12 +91,14 @@ internal static class SchedulePolicyDispatchers
             policy.AllowWeekdays([.. allowed]);
         }
 
+        field.Value = "windows";
         foreach (string window in List(await GetAsync(context, "windows")))
         {
             ScheduleWindow parsedWindow = ScheduleWindow.Parse(window);
             policy.AllowBetween(parsedWindow.Start, parsedWindow.End);
         }
 
+        field.Value = "dates";
         foreach (string date in List(await GetAsync(context, "dates")))
         {
             if (date.Length == 5)
@@ -96,24 +112,35 @@ internal static class SchedulePolicyDispatchers
             }
         }
 
+        field.Value = "providers";
         foreach (string provider in List(await GetAsync(context, "providers")))
         {
             policy.ExcludeDatesFrom(provider);
         }
 
+        field.Value = "require";
         foreach (string required in List(await GetAsync(context, "require")))
         {
             policy.Require(required);
         }
 
+        field.Value = "except";
         foreach (string excepted in List(await GetAsync(context, "except")))
         {
             policy.ExceptWhen(excepted);
         }
 
+        // The storage refuses a policy it refers to that isn't stored, or a cycle: the field of its references
+        field.Value = policy.Required.Count == 0 && policy.Excepted.Count > 0 ? "except" : "require";
         long? saved = context.Storage.UpdateSchedulePolicy(policy, revision);
-        return saved.HasValue
-            ? CommandResult.Done($"{detail}, revision {saved.Value.ToString(CultureInfo.InvariantCulture)}")
+        if (saved.HasValue)
+        {
+            return CommandResult.Done($"{detail}, revision {saved.Value.ToString(CultureInfo.InvariantCulture)}");
+        }
+
+        // A new policy whose name is taken isn't a change made meanwhile: the name is what to change
+        return revision == 0
+            ? new CommandResult((int)HttpStatusCode.Conflict, string.Format(CultureInfo.CurrentCulture, Strings.PoliciesPage_Exists, policy.Name), detail) { Field = "name" }
             : new CommandResult((int)HttpStatusCode.Conflict, Strings.PoliciesPage_Conflict, detail);
     }
 

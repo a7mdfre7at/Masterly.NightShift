@@ -1155,6 +1155,98 @@
         field.toggleClass('ns-field-invalid', !!message);
     };
 
+    // The schedule policy editor (a form in the side sheet, js-policy-form): posts the form, then reloads the page at
+    // the saved policy's card. A value the server refuses is shown under its field (the answer's "field"); a change
+    // made meanwhile (409 without a field) shows the form's conflict note, whose link reloads the policy.
+    $(document).on('submit', '.js-policy-form', function (e) {
+        e.preventDefault();
+        var form = $(this);
+        var submit = $('[type=submit][form="' + this.id + '"]').add(form.find('[type=submit]'));
+        var name = form.find('[name=name]');
+        var conflict = form.find('.js-policy-conflict');
+
+        form.find('[aria-invalid="true"]').each(function () { nightshift.fieldError(this, null); });
+        form.find('.js-policy-days-error').text('');
+        conflict.prop('hidden', true);
+
+        if (!trim(name.val())) {
+            nightshift.fieldError(name, form.attr('data-name-required'));
+            name.trigger('focus');
+            return;
+        }
+
+        nightshift.setLoading(submit, true);
+        $.post(form.attr('action'), form.serialize())
+            .done(function () {
+                nightshift.snackbar.showAfterReload({ text: format(TEXT.done, commandName(submit.first())) });
+                var target = form.attr('data-redirect');
+                var anchor = '#policy-' + trim(name.val()).toLowerCase();
+                if (window.location.pathname + window.location.search === target) {
+                    window.location.hash = anchor;
+                    window.location.reload();
+                } else {
+                    window.location.href = target + anchor;
+                }
+            })
+            .fail(function (xhr) {
+                nightshift.setLoading(submit, false);
+                var answer = xhr.responseJSON || {};
+                var field = typeof answer.field === 'string' ? answer.field : null;
+                var message = typeof answer.error === 'string' ? answer.error : nightshift.describeRequestError(xhr);
+
+                if (field === 'days') {
+                    form.find('.js-policy-days-error').text(message);
+                    form.find('[name=days]').first().trigger('focus');
+                } else if (field && form.find('[name="' + field + '"]').not('[type=hidden]').length) {
+                    var control = form.find('[name="' + field + '"]').first();
+                    nightshift.fieldError(control, message);
+                    control.trigger('focus');
+                } else if (xhr.status === 409) {
+                    conflict.find('.js-policy-conflict-text').text(message);
+                    conflict.prop('hidden', false);
+                    conflict.find('a').first().trigger('focus');
+                } else {
+                    nightshift.showRequestError(xhr, commandName(submit.first()), function () { form.trigger('submit'); });
+                }
+            });
+    });
+
+    // A policy's preview (js-policy-preview-form, in the side sheet): reads the page with the form's query and puts
+    // the result of that policy's preview, from the answer's template, in place of the shown one
+    $(document).on('submit', '.js-policy-preview-form', function (e) {
+        e.preventDefault();
+        var form = $(this);
+        var submit = form.find('[type=submit]');
+        var result = form.nextAll('.js-policy-preview-result').first();
+        var policy = form.find('[name=preview]').val();
+
+        nightshift.setLoading(submit, true);
+        result.attr('aria-busy', 'true');
+        $.ajax({ url: form.attr('action') + '?' + form.serialize(), cache: false, dataType: 'html' })
+            .done(function (html) {
+                var parsed = new DOMParser().parseFromString(html, 'text/html');
+                var fresh = null;
+                $(parsed).find('template[data-policy]').each(function () {
+                    if (this.getAttribute('data-policy') === policy) fresh = this.content.querySelector('.js-policy-preview-result');
+                });
+
+                nightshift.disposeTooltips(result);
+                result.empty();
+                if (fresh) result.append($(document.importNode(fresh, true)).contents());
+                if (nightshift.page) nightshift.page.updateRelativeDates();
+                nightshift.tooltips(result);
+                var summary = trim(result.find('.js-policy-preview-summary').text() || result.find('.alert').text());
+                if (summary) nightshift.announce(summary);
+            })
+            .fail(function (xhr) {
+                nightshift.showRequestError(xhr, commandName(submit), function () { form.trigger('submit'); });
+            })
+            .always(function () {
+                nightshift.setLoading(submit, false);
+                result.removeAttr('aria-busy');
+            });
+    });
+
     // What "Delete all" or "Requeue all" did: { processed, remaining, complete }
     nightshift.formatListResult = function (data) {
         var text = String(nightshift.config.text.listResult).replace('{0}', data.processed);
@@ -3910,4 +4002,7 @@
 
 $(function () {
     NightShift.page = new NightShift.Page(NightShift.config);
+
+    // A link to the policies page with ?edit= or ?preview= opens that policy's editor or preview
+    $('.js-policy-autoopen').first().trigger('click');
 });

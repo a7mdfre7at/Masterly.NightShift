@@ -2261,4 +2261,70 @@
   <data name="TimelinePage_Empty_Title" xml:space="preserve">
     <value>Запусков пока нет</value>
   </data>
+  <data name="PoliciesPage_Empty_Title" xml:space="preserve">
+    <value>Политик расписания пока нет</value>
+  </data>
+  <data name="PoliciesPage_Empty_Text" xml:space="preserve">
+    <value>Политика расписания — это рабочий календарь: дни, часы и даты, когда могут запускаться следующие ей задания. Повторяющиеся и отложенные задания следуют политике по её имени.</value>
+  </data>
+  <data name="PoliciesPage_Empty_ReadOnly" xml:space="preserve">
+    <value>Политики сохраняются в коде, через SaveSchedulePolicy или AddPolicy, или здесь пользователем, которому разрешено их изменять.</value>
+  </data>
+  <data name="PoliciesPage_Overnight" xml:space="preserve">
+    <value>через полночь</value>
+  </data>
+  <data name="PoliciesPage_More" xml:space="preserve">
+    <value>+{0} ещё</value>
+  </data>
+  <data name="PoliciesPage_UsedBy" xml:space="preserve">
+    <value>Используется в</value>
+  </data>
+  <data name="PoliciesPage_DeleteBlocked" xml:space="preserve">
+    <value>На неё ссылаются другие политики: её можно удалить, когда ссылок не останется.</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>Задания, уже запланированные с ней, выполнятся без неё. Политику, которой следуют повторяющиеся задания, удалить нельзя.</value>
+  </data>
+  <data name="PoliciesPage_Kind" xml:space="preserve">
+    <value>Политика расписания</value>
+  </data>
+  <data name="PoliciesPage_Group_When" xml:space="preserve">
+    <value>Когда могут запускаться задания</value>
+  </data>
+  <data name="PoliciesPage_Group_Policies" xml:space="preserve">
+    <value>Другие политики</value>
+  </data>
+  <data name="PoliciesPage_NameHint" xml:space="preserve">
+    <value>Буквы, цифры, «.», «_» и «-», до 64 символов. Потом его нельзя изменить.</value>
+  </data>
+  <data name="PoliciesPage_TimeZoneHint" xml:space="preserve">
+    <value>Часовой пояс Windows или IANA, например Europe/Berlin. Если пусто — UTC.</value>
+  </data>
+  <data name="PoliciesPage_DaysHint" xml:space="preserve">
+    <value>Ничего не выбрано — каждый день.</value>
+  </data>
+  <data name="PoliciesPage_WindowsHint" xml:space="preserve">
+    <value>HH:mm-HH:mm через запятую. Конец раньше начала означает переход через полночь. Пусто — в любое время.</value>
+  </data>
+  <data name="PoliciesPage_PoliciesHint" xml:space="preserve">
+    <value>Имена сохранённых политик через запятую. Требует: они тоже должны разрешать время. Кроме случаев: время, которое они разрешают, блокируется.</value>
+  </data>
+  <data name="PoliciesPage_NameRequired" xml:space="preserve">
+    <value>Введите имя.</value>
+  </data>
+  <data name="PoliciesPage_Exists" xml:space="preserve">
+    <value>Политика с именем «{0}» уже существует.</value>
+  </data>
+  <data name="PoliciesPage_Reload" xml:space="preserve">
+    <value>Загрузить политику заново</value>
+  </data>
+  <data name="PoliciesPage_CronHint" xml:space="preserve">
+    <value>Выражение CRON, например 0 9 * * 1-5, или расписание словами.</value>
+  </data>
+  <data name="PoliciesPage_Candidates" xml:space="preserve">
+    <value>Ближайшие срабатывания</value>
+  </data>
+  <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
+    <value>разрешено: {0}, заблокировано: {1}</value>
+  </data>
 </root>

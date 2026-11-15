@@ -2245,4 +2245,70 @@
   <data name="TimelinePage_Empty_Title" xml:space="preserve">
     <value>Henüz çalıştırma yok</value>
   </data>
+  <data name="PoliciesPage_Empty_Title" xml:space="preserve">
+    <value>Henüz zamanlama ilkesi yok</value>
+  </data>
+  <data name="PoliciesPage_Empty_Text" xml:space="preserve">
+    <value>Zamanlama ilkesi bir iş takvimidir: ona uyan işlerin başlayabileceği günler, saatler ve tarihler. Yinelenen ve ertelenen işler bir ilkeye adıyla uyar.</value>
+  </data>
+  <data name="PoliciesPage_Empty_ReadOnly" xml:space="preserve">
+    <value>İlkeler kodda SaveSchedulePolicy veya AddPolicy ile ya da burada düzenleme izni olan bir kullanıcı tarafından kaydedilir.</value>
+  </data>
+  <data name="PoliciesPage_Overnight" xml:space="preserve">
+    <value>gece yarısını geçer</value>
+  </data>
+  <data name="PoliciesPage_More" xml:space="preserve">
+    <value>+{0} tane daha</value>
+  </data>
+  <data name="PoliciesPage_UsedBy" xml:space="preserve">
+    <value>Kullanan</value>
+  </data>
+  <data name="PoliciesPage_DeleteBlocked" xml:space="preserve">
+    <value>Diğer ilkeler buna başvuruyor: artık başvurmadıklarında silinebilir.</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>Onunla zaten zamanlanmış işler onsuz çalışır. Yinelenen işlerin uyduğu bir ilke silinemez.</value>
+  </data>
+  <data name="PoliciesPage_Kind" xml:space="preserve">
+    <value>Zamanlama ilkesi</value>
+  </data>
+  <data name="PoliciesPage_Group_When" xml:space="preserve">
+    <value>İşlerin başlayabileceği zaman</value>
+  </data>
+  <data name="PoliciesPage_Group_Policies" xml:space="preserve">
+    <value>Diğer ilkeler</value>
+  </data>
+  <data name="PoliciesPage_NameHint" xml:space="preserve">
+    <value>Harfler, rakamlar, '.', '_' ve '-', en fazla 64. Sonradan değiştirilemez.</value>
+  </data>
+  <data name="PoliciesPage_TimeZoneHint" xml:space="preserve">
+    <value>Europe/Berlin gibi bir Windows veya IANA saat dilimi. Boşsa UTC.</value>
+  </data>
+  <data name="PoliciesPage_DaysHint" xml:space="preserve">
+    <value>Hiçbiri seçilmezse: her gün.</value>
+  </data>
+  <data name="PoliciesPage_WindowsHint" xml:space="preserve">
+    <value>HH:mm-HH:mm, virgülle ayrılmış. Başlangıçtan önceki bir bitiş gece yarısını geçer. Boş: her zaman.</value>
+  </data>
+  <data name="PoliciesPage_PoliciesHint" xml:space="preserve">
+    <value>Kayıtlı ilkelerin adları, virgülle ayrılmış. Gerektirir: zamana onlar da izin vermeli. Şu durum hariç: onların izin verdiği bir zaman engellenir.</value>
+  </data>
+  <data name="PoliciesPage_NameRequired" xml:space="preserve">
+    <value>Bir ad girin.</value>
+  </data>
+  <data name="PoliciesPage_Exists" xml:space="preserve">
+    <value>'{0}' adlı bir ilke zaten var.</value>
+  </data>
+  <data name="PoliciesPage_Reload" xml:space="preserve">
+    <value>İlkeyi yeniden yükle</value>
+  </data>
+  <data name="PoliciesPage_CronHint" xml:space="preserve">
+    <value>0 9 * * 1-5 gibi bir CRON ifadesi veya sözcüklerle bir zamanlama.</value>
+  </data>
+  <data name="PoliciesPage_Candidates" xml:space="preserve">
+    <value>Sonraki tekrarlar</value>
+  </data>
+  <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
+    <value>{0} izinli, {1} engelli</value>
+  </data>
 </root>

@@ -2234,4 +2234,70 @@
   <data name="TimelinePage_Empty_Title" xml:space="preserve">
     <value>Nog geen uitvoeringen</value>
   </data>
+  <data name="PoliciesPage_Empty_Title" xml:space="preserve">
+    <value>Nog geen planningsbeleid</value>
+  </data>
+  <data name="PoliciesPage_Empty_Text" xml:space="preserve">
+    <value>Een planningsbeleid is een werkkalender: de dagen, uren en datums waarop de jobs die het volgen mogen starten. Terugkerende en uitgestelde jobs volgen een beleid via de naam.</value>
+  </data>
+  <data name="PoliciesPage_Empty_ReadOnly" xml:space="preserve">
+    <value>Beleid wordt in code opgeslagen, met SaveSchedulePolicy of AddPolicy, of hier door een gebruiker die het mag bewerken.</value>
+  </data>
+  <data name="PoliciesPage_Overnight" xml:space="preserve">
+    <value>over middernacht</value>
+  </data>
+  <data name="PoliciesPage_More" xml:space="preserve">
+    <value>+{0} meer</value>
+  </data>
+  <data name="PoliciesPage_UsedBy" xml:space="preserve">
+    <value>Gebruikt door</value>
+  </data>
+  <data name="PoliciesPage_DeleteBlocked" xml:space="preserve">
+    <value>Ander beleid verwijst ernaar: het kan worden verwijderd zodra dat niet meer zo is.</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>Jobs die er al mee gepland zijn, draaien zonder. Beleid dat terugkerende jobs volgen, kan niet worden verwijderd.</value>
+  </data>
+  <data name="PoliciesPage_Kind" xml:space="preserve">
+    <value>Planningsbeleid</value>
+  </data>
+  <data name="PoliciesPage_Group_When" xml:space="preserve">
+    <value>Wanneer jobs mogen starten</value>
+  </data>
+  <data name="PoliciesPage_Group_Policies" xml:space="preserve">
+    <value>Ander beleid</value>
+  </data>
+  <data name="PoliciesPage_NameHint" xml:space="preserve">
+    <value>Letters, cijfers, '.', '_' en '-', tot 64. Kan later niet worden gewijzigd.</value>
+  </data>
+  <data name="PoliciesPage_TimeZoneHint" xml:space="preserve">
+    <value>Een Windows- of IANA-tijdzone, zoals Europe/Berlin. UTC als leeg.</value>
+  </data>
+  <data name="PoliciesPage_DaysHint" xml:space="preserve">
+    <value>Geen geselecteerd: elke dag.</value>
+  </data>
+  <data name="PoliciesPage_WindowsHint" xml:space="preserve">
+    <value>HH:mm-HH:mm, gescheiden door komma's. Een einde vóór het begin gaat over middernacht. Leeg: altijd.</value>
+  </data>
+  <data name="PoliciesPage_PoliciesHint" xml:space="preserve">
+    <value>Namen van opgeslagen beleid, gescheiden door komma's. Vereist: ze moeten het tijdstip ook toestaan. Behalve wanneer: een tijdstip dat ze toestaan, wordt geblokkeerd.</value>
+  </data>
+  <data name="PoliciesPage_NameRequired" xml:space="preserve">
+    <value>Voer een naam in.</value>
+  </data>
+  <data name="PoliciesPage_Exists" xml:space="preserve">
+    <value>Er bestaat al beleid met de naam '{0}'.</value>
+  </data>
+  <data name="PoliciesPage_Reload" xml:space="preserve">
+    <value>Beleid opnieuw laden</value>
+  </data>
+  <data name="PoliciesPage_CronHint" xml:space="preserve">
+    <value>Een CRON-expressie, zoals 0 9 * * 1-5, of een planning in woorden.</value>
+  </data>
+  <data name="PoliciesPage_Candidates" xml:space="preserve">
+    <value>Volgende momenten</value>
+  </data>
+  <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
+    <value>{0} toegestaan, {1} geblokkeerd</value>
+  </data>
 </root>

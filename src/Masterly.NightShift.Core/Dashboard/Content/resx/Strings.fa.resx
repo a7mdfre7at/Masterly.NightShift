@@ -2267,4 +2267,70 @@
   <data name="TimelinePage_Empty_Title" xml:space="preserve">
     <value>هنوز اجرایی نیست</value>
   </data>
+  <data name="PoliciesPage_Empty_Title" xml:space="preserve">
+    <value>هنوز هیچ سیاست زمان‌بندی‌ای وجود ندارد</value>
+  </data>
+  <data name="PoliciesPage_Empty_Text" xml:space="preserve">
+    <value>سیاست زمان‌بندی یک تقویم کاری است: روزها، ساعت‌ها و تاریخ‌هایی که کارهای پیرو آن می‌توانند شروع شوند. کارهای تکرارشونده و تأخیری با نام یک سیاست از آن پیروی می‌کنند.</value>
+  </data>
+  <data name="PoliciesPage_Empty_ReadOnly" xml:space="preserve">
+    <value>سیاست‌ها در کد با SaveSchedulePolicy یا AddPolicy ذخیره می‌شوند، یا اینجا توسط کاربری که اجازهٔ ویرایش دارد.</value>
+  </data>
+  <data name="PoliciesPage_Overnight" xml:space="preserve">
+    <value>از نیمه‌شب می‌گذرد</value>
+  </data>
+  <data name="PoliciesPage_More" xml:space="preserve">
+    <value>+{0} مورد دیگر</value>
+  </data>
+  <data name="PoliciesPage_UsedBy" xml:space="preserve">
+    <value>استفاده‌شده توسط</value>
+  </data>
+  <data name="PoliciesPage_DeleteBlocked" xml:space="preserve">
+    <value>سیاست‌های دیگری به آن ارجاع می‌دهند: وقتی دیگر ارجاع ندهند می‌توان آن را حذف کرد.</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>کارهایی که از قبل با آن زمان‌بندی شده‌اند بدون آن اجرا می‌شوند. سیاستی که کارهای تکرارشونده از آن پیروی می‌کنند قابل حذف نیست.</value>
+  </data>
+  <data name="PoliciesPage_Kind" xml:space="preserve">
+    <value>سیاست زمان‌بندی</value>
+  </data>
+  <data name="PoliciesPage_Group_When" xml:space="preserve">
+    <value>زمانی که کارها می‌توانند شروع شوند</value>
+  </data>
+  <data name="PoliciesPage_Group_Policies" xml:space="preserve">
+    <value>سیاست‌های دیگر</value>
+  </data>
+  <data name="PoliciesPage_NameHint" xml:space="preserve">
+    <value>حروف، ارقام، «.»، «_» و «-»، حداکثر ۶۴. بعداً قابل تغییر نیست.</value>
+  </data>
+  <data name="PoliciesPage_TimeZoneHint" xml:space="preserve">
+    <value>یک منطقهٔ زمانی ویندوز یا IANA، مانند Europe/Berlin. اگر خالی باشد UTC.</value>
+  </data>
+  <data name="PoliciesPage_DaysHint" xml:space="preserve">
+    <value>اگر هیچ‌کدام انتخاب نشود: هر روز.</value>
+  </data>
+  <data name="PoliciesPage_WindowsHint" xml:space="preserve">
+    <value>HH:mm-HH:mm، جداشده با ویرگول. پایانِ پیش از شروع از نیمه‌شب می‌گذرد. خالی: هر زمان.</value>
+  </data>
+  <data name="PoliciesPage_PoliciesHint" xml:space="preserve">
+    <value>نام سیاست‌های ذخیره‌شده، جداشده با ویرگول. نیاز دارد: آن‌ها هم باید آن زمان را مجاز بدانند. به‌جز وقتی: زمانی که آن‌ها مجاز می‌دانند مسدود می‌شود.</value>
+  </data>
+  <data name="PoliciesPage_NameRequired" xml:space="preserve">
+    <value>یک نام وارد کنید.</value>
+  </data>
+  <data name="PoliciesPage_Exists" xml:space="preserve">
+    <value>سیاستی با نام «{0}» از قبل وجود دارد.</value>
+  </data>
+  <data name="PoliciesPage_Reload" xml:space="preserve">
+    <value>بارگیری دوبارهٔ سیاست</value>
+  </data>
+  <data name="PoliciesPage_CronHint" xml:space="preserve">
+    <value>یک عبارت CRON، مانند 0 9 * * 1-5، یا یک زمان‌بندی با کلمات.</value>
+  </data>
+  <data name="PoliciesPage_Candidates" xml:space="preserve">
+    <value>رخدادهای بعدی</value>
+  </data>
+  <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
+    <value>{0} مجاز، {1} مسدود</value>
+  </data>
 </root>

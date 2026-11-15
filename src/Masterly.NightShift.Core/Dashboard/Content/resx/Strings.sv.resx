@@ -2275,4 +2275,70 @@
   <data name="TimelinePage_Empty_Title" xml:space="preserve">
     <value>Inga körningar ännu</value>
   </data>
+  <data name="PoliciesPage_Empty_Title" xml:space="preserve">
+    <value>Inga schemaregler ännu</value>
+  </data>
+  <data name="PoliciesPage_Empty_Text" xml:space="preserve">
+    <value>En schemaregel är en arbetskalender: de dagar, timmar och datum då jobben som följer den får starta. Återkommande och fördröjda jobb följer en regel via dess namn.</value>
+  </data>
+  <data name="PoliciesPage_Empty_ReadOnly" xml:space="preserve">
+    <value>Regler sparas i koden, med SaveSchedulePolicy eller AddPolicy, eller här av en användare som får redigera dem.</value>
+  </data>
+  <data name="PoliciesPage_Overnight" xml:space="preserve">
+    <value>över midnatt</value>
+  </data>
+  <data name="PoliciesPage_More" xml:space="preserve">
+    <value>+{0} till</value>
+  </data>
+  <data name="PoliciesPage_UsedBy" xml:space="preserve">
+    <value>Används av</value>
+  </data>
+  <data name="PoliciesPage_DeleteBlocked" xml:space="preserve">
+    <value>Andra regler hänvisar till den: den kan tas bort när de inte längre gör det.</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>Jobb som redan är schemalagda med den körs utan den. En regel som återkommande jobb följer kan inte tas bort.</value>
+  </data>
+  <data name="PoliciesPage_Kind" xml:space="preserve">
+    <value>Schemaregel</value>
+  </data>
+  <data name="PoliciesPage_Group_When" xml:space="preserve">
+    <value>När jobb får starta</value>
+  </data>
+  <data name="PoliciesPage_Group_Policies" xml:space="preserve">
+    <value>Andra regler</value>
+  </data>
+  <data name="PoliciesPage_NameHint" xml:space="preserve">
+    <value>Bokstäver, siffror, '.', '_' och '-', högst 64. Det kan inte ändras senare.</value>
+  </data>
+  <data name="PoliciesPage_TimeZoneHint" xml:space="preserve">
+    <value>En Windows- eller IANA-tidszon, till exempel Europe/Berlin. UTC om tom.</value>
+  </data>
+  <data name="PoliciesPage_DaysHint" xml:space="preserve">
+    <value>Inga valda: varje dag.</value>
+  </data>
+  <data name="PoliciesPage_WindowsHint" xml:space="preserve">
+    <value>HH:mm-HH:mm, åtskilda med komma. Ett slut före starten går över midnatt. Tomt: när som helst.</value>
+  </data>
+  <data name="PoliciesPage_PoliciesHint" xml:space="preserve">
+    <value>Namn på sparade regler, åtskilda med komma. Kräver: de måste också tillåta tiden. Utom när: en tid de tillåter blockeras.</value>
+  </data>
+  <data name="PoliciesPage_NameRequired" xml:space="preserve">
+    <value>Ange ett namn.</value>
+  </data>
+  <data name="PoliciesPage_Exists" xml:space="preserve">
+    <value>Det finns redan en regel med namnet '{0}'.</value>
+  </data>
+  <data name="PoliciesPage_Reload" xml:space="preserve">
+    <value>Läs in regeln igen</value>
+  </data>
+  <data name="PoliciesPage_CronHint" xml:space="preserve">
+    <value>Ett CRON-uttryck, till exempel 0 9 * * 1-5, eller ett schema i ord.</value>
+  </data>
+  <data name="PoliciesPage_Candidates" xml:space="preserve">
+    <value>Nästa tillfällen</value>
+  </data>
+  <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
+    <value>{0} tillåtna, {1} blockerade</value>
+  </data>
 </root>

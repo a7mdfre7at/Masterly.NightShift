@@ -2211,4 +2211,70 @@
   <data name="TimelinePage_Empty_Title" xml:space="preserve">
     <value>尚無執行</value>
   </data>
+  <data name="PoliciesPage_Empty_Title" xml:space="preserve">
+    <value>尚無排程原則</value>
+  </data>
+  <data name="PoliciesPage_Empty_Text" xml:space="preserve">
+    <value>排程原則是一份營業行事曆：遵循它的工作可以開始的日子、時段和日期。週期性工作與延遲工作以名稱遵循原則。</value>
+  </data>
+  <data name="PoliciesPage_Empty_ReadOnly" xml:space="preserve">
+    <value>原則在程式碼中以 SaveSchedulePolicy 或 AddPolicy 儲存，或由可編輯的使用者在此儲存。</value>
+  </data>
+  <data name="PoliciesPage_Overnight" xml:space="preserve">
+    <value>跨越午夜</value>
+  </data>
+  <data name="PoliciesPage_More" xml:space="preserve">
+    <value>+{0} 個</value>
+  </data>
+  <data name="PoliciesPage_UsedBy" xml:space="preserve">
+    <value>使用者</value>
+  </data>
+  <data name="PoliciesPage_DeleteBlocked" xml:space="preserve">
+    <value>其他原則參照了它：等它們不再參照後才能刪除。</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>已以它排程的工作會在沒有它的情況下執行。週期性工作所遵循的原則無法刪除。</value>
+  </data>
+  <data name="PoliciesPage_Kind" xml:space="preserve">
+    <value>排程原則</value>
+  </data>
+  <data name="PoliciesPage_Group_When" xml:space="preserve">
+    <value>工作可以開始的時間</value>
+  </data>
+  <data name="PoliciesPage_Group_Policies" xml:space="preserve">
+    <value>其他原則</value>
+  </data>
+  <data name="PoliciesPage_NameHint" xml:space="preserve">
+    <value>字母、數字、「.」、「_」和「-」，最多 64 個。之後無法變更。</value>
+  </data>
+  <data name="PoliciesPage_TimeZoneHint" xml:space="preserve">
+    <value>Windows 或 IANA 時區，例如 Europe/Berlin。留空則為 UTC。</value>
+  </data>
+  <data name="PoliciesPage_DaysHint" xml:space="preserve">
+    <value>未選取：每天。</value>
+  </data>
+  <data name="PoliciesPage_WindowsHint" xml:space="preserve">
+    <value>HH:mm-HH:mm，以逗號分隔。結束早於開始表示跨越午夜。留空：任何時間。</value>
+  </data>
+  <data name="PoliciesPage_PoliciesHint" xml:space="preserve">
+    <value>已儲存原則的名稱，以逗號分隔。需要：它們也必須允許該時間。除非：它們允許的時間會被封鎖。</value>
+  </data>
+  <data name="PoliciesPage_NameRequired" xml:space="preserve">
+    <value>請輸入名稱。</value>
+  </data>
+  <data name="PoliciesPage_Exists" xml:space="preserve">
+    <value>已有名為「{0}」的原則。</value>
+  </data>
+  <data name="PoliciesPage_Reload" xml:space="preserve">
+    <value>重新載入原則</value>
+  </data>
+  <data name="PoliciesPage_CronHint" xml:space="preserve">
+    <value>CRON 運算式，例如 0 9 * * 1-5，或以文字描述的排程。</value>
+  </data>
+  <data name="PoliciesPage_Candidates" xml:space="preserve">
+    <value>接下來的時間</value>
+  </data>
+  <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
+    <value>{0} 個允許，{1} 個封鎖</value>
+  </data>
 </root>

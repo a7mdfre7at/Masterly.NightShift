@@ -6,6 +6,15 @@ internal partial class SchedulePoliciesPage
 {
     private const int PreviewCount = 20;
 
+    // The excluded dates a card shows before "+N more"
+    private const int DatesShown = 6;
+
+    // The week as the editor and the cards show it, from Monday
+    private static readonly DayOfWeek[] Week =
+    [
+        DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday,
+    ];
+
     private IReadOnlyList<SchedulePolicy> ReadPolicies()
     {
         try
@@ -55,40 +64,58 @@ internal partial class SchedulePoliciesPage
         }
     }
 
-    // The pages write attributes as text, so a boolean attribute is written only when it applies
-    private NonEscapedString Option(string value, bool selected)
+    // The policies that require or make an exception for each policy, from the policies already read: the page knows
+    // them without asking the storage (the recurring jobs that follow a policy would take a read per job)
+    private static Dictionary<string, List<string>> FindUsers(IReadOnlyList<SchedulePolicy> policies)
     {
-        return new NonEscapedString($"<option value=\"{Html.HtmlEncode(value)}\"{(selected ? " selected=\"selected\"" : string.Empty)}>{Html.HtmlEncode(value)}</option>");
-    }
-
-    private NonEscapedString DayCheckbox(DayOfWeek day, bool isChecked)
-    {
-        string name = CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedDayName(day);
-        return new NonEscapedString($"<div class=\"form-check form-check-inline\"><input type=\"checkbox\" class=\"form-check-input\" id=\"policy-day-{day}\" name=\"days\" value=\"{day}\"{(isChecked ? " checked=\"checked\"" : string.Empty)}/><label class=\"form-check-label\" for=\"policy-day-{day}\">{Html.HtmlEncode(name)}</label></div>");
-    }
-
-    private static string ExcludedText(SchedulePolicy policy)
-    {
-        const int maxDatesShown = 12;
-
-        IEnumerable<string> dates = policy.ExcludedAnnualDates.Select(static x => x.ToString())
-            .Concat(policy.ExcludedDates.Select(static x => x.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
-        List<string> parts = [.. dates.Take(maxDatesShown)];
-
-        int more = policy.ExcludedDates.Count + policy.ExcludedAnnualDates.Count - parts.Count;
-        if (more > 0)
+        Dictionary<string, List<string>> users = new(StringComparer.Ordinal);
+        foreach (SchedulePolicy policy in policies)
         {
-            parts.Add($"+{more.ToString(CultureInfo.CurrentCulture)}");
+            foreach (string name in policy.Required.Concat(policy.Excepted).Distinct(StringComparer.Ordinal))
+            {
+                if (!users.TryGetValue(name, out List<string>? list))
+                {
+                    users[name] = list = [];
+                }
+
+                list.Add(policy.Name);
+            }
         }
 
-        parts.AddRange(policy.DateProviders.Select(static x => $"[{x}]"));
+        return users;
+    }
 
-        return string.Join(", ", parts);
+    private static IReadOnlyList<string> FindUsers(Dictionary<string, List<string>> users, string name)
+    {
+        return users.TryGetValue(name, out List<string>? list) ? list : [];
+    }
+
+    private static bool IsAllowed(SchedulePolicy policy, DayOfWeek day) => policy.Days.Count == 0 || policy.Days.Contains(day);
+
+    private static bool CrossesMidnight(ScheduleWindow window) => window.End < window.Start;
+
+    private static string ShortDayName(DayOfWeek day) => CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedDayName(day);
+
+    private static string DayName(DayOfWeek day) => CultureInfo.CurrentCulture.DateTimeFormat.GetDayName(day);
+
+    // The days of every year first, then the dates, as the editor writes them
+    private static List<string> ExcludedDates(SchedulePolicy policy)
+    {
+        return
+        [
+            .. policy.ExcludedAnnualDates.Select(static x => x.ToString()),
+            .. policy.ExcludedDates.Select(static x => x.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+        ];
+    }
+
+    // The pages write attributes as text, so a boolean attribute is written only when it applies
+    private NonEscapedString DayChoice(DayOfWeek day, bool isChecked)
+    {
+        return new NonEscapedString($"<label class=\"ns-chip ns-chip-filter ns-policy-day-choice\"><input type=\"checkbox\" name=\"days\" value=\"{day}\"{(isChecked ? " checked=\"checked\"" : string.Empty)}/>{Html.Icon("check-lg", "ns-policy-day-check")}<span aria-hidden=\"true\">{Html.HtmlEncode(ShortDayName(day))}</span><span class=\"visually-hidden\">{Html.HtmlEncode(DayName(day))}</span></label>");
     }
 
     private static string DatesText(SchedulePolicy policy)
     {
-        return string.Join(", ", policy.ExcludedAnnualDates.Select(static x => x.ToString())
-            .Concat(policy.ExcludedDates.Select(static x => x.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))));
+        return string.Join(", ", ExcludedDates(policy));
     }
 }

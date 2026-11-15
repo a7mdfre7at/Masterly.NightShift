@@ -2273,4 +2273,70 @@
   <data name="TimelinePage_Empty_Title" xml:space="preserve">
     <value>Ingen kjøringer ennå</value>
   </data>
+  <data name="PoliciesPage_Empty_Title" xml:space="preserve">
+    <value>Ingen planleggingsregler ennå</value>
+  </data>
+  <data name="PoliciesPage_Empty_Text" xml:space="preserve">
+    <value>En planleggingsregel er en arbeidskalender: dagene, timene og datoene da jobbene som følger den kan starte. Gjentakende og utsatte jobber følger en regel ved navnet.</value>
+  </data>
+  <data name="PoliciesPage_Empty_ReadOnly" xml:space="preserve">
+    <value>Regler lagres i koden, med SaveSchedulePolicy eller AddPolicy, eller her av en bruker som kan redigere dem.</value>
+  </data>
+  <data name="PoliciesPage_Overnight" xml:space="preserve">
+    <value>går over midnatt</value>
+  </data>
+  <data name="PoliciesPage_More" xml:space="preserve">
+    <value>+{0} til</value>
+  </data>
+  <data name="PoliciesPage_UsedBy" xml:space="preserve">
+    <value>Brukt av</value>
+  </data>
+  <data name="PoliciesPage_DeleteBlocked" xml:space="preserve">
+    <value>Andre regler viser til den: den kan slettes når de ikke lenger gjør det.</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>Jobber som allerede er planlagt med den, kjører uten den. En regel som gjentakende jobber følger, kan ikke slettes.</value>
+  </data>
+  <data name="PoliciesPage_Kind" xml:space="preserve">
+    <value>Planleggingsregel</value>
+  </data>
+  <data name="PoliciesPage_Group_When" xml:space="preserve">
+    <value>Når jobber kan starte</value>
+  </data>
+  <data name="PoliciesPage_Group_Policies" xml:space="preserve">
+    <value>Andre regler</value>
+  </data>
+  <data name="PoliciesPage_NameHint" xml:space="preserve">
+    <value>Bokstaver, sifre, «.», «_» og «-», opptil 64. Det kan ikke endres senere.</value>
+  </data>
+  <data name="PoliciesPage_TimeZoneHint" xml:space="preserve">
+    <value>En Windows- eller IANA-tidssone, for eksempel Europe/Berlin. UTC når tom.</value>
+  </data>
+  <data name="PoliciesPage_DaysHint" xml:space="preserve">
+    <value>Ingen valgt: hver dag.</value>
+  </data>
+  <data name="PoliciesPage_WindowsHint" xml:space="preserve">
+    <value>HH:mm-HH:mm, adskilt med komma. En slutt før starten går over midnatt. Tom: når som helst.</value>
+  </data>
+  <data name="PoliciesPage_PoliciesHint" xml:space="preserve">
+    <value>Navn på lagrede regler, adskilt med komma. Krever: de må også tillate tidspunktet. Unntatt når: et tidspunkt de tillater, blokkeres.</value>
+  </data>
+  <data name="PoliciesPage_NameRequired" xml:space="preserve">
+    <value>Skriv inn et navn.</value>
+  </data>
+  <data name="PoliciesPage_Exists" xml:space="preserve">
+    <value>En regel med navnet «{0}» finnes allerede.</value>
+  </data>
+  <data name="PoliciesPage_Reload" xml:space="preserve">
+    <value>Last inn regelen på nytt</value>
+  </data>
+  <data name="PoliciesPage_CronHint" xml:space="preserve">
+    <value>Et CRON-uttrykk, for eksempel 0 9 * * 1-5, eller en plan i ord.</value>
+  </data>
+  <data name="PoliciesPage_Candidates" xml:space="preserve">
+    <value>Neste forekomster</value>
+  </data>
+  <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
+    <value>{0} tillatt, {1} blokkert</value>
+  </data>
 </root>

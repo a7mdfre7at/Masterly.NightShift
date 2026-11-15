@@ -4542,22 +4542,6 @@ label.ns-required::after {
     padding-left: 18px;
 }
 
-/* Batches (the header of a schedule policy's card)
-   ------------------------------------------------------------------ */
-
-.hf-batch-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-}
-
-.hf-batch-actions {
-    display: flex;
-    gap: 6px;
-}
-
 /* Queue health and per-queue pause
    ------------------------------------------------------------------ */
 
@@ -5129,31 +5113,213 @@ body.hf-app.hf-wallboard {
 .hf-tl-tick-first { transform: none; }
 .hf-tl-tick-last { transform: translateX(-100%); }
 
-/* Schedule policies: the preview form is a row from 768px, as Bootstrap 3's form-inline was, and stacked below */
+/* Schedule policies: a card per policy, in the grid of the server cards (ns-policy-grid, ns-policy-card). Its name,
+   description and facts (time zone, revision); its rules in a key-value list: the seven days as chips (an allowed
+   day filled, with a check, a blocked one outlined), the hours (a window crossing midnight says so), the excluded
+   dates with "+N more", the date providers, and links to the policies it requires, makes an exception for or is
+   used by; then Delete, set apart from Preview and Edit, which open the side sheet. */
+.hf-app .ns-policy-card {
+    scroll-margin-top: calc(var(--ns-app-bar-height) + var(--md-sys-spacing-4));
+}
 
-.hf-policy-preview {
+.hf-app .ns-policy-name {
+    margin: 0;
+    font: var(--md-sys-typescale-title-medium);
+    overflow-wrap: anywhere;
+}
+
+.ns-policy-description {
+    margin: var(--md-sys-spacing-1) 0 0;
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface-variant);
+    overflow-wrap: anywhere;
+}
+
+.ns-policy-facts {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    margin-bottom: 10px;
+    flex-wrap: wrap;
+    gap: var(--md-sys-spacing-2);
+    margin: var(--md-sys-spacing-3) 0 var(--md-sys-spacing-4);
 }
 
-.hf-policy-preview .form-control,
-.hf-policy-preview .form-select {
-    width: 100%;
+/* Each rule's name over its chips, so the chips have the card's width */
+.hf-app .ns-policy-rules {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--md-sys-spacing-1);
 }
 
-@media (min-width: 768px) {
-    .hf-policy-preview {
-        flex-direction: row;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 5px;
-    }
+.hf-app .ns-policy-rules > dd {
+    margin-bottom: var(--md-sys-spacing-2);
+}
 
-    .hf-policy-preview .form-control,
-    .hf-policy-preview .form-select {
-        width: auto;
+.ns-policy-window {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--md-sys-spacing-1) var(--md-sys-spacing-2);
+}
+
+.ns-policy-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--md-sys-spacing-1) 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ns-chip.ns-policy-day {
+    gap: 2px;
+    padding: 0 var(--md-sys-spacing-2);
+    border-color: var(--md-sys-color-outline-variant);
+}
+
+.ns-chip.ns-policy-day-allowed {
+    border-color: transparent;
+    background-color: var(--md-sys-color-secondary-container);
+    color: var(--md-sys-color-on-secondary-container);
+}
+
+.ns-policy-overnight {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-1);
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ns-policy-any {
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ns-policy-more > summary {
+    list-style: none;
+}
+
+.ns-policy-more > summary::-webkit-details-marker {
+    display: none;
+}
+
+.ns-policy-more > .ns-policy-chips {
+    margin-top: var(--md-sys-spacing-1);
+}
+
+.ns-policy-more-item:has(> .ns-policy-more[open]) {
+    flex-basis: 100%;
+}
+
+.ns-policy-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--md-sys-spacing-2);
+    margin-top: auto;
+    padding-top: var(--md-sys-spacing-4);
+}
+
+.ns-policy-actions-end {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--md-sys-spacing-2);
+    margin-left: auto;
+}
+
+.ns-policy-delete-note {
+    flex: 1 1 100%;
+    margin: 0;
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+/* The editor in the side sheet: the name, description and time zone, then a fieldset for when jobs may start (the
+   days as filter chips) and one for the other policies; a change made meanwhile shows the conflict note */
+.ns-policy-fieldset {
+    min-width: 0;
+    margin: var(--md-sys-spacing-5) 0 0;
+    padding: 0;
+    border: 0;
+}
+
+.hf-app .ns-policy-fieldset > legend {
+    float: none;
+    width: auto;
+    margin: 0 0 var(--md-sys-spacing-3);
+    padding: 0;
+    font: var(--md-sys-typescale-title-small);
+    color: var(--md-sys-color-on-surface);
+}
+
+.hf-app .ns-policy-fieldset-hint {
+    margin: 0 0 var(--md-sys-spacing-3);
+    padding: 0;
+}
+
+.ns-policy-days-field {
+    margin-bottom: var(--md-sys-spacing-4);
+}
+
+.ns-policy-label {
+    display: block;
+    margin-bottom: var(--md-sys-spacing-1);
+    font: var(--md-sys-typescale-label-medium);
+    letter-spacing: var(--md-sys-typescale-label-medium-tracking);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ns-policy-day-choice .ns-policy-day-check {
+    display: none;
+}
+
+.ns-policy-day-choice:has(input:checked) .ns-policy-day-check {
+    display: inline-block;
+}
+
+.hf-app .ns-policy-conflict {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--md-sys-spacing-2);
+}
+
+.hf-app .ns-policy-conflict .ns-btn-text {
+    --bs-btn-color: var(--md-sys-color-on-error-container);
+    --bs-btn-hover-color: var(--md-sys-color-on-error-container);
+    --bs-btn-active-color: var(--md-sys-color-on-error-container);
+}
+
+/* The preview in the side sheet: the schedule and its time zone, then the next occurrences, each allowed or blocked
+   (a state chip with its icon and name) with the reason under it */
+.ns-policy-preview-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 12rem);
+    gap: 0 var(--md-sys-spacing-3);
+}
+
+.ns-policy-preview-form > .btn {
+    grid-column: 1 / -1;
+    justify-self: start;
+}
+
+.ns-policy-preview-result {
+    margin-top: var(--md-sys-spacing-2);
+}
+
+.ns-policy-candidates .ns-next-runs-relative {
+    display: block;
+}
+
+.ns-policy-reason {
+    flex: 1 1 100%;
+    padding-left: calc(1.5rem + var(--md-sys-spacing-3));
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 599.98px) {
+    .ns-policy-preview-form {
+        grid-template-columns: minmax(0, 1fr);
     }
 }
 
@@ -7225,14 +7391,16 @@ a.ns-home-tile:hover {
 /* Servers: a card per server. Its name and status, the busy workers on a meter in the brand gradient, the queues as
    chips, when it started and its last heartbeat. A server without a recent heartbeat is muted (a dashed outline and
    the variant text roles, never a lowered opacity, so its text keeps its contrast). */
-.ns-server-grid {
+.ns-server-grid,
+.ns-policy-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
     gap: var(--md-sys-spacing-4);
     margin-bottom: var(--md-sys-spacing-6);
 }
 
-.hf-app .ns-server-card {
+.hf-app .ns-server-card,
+.hf-app .ns-policy-card {
     display: flex;
     flex-direction: column;
     margin: 0;
@@ -7240,7 +7408,8 @@ a.ns-home-tile:hover {
     transition: box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 
-.hf-app .ns-server-card:hover {
+.hf-app .ns-server-card:hover,
+.hf-app .ns-policy-card:hover {
     box-shadow: var(--md-sys-elevation-level1);
 }
 

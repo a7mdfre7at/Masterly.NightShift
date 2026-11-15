@@ -59,7 +59,9 @@ internal sealed class JsonCommandDispatcher(Func<DashboardContext, Task<CommandR
 
         if (result.Error != null)
         {
-            await DashboardJson.WriteAsync(context, result.StatusCode, new { error = result.Error }).ConfigureAwait(false);
+            // A refusal about one field of a form names it, so the form shows the reason under that field
+            object body = result.Field != null ? new { error = result.Error, field = result.Field } : new { error = result.Error };
+            await DashboardJson.WriteAsync(context, result.StatusCode, body).ConfigureAwait(false);
         }
         else
         {
@@ -90,6 +92,9 @@ internal sealed class JsonCommandDispatcher(Func<DashboardContext, Task<CommandR
 /// <summary>What a <see cref="JsonCommandDispatcher"/> command did.</summary>
 internal sealed record CommandResult(int StatusCode, string? Error, string? Detail)
 {
+    /// <summary>The form field a refusal is about, such as <c>windows</c>, or <c>null</c>.</summary>
+    public string? Field { get; init; }
+
     public static CommandResult Done(string? detail = null) => new((int)HttpStatusCode.NoContent, null, detail);
 
     public static CommandResult Refused(int statusCode, string error) => new(statusCode, error, null);

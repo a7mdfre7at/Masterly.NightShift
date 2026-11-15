@@ -2222,4 +2222,70 @@
   <data name="TimelinePage_Empty_Title" xml:space="preserve">
     <value>尚无运行</value>
   </data>
+  <data name="PoliciesPage_Empty_Title" xml:space="preserve">
+    <value>尚无计划策略</value>
+  </data>
+  <data name="PoliciesPage_Empty_Text" xml:space="preserve">
+    <value>计划策略是一份工作日历：遵循它的作业可以开始的日期、时段和具体日期。周期性作业和延迟作业按名称遵循策略。</value>
+  </data>
+  <data name="PoliciesPage_Empty_ReadOnly" xml:space="preserve">
+    <value>策略在代码中通过 SaveSchedulePolicy 或 AddPolicy 保存，或由有编辑权限的用户在此保存。</value>
+  </data>
+  <data name="PoliciesPage_Overnight" xml:space="preserve">
+    <value>跨越午夜</value>
+  </data>
+  <data name="PoliciesPage_More" xml:space="preserve">
+    <value>+{0} 个</value>
+  </data>
+  <data name="PoliciesPage_UsedBy" xml:space="preserve">
+    <value>被以下使用</value>
+  </data>
+  <data name="PoliciesPage_DeleteBlocked" xml:space="preserve">
+    <value>其他策略引用了它：在它们不再引用后才能删除。</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>已按它计划的作业将在没有它的情况下运行。周期性作业遵循的策略无法删除。</value>
+  </data>
+  <data name="PoliciesPage_Kind" xml:space="preserve">
+    <value>计划策略</value>
+  </data>
+  <data name="PoliciesPage_Group_When" xml:space="preserve">
+    <value>作业可以开始的时间</value>
+  </data>
+  <data name="PoliciesPage_Group_Policies" xml:space="preserve">
+    <value>其他策略</value>
+  </data>
+  <data name="PoliciesPage_NameHint" xml:space="preserve">
+    <value>字母、数字、“.”、“_”和“-”，最多 64 个。之后无法更改。</value>
+  </data>
+  <data name="PoliciesPage_TimeZoneHint" xml:space="preserve">
+    <value>Windows 或 IANA 时区，例如 Europe/Berlin。留空则为 UTC。</value>
+  </data>
+  <data name="PoliciesPage_DaysHint" xml:space="preserve">
+    <value>未选择：每天。</value>
+  </data>
+  <data name="PoliciesPage_WindowsHint" xml:space="preserve">
+    <value>HH:mm-HH:mm，以逗号分隔。结束早于开始表示跨越午夜。留空：任何时间。</value>
+  </data>
+  <data name="PoliciesPage_PoliciesHint" xml:space="preserve">
+    <value>已保存策略的名称，以逗号分隔。需要：它们也必须允许该时间。除非：它们允许的时间会被阻止。</value>
+  </data>
+  <data name="PoliciesPage_NameRequired" xml:space="preserve">
+    <value>请输入名称。</value>
+  </data>
+  <data name="PoliciesPage_Exists" xml:space="preserve">
+    <value>已存在名为“{0}”的策略。</value>
+  </data>
+  <data name="PoliciesPage_Reload" xml:space="preserve">
+    <value>重新加载策略</value>
+  </data>
+  <data name="PoliciesPage_CronHint" xml:space="preserve">
+    <value>CRON 表达式，例如 0 9 * * 1-5，或用文字描述的计划。</value>
+  </data>
+  <data name="PoliciesPage_Candidates" xml:space="preserve">
+    <value>接下来的时间</value>
+  </data>
+  <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
+    <value>{0} 个允许，{1} 个阻止</value>
+  </data>
 </root>

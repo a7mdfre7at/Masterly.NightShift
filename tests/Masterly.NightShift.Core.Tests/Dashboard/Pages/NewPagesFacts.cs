@@ -216,12 +216,43 @@ public class NewPagesFacts
     }
 
     [Fact]
-    public void Policies_SaysThereAreNone_AndOffersTheEditor()
+    public void Policies_SaysWhatAPolicyIsFor_WhenThereAreNone_AndOffersTheEditor()
     {
         string html = _renderer.Render(new SchedulePoliciesPage());
 
-        Assert.Contains("No schedule policies.", html, StringComparison.Ordinal);
+        Assert.Contains("<h2 class=\"ns-empty-state-title\">No schedule policies yet</h2>", html, StringComparison.Ordinal);
+        Assert.Contains("A schedule policy is a business calendar", html, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"ns-count-chip js-list-count\">0</span>", html, StringComparison.Ordinal);
+        Assert.Equal(2, Count(html, "data-sheet-content=\"#policy-new\""));
+        Assert.Contains("<template id=\"policy-new\">", html, StringComparison.Ordinal);
         Assert.Contains("/policies/save", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Policies_SaysWherePoliciesComeFrom_WhenThereAreNone_ForReadOnlyUsers()
+    {
+        _renderer.Options = new DashboardOptions { IsReadOnlyFunc = static _ => true };
+
+        string html = _renderer.Render(new SchedulePoliciesPage());
+
+        Assert.Contains("No schedule policies yet", html, StringComparison.Ordinal);
+        Assert.Contains("SaveSchedulePolicy or AddPolicy", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("#policy-new", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("/policies/save", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Policies_HasAHeader_WithTheCount_AndNewPolicyAsItsAction()
+    {
+        SetUpPolicy();
+
+        string html = _renderer.Render(new SchedulePoliciesPage());
+
+        Assert.Contains("<header class=\"ns-page-head\">", html, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"ns-count-chip js-list-count\">1</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<button type=\"button\" class=\"btn btn-sm btn-primary js-sheet-open\" aria-haspopup=\"dialog\" data-sheet-content=\"#policy-new\"", html, StringComparison.Ordinal);
+        Assert.Contains("<div class=\"ns-policy-grid\">", html, StringComparison.Ordinal);
+        Assert.Contains("<h2 id=\"policy-title-0\" class=\"ns-policy-name\">weekdays</h2>", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -238,11 +269,148 @@ public class NewPagesFacts
         Assert.Contains("revision 3", html, StringComparison.Ordinal);
         Assert.Contains("09:00-17:00", html, StringComparison.Ordinal);
         Assert.Contains("/policies/delete/weekdays/3", html, StringComparison.Ordinal);
+        Assert.Contains("<template id=\"policy-edit-0\">", html, StringComparison.Ordinal);
         Assert.Contains("name=\"revision\" value=\"3\"", html, StringComparison.Ordinal);
         Assert.Contains("value=\"Monday\" checked=\"checked\"", html, StringComparison.Ordinal);
         Assert.Contains("value=\"Sunday\"/>", html, StringComparison.Ordinal);
-        Assert.Contains("<option value=\"weekdays\" selected=\"selected\">", html, StringComparison.Ordinal);
-        Assert.True(html.Contains("Allowed", StringComparison.Ordinal) || html.Contains("Blocked", StringComparison.Ordinal));
+        Assert.Contains("<input type=\"hidden\" name=\"preview\" value=\"weekdays\"/>", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"0 12 * * *\"", html, StringComparison.Ordinal);
+        Assert.Contains("<h3>Next occurrences</h3>", html, StringComparison.Ordinal);
+        Assert.Contains("<ol class=\"ns-next-runs ns-policy-candidates\">", html, StringComparison.Ordinal);
+        Assert.True(
+            html.Contains("<span class=\"ns-state-chip ns-state-succeeded\">", StringComparison.Ordinal) ||
+            html.Contains("<span class=\"ns-state-chip ns-state-deleted\">", StringComparison.Ordinal));
+
+        // The preview of the address opens; the editor opens only without one
+        Assert.Equal(1, Count(html, "js-policy-autoopen"));
+        Assert.Contains("js-sheet-open js-policy-autoopen\" aria-haspopup=\"dialog\" aria-describedby=\"policy-title-0\" data-sheet-content=\"#policy-preview-0\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Policies_OpensTheEditorOfThePolicyTheAddressNames()
+    {
+        SetUpPolicy();
+        _renderer.Request.Query["edit"] = "weekdays";
+
+        string html = _renderer.Render(new SchedulePoliciesPage());
+
+        Assert.Contains("js-sheet-open js-policy-autoopen\" aria-haspopup=\"dialog\" aria-describedby=\"policy-title-0\" data-sheet-content=\"#policy-edit-0\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Policies_ShowsTheDays_TheHours_TheExcludedDates_AndTheLinksBetweenPolicies_OnTheCards()
+    {
+        SetUpPolicies(
+            (new SchedulePolicy("weekdays").AllowWeekdays(DayOfWeek.Monday, DayOfWeek.Friday).AllowBetween("09:00", "17:00"), 3),
+            (new SchedulePolicy("nights").AllowBetween("22:00", "06:00")
+                .ExcludeAnnualDate(12, 25)
+                .ExcludeDate(new DateOnly(2026, 1, 1)).ExcludeDate(new DateOnly(2026, 1, 2)).ExcludeDate(new DateOnly(2026, 1, 3))
+                .ExcludeDate(new DateOnly(2026, 1, 4)).ExcludeDate(new DateOnly(2026, 1, 5)).ExcludeDate(new DateOnly(2026, 1, 6))
+                .ExcludeDate(new DateOnly(2026, 1, 7))
+                .ExcludeDatesFrom("public-holidays"), 1),
+            (new SchedulePolicy("trading").Require("weekdays").ExceptWhen("nights"), 2));
+
+        string html = _renderer.Render(new SchedulePoliciesPage());
+
+        // Every day of the week, allowed or blocked, in words for screen readers
+        Assert.Contains("<span class=\"visually-hidden\">Monday: Allowed</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"visually-hidden\">Tuesday: Blocked</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<li class=\"ns-chip ns-policy-day ns-policy-day-allowed\">", html, StringComparison.Ordinal);
+        Assert.Contains("<li class=\"ns-chip ns-policy-day\">", html, StringComparison.Ordinal);
+        Assert.Equal(21, Count(html, "<li class=\"ns-chip ns-policy-day"));
+
+        Assert.Contains("22:00-06:00", html, StringComparison.Ordinal);
+        Assert.Equal(1, Count(html, "<span class=\"ns-policy-overnight\">"));
+        Assert.Contains("crosses midnight</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<li class=\"ns-chip ns-chip-status ns-tabular\">12-25</li>", html, StringComparison.Ordinal);
+        Assert.Contains("<summary class=\"ns-chip ns-chip-assist\">+2 more</summary>", html, StringComparison.Ordinal);
+        Assert.Contains("public-holidays", html, StringComparison.Ordinal);
+
+        Assert.Contains("id=\"policy-trading\"", html, StringComparison.Ordinal);
+        Assert.Contains("<a class=\"ns-chip ns-chip-assist\" href=\"#policy-weekdays\">", html, StringComparison.Ordinal);
+        Assert.Contains("<a class=\"ns-chip ns-chip-assist\" href=\"#policy-nights\">", html, StringComparison.Ordinal);
+        Assert.Equal(2, Count(html, "<a class=\"ns-chip ns-chip-assist\" href=\"#policy-trading\">"));
+        Assert.Equal(2, Count(html, "<dt>Used by</dt>"));
+    }
+
+    [Fact]
+    public void Policies_RefusesToDeleteAPolicyOtherPoliciesUse_AndAsksBeforeDeletingTheOthers()
+    {
+        SetUpPolicies(
+            (new SchedulePolicy("weekdays").AllowWeekdays(DayOfWeek.Monday), 3),
+            (new SchedulePolicy("trading").Require("weekdays"), 2));
+
+        string html = _renderer.Render(new SchedulePoliciesPage());
+
+        Assert.DoesNotContain("/policies/delete/weekdays/", html, StringComparison.Ordinal);
+        Assert.Contains("disabled=\"disabled\" aria-describedby=\"policy-title-1 policy-delete-note-1\"", html, StringComparison.Ordinal);
+        Assert.Contains("<p id=\"policy-delete-note-1\" class=\"ns-policy-delete-note\">Other policies refer to it", html, StringComparison.Ordinal);
+        Assert.Contains("data-ajax=\"/policies/delete/trading/2\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-confirm=\"Delete this policy?\" data-confirm-body=\"Jobs already scheduled with it run without it.", html, StringComparison.Ordinal);
+        Assert.Contains("data-confirm-destructive=\"true\"", html, StringComparison.Ordinal);
+        Assert.Equal(2, Count(html, "class=\"btn btn-sm ns-btn-text ns-btn-text-error\""));
+    }
+
+    [Fact]
+    public void Policies_OffersOnlyThePreview_ToReadOnlyUsers()
+    {
+        SetUpPolicy();
+        _renderer.Options = new DashboardOptions { IsReadOnlyFunc = static _ => true };
+        _renderer.Request.Query["edit"] = "weekdays";
+
+        string html = _renderer.Render(new SchedulePoliciesPage());
+
+        Assert.Contains("id=\"policy-weekdays\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-sheet-content=\"#policy-preview-0\"", html, StringComparison.Ordinal);
+        Assert.Contains("<template id=\"policy-preview-0\" data-policy=\"weekdays\">", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("#policy-new", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("policy-edit-", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("/policies/save", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("/policies/delete/", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("js-policy-autoopen", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Policies_GroupsTheEditorsFields_AndNamesEachOne()
+    {
+        SetUpPolicy();
+
+        string html = _renderer.Render(new SchedulePoliciesPage());
+
+        Assert.Contains("<legend>When jobs may start</legend>", html, StringComparison.Ordinal);
+        Assert.Contains("<legend>Other policies</legend>", html, StringComparison.Ordinal);
+        Assert.Contains("<label for=\"policy-new-name\">Name</label>", html, StringComparison.Ordinal);
+        Assert.Contains("<input id=\"policy-new-name\" type=\"text\" name=\"name\" class=\"form-control\" required=\"required\"", html, StringComparison.Ordinal);
+        Assert.Contains("<input id=\"policy-0-name\" type=\"text\" name=\"name\" class=\"form-control\" value=\"weekdays\" readonly=\"readonly\"/>", html, StringComparison.Ordinal);
+        Assert.Contains("role=\"group\" aria-labelledby=\"policy-0-days-label\" aria-describedby=\"policy-0-days-hint policy-0-days-error\"", html, StringComparison.Ordinal);
+        Assert.Contains("<button type=\"submit\" form=\"policy-0-form\" class=\"btn btn-sm btn-primary\"", html, StringComparison.Ordinal);
+        Assert.Contains("class=\"alert alert-danger ns-policy-conflict js-policy-conflict\" role=\"alert\" hidden=\"hidden\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/policies?edit=weekdays\"", html, StringComparison.Ordinal);
+        foreach (string name in new[] { "description", "timezone", "windows", "dates", "providers", "require", "except" })
+        {
+            Assert.Contains($"<label for=\"policy-0-{name}\">", html, StringComparison.Ordinal);
+            Assert.Contains($"name=\"{name}\"", html, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void Policies_KeepTheHeadingsInOrder_AndNameEveryHeaderCell()
+    {
+        SetUpPolicies(
+            (new SchedulePolicy("weekdays").AllowWeekdays(DayOfWeek.Monday), 3),
+            (new SchedulePolicy("trading").Require("weekdays"), 2));
+        _renderer.Request.Query["preview"] = "weekdays";
+        _renderer.Request.Query["cron"] = "0 12 * * *";
+        string withPolicies = _renderer.Render(new SchedulePoliciesPage());
+
+        _renderer.Connection.Setup(x => x.GetAllItemsFromSet(SchedulePolicies.SetKey)).Returns([]);
+        string empty = _renderer.Render(new SchedulePoliciesPage());
+
+        foreach (string html in new[] { withPolicies, empty })
+        {
+            PageStructure.AssertHeadingsInOrder(html);
+            PageStructure.AssertNoEmptyHeaderCells(html);
+        }
     }
 
     [Fact]
@@ -443,13 +611,18 @@ public class NewPagesFacts
 
     private void SetUpPolicy()
     {
-        Dictionary<string, string> fields = new SchedulePolicy("weekdays")
-            .AllowWeekdays(DayOfWeek.Monday, DayOfWeek.Friday)
-            .AllowBetween("09:00", "17:00")
-            .ToFields();
-        fields["Revision"] = "3";
-        _renderer.Connection.Setup(x => x.GetAllItemsFromSet(SchedulePolicies.SetKey)).Returns(["weekdays"]);
-        _renderer.Connection.Setup(x => x.GetAllEntriesFromHash("schedule-policy:weekdays")).Returns(fields);
+        SetUpPolicies((new SchedulePolicy("weekdays").AllowWeekdays(DayOfWeek.Monday, DayOfWeek.Friday).AllowBetween("09:00", "17:00"), 3));
+    }
+
+    private void SetUpPolicies(params (SchedulePolicy Policy, long Revision)[] policies)
+    {
+        _renderer.Connection.Setup(x => x.GetAllItemsFromSet(SchedulePolicies.SetKey)).Returns([.. policies.Select(static x => x.Policy.Name)]);
+        foreach ((SchedulePolicy policy, long revision) in policies)
+        {
+            Dictionary<string, string> fields = policy.ToFields();
+            fields["Revision"] = revision.ToString(CultureInfo.InvariantCulture);
+            _renderer.Connection.Setup(x => x.GetAllEntriesFromHash(SchedulePolicies.GetKey(policy.Name))).Returns(fields);
+        }
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "xUnit1013:Public method should be marked as test", Justification = "Should be public to be a job")]

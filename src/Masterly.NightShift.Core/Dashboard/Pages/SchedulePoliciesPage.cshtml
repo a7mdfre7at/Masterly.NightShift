@@ -12,183 +12,371 @@
     Layout = new LayoutPage(Strings.PoliciesPage_Title);
 
     IReadOnlyList<SchedulePolicy> policies = ReadPolicies();
+    Dictionary<string, List<string>> users = FindUsers(policies);
     string? editName = Query("edit");
-    SchedulePolicy? editing = editName != null ? policies.FirstOrDefault(x => x.Name == editName) : null;
 
     string? previewName = Query("preview");
     string? previewCron = Query("cron");
+    string? previewTimeZone = Query("tz");
     IReadOnlyList<SchedulePolicyDecision>? preview = null;
     string? previewError = null;
     if (previewName != null && !String.IsNullOrWhiteSpace(previewCron))
     {
-        preview = Preview(previewName, previewCron, Query("tz"), out previewError);
+        preview = Preview(previewName, previewCron, previewTimeZone, out previewError);
     }
 }
 
 <div class="row">
     <div class="col-md-12">
-        <h1 id="page-title" class="hf-page-header">@Strings.PoliciesPage_Title</h1>
+        <header class="ns-page-head">
+            <div class="ns-page-heading">
+                @Html.PageTitle(Strings.PoliciesPage_Title, null, policies.Count)
+            </div>
+            @if (!IsReadOnly)
+            {
+                <div class="ns-page-actions">
+                    <button type="button" class="btn btn-sm btn-primary js-sheet-open" aria-haspopup="dialog" data-sheet-content="#policy-new" data-sheet-title="@Strings.PoliciesPage_New" data-sheet-wide="true">
+                        @Html.Icon("plus-lg") @Strings.PoliciesPage_New
+                    </button>
+                </div>
+            }
+        </header>
 
         @if (policies.Count == 0)
         {
-            <div class="alert alert-info">@Strings.PoliciesPage_NoPolicies</div>
+            <div class="ns-empty-state">
+                @Html.Icon("calendar3")
+                <h2 class="ns-empty-state-title">@Strings.PoliciesPage_Empty_Title</h2>
+                <p>@Strings.PoliciesPage_Empty_Text</p>
+                @if (IsReadOnly)
+                {
+                    <p>@Strings.PoliciesPage_Empty_ReadOnly</p>
+                }
+                else
+                {
+                    <button type="button" class="btn btn-sm ns-btn-tonal js-sheet-open" aria-haspopup="dialog" data-sheet-content="#policy-new" data-sheet-title="@Strings.PoliciesPage_New" data-sheet-wide="true">
+                        @Html.Icon("plus-lg") @Strings.PoliciesPage_New
+                    </button>
+                }
+            </div>
         }
-
-        @foreach (SchedulePolicy policy in policies)
+        else
         {
-            <section class="hf-card hf-policy" id="policy-@policy.Name">
-                <div class="hf-batch-head">
-                    <div>
-                        <strong>@policy.Name</strong>
-                        <span class="text-muted">&middot; @String.Format(Strings.PoliciesPage_Revision, policy.Revision) &middot; @policy.TimeZoneId</span>
+            <div class="ns-policy-grid">
+                @for (int index = 0; index < policies.Count; index++)
+                {
+                    SchedulePolicy policy = policies[index];
+                    string number = index.ToString(CultureInfo.InvariantCulture);
+                    IReadOnlyList<string> usedBy = FindUsers(users, policy.Name);
+                    List<string> dates = ExcludedDates(policy);
+
+                    <section class="hf-card ns-policy-card" id="policy-@policy.Name" aria-labelledby="policy-title-@number">
+                        <h2 id="policy-title-@number" class="ns-policy-name">@policy.Name</h2>
                         @if (policy.Description != null)
                         {
-                            <div class="text-muted">@policy.Description</div>
+                            <p class="ns-policy-description">@policy.Description</p>
                         }
-                    </div>
-                    @if (!IsReadOnly)
-                    {
-                        <div class="hf-batch-actions">
-                            <a class="btn btn-sm btn-outline-secondary" href="@Url.To("/policies?edit=" + Uri.EscapeDataString(policy.Name) + "#editor")">@Html.Icon("pencil-fill") @Strings.RecurringJobsPage_Edit</a>
-                            <button class="btn btn-sm btn-outline-secondary" data-ajax="@Url.To("/policies/delete/" + RouteValues.Encode(policy.Name) + "/" + policy.Revision.ToString(CultureInfo.InvariantCulture))" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.PoliciesPage_DeleteConfirm" data-confirm-destructive="true">
-                                @Html.Icon("x-lg") @Strings.Common_Delete
-                            </button>
+                        <div class="ns-policy-facts">
+                            <span class="ns-chip ns-chip-status">@Html.Icon("clock") <span class="visually-hidden">@Strings.RecurringJobsPage_Table_TimeZone:</span> @policy.TimeZoneId</span>
+                            <span class="ns-chip ns-chip-status">@String.Format(Strings.PoliciesPage_Revision, policy.Revision)</span>
                         </div>
-                    }
-                </div>
-                <table class="table table-sm hf-definition">
-                    <tbody>
-                        <tr><th class="min-width">@Strings.PoliciesPage_Days</th><td>@(policy.Days.Count == 0 ? Strings.PoliciesPage_EveryDay : String.Join(", ", policy.Days.Select(static d => CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedDayName(d))))</td></tr>
-                        <tr><th>@Strings.PoliciesPage_Windows</th><td>@(policy.Windows.Count == 0 ? Strings.PoliciesPage_AnyTime : String.Join(", ", policy.Windows))</td></tr>
-                        @if (policy.ExcludedDates.Count + policy.ExcludedAnnualDates.Count + policy.DateProviders.Count > 0)
-                        {
-                            <tr><th>@Strings.PoliciesPage_Excluded</th><td class="word-break">@ExcludedText(policy)</td></tr>
-                        }
-                        @if (policy.Required.Count > 0)
-                        {
-                            <tr><th>@Strings.PoliciesPage_Requires</th><td>@String.Join(", ", policy.Required)</td></tr>
-                        }
-                        @if (policy.Excepted.Count > 0)
-                        {
-                            <tr><th>@Strings.PoliciesPage_ExceptWhen</th><td>@String.Join(", ", policy.Excepted)</td></tr>
-                        }
-                    </tbody>
-                </table>
-            </section>
+
+                        <dl class="ns-kv ns-policy-rules">
+                            <dt>@Strings.PoliciesPage_Days</dt>
+                            <dd>
+                                <ul class="ns-policy-chips">
+                                    @foreach (DayOfWeek day in Week)
+                                    {
+                                        bool allowed = IsAllowed(policy, day);
+                                        <li class="ns-chip ns-policy-day@(allowed ? " ns-policy-day-allowed" : null)">
+                                            @if (allowed)
+                                            {
+                                                @Html.Icon("check-lg")
+                                            }
+                                            <span aria-hidden="true">@ShortDayName(day)</span>
+                                            <span class="visually-hidden">@DayName(day): @(allowed ? Strings.PoliciesPage_Allowed : Strings.PoliciesPage_Blocked)</span>
+                                        </li>
+                                    }
+                                </ul>
+                            </dd>
+                            <dt>@Strings.PoliciesPage_Windows</dt>
+                            <dd>
+                                @if (policy.Windows.Count == 0)
+                                {
+                                    <span class="ns-policy-any">@Strings.PoliciesPage_AnyTime</span>
+                                }
+                                else
+                                {
+                                    <ul class="ns-policy-chips">
+                                        @foreach (ScheduleWindow window in policy.Windows)
+                                        {
+                                            <li class="ns-policy-window">
+                                                <span class="ns-chip ns-chip-status">@Html.Icon("clock") <span class="ns-tabular">@window</span></span>
+                                                @if (CrossesMidnight(window))
+                                                {
+                                                    <span class="ns-policy-overnight">@Html.Icon("moon-stars") @Strings.PoliciesPage_Overnight</span>
+                                                }
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                            </dd>
+                            @if (dates.Count > 0)
+                            {
+                                <dt>@Strings.PoliciesPage_Excluded</dt>
+                                <dd>
+                                    <ul class="ns-policy-chips">
+                                        @foreach (string date in dates.Take(DatesShown))
+                                        {
+                                            <li class="ns-chip ns-chip-status ns-tabular">@date</li>
+                                        }
+                                        @if (dates.Count > DatesShown)
+                                        {
+                                            <li class="ns-policy-more-item">
+                                                <details class="ns-policy-more">
+                                                    <summary class="ns-chip ns-chip-assist">@String.Format(Strings.PoliciesPage_More, (dates.Count - DatesShown).ToString(CultureInfo.CurrentCulture))</summary>
+                                                    <ul class="ns-policy-chips">
+                                                        @foreach (string date in dates.Skip(DatesShown))
+                                                        {
+                                                            <li class="ns-chip ns-chip-status ns-tabular">@date</li>
+                                                        }
+                                                    </ul>
+                                                </details>
+                                            </li>
+                                        }
+                                    </ul>
+                                </dd>
+                            }
+                            @if (policy.DateProviders.Count > 0)
+                            {
+                                <dt>@Strings.PoliciesPage_Providers</dt>
+                                <dd>
+                                    <ul class="ns-policy-chips">
+                                        @foreach (string provider in policy.DateProviders)
+                                        {
+                                            <li class="ns-chip ns-chip-status">@Html.Icon("calendar3") @provider</li>
+                                        }
+                                    </ul>
+                                </dd>
+                            }
+                            @if (policy.Required.Count > 0)
+                            {
+                                <dt>@Strings.PoliciesPage_Requires</dt>
+                                <dd>
+                                    <ul class="ns-policy-chips">
+                                        @foreach (string name in policy.Required)
+                                        {
+                                            <li><a class="ns-chip ns-chip-assist" href="#policy-@name">@Html.Icon("link-45deg") @name</a></li>
+                                        }
+                                    </ul>
+                                </dd>
+                            }
+                            @if (policy.Excepted.Count > 0)
+                            {
+                                <dt>@Strings.PoliciesPage_ExceptWhen</dt>
+                                <dd>
+                                    <ul class="ns-policy-chips">
+                                        @foreach (string name in policy.Excepted)
+                                        {
+                                            <li><a class="ns-chip ns-chip-assist" href="#policy-@name">@Html.Icon("link-45deg") @name</a></li>
+                                        }
+                                    </ul>
+                                </dd>
+                            }
+                            @if (usedBy.Count > 0)
+                            {
+                                <dt>@Strings.PoliciesPage_UsedBy</dt>
+                                <dd>
+                                    <ul class="ns-policy-chips">
+                                        @foreach (string name in usedBy)
+                                        {
+                                            <li><a class="ns-chip ns-chip-assist" href="#policy-@name">@Html.Icon("link-45deg") @name</a></li>
+                                        }
+                                    </ul>
+                                </dd>
+                            }
+                        </dl>
+
+                        <div class="ns-policy-actions">
+                            @if (!IsReadOnly)
+                            {
+                                if (usedBy.Count > 0)
+                                {
+                                    <button type="button" class="btn btn-sm ns-btn-text ns-btn-text-error" disabled="disabled" aria-describedby="policy-title-@number policy-delete-note-@number">
+                                        @Html.Icon("trash-fill") @Strings.Common_Delete
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button type="button" class="btn btn-sm ns-btn-text ns-btn-text-error" aria-describedby="policy-title-@number" data-ajax="@Url.To("/policies/delete/" + RouteValues.Encode(policy.Name) + "/" + policy.Revision.ToString(CultureInfo.InvariantCulture))" data-loading-text="@Strings.Common_Deleting" @Html.ConfirmAttributes(Strings.PoliciesPage_DeleteConfirm, Strings.PoliciesPage_DeleteConfirm_Body, Strings.Common_Delete, destructive: true)>
+                                        @Html.Icon("trash-fill") @Strings.Common_Delete
+                                    </button>
+                                }
+                            }
+                            <div class="ns-policy-actions-end">
+                                <button type="button" class="btn btn-sm ns-btn-text js-sheet-open@(previewName == policy.Name ? " js-policy-autoopen" : null)" aria-haspopup="dialog" aria-describedby="policy-title-@number" data-sheet-content="#policy-preview-@number" data-sheet-title="@policy.Name" data-sheet-overline="@Strings.PoliciesPage_Preview">
+                                    @Html.Icon("eye-fill") @Strings.PoliciesPage_Preview
+                                </button>
+                                @if (!IsReadOnly)
+                                {
+                                    <button type="button" class="btn btn-sm ns-btn-tonal js-sheet-open@(editName == policy.Name && previewName == null ? " js-policy-autoopen" : null)" aria-haspopup="dialog" aria-describedby="policy-title-@number" data-sheet-content="#policy-edit-@number" data-sheet-title="@policy.Name" data-sheet-overline="@Strings.PoliciesPage_Kind" data-sheet-wide="true">
+                                        @Html.Icon("pencil-fill") @Strings.RecurringJobsPage_Edit
+                                    </button>
+                                }
+                            </div>
+                            @if (!IsReadOnly && usedBy.Count > 0)
+                            {
+                                <p id="policy-delete-note-@number" class="ns-policy-delete-note">@Strings.PoliciesPage_DeleteBlocked</p>
+                            }
+                        </div>
+                    </section>
+                }
+            </div>
         }
 
-        @if (policies.Count > 0)
+        @* The sheets' content: the preview of each policy, and the editor of each policy and of a new one *@
+        @for (int index = 0; index < policies.Count; index++)
         {
-            <h3 id="preview">@Strings.PoliciesPage_Preview</h3>
-            <form class="hf-policy-preview" method="get" action="@Url.To("/policies")">
-                <select name="preview" class="form-select form-select-sm" aria-label="@Strings.PoliciesPage_Title">
-                    @foreach (SchedulePolicy policy in policies)
+            SchedulePolicy policy = policies[index];
+            string number = index.ToString(CultureInfo.InvariantCulture);
+            bool previewed = previewName == policy.Name;
+
+            <template id="policy-preview-@number" data-policy="@policy.Name">
+                <form class="ns-policy-preview-form js-policy-preview-form" method="get" action="@Url.To("/policies")">
+                    <input type="hidden" name="preview" value="@policy.Name"/>
+                    <div class="ns-field">
+                        <label for="policy-preview-@number-cron">@Strings.RecurringJobsPage_Table_Cron</label>
+                        <input id="policy-preview-@number-cron" type="text" name="cron" class="form-control ns-mono" placeholder="0 9 * * 1-5" value="@(previewed ? previewCron : null)" required="required" autocomplete="off" spellcheck="false"/>
+                        <div class="ns-field-supporting">@Strings.PoliciesPage_CronHint</div>
+                    </div>
+                    <div class="ns-field">
+                        <label for="policy-preview-@number-tz">@Strings.RecurringJobsPage_Table_TimeZone</label>
+                        <input id="policy-preview-@number-tz" type="text" name="tz" class="form-control" placeholder="UTC" value="@(previewed ? previewTimeZone : null)" autocomplete="off" spellcheck="false"/>
+                    </div>
+                    <button type="submit" class="btn btn-sm ns-btn-tonal" data-loading-text="@Strings.PoliciesPage_Preview">@Html.Icon("eye-fill") @Strings.PoliciesPage_Preview</button>
+                </form>
+                <div class="ns-policy-preview-result js-policy-preview-result" aria-live="polite">
+                    @if (previewed && previewError != null)
                     {
-                        @Option(policy.Name, policy.Name == previewName)
+                        <div class="alert alert-warning" role="alert">@previewError</div>
                     }
-                </select>
-                <input type="text" name="cron" class="form-control form-control-sm" placeholder="0 9 * * *" value="@previewCron" aria-label="@Strings.RecurringJobsPage_Table_Cron"/>
-                <input type="text" name="tz" class="form-control form-control-sm" placeholder="UTC" value="@Query("tz")" aria-label="@Strings.RecurringJobsPage_Table_TimeZone"/>
-                <button type="submit" class="btn btn-sm btn-outline-secondary">@Strings.PoliciesPage_Preview</button>
-            </form>
-            if (previewError != null)
-            {
-                <div class="alert alert-warning">@previewError</div>
-            }
-            else if (preview != null)
-            {
-                <div class="table-responsive">
-                    <table class="table table-sm" aria-describedby="preview">
-                        <tbody>
+                    else if (previewed && preview != null)
+                    {
+                        int allowedCount = preview.Count(x => x.Allowed);
+                        <h3>@Strings.PoliciesPage_Candidates</h3>
+                        <p class="ns-section-hint js-policy-preview-summary">@String.Format(Strings.PoliciesPage_PreviewSummary, allowedCount, preview.Count - allowedCount)</p>
+                        <ol class="ns-next-runs ns-policy-candidates">
                             @foreach (SchedulePolicyDecision decision in preview)
                             {
-                                <tr>
-                                    <td class="min-width">@Html.RelativeTime(decision.Instant)</td>
-                                    <td class="min-width">
-                                        @if (decision.Allowed)
-                                        {
-                                            <span class="badge text-bg-success">@Strings.PoliciesPage_Allowed</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="badge text-bg-secondary">@Strings.PoliciesPage_Blocked</span>
-                                        }
-                                    </td>
-                                    <td class="word-break text-muted">@decision.Reason</td>
-                                </tr>
+                                <li>
+                                    <span class="ns-next-runs-time">@Html.LocalTime(decision.Instant) <span class="ns-next-runs-relative">@Html.RelativeTime(decision.Instant)</span></span>
+                                    @if (decision.Allowed)
+                                    {
+                                        <span class="ns-state-chip ns-state-succeeded">@Html.Icon("check-circle-fill")<span>@Strings.PoliciesPage_Allowed</span></span>
+                                    }
+                                    else
+                                    {
+                                        <span class="ns-state-chip ns-state-deleted">@Html.Icon("x-circle-fill")<span>@Strings.PoliciesPage_Blocked</span></span>
+                                    }
+                                    @if (!String.IsNullOrEmpty(decision.Reason))
+                                    {
+                                        <span class="ns-policy-reason">@decision.Reason</span>
+                                    }
+                                </li>
                             }
-                        </tbody>
-                    </table>
+                        </ol>
+                    }
                 </div>
-            }
+            </template>
         }
 
         @if (!IsReadOnly)
         {
-            <h3 id="editor">@(editing != null ? editing.Name : Strings.PoliciesPage_New)</h3>
-            <form class="js-ajax-form hf-policy-editor" method="post" action="@Url.To("/policies/save")" data-redirect="@Url.To("/policies")">
-                <input type="hidden" name="revision" value="@(editing?.Revision ?? 0)"/>
-                <div class="row">
-                    <div class="mb-3 col-lg-4">
-                        <label for="policy-name">@Strings.PoliciesPage_Name</label>
-                        @if (editing != null)
-                        {
-                            <input id="policy-name" type="text" name="name" class="form-control form-control-sm" value="@editing.Name" readonly="readonly"/>
-                        }
-                        else
-                        {
-                            <input id="policy-name" type="text" name="name" class="form-control form-control-sm" required="required"/>
-                        }
-                    </div>
-                    <div class="mb-3 col-lg-4">
-                        <label for="policy-timezone">@Strings.RecurringJobsPage_Table_TimeZone</label>
-                        <input id="policy-timezone" type="text" name="timezone" class="form-control form-control-sm" placeholder="UTC" value="@editing?.TimeZoneId"/>
-                    </div>
-                    <div class="mb-3 col-lg-4">
-                        <label for="policy-description">@Strings.PoliciesPage_Description</label>
-                        <input id="policy-description" type="text" name="description" class="form-control form-control-sm" value="@editing?.Description"/>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label>@Strings.PoliciesPage_Days</label>
-                    <div>
-                        @foreach (DayOfWeek day in new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday })
-                        {
-                            @DayCheckbox(day, editing != null && editing.Days.Contains(day))
-                        }
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="mb-3 col-lg-6">
-                        <label for="policy-windows">@Strings.PoliciesPage_Windows</label>
-                        <input id="policy-windows" type="text" name="windows" class="form-control form-control-sm" placeholder="09:00-17:00, 22:00-06:00" value="@(editing != null ? String.Join(", ", editing.Windows) : null)"/>
-                    </div>
-                    <div class="mb-3 col-lg-6">
-                        <label for="policy-dates">@Strings.PoliciesPage_Excluded</label>
-                        <input id="policy-dates" type="text" name="dates" class="form-control form-control-sm" placeholder="2026-12-24, 12-25" value="@(editing != null ? DatesText(editing) : null)"/>
-                        <span class="form-text">@Strings.PoliciesPage_DatesHint</span>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="mb-3 col-lg-4">
-                        <label for="policy-providers">@Strings.PoliciesPage_Providers</label>
-                        <input id="policy-providers" type="text" name="providers" class="form-control form-control-sm" value="@(editing != null ? String.Join(", ", editing.DateProviders) : null)"/>
-                    </div>
-                    <div class="mb-3 col-lg-4">
-                        <label for="policy-require">@Strings.PoliciesPage_Requires</label>
-                        <input id="policy-require" type="text" name="require" class="form-control form-control-sm" value="@(editing != null ? String.Join(", ", editing.Required) : null)"/>
-                    </div>
-                    <div class="mb-3 col-lg-4">
-                        <label for="policy-except">@Strings.PoliciesPage_ExceptWhen</label>
-                        <input id="policy-except" type="text" name="except" class="form-control form-control-sm" value="@(editing != null ? String.Join(", ", editing.Excepted) : null)"/>
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-sm btn-primary">@Strings.RecurringJobsPage_Save</button>
-                @if (editing != null)
-                {
-                    <a class="btn btn-sm btn-outline-secondary" href="@Url.To("/policies")">@Strings.RecurringJobsPage_Cancel</a>
-                }
-            </form>
+            for (int index = -1; index < policies.Count; index++)
+            {
+                SchedulePolicy? editing = index < 0 ? null : policies[index];
+                string number = index < 0 ? "new" : index.ToString(CultureInfo.InvariantCulture);
+                string prefix = "policy-" + number;
+
+                <template id="@(editing == null ? "policy-new" : "policy-edit-" + number)">
+                    <form id="@prefix-form" class="ns-policy-form js-policy-form" method="post" action="@Url.To("/policies/save")" data-redirect="@Url.To("/policies")" data-name-required="@Strings.PoliciesPage_NameRequired" novalidate="novalidate">
+                        <input type="hidden" name="revision" value="@(editing?.Revision ?? 0)"/>
+                        <div class="alert alert-danger ns-policy-conflict js-policy-conflict" role="alert" hidden="hidden">
+                            <span class="js-policy-conflict-text"></span>
+                            <a class="btn btn-sm ns-btn-text" href="@Url.To("/policies?edit=" + Uri.EscapeDataString(editing?.Name ?? String.Empty))">@Html.Icon("arrow-clockwise") @Strings.PoliciesPage_Reload</a>
+                        </div>
+
+                        <div class="ns-field">
+                            <label for="@prefix-name">@Strings.PoliciesPage_Name</label>
+                            @if (editing != null)
+                            {
+                                <input id="@prefix-name" type="text" name="name" class="form-control" value="@editing.Name" readonly="readonly"/>
+                            }
+                            else
+                            {
+                                <input id="@prefix-name" type="text" name="name" class="form-control" required="required" maxlength="64" autocomplete="off" spellcheck="false"/>
+                                <div class="ns-field-supporting">@Strings.PoliciesPage_NameHint</div>
+                            }
+                        </div>
+                        <div class="ns-field">
+                            <label for="@prefix-description">@Strings.PoliciesPage_Description</label>
+                            <input id="@prefix-description" type="text" name="description" class="form-control" value="@editing?.Description" maxlength="500"/>
+                        </div>
+                        <div class="ns-field">
+                            <label for="@prefix-timezone">@Strings.RecurringJobsPage_Table_TimeZone</label>
+                            <input id="@prefix-timezone" type="text" name="timezone" class="form-control" placeholder="UTC" value="@editing?.TimeZoneId" autocomplete="off" spellcheck="false"/>
+                            <div class="ns-field-supporting">@Strings.PoliciesPage_TimeZoneHint</div>
+                        </div>
+
+                        <fieldset class="ns-policy-fieldset">
+                            <legend>@Strings.PoliciesPage_Group_When</legend>
+                            <div class="ns-policy-days-field" role="group" aria-labelledby="@prefix-days-label" aria-describedby="@prefix-days-hint @prefix-days-error">
+                                <span id="@prefix-days-label" class="ns-policy-label">@Strings.PoliciesPage_Days</span>
+                                <div class="ns-policy-chips">
+                                    @foreach (DayOfWeek day in Week)
+                                    {
+                                        @DayChoice(day, editing != null && editing.Days.Contains(day))
+                                    }
+                                </div>
+                                <div id="@prefix-days-hint" class="ns-field-supporting">@Strings.PoliciesPage_DaysHint</div>
+                                <div id="@prefix-days-error" class="ns-field-error js-policy-days-error"></div>
+                            </div>
+                            <div class="ns-field">
+                                <label for="@prefix-windows">@Strings.PoliciesPage_Windows</label>
+                                <input id="@prefix-windows" type="text" name="windows" class="form-control ns-mono" placeholder="09:00-17:00, 22:00-06:00" value="@(editing != null ? String.Join(", ", editing.Windows) : null)" autocomplete="off" spellcheck="false"/>
+                                <div class="ns-field-supporting">@Strings.PoliciesPage_WindowsHint</div>
+                            </div>
+                            <div class="ns-field">
+                                <label for="@prefix-dates">@Strings.PoliciesPage_Excluded</label>
+                                <input id="@prefix-dates" type="text" name="dates" class="form-control ns-mono" placeholder="2026-12-24, 12-25" value="@(editing != null ? DatesText(editing) : null)" autocomplete="off" spellcheck="false"/>
+                                <div class="ns-field-supporting">@Strings.PoliciesPage_DatesHint</div>
+                            </div>
+                            <div class="ns-field">
+                                <label for="@prefix-providers">@Strings.PoliciesPage_Providers</label>
+                                <input id="@prefix-providers" type="text" name="providers" class="form-control" value="@(editing != null ? String.Join(", ", editing.DateProviders) : null)" autocomplete="off" spellcheck="false"/>
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="ns-policy-fieldset">
+                            <legend>@Strings.PoliciesPage_Group_Policies</legend>
+                            <p class="ns-field-supporting ns-policy-fieldset-hint">@Strings.PoliciesPage_PoliciesHint</p>
+                            <div class="ns-field">
+                                <label for="@prefix-require">@Strings.PoliciesPage_Requires</label>
+                                <input id="@prefix-require" type="text" name="require" class="form-control" value="@(editing != null ? String.Join(", ", editing.Required) : null)" autocomplete="off" spellcheck="false"/>
+                            </div>
+                            <div class="ns-field">
+                                <label for="@prefix-except">@Strings.PoliciesPage_ExceptWhen</label>
+                                <input id="@prefix-except" type="text" name="except" class="form-control" value="@(editing != null ? String.Join(", ", editing.Excepted) : null)" autocomplete="off" spellcheck="false"/>
+                            </div>
+                        </fieldset>
+
+                        <div class="js-sheet-actions">
+                            <button type="button" class="btn btn-sm ns-btn-text js-sheet-close">@Strings.RecurringJobsPage_Cancel</button>
+                            <button type="submit" form="@prefix-form" class="btn btn-sm btn-primary" data-loading-text="@Strings.RecurringJobsPage_Saving">@Strings.RecurringJobsPage_Save</button>
+                        </div>
+                    </form>
+                </template>
+            }
         }
     </div>
 </div>

@@ -2214,4 +2214,70 @@
   <data name="TimelinePage_Empty_Title" xml:space="preserve">
     <value>Noch keine Ausführungen</value>
   </data>
+  <data name="PoliciesPage_Empty_Title" xml:space="preserve">
+    <value>Noch keine Zeitplanrichtlinien</value>
+  </data>
+  <data name="PoliciesPage_Empty_Text" xml:space="preserve">
+    <value>Eine Zeitplanrichtlinie ist ein Geschäftskalender: die Tage, Uhrzeiten und Daten, an denen die Jobs, die ihr folgen, starten dürfen. Wiederkehrende und verzögerte Jobs folgen einer Richtlinie über ihren Namen.</value>
+  </data>
+  <data name="PoliciesPage_Empty_ReadOnly" xml:space="preserve">
+    <value>Richtlinien werden im Code gespeichert, mit SaveSchedulePolicy oder AddPolicy, oder hier von einem Benutzer, der sie bearbeiten darf.</value>
+  </data>
+  <data name="PoliciesPage_Overnight" xml:space="preserve">
+    <value>über Mitternacht</value>
+  </data>
+  <data name="PoliciesPage_More" xml:space="preserve">
+    <value>+{0} weitere</value>
+  </data>
+  <data name="PoliciesPage_UsedBy" xml:space="preserve">
+    <value>Verwendet von</value>
+  </data>
+  <data name="PoliciesPage_DeleteBlocked" xml:space="preserve">
+    <value>Andere Richtlinien verweisen darauf: Sie kann gelöscht werden, sobald sie es nicht mehr tun.</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>Bereits damit geplante Jobs laufen ohne sie. Eine Richtlinie, der wiederkehrende Jobs folgen, kann nicht gelöscht werden.</value>
+  </data>
+  <data name="PoliciesPage_Kind" xml:space="preserve">
+    <value>Zeitplanrichtlinie</value>
+  </data>
+  <data name="PoliciesPage_Group_When" xml:space="preserve">
+    <value>Wann Jobs starten dürfen</value>
+  </data>
+  <data name="PoliciesPage_Group_Policies" xml:space="preserve">
+    <value>Andere Richtlinien</value>
+  </data>
+  <data name="PoliciesPage_NameHint" xml:space="preserve">
+    <value>Buchstaben, Ziffern, „.“, „_“ und „-“, bis zu 64. Er kann später nicht geändert werden.</value>
+  </data>
+  <data name="PoliciesPage_TimeZoneHint" xml:space="preserve">
+    <value>Eine Windows- oder IANA-Zeitzone, etwa Europe/Berlin. UTC, wenn leer.</value>
+  </data>
+  <data name="PoliciesPage_DaysHint" xml:space="preserve">
+    <value>Keiner ausgewählt: jeden Tag.</value>
+  </data>
+  <data name="PoliciesPage_WindowsHint" xml:space="preserve">
+    <value>HH:mm-HH:mm, durch Kommas getrennt. Ein Ende vor dem Beginn geht über Mitternacht. Leer: jederzeit.</value>
+  </data>
+  <data name="PoliciesPage_PoliciesHint" xml:space="preserve">
+    <value>Namen gespeicherter Richtlinien, durch Kommas getrennt. Erfordert: Sie müssen die Zeit ebenfalls erlauben. Außer wenn: Eine Zeit, die sie erlauben, ist gesperrt.</value>
+  </data>
+  <data name="PoliciesPage_NameRequired" xml:space="preserve">
+    <value>Geben Sie einen Namen ein.</value>
+  </data>
+  <data name="PoliciesPage_Exists" xml:space="preserve">
+    <value>Eine Richtlinie namens „{0}“ gibt es bereits.</value>
+  </data>
+  <data name="PoliciesPage_Reload" xml:space="preserve">
+    <value>Richtlinie neu laden</value>
+  </data>
+  <data name="PoliciesPage_CronHint" xml:space="preserve">
+    <value>Ein CRON-Ausdruck wie 0 9 * * 1-5 oder ein Zeitplan in Worten.</value>
+  </data>
+  <data name="PoliciesPage_Candidates" xml:space="preserve">
+    <value>Nächste Termine</value>
+  </data>
+  <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
+    <value>{0} erlaubt, {1} gesperrt</value>
+  </data>
 </root>

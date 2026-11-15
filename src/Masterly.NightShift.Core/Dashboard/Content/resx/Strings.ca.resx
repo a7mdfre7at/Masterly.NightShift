@@ -2212,4 +2212,70 @@
   <data name="TimelinePage_Empty_Title" xml:space="preserve">
     <value>Encara no hi ha execucions</value>
   </data>
+  <data name="PoliciesPage_Empty_Title" xml:space="preserve">
+    <value>Encara no hi ha polítiques de planificació</value>
+  </data>
+  <data name="PoliciesPage_Empty_Text" xml:space="preserve">
+    <value>Una política de planificació és un calendari laboral: els dies, les hores i les dates en què poden començar les tasques que la segueixen. Les tasques recurrents i diferides segueixen una política pel seu nom.</value>
+  </data>
+  <data name="PoliciesPage_Empty_ReadOnly" xml:space="preserve">
+    <value>Les polítiques es desen al codi, amb SaveSchedulePolicy o AddPolicy, o aquí per un usuari que les pugui editar.</value>
+  </data>
+  <data name="PoliciesPage_Overnight" xml:space="preserve">
+    <value>travessa la mitjanit</value>
+  </data>
+  <data name="PoliciesPage_More" xml:space="preserve">
+    <value>+{0} més</value>
+  </data>
+  <data name="PoliciesPage_UsedBy" xml:space="preserve">
+    <value>Utilitzada per</value>
+  </data>
+  <data name="PoliciesPage_DeleteBlocked" xml:space="preserve">
+    <value>Altres polítiques hi fan referència: es podrà suprimir quan ja no ho facin.</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm_Body" xml:space="preserve">
+    <value>Les tasques ja planificades amb ella s'executen sense ella. No es pot suprimir una política que segueixen tasques recurrents.</value>
+  </data>
+  <data name="PoliciesPage_Kind" xml:space="preserve">
+    <value>Política de planificació</value>
+  </data>
+  <data name="PoliciesPage_Group_When" xml:space="preserve">
+    <value>Quan poden començar les tasques</value>
+  </data>
+  <data name="PoliciesPage_Group_Policies" xml:space="preserve">
+    <value>Altres polítiques</value>
+  </data>
+  <data name="PoliciesPage_NameHint" xml:space="preserve">
+    <value>Lletres, dígits, «.», «_» i «-», fins a 64. No es pot canviar més endavant.</value>
+  </data>
+  <data name="PoliciesPage_TimeZoneHint" xml:space="preserve">
+    <value>Una zona horària de Windows o IANA, com Europe/Berlin. UTC si és buida.</value>
+  </data>
+  <data name="PoliciesPage_DaysHint" xml:space="preserve">
+    <value>Cap de seleccionat: cada dia.</value>
+  </data>
+  <data name="PoliciesPage_WindowsHint" xml:space="preserve">
+    <value>HH:mm-HH:mm, separats per comes. Un final anterior a l'inici travessa la mitjanit. Buit: a qualsevol hora.</value>
+  </data>
+  <data name="PoliciesPage_PoliciesHint" xml:space="preserve">
+    <value>Noms de polítiques desades, separats per comes. Requereix: també han de permetre l'hora. Excepte quan: es bloqueja una hora que permeten.</value>
+  </data>
+  <data name="PoliciesPage_NameRequired" xml:space="preserve">
+    <value>Introduïu un nom.</value>
+  </data>
+  <data name="PoliciesPage_Exists" xml:space="preserve">
+    <value>Ja existeix una política anomenada «{0}».</value>
+  </data>
+  <data name="PoliciesPage_Reload" xml:space="preserve">
+    <value>Torna a carregar la política</value>
+  </data>
+  <data name="PoliciesPage_CronHint" xml:space="preserve">
+    <value>Una expressió CRON, com 0 9 * * 1-5, o una planificació en paraules.</value>
+  </data>
+  <data name="PoliciesPage_Candidates" xml:space="preserve">
+    <value>Properes ocurrències</value>
+  </data>
+  <data name="PoliciesPage_PreviewSummary" xml:space="preserve">
+    <value>{0} permeses, {1} bloquejades</value>
+  </data>
 </root>
