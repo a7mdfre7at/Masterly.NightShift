@@ -98,10 +98,12 @@ Search and the shortcut list are dialogs that screen readers announce. Search is
 
 ### Home (Overview)
 
+- **Header**: the number of servers, recurring jobs and retries, each a link to its page, and **Wallboard**.
+- **State tiles**: enqueued (with the number of queues), scheduled, processing, succeeded, failed, deleted and, when the storage counts them, awaiting jobs, each a link to its list and kept current while the page is open.
 - **Metrics**: tiles added with `UseDashboardMetric(...)`. `UseSqlServerStorage` adds SQL Server tiles (schema version, connections, transactions, data and log file sizes). Without any, this row is empty. See [Customization](customization.md#adding-a-metric-to-the-home-page).
-- **Realtime graph**: succeeded, failed and deleted jobs per poll interval while the page is open.
-- **Live activity**: every state change across the cluster, newest first, as it happens. Click a job to open it.
-- **History graph**: succeeded, failed and (when the storage supports it) deleted jobs per hour for the last day, or per day for the last week.
+- **Realtime graph**: succeeded, failed and deleted jobs per poll interval while the page is open, with a legend and a sentence under it that adds up the last minute ("Last minute: 12 succeeded, 1 failed"), which screen readers read as the graph's description.
+- **Live activity**: every state change across the cluster, newest first, as it happens: the job, its id, server and reason, its new state and the time. Click a job to open it.
+- **History graph**: succeeded, failed and (when the storage supports it) deleted jobs per hour for the last day, or per day for the last week, with a legend and the totals of the period under it.
 
 ### Jobs > Enqueued (Queues)
 
@@ -190,7 +192,7 @@ A removed recurring job comes back if your app registers it again at startup.
 
 ### Timeline
 
-A lane per worker showing what it ran in the last 15 minutes, built from the activity feed, with held or retried runs marked. Use it to spot idle workers, long runs and bursts.
+A lane per worker showing what it ran in the last 15 minutes, built from the activity feed, with held or retried runs marked. Use it to spot idle workers, long runs and bursts. Under the lanes, the 25 latest runs are listed newest first, each with its state, how long it took, its server and worker, and when it started. With no runs yet, the page says so and links to the catalog to start one.
 
 ### Insights
 
@@ -198,7 +200,7 @@ Needs `UseJobInsights()` or `[JobInsights]` on your methods; see [Insights](../m
 
 - **Summary**: methods tracked, runs recorded, failure rate, and which invokers (generated, compiled, reflection) ran the methods on this server.
 - **Needs attention**: methods whose behavior changed: a high failure rate, a run much slower than usual, or a slowdown trend.
-- **Methods table**: runs, failures, median, p95 and max duration, a trend sparkline, the last run and the invoker.
+- **Methods table**: runs, failures, the median duration with the p95 and max under it, and a trend sparkline; the invoker and the last run are under the method's name.
 - **Circuit breakers**: circuits that are open, half-open, recently closed or have failures within their window, with their state, the failures within the window and since when, with **Reset** (which closes the circuit and removes it from the list until it fails again). See [Retries](../filters/retries.md).
 - **Activity, last 7 days**: a heatmap of finished jobs per hour (UTC), red where failures outnumber successes.
 
@@ -212,12 +214,11 @@ A tag cloud and a table of tags with their job counts, in name order and a page 
 
 ### Servers
 
-- **Servers table**: name, workers, queues, start time and last heartbeat. Servers that missed their heartbeat for longer than `ServerPossiblyAbortedThreshold` are marked **Possibly aborted**; they are removed automatically after the server timeout. **Pause** a single server to make it stop taking jobs: its workers stop fetching within a few seconds, the jobs stay in their queues for the other servers, and its running jobs finish (see [Drain mode](../server/drain-mode.md#a-paused-server-stops-fetching)); **Resume** it.
+- **Servers**: a card per server with its name and id, its workers and how many of them run a job (on a bar), its queues, and when it started and last sent its heartbeat. Servers that missed their heartbeat for longer than `ServerPossiblyAbortedThreshold` are marked **Possibly aborted** and muted; they are removed automatically after the server timeout. **Pause** a single server to make it stop taking jobs (after a confirmation): its workers stop fetching within a few seconds, the jobs stay in their queues for the other servers, and its running jobs finish (see [Drain mode](../server/drain-mode.md#a-paused-server-stops-fetching)); **Resume** it. With one server, its busy workers are the jobs being processed; with more, the page reads up to 500 processing jobs to tell them apart.
 - **Pauses left by stopped servers**: a server gets a new id every time it starts, so a pause outlives the server it was set on. Pauses whose server is no longer registered are listed here with **Clear**. They have no effect: the banner and `/health` ignore them.
 - **This process**: the process hosting the dashboard, its uptime, an IIS warning when it is hosted by IIS without keep-alive, and the [keep-alive](../server/keep-alive.md) status.
-- **Processing**: **Pause processing** for the whole cluster ([drain mode](../server/drain-mode.md)), with an optional reason, and **Resume processing**.
-- **Maintenance** (only when the storage supports purging): **Clear all jobs** removes every job with its history, queues, counters and statistics but keeps recurring job definitions, servers, the audit log and drain mode (with paused queues and servers); **Reset storage** removes everything but the audit log, so paused processing resumes. Neither can be undone. See [Purging data](../storage/schema-and-upgrades.md#purging-data).
-- **Job invokers in this process**: how many methods ran through generated, compiled and reflection invokers. See [Source-generated invokers](../jobs/source-generated-invokers.md).
+- **Danger zone** (not shown to read-only users; the header says whether processing runs or is paused): **Pause processing** for the whole cluster ([drain mode](../server/drain-mode.md)), with an optional reason, and **Resume processing**; and, when the storage supports purging, **Clear all jobs** removes every job with its history, queues, counters and statistics but keeps recurring job definitions, servers, the audit log and drain mode (with paused queues and servers); **Reset storage** removes everything but the audit log, so paused processing resumes. Neither can be undone. See [Purging data](../storage/schema-and-upgrades.md#purging-data).
+- **Job invokers in this process** (in **This process**): how many methods ran through generated, compiled and reflection invokers. See [Source-generated invokers](../jobs/source-generated-invokers.md).
 
 ### Audit
 
@@ -229,7 +230,7 @@ What this application configured, as the dashboard's process sees it: the storag
 
 ### Wallboard
 
-A full-screen status board for a TV or a second screen, with no navigation. It is always dark, whatever `DarkModeEnabled` says, because a dark screen is easier to read from across a room. It reloads every 10 seconds and shows the time in the viewer's time zone (in UTC, marked so, when scripts are off), the overall health ("All systems go", "Needs attention", "Processing is down"), the success rate over the last hour, jobs running now with their progress, the queues, and anything that needs attention (including open circuit breakers). Storages count finished jobs per clock hour, so "the last hour" is the current hour plus the share of the previous hour that falls within the last 60 minutes, as if its jobs were spread evenly.
+A full-screen status board for a TV or a second screen, with no navigation. It is always dark, whatever `DarkModeEnabled` says, because a dark screen is easier to read from across a room. It refreshes every 10 seconds without reloading the page (and not while its tab is hidden) and shows the time in the viewer's time zone (in UTC, marked so, when scripts are off), the overall health ("All systems go", "Needs attention", "Processing is down"), the success rate over the last hour, jobs running now with their progress, the queues, and anything that needs attention (including open circuit breakers). Storages count finished jobs per clock hour, so "the last hour" is the current hour plus the share of the previous hour that falls within the last 60 minutes, as if its jobs were spread evenly.
 
 ### Job details
 
