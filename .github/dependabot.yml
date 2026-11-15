@@ -32,6 +32,7 @@ updates:
           - "xunit*"
           - "Moq*"
           - "Microsoft.NET.Test.Sdk"
+          - "coverlet*"
 
   - package-ecosystem: github-actions
     directory: /
