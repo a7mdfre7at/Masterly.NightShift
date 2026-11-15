@@ -20,7 +20,7 @@ public class HomePageFacts
 
         string html = _renderer.Render(new HomePage());
 
-        Assert.Contains($"<h3>{Encode(Strings.HomePage_RealtimeGraph)}</h3>", html);
+        Assert.Contains($"<h2>{Encode(Strings.HomePage_RealtimeGraph)}</h2>", html);
         Assert.Contains("id=\"realtimeGraph\" data-succeeded=\"12\" data-failed=\"3\" data-deleted=\"1\"", html);
         Assert.Contains($"data-deleted-string=\"{Encode(Strings.JobsSidebarMenu_Deleted)}\"", html);
     }
@@ -78,7 +78,7 @@ public class HomePageFacts
 
         string html = _renderer.Render(new HomePage());
 
-        Assert.Contains($"<h3>{Encode(Strings.HomePage_HistoryGraph)}</h3>", html);
+        Assert.Contains($"<h2>{Encode(Strings.HomePage_HistoryGraph)}</h2>", html);
         Assert.DoesNotContain("historyGraph", html);
         Assert.DoesNotContain("btn-outline-secondary active", html);
     }
