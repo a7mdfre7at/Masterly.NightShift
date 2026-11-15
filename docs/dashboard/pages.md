@@ -222,7 +222,7 @@ A tag cloud and a table of tags with their job counts, in name order and a page 
 
 ### Audit
 
-Who did what from the dashboard, newest first: what was done (with its status when it failed), the user, the action's address, its targets (a job links to its page), the detail, and the time, relative and exact. Users who can change things also see the IP address of each entry; read-only users see it only when `DashboardOptions.DisplayAuditIpAddressesToReadOnlyUsers` is `true`. Choose how many entries to read (50, 100, 250 or 1000), filter them by text, or show the failed ones only. Empty when `AuditLog.Enabled` is `false`. See [Audit log and activity](../monitoring/audit-log-and-activity.md).
+Who did what from the dashboard, newest first: what was done (marked Failed, with its status, when it failed), the user, the action's address, its targets (a job links to its page), the detail, and the time, relative and exact. Users who can change things also see the IP address of each entry; read-only users see it only when `DashboardOptions.DisplayAuditIpAddressesToReadOnlyUsers` is `true`. Choose how many entries to read (50, 100, 250 or 1000), filter them by text, or show the failed ones only. Empty when `AuditLog.Enabled` is `false`. See [Audit log and activity](../monitoring/audit-log-and-activity.md).
 
 ### About
 

@@ -499,7 +499,7 @@ The classes below have no rule in the dashboard's stylesheets: their look comes 
 | Class | Marks | Written by |
 |---|---|---|
 | `ns-about-list` | The lists after the cards of the About page, each also an `ns-list`. | [AboutPage.cshtml](../../src/Masterly.NightShift.Core/Dashboard/Pages/AboutPage.cshtml) |
-| `ns-audit-failed` | An audit entry that was answered with 400 or more, an `li.ns-run`: beside its action, a Failed state chip shows the status code with the error icon, after a Failed state dot. | [AuditPage.cshtml](../../src/Masterly.NightShift.Core/Dashboard/Pages/AuditPage.cshtml) |
+| `ns-audit-failed` | An audit entry that was answered with 400 or more, an `li.ns-run`: beside its action, a Failed state chip says Failed in the reader's language and the status code (`Failed · 500`) with the error icon, after a Failed state dot. | [AuditPage.cshtml](../../src/Masterly.NightShift.Core/Dashboard/Pages/AuditPage.cshtml) |
 | `ns-audit-user` | The chip that names the user of an audit entry, an `ns-chip-status`. | [AuditPage.cshtml](../../src/Masterly.NightShift.Core/Dashboard/Pages/AuditPage.cshtml) |
 | `ns-catalog-filter` | A filter of a catalog entry shown by its name, an `ns-chip-status` chip. | [JobCatalogPage.cs](../../src/Masterly.NightShift.Core/Dashboard/Pages/JobCatalogPage.cs) |
 | `ns-forecast-card` | The card that holds the forecast's lanes, an `hf-card`. | [ForecastPage.cshtml](../../src/Masterly.NightShift.Core/Dashboard/Pages/ForecastPage.cshtml) |

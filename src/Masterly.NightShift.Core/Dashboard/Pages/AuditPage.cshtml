@@ -85,7 +85,7 @@
                                     <span class="ns-audit-action">@AuditLog.Describe(entry.Action)</span>
                                     @if (failed)
                                     {
-                                        @Html.StateLabel(FailedState.StateName, entry.Status.ToString(CultureInfo.InvariantCulture))
+                                        @Html.StateLabel(FailedState.StateName, $"{HtmlHelper.StateDisplayName(FailedState.StateName)} · {entry.Status.ToString(CultureInfo.InvariantCulture)}")
                                     }
                                 </div>
                                 <div class="ns-job-meta">

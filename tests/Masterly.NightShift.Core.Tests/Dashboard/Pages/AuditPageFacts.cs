@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using Masterly.NightShift.Dashboard.Pages;
 using Masterly.NightShift.Dashboard.Resources;
@@ -137,9 +138,29 @@ public class AuditPageFacts
         Assert.DoesNotContain("hf-audit-ip", html);
         Assert.Contains("<li class=\"ns-run js-audit-entry ns-audit-failed\"", html);
         Assert.Contains("data-failed=\"true\"", html);
-        Assert.Contains("<span class=\"ns-state-chip ns-state-failed\" data-state=\"Failed\">" + DashboardMarkup.Icon("x-circle-fill") + "<span>500</span></span>", html);
+        Assert.Contains("<span class=\"ns-state-chip ns-state-failed\" data-state=\"Failed\">" + DashboardMarkup.Icon("x-circle-fill") + $"<span>{Encode($"{Strings.JobsSidebarMenu_Failed} · 500")}</span></span>", html);
         Assert.Contains("<a class=\"ns-chip ns-chip-assist\" href=\"/jobs/details/99\">#99</a>", html);
         Assert.Contains($"<span class=\"ns-audit-more\">{Encode(string.Format(Strings.AuditPage_More, 29))}</span>", html);
+    }
+
+    [Fact]
+    public void Render_WithAFailedAction_SaysFailedInTheReadersLanguage_BesideTheStatus()
+    {
+        SetupEntries(1, new AuditEntry { Timestamp = Now(), Action = "/jobs/failed/requeue", Targets = ["7"], Status = 422 });
+        CultureInfo previous = CultureInfo.CurrentUICulture;
+        string html;
+        try
+        {
+            CultureHelper.SetCurrentUICulture("de");
+            html = _renderer.Render(new AuditPage());
+        }
+        finally
+        {
+            CultureHelper.SetCurrentUICulture(previous);
+        }
+
+        Assert.Contains($"data-state=\"Failed\">{DashboardMarkup.Icon("x-circle-fill")}<span>{Encode("Fehler · 422")}</span></span>", html);
+        Assert.DoesNotContain("<span>Failed", html);
     }
 
     [Fact]
