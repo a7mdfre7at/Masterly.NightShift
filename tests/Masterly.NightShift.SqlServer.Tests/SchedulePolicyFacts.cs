@@ -159,7 +159,8 @@ public class SchedulePolicyFacts
         }
 
         DateTime windowStart = new DateTime(databaseNow.Ticks - (databaseNow.Ticks % TimeSpan.TicksPerSecond), DateTimeKind.Utc).AddSeconds(-5);
-        storage.SaveSchedulePolicy(new SchedulePolicy("open-now").AllowBetween(windowStart.TimeOfDay, windowStart.TimeOfDay.Add(TimeSpan.FromMinutes(30))));
+        // The end as a time of day: within half an hour of midnight it wraps past it, as a window may
+        storage.SaveSchedulePolicy(new SchedulePolicy("open-now").AllowBetween(windowStart.TimeOfDay, windowStart.AddMinutes(30).TimeOfDay));
         string jobId = new BackgroundJobClient(storage).Schedule(() => Answer(), new DateTimeOffset(windowStart), new ScheduleOptions { Policy = "open-now" });
 
         TimeProvider original = JobClock.TimeProvider;
