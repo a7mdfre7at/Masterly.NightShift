@@ -16,7 +16,7 @@ public sealed class ReportsPage : RazorPage
     {
         Layout = new LayoutPage("Reports");
 
-        WriteLiteral("<h1 class=\"page-header\">Reports</h1>");
+        WriteLiteral("<h1 class=\"hf-page-header\">Reports</h1>");
         WriteLiteral("<p>Succeeded jobs so far: ");
         Write(Statistics.Succeeded);   // Write HTML-encodes; WriteLiteral doesn't
         WriteLiteral("</p>");
@@ -31,7 +31,7 @@ DashboardRoutes.Routes.AddRazorPage("/reports", _ => new ReportsPage());
 
 NavigationMenu.Items.Add(page => new MenuItem("Reports", page.Url.To("/reports"))
 {
-    Icon = "file",
+    Icon = "card-list",
     Active = page.RequestPath.StartsWith("/reports", StringComparison.OrdinalIgnoreCase),
 });
 ```
@@ -97,7 +97,7 @@ They are shared by every dashboard in the process (all paths, all storages). Reg
 | `Write(object)` | Writes a value HTML-encoded, unless it is a `NonEscapedString` (what `Html.*` helpers return). |
 | `Layout` | Set to `new LayoutPage(title)` (namespace `Masterly.NightShift.Dashboard.Pages`) to get the dashboard chrome. |
 | `Url.To(path)`, `Url.JobDetails(id)`, `Url.Queue(name)`, `Url.LinkToQueues()`, `Url.Home()` | Links that include the dashboard path and `PrefixPath`. `JobDetails` and `Queue` write the id or name as one path segment, as the built-in pages do (`~25`, `~2F`, `~7E`, then URL encoding); `To` takes the path as it is. |
-| `Html` | Helpers: `HtmlEncode`, `Raw`, `JobId` (a short id), `JobIdLink`, `JobNameLink`, `JobName`, `StateLabel`, `QueueLabel`, `ServerId`, `StackTrace`, `RelativeTime`, `LocalTime`, `ToHumanDuration`, `Breadcrumbs`, `Paginator`, `PerPageSelector`, `BlockMetric`, `InlineMetric`, `RenderPartial`. |
+| `Html` | Helpers: `HtmlEncode`, `Raw`, `Icon` (see [Icons](#icons)), `JobId` (a short id), `JobIdLink`, `JobNameLink`, `JobName`, `StateLabel`, `QueueLabel`, `ServerId`, `StackTrace`, `RelativeTime`, `LocalTime`, `ToHumanDuration`, `Breadcrumbs`, `Paginator`, `PerPageSelector`, `BlockMetric`, `InlineMetric`, `RenderPartial`. |
 | `Statistics` | The storage's `StatisticsDto` (counts by state, servers, queues, recurring jobs), read once per request. |
 | `Storage`, `Context`, `DashboardOptions`, `IsReadOnly`, `RequestPath`, `Query(key)` | The request's context. |
 | `StorageUtcNow`, `ApplicationUtcNow`, `TimeDifference` | The storage's clock (when supported), your app's clock, and the difference. |
@@ -111,7 +111,7 @@ They are shared by every dashboard in the process (all paths, all storages). Reg
 |---|---|---|
 | `MenuItem(text, url)` | constructor | Label and link. |
 | `Active` | `bool` | Highlights the item. Usually `page.RequestPath.StartsWith(...)`. |
-| `Icon` | `string` | A Glyphicon name without the `glyphicon-` prefix, such as `"time"` or `"file"`. Without it, a chevron is shown. Only used in the main menu. |
+| `Icon` | `string` | The name of an icon of the dashboard's sprite, such as `"clock"` or `"card-list"` (see [Icons](#icons)). A Glyphicon name of earlier versions, such as `"time"`, gives the icon that replaced it. Without an icon, or with a name the sprite doesn't hold, a chevron is shown. Only used in the main menu. |
 | `Metric` / `Metrics` | `DashboardMetric` / `DashboardMetric[]` | Counters shown next to the label. |
 
 ### Metrics
@@ -165,7 +165,7 @@ public sealed class ReportDetailsPage : RazorPage
     {
         Layout = new LayoutPage($"Report {_reportId}");
 
-        WriteLiteral("<h1 class=\"page-header\">Report ");
+        WriteLiteral("<h1 class=\"hf-page-header\">Report ");
         Write(_reportId);
         WriteLiteral("</h1>");
 
@@ -183,7 +183,7 @@ DashboardRoutes.Routes.AddRazorPage(
     match => new ReportDetailsPage(match.Groups["ReportId"].Value));
 ```
 
-The button posts to the command defined in [A command route](#a-command-route). `data-confirm` asks first; leave it out to post straight away.
+The button posts to the command defined in [A command route](#a-command-route). `data-confirm` asks first; leave it out to post straight away. While the request runs, the button is disabled and shows its `data-loading-text`, when it has one.
 
 ### A page that uses the dashboard's helpers
 
@@ -196,7 +196,7 @@ public sealed class LatestFailuresPage : RazorPage
 
         var failed = Storage.GetMonitoringApi().FailedJobs(0, 20);
 
-        WriteLiteral("<h1 class=\"page-header\">Latest failures</h1><table class=\"table\"><tbody>");
+        WriteLiteral("<h1 class=\"hf-page-header\">Latest failures</h1><table class=\"table\"><tbody>");
         foreach (var job in failed)
         {
             WriteLiteral("<tr><td>");
@@ -235,7 +235,7 @@ public sealed class ReportFailuresPage : RazorPage
         var pager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, monitor.FailedCount());
         var failed = monitor.FailedJobs(pager.FromRecord, pager.RecordsPerPage);
 
-        WriteLiteral("<h1 class=\"page-header\">Report failures</h1>");
+        WriteLiteral("<h1 class=\"hf-page-header\">Report failures</h1>");
         Write(Html.PerPageSelector(pager));
         WriteLiteral("<table class=\"table\"><tbody>");
         foreach (var job in failed)
@@ -261,7 +261,7 @@ JobsSidebarMenu.Items.Add(page => new MenuItem("Quarantined", page.Url.To("/jobs
 });
 
 // Put "Reports" right after "Jobs" instead of at the end
-NavigationMenu.Items.Insert(1, page => new MenuItem("Reports", page.Url.To("/reports")) { Icon = "file" });
+NavigationMenu.Items.Insert(1, page => new MenuItem("Reports", page.Url.To("/reports")) { Icon = "card-list" });
 ```
 
 Hide an item for some users by returning `null`:
@@ -269,7 +269,7 @@ Hide an item for some users by returning `null`:
 ```csharp
 NavigationMenu.Items.Add(page => page.IsReadOnly
     ? null
-    : new MenuItem("Maintenance", page.Url.To("/servers")) { Icon = "wrench" });
+    : new MenuItem("Maintenance", page.Url.To("/servers")) { Icon = "hdd-fill" });
 ```
 
 ### Adding a metric to the home page
@@ -320,7 +320,7 @@ DashboardMetrics.AddMetric(Metrics.PendingReports);   // so /stats can refresh i
 
 NavigationMenu.Items.Add(page => new MenuItem("Reports", page.Url.To("/reports"))
 {
-    Icon = "file",
+    Icon = "card-list",
     Active = page.RequestPath.StartsWith("/reports", StringComparison.OrdinalIgnoreCase),
     Metric = Metrics.PendingReports,
 });
@@ -439,6 +439,36 @@ DashboardRoutes.Routes.Add("/reports/logo.svg", new ReportLogoDispatcher());
 
 Reference it from a page with `Url.To("/reports/logo.svg")`.
 
+### Markup and scripts
+
+The pages are built with [Bootstrap 5.3](https://getbootstrap.com/docs/5.3/) and [jQuery 4](https://jquery.com/), both in the dashboard's script bundle, with Popper inside `bootstrap.bundle`. Your pages and scripts can use them:
+
+- Bootstrap 5 classes: `btn btn-sm btn-primary`, `btn-outline-secondary` for the plain buttons, `badge text-bg-success` for labels, `table table-sm`, `card`, `form-control`, `form-select`, `mb-3`, `float-end`, `text-end`, `d-none d-md-block`, `visually-hidden`. The dashboard restyles them in its own colors, in light and dark. Two classes of its own fill gaps: `hf-btn-xs`, a button smaller than `btn-sm`, and `hf-dl-horizontal`, a definition list with the terms beside the descriptions. Page titles use `hf-page-header`.
+- Bootstrap's components through `data-bs-*` attributes (`data-bs-toggle`, `data-bs-dismiss="modal"`) or its JavaScript API, the `bootstrap` global: `bootstrap.Modal.getOrCreateInstance(element).show()`.
+- Tooltips: every element with a `title` when the page loads gets a Bootstrap tooltip. For content you add later, call `NightShift.tooltips(container)`; to change the title of an element that has one, `NightShift.setTitle(element, text)`, since Bootstrap moves the `title` into `data-bs-original-title`.
+- `NightShift.setLoading(button, true)` disables a button and shows its `data-loading-text` while your request runs; `NightShift.setLoading(button, false)` gives its content back.
+- jQuery 4 removed `$.trim`, `$.isArray`, `$.isFunction`, `$.parseJSON`, `$.type`, `$.now` and other deprecated helpers: use the standard JavaScript ones (`String.prototype.trim`, `Array.isArray`, `JSON.parse`, `Date.now`). See the [jQuery 4 upgrade guide](https://jquery.com/upgrade-guide/4.0/).
+
+Pages written for Bootstrap 3 need the usual changes ([Bootstrap's migration guide](https://getbootstrap.com/docs/5.3/migration/)): `label label-*` becomes `badge text-bg-*`, `panel` becomes `card`, `btn-default` becomes `btn-outline-secondary`, `pull-right` becomes `float-end`, `data-toggle` becomes `data-bs-toggle`, and so on. `page-header` and `dl-horizontal` still get their old look, so existing pages keep their titles and lists.
+
+### Icons
+
+The dashboard's icons are [Bootstrap Icons](https://icons.getbootstrap.com/) in one SVG sprite (the route `/icons...`), which holds the icons the dashboard uses. Draw one with `Html.Icon(name)` in a page, or `NightShift.icon(name)` in a script, which returns the same HTML:
+
+```csharp
+WriteLiteral("<button class=\"btn btn-sm btn-outline-secondary\" data-ajax=\"...\">");
+Write(Html.Icon("arrow-repeat"));
+WriteLiteral(" Rebuild</button>");
+```
+
+```js
+$('<span>').html(NightShift.icon('check-lg', 'text-success'));
+```
+
+The icon is an inline `<svg class="bi">` that takes the size and color of the text around it, and is hidden from screen readers (`aria-hidden="true"`): give a button that shows only an icon an `aria-label` or a `title`. `Html.Icon(name, cssClass)` adds classes to the `svg`.
+
+The sprite holds `arrow-clockwise`, `arrow-repeat`, `arrows`, `arrows-fullscreen`, `bar-chart-fill`, `book-fill`, `box-arrow-down`, `box-arrow-left`, `calendar3`, `card-list`, `chat-left-text-fill`, `check-circle`, `check-lg`, `chevron-right`, `circle-half`, `clock`, `copy`, `download`, `easel-fill`, `exclamation-circle-fill`, `exclamation-triangle-fill`, `eye-fill`, `fire`, `flag-fill`, `folder2-open`, `grid-fill`, `hdd-fill`, `house-door-fill`, `info-circle-fill`, `lightning-fill`, `link-45deg`, `list`, `list-task`, `moon-stars`, `pause-fill`, `pencil-fill`, `play-circle`, `play-fill`, `plus-lg`, `question-circle-fill`, `search`, `shuffle`, `sun-fill`, `tag-fill`, `terminal-fill`, `text-left`, `trash-fill`, `upload`, `x-circle-fill`, `x-lg`, `zoom-in` and `zoom-out`. The Glyphicon names the dashboard used before, such as `trash` or `time`, give the icon that replaced them. For another icon, put the Bootstrap Icons SVG in your page.
+
 ### Adding a section to the job page
 
 ```csharp
@@ -465,7 +495,7 @@ If you have your own `IState` (see [Custom filters](../filters/custom-filters.md
 JobHistoryRenderer.AddStateCssSuffix("Quarantined", cssSuffix: "warning");
 JobHistoryRenderer.Register("Quarantined", (html, data) =>
     new NonEscapedString(
-        $"<dl class=\"dl-horizontal\"><dt>Reason</dt><dd>{html.HtmlEncode(data.TryGetValue("Reason", out var reason) ? reason : "-")}</dd></dl>"));
+        $"<dl class=\"hf-dl-horizontal\"><dt>Reason</dt><dd>{html.HtmlEncode(data.TryGetValue("Reason", out var reason) ? reason : "-")}</dd></dl>"));
 ```
 
 ### Localization
@@ -527,7 +557,7 @@ The stylesheet is built on CSS custom properties such as `--hf-primary`, `--hf-b
 }
 ```
 
-These names are taken from the current stylesheet and may change between versions.
+Bootstrap's own variables (`--bs-body-bg`, `--bs-body-color`, `--bs-border-color` and the fonts) are set from these, so Bootstrap components in your pages follow the theme too; the dashboard doesn't use Bootstrap's `data-bs-theme`. These names are taken from the current stylesheet and may change between versions.
 
 ### Dates and times
 
