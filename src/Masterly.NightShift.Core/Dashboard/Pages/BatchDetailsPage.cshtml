@@ -116,11 +116,11 @@
                     </div>
                 </section>
                 <section class="ns-summary-tile ns-state-succeeded" aria-labelledby="summary-succeeded">
-                    <h2 id="summary-succeeded" class="ns-summary-label">@Html.Icon(JobHistoryRenderer.GetStateIcon(SucceededState.StateName)) @SucceededState.StateName</h2>
+                    <h2 id="summary-succeeded" class="ns-summary-label">@Html.Icon(JobHistoryRenderer.GetStateIcon(SucceededState.StateName)) @Strings.JobsSidebarMenu_Succeeded</h2>
                     <p class="ns-summary-value">@batch.Succeeded.ToString(CultureInfo.CurrentCulture)</p>
                 </section>
                 <section class="ns-summary-tile@(batch.Failed > 0 ? " ns-state-failed" : null)" aria-labelledby="summary-failed">
-                    <h2 id="summary-failed" class="ns-summary-label">@Html.Icon(JobHistoryRenderer.GetStateIcon(FailedState.StateName)) @FailedState.StateName</h2>
+                    <h2 id="summary-failed" class="ns-summary-label">@Html.Icon(JobHistoryRenderer.GetStateIcon(FailedState.StateName)) @Strings.JobsSidebarMenu_Failed</h2>
                     <p class="ns-summary-value">@batch.Failed.ToString(CultureInfo.CurrentCulture)</p>
                 </section>
                 <section class="ns-summary-tile" aria-labelledby="summary-pending">
@@ -131,11 +131,11 @@
                         <p class="ns-summary-sub">
                             @if (batch.Processing > 0)
                             {
-                                <span>@ProcessingState.StateName @batch.Processing.ToString(CultureInfo.CurrentCulture)</span>
+                                <span>@Strings.JobsSidebarMenu_Processing @batch.Processing.ToString(CultureInfo.CurrentCulture)</span>
                             }
                             @if (batch.Deleted > 0)
                             {
-                                <span>@DeletedState.StateName @batch.Deleted.ToString(CultureInfo.CurrentCulture)</span>
+                                <span>@Strings.JobsSidebarMenu_Deleted @batch.Deleted.ToString(CultureInfo.CurrentCulture)</span>
                             }
                         </p>
                     }

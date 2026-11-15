@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using Masterly.NightShift.Dashboard.Pages;
 using Masterly.NightShift.Dashboard.Resources;
@@ -64,6 +65,31 @@ public class BatchDetailsPageFacts
         Assert.DoesNotContain("/batches/requeue-failed/", html);
         Assert.Contains("data-ajax=\"/batches/delete/b-1\"", html);
         Assert.Contains(H(string.Format(Strings.BatchDetailsPage_DeletePending, 2)), html);
+    }
+
+    [Fact]
+    public void Render_NamesTheStatesOfItsTiles_InTheReadersLanguage()
+    {
+        SetupBatch(new Dictionary<string, string> { { "Description", "Nightly import" } }, total: 4,
+            counts: new Dictionary<string, long> { { SucceededState.StateName, 1 }, { FailedState.StateName, 1 }, { ProcessingState.StateName, 1 }, { DeletedState.StateName, 1 } });
+        SetupJobs("11");
+        CultureInfo culture = CultureInfo.CurrentUICulture;
+
+        string html;
+        try
+        {
+            CultureHelper.SetCurrentUICulture("de-DE");
+            html = _renderer.Render(new BatchDetailsPage(BatchId));
+        }
+        finally
+        {
+            CultureHelper.SetCurrentUICulture(culture);
+        }
+
+        Assert.Contains("<h2 id=\"summary-succeeded\" class=\"ns-summary-label\">" + DashboardMarkup.Icon("check-circle-fill") + " Erfolgreich</h2>", html);
+        Assert.Contains("<h2 id=\"summary-failed\" class=\"ns-summary-label\">" + DashboardMarkup.Icon("x-circle-fill") + " Fehler</h2>", html);
+        Assert.Contains("<span>Verarbeiten... 1</span>", html);
+        Assert.Contains("<span>" + H("Gelöscht") + " 1</span>", html);
     }
 
     [Fact]

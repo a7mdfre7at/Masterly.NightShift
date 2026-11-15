@@ -1,3 +1,4 @@
+using System.Globalization;
 using Masterly.NightShift.Dashboard;
 using Masterly.NightShift.Dashboard.Pages;
 using Masterly.NightShift.Server;
@@ -401,6 +402,27 @@ public class NewPagesFacts
             ["Jobs"] = $"{{\"0.0\":\"{chainId}-1\"}}",
             ["CreatedAt"] = JobHelper.SerializeDateTime(createdAt),
         });
+    }
+
+    [Fact]
+    public void ChainDetails_NamesTheStatesOfItsTiles_InTheReadersLanguage()
+    {
+        SetUpChain();
+        CultureInfo culture = CultureInfo.CurrentUICulture;
+
+        string details;
+        try
+        {
+            CultureHelper.SetCurrentUICulture("de-DE");
+            details = _renderer.Render(new ChainDetailsPage("c1"));
+        }
+        finally
+        {
+            CultureHelper.SetCurrentUICulture(culture);
+        }
+
+        Assert.Contains(" Erfolgreich</h2>", details, StringComparison.Ordinal);
+        Assert.Contains("<h2 id=\"summary-failed\" class=\"ns-summary-label\">" + DashboardMarkup.Icon("x-circle-fill") + " Fehler</h2>", details, StringComparison.Ordinal);
     }
 
     private void SetUpChain()

@@ -62,11 +62,11 @@
                     </div>
                 </section>
                 <section class="ns-summary-tile ns-state-succeeded" aria-labelledby="summary-succeeded">
-                    <h2 id="summary-succeeded" class="ns-summary-label">@Html.Icon(JobHistoryRenderer.GetStateIcon(SucceededState.StateName)) @SucceededState.StateName</h2>
+                    <h2 id="summary-succeeded" class="ns-summary-label">@Html.Icon(JobHistoryRenderer.GetStateIcon(SucceededState.StateName)) @Strings.JobsSidebarMenu_Succeeded</h2>
                     <p class="ns-summary-value">@counts.Succeeded.ToString(CultureInfo.CurrentCulture)</p>
                 </section>
                 <section class="ns-summary-tile@(counts.Failed > 0 ? " ns-state-failed" : null)" aria-labelledby="summary-failed">
-                    <h2 id="summary-failed" class="ns-summary-label">@Html.Icon(JobHistoryRenderer.GetStateIcon(FailedState.StateName)) @FailedState.StateName</h2>
+                    <h2 id="summary-failed" class="ns-summary-label">@Html.Icon(JobHistoryRenderer.GetStateIcon(FailedState.StateName)) @Strings.JobsSidebarMenu_Failed</h2>
                     <p class="ns-summary-value">@counts.Failed.ToString(CultureInfo.CurrentCulture)</p>
                 </section>
                 <section class="ns-summary-tile" aria-labelledby="summary-pending">
