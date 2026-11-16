@@ -7,6 +7,8 @@
     <Description>In-memory storage for Masterly.NightShift background jobs, for development and tests. No dependencies; nothing survives the process.</Description>
     <PackageTags>Background;Jobs;Storage;InMemory;Queue;Scheduler;Testing;Masterly;Csharp;DotNet</PackageTags>
     <RootNamespace>Masterly.NightShift.InMemory</RootNamespace>
+    <!-- No file of this package is derived from Hangfire, so it is MIT only (see NOTICE.md) -->
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>

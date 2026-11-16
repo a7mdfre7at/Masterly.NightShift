@@ -21,7 +21,7 @@ Initial release of Masterly.NightShift: background jobs, recurring schedules and
 - `Masterly.NightShift.NetCore`: dependency injection and hosted servers.
 - `Masterly.NightShift.AspNetCore`: dashboard endpoints and health checks.
 - Targets `net8.0` and `net10.0`.
-- Licensed `MIT AND LGPL-3.0-or-later`: code written for NightShift is MIT, and code derived from Hangfire stays LGPL. The packages carry both license texts.
+- Licensed `MIT AND LGPL-3.0-or-later`: code written for NightShift is MIT, and code derived from Hangfire stays LGPL. Core, SqlServer, NetCore and AspNetCore carry both license texts; the InMemory, Redis, MongoDB and EntityFrameworkCore storages and the meta-package hold no Hangfire-derived code and are MIT.
 
 ### Jobs and workflows
 

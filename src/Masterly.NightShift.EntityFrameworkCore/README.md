@@ -47,4 +47,4 @@ Options, how the storage works and what to know before running it in production:
 
 ## License
 
-`MIT AND LGPL-3.0-or-later`: code written for Masterly.NightShift is MIT, code derived from Hangfire stays under the LGPL. The package contains both license texts.
+MIT: this package holds only code written for Masterly.NightShift. It depends on [Masterly.NightShift.Core](https://www.nuget.org/packages/Masterly.NightShift.Core), which is `MIT AND LGPL-3.0-or-later` because part of its code is derived from Hangfire.

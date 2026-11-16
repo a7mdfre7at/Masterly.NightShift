@@ -5,6 +5,8 @@
     <Description>Background jobs that work the night shift: fire-and-forget, delayed, recurring and continuation jobs for .NET, stored in SQL Server, with a dashboard. Installs the core library, SQL Server storage and the ASP.NET Core integration.</Description>
     <PackageTags>Background;Jobs;Scheduler;Recurring;Delayed;FireAndForget;Queue;Dashboard;Cron;SqlServer;Worker;OpenTelemetry;Hangfire;Masterly;Csharp;DotNet</PackageTags>
     <RootNamespace>Masterly.NightShift</RootNamespace>
+    <!-- The meta-package holds no code, so it is MIT only; the packages it installs declare their own licenses -->
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <!-- A meta-package: it has no assembly of its own, only the dependencies below -->
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <IncludeSymbols>false</IncludeSymbols>

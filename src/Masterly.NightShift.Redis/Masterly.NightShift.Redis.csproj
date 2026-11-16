@@ -7,6 +7,8 @@
     <Description>Redis storage for Masterly.NightShift background jobs, on StackExchange.Redis. Atomic Lua transactions, pub/sub wake-ups, cluster-ready keys.</Description>
     <PackageTags>Background;Jobs;Storage;Redis;Queue;Scheduler;Masterly;Csharp;DotNet</PackageTags>
     <RootNamespace>Masterly.NightShift.Redis</RootNamespace>
+    <!-- No file of this package is derived from Hangfire, so it is MIT only (see NOTICE.md) -->
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>

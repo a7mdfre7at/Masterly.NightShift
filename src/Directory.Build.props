@@ -40,9 +40,11 @@
     </PropertyGroup>
 
     <!-- Package metadata shared by every Masterly.NightShift package; Description and PackageTags are in each .csproj.
-         Raise <Version> to publish a new release; the assembly versions follow it. The packages contain code under the MIT license and code derived from Hangfire under
-         the LGPL v3 or later (see NOTICE.md), so both licenses apply and both texts, with the GPL v3 the LGPL builds on,
-         are packed. -->
+         Raise <Version> to publish a new release; the assembly versions follow it. Core, SqlServer, NetCore and
+         AspNetCore contain code under the MIT license and code derived from Hangfire under the LGPL v3 or later (see
+         NOTICE.md), so both licenses apply and both texts, with the GPL v3 the LGPL builds on, are packed. A package
+         without Hangfire-derived files (the other storages and the meta-package) sets PackageLicenseExpression to MIT
+         in its .csproj, and the LGPL and GPL texts are then left out. -->
     <PropertyGroup>
         <Version>1.0.0</Version>
         <Authors>Ahmad Omar Al-Freihat</Authors>
@@ -63,15 +65,17 @@
     </PropertyGroup>
 
     <!-- What every package ships next to the assemblies. Items are evaluated after every property, so a
-         PackageReadmeSource set in a .csproj takes effect here. -->
+         PackageReadmeSource or PackageLicenseExpression set in a .csproj takes effect here. -->
     <ItemGroup>
         <None Include="$(PackageReadmeSource)" Pack="true" PackagePath="\README.md" Visible="false" />
         <None Include="..\..\repo_image.png" Pack="true" PackagePath="\" Visible="false" />
         <None Include="..\..\LICENSE.txt" Pack="true" PackagePath="\" Visible="false" />
-        <None Include="..\..\LICENSE-LGPL-3.0.txt" Pack="true" PackagePath="\" Visible="false" />
-        <None Include="..\..\LICENSE-GPL-3.0.txt" Pack="true" PackagePath="\" Visible="false" />
         <None Include="..\..\NOTICE.md" Pack="true" PackagePath="\" Visible="false" />
         <None Include="..\..\THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\" Visible="false" />
+    </ItemGroup>
+    <ItemGroup Condition="$(PackageLicenseExpression.Contains('LGPL'))">
+        <None Include="..\..\LICENSE-LGPL-3.0.txt" Pack="true" PackagePath="\" Visible="false" />
+        <None Include="..\..\LICENSE-GPL-3.0.txt" Pack="true" PackagePath="\" Visible="false" />
     </ItemGroup>
 
     <!-- Every `dotnet pack` checks that the public API agrees across target frameworks. There is no

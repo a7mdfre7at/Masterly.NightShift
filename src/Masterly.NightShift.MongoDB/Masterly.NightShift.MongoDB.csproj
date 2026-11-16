@@ -7,6 +7,8 @@
     <Description>MongoDB storage for Masterly.NightShift background jobs, on the official driver. Multi-document transactions on a replica set, TTL indexes for expiration.</Description>
     <PackageTags>Background;Jobs;Storage;MongoDB;Mongo;Queue;Scheduler;Masterly;Csharp;DotNet</PackageTags>
     <RootNamespace>Masterly.NightShift.MongoDB</RootNamespace>
+    <!-- No file of this package is derived from Hangfire, so it is MIT only (see NOTICE.md) -->
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>

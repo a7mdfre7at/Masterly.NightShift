@@ -30,9 +30,16 @@ the documentation in `docs/`) are covered by the MIT license in `LICENSE.txt`.
 
 ## NuGet packages
 
-The assemblies in every package contain both kinds of code, so every package declares the license expression
-`MIT AND LGPL-3.0-or-later` and carries `LICENSE.txt`, `LICENSE-LGPL-3.0.txt`, `LICENSE-GPL-3.0.txt`, this notice and
-`THIRD-PARTY-NOTICES.md`. If you redistribute the packages or their assemblies, keep those files with them.
+The assemblies of `Masterly.NightShift.Core`, `.SqlServer`, `.NetCore` and `.AspNetCore` contain both kinds of code, so
+these packages declare the license expression `MIT AND LGPL-3.0-or-later` and carry `LICENSE.txt`,
+`LICENSE-LGPL-3.0.txt`, `LICENSE-GPL-3.0.txt`, this notice and `THIRD-PARTY-NOTICES.md`.
+
+`Masterly.NightShift.InMemory`, `.Redis`, `.MongoDB` and `.EntityFrameworkCore` contain only code written for
+Masterly.NightShift, and the `Masterly.NightShift` meta-package contains no code. These packages declare `MIT` and carry
+`LICENSE.txt`, this notice and `THIRD-PARTY-NOTICES.md`. They depend on `Masterly.NightShift.Core`, whose license
+applies to it as above.
+
+If you redistribute the packages or their assemblies, keep those files with them.
 
 ## Independence
 

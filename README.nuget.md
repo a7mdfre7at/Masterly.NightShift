@@ -58,4 +58,4 @@ Job types, retries and other filters, the server, the dashboard and monitoring a
 
 ## License
 
-`MIT AND LGPL-3.0-or-later`: code written for Masterly.NightShift is MIT, code derived from Hangfire stays under the LGPL. The package contains both license texts.
+This package is MIT and contains no code. The packages it installs (Core, SqlServer and AspNetCore) are `MIT AND LGPL-3.0-or-later`: code written for Masterly.NightShift is MIT, code derived from Hangfire stays under the LGPL, and each of them contains both license texts.

@@ -7,6 +7,8 @@
     <Description>Entity Framework Core storage for Masterly.NightShift background jobs: SQL Server, PostgreSQL, SQLite, MySQL and other relational providers. Stage jobs in your DbContext so they commit with SaveChanges.</Description>
     <PackageTags>Background;Jobs;Storage;EntityFrameworkCore;EFCore;Transactional;Queue;Scheduler;Masterly;Csharp;DotNet</PackageTags>
     <RootNamespace>Masterly.NightShift.EntityFrameworkCore</RootNamespace>
+    <!-- No file of this package is derived from Hangfire, so it is MIT only (see NOTICE.md) -->
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>
