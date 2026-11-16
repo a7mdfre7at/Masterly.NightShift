@@ -1,10 +1,10 @@
 name: Publish to NuGet
 
 # Runs after a successful Build of a push to master, and publishes the packages that Build tested. A manual run on
-# master has no Build to take them from, so it restores, builds, tests and packs the commit itself. The release act is
-# <Version> in src/Directory.Build.props plus a dated '## [x.y.z] - yyyy-mm-dd' section in CHANGELOG.md: while the
-# heading has no date, neither kind of run publishes anything. Packages whose version is already on nuget.org are
-# skipped, and the GitHub Release is created once per version.
+# master has no Build to take them from, so it restores, builds, tests and packs the commit itself. The version is
+# <Version> in src/Directory.Build.props, and CHANGELOG.md must have a '## [x.y.z]' section for it. Packages whose
+# version is already on nuget.org are skipped, and the GitHub Release is created once per version, so a later commit
+# at the same version publishes nothing new: raising <Version> is the release act.
 on:
   workflow_dispatch:
   workflow_run:
@@ -84,24 +84,15 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Package version: $VERSION"
 
-      # The release gate, checked before anything is built or pushed, on every kind of run. A version is released only
-      # once its CHANGELOG section has a date: while the heading reads '## [x.y.z]' without one, the run stops here and
-      # publishes nothing, so merging work to master never ships a version by accident. The release body is only this
-      # version's section, without its heading (the release title already names the version).
-      - name: Check the release notes
-        id: notes
+      # Checked before anything is built or pushed, on every kind of run. The release body is only this version's
+      # section, without its heading (the release title already names the version).
+      - name: Read the release notes
         run: |
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
-          HEADING="$(tr -d '\r' < CHANGELOG.md | grep -m 1 -F "## [$VERSION]" || true)"
-          if [ -z "$HEADING" ]; then
+          if ! tr -d '\r' < CHANGELOG.md | grep -q -F "## [$VERSION]"; then
             echo "::error::CHANGELOG.md has no '## [$VERSION]' section."
             exit 1
-          fi
-          if ! printf '%s' "$HEADING" | grep -Eq -- '- [0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]]*$'; then
-            echo "::notice::The '## [$VERSION]' heading in CHANGELOG.md has no date, so nothing is published. Add the release date ('## [$VERSION] - yyyy-mm-dd') to publish it."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            exit 0
           fi
           tr -d '\r' < CHANGELOG.md \
             | awk -v version="$VERSION" '/^## \[/{ if (f) exit; if (index($0, "## [" version "]") == 1) { f=1; next } } f' \
@@ -110,12 +101,11 @@ jobs:
             echo "::error::The '## [$VERSION]' section of CHANGELOG.md is empty."
             exit 1
           fi
-          echo "ready=true" >> "$GITHUB_OUTPUT"
 
       # A manual run has no Build to take the packages from: the steps up to the pack make them here, as the Build's
       # Windows and Linux jobs would. A workflow_run skips them and downloads the Build's packages instead.
       - name: Cache NuGet packages
-        if: github.event_name == 'workflow_dispatch' && steps.notes.outputs.ready == 'true'
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
@@ -127,7 +117,7 @@ jobs:
       # run, and MongoDB needs --replSet for transactions (a one-member replica set). The SA password is a throwaway
       # for a container that only lives for this job.
       - name: Start SQL Server, Redis and MongoDB
-        if: github.event_name == 'workflow_dispatch' && steps.notes.outputs.ready == 'true'
+        if: github.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
           docker run -d --name sqlserver -e ACCEPT_EULA=Y -e 'MSSQL_SA_PASSWORD=Password12!' -p 127.0.0.1:1433:1433 mcr.microsoft.com/mssql/server:2022-latest
@@ -149,15 +139,15 @@ jobs:
           wait_for 'The MongoDB primary' docker exec mongo mongosh --quiet --eval 'if (!db.hello().isWritablePrimary) { quit(1) }'
 
       - name: Restore dependencies
-        if: github.event_name == 'workflow_dispatch' && steps.notes.outputs.ready == 'true'
+        if: github.event_name == 'workflow_dispatch'
         run: dotnet restore Masterly.NightShift.slnx
 
       - name: Build
-        if: github.event_name == 'workflow_dispatch' && steps.notes.outputs.ready == 'true'
+        if: github.event_name == 'workflow_dispatch'
         run: dotnet build Masterly.NightShift.slnx -c Release --no-restore
 
       - name: Test (manual run only)
-        if: github.event_name == 'workflow_dispatch' && steps.notes.outputs.ready == 'true'
+        if: github.event_name == 'workflow_dispatch'
         env:
           NightShift_SqlServer_ConnectionStringTemplate: Server=tcp:127.0.0.1,1433;Database={0};User Id=sa;Password=Password12!;TrustServerCertificate=True;PoolBlockingPeriod=NeverBlock
           NightShift_Redis_Configuration: 127.0.0.1:6379
@@ -171,7 +161,7 @@ jobs:
           done
 
       - name: Pack (manual run only)
-        if: github.event_name == 'workflow_dispatch' && steps.notes.outputs.ready == 'true'
+        if: github.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
           for project in Core SqlServer NetCore AspNetCore InMemory Redis MongoDB EntityFrameworkCore; do
@@ -181,7 +171,7 @@ jobs:
 
       # The packages the Build workflow packed and its consumer job installed, not a rebuild
       - name: Download the tested packages
-        if: github.event_name == 'workflow_run' && steps.notes.outputs.ready == 'true'
+        if: github.event_name == 'workflow_run'
         uses: actions/download-artifact@v8
         with:
           name: packages
@@ -191,7 +181,6 @@ jobs:
 
       # Requested right before the push: the temporary key lives one hour and each OIDC token buys exactly one key
       - name: Get a temporary NuGet API key (Trusted Publishing)
-        if: steps.notes.outputs.ready == 'true'
         id: nuget-login
         uses: NuGet/login@v1
         with:
@@ -201,7 +190,6 @@ jobs:
       # depends on all the others, goes last. --skip-duplicate makes a re-run after a partial failure push only what is
       # missing.
       - name: Push packages to nuget.org
-        if: steps.notes.outputs.ready == 'true'
         env:
           NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: |
@@ -220,7 +208,6 @@ jobs:
       # earlier run that failed mid-upload). Existing assets are never replaced, so a later commit at the same version
       # can't swap the released packages for different builds.
       - name: Create or complete the GitHub Release
-        if: steps.notes.outputs.ready == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
