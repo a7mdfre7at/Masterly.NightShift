@@ -2,7 +2,7 @@
 // It uses a SQL Server database, created on first run if it doesn't exist (with its tables): by default the LocalDB
 // database named below. To use another one, set the ConnectionStrings__NightShift environment variable, for example
 //
-//   set ConnectionStrings__NightShift=Server=.\;Database=Masterly.NightShift.Sample;Integrated Security=True;TrustServerCertificate=True;
+//   set ConnectionStrings__NightShift=Server=.\;Database=Masterly.NightShift.Sample;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;
 //   dotnet run --project samples/ConsoleSample
 //
 // Then type a command such as "async 5" or "fast 10" and press Enter to create jobs; "stop" stops the server.
@@ -18,7 +18,7 @@ using NightShiftSamples;
 
 // Set ConnectionStrings__NightShift to use another database
 string connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__NightShift")
-    ?? @"Server=(localdb)\MSSQLLocalDB;Database=Masterly.NightShift.Sample;Integrated Security=True;TrustServerCertificate=True;";
+    ?? @"Server=(localdb)\MSSQLLocalDB;Database=Masterly.NightShift.Sample;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;";
 
 // The storage creates its tables but not the database; the sample creates it on a fresh machine
 SampleDatabase.EnsureExists(connectionString);

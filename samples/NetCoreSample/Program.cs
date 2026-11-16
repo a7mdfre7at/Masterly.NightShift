@@ -3,7 +3,7 @@
 // run if it doesn't exist (with its tables): by default the LocalDB database named below. To use another one, set
 // ConnectionStrings:NightShift, for example
 //
-//   dotnet run --project samples/NetCoreSample -- --ConnectionStrings:NightShift="Server=.\;Database=Masterly.NightShift.Sample;Integrated Security=True;TrustServerCertificate=True;"
+//   dotnet run --project samples/NetCoreSample -- --ConnectionStrings:NightShift="Server=.\;Database=Masterly.NightShift.Sample;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;"
 //
 // or the ConnectionStrings__NightShift environment variable. Press Ctrl+C to stop it.
 
@@ -22,7 +22,7 @@ using Microsoft.Extensions.Logging;
 using NightShiftSamples;
 
 const string DefaultConnectionString =
-    @"Server=(localdb)\MSSQLLocalDB;Database=Masterly.NightShift.Sample;Integrated Security=True;TrustServerCertificate=True;";
+    @"Server=(localdb)\MSSQLLocalDB;Database=Masterly.NightShift.Sample;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;";
 
 IHost host = new HostBuilder()
     .ConfigureAppConfiguration(x => x.AddEnvironmentVariables().AddCommandLine(args))

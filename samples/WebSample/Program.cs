@@ -21,7 +21,7 @@ using NightShiftSamples;
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 string connectionString = builder.Configuration.GetConnectionString("NightShift")
-    ?? @"Server=(localdb)\MSSQLLocalDB;Database=Masterly.NightShift.WebSample;Integrated Security=True;TrustServerCertificate=True;";
+    ?? @"Server=(localdb)\MSSQLLocalDB;Database=Masterly.NightShift.WebSample;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;";
 
 // The storage creates its tables but not the database; the sample creates it on a fresh machine
 SampleDatabase.EnsureExists(connectionString);

@@ -19,7 +19,7 @@ public class NoOpProxy : DispatchProxy
 internal static class Database
 {
     private const string DefaultTemplate =
-        @"Server=(localdb)\MSSQLLocalDB;Database={0};Integrated Security=True;TrustServerCertificate=True;";
+        @"Server=(localdb)\MSSQLLocalDB;Database={0};Integrated Security=True;Encrypt=True;TrustServerCertificate=True;";
 
     private const string Clear =
         "DELETE FROM [HangFire].[JobQueue]; DELETE FROM [HangFire].[Job]; DELETE FROM [HangFire].[Counter]; " +
