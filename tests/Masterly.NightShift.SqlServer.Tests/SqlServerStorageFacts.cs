@@ -501,13 +501,17 @@ public class SqlServerStorageFacts
         _options.PrepareSchemaIfNecessary = true;
         _options.TryAutoDetectSchemaDependentOptions = false;
         int attempts = 0;
+
+        // SqlClient holds a transaction begun on a connection only weakly: once a collection reclaims it, commands
+        // without a transaction run again, so the install would succeed. The test keeps every one alive.
+        List<DbTransaction> pending = [];
         SqlServerStorage storage = new(() =>
         {
             Interlocked.Increment(ref attempts);
 
             // The install can't begin its own transaction on this connection
             DbConnection connection = ConnectionUtils.CreateConnection();
-            connection.BeginTransaction();
+            pending.Add(connection.BeginTransaction());
             return connection;
         }, _options);
         Assert.Equal(3, attempts);
@@ -521,6 +525,7 @@ public class SqlServerStorageFacts
         Assert.True(storage.SchemaInstallPending);
         Assert.Equal(5, attempts);
         Assert.Equal(TimeSpan.FromMinutes(2), GetSchemaInstallRetryInterval(storage));
+        GC.KeepAlive(pending);
     }
 
     private static TimeSpan GetSchemaInstallRetryInterval(SqlServerStorage storage)

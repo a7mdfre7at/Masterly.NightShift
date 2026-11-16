@@ -178,13 +178,17 @@ public class SqlServerConnectionFacts
     public void AcquireDistributedLock_ClosesTheSession_WhenTheAcquireFailsOtherwiseThanByATimeout()
     {
         (int SessionId, DateTime ConnectTime) session = default;
+
+        // SqlClient holds a transaction begun on a connection only weakly: once a collection reclaims it,
+        // sp_getapplock runs again, so the test keeps it alive
+        DbTransaction? pending = null;
         SqlServerStorage storage = new(() =>
         {
             DbConnection opened = ConnectionUtils.CreateConnection();
             session = opened.QuerySingle<(int, DateTime)>("select session_id, connect_time from sys.dm_exec_connections where session_id = @@spid");
 
             // sp_getapplock can't run on a connection with a transaction it doesn't take part in
-            opened.BeginTransaction();
+            pending = opened.BeginTransaction();
             return opened;
         }, new SqlServerStorageOptions { PrepareSchemaIfNecessary = false, TryAutoDetectSchemaDependentOptions = false });
         using SqlServerConnection connection = (SqlServerConnection)storage.GetConnection();
@@ -192,6 +196,7 @@ public class SqlServerConnectionFacts
         Assert.Throws<InvalidOperationException>(() => connection.AcquireDistributedLock("bk:acquire", TimeSpan.FromSeconds(1)));
 
         Assert.True(PhysicalConnectionCloses(session.SessionId, session.ConnectTime));
+        GC.KeepAlive(pending);
     }
 
     // Keeping a connection out of its pool clears the whole pool, so the common failure, a timeout, never does it
