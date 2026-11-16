@@ -35,7 +35,8 @@ jobs:
   windows:
     name: Windows (build, test, pack)
     runs-on: windows-latest
-    timeout-minutes: 45
+    # Every test project on both frameworks: the SQL Server tests alone take about 15 minutes per framework on LocalDB
+    timeout-minutes: 75
     env:
       NightShift_SqlServer_ConnectionStringTemplate: Server=(localdb)\MSSQLLocalDB;Database={0};Integrated Security=True;TrustServerCertificate=True;
     steps:
