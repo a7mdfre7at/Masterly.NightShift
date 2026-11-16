@@ -187,8 +187,8 @@ jobs:
           user: ${{ env.NUGET_USER }}
 
       # In dependency order: a package never reaches nuget.org before one it depends on, and the meta-package, which
-      # depends on all the others, goes last. --skip-duplicate makes a re-run after a partial failure push only what is
-      # missing.
+      # depends on all the others, goes last. Pushing a .nupkg also pushes the .snupkg next to it, so the symbol packages
+      # are not listed separately. --skip-duplicate makes a re-run after a partial failure push only what is missing.
       - name: Push packages to nuget.org
         env:
           NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
@@ -214,7 +214,7 @@ jobs:
         run: |
           set -euo pipefail
           TAG="v${{ steps.version.outputs.version }}"
-          ASSETS=("$PACKAGE_OUTPUT"/*.nupkg)
+          ASSETS=("$PACKAGE_OUTPUT"/*.nupkg "$PACKAGE_OUTPUT"/*.snupkg)
           if gh release view "$TAG" > /dev/null 2>&1; then
             EXISTING="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
             MISSING=()

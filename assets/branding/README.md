@@ -14,7 +14,7 @@ The Masterly.NightShift mark is a cream crescent moon inside an orbit ring, with
 
 | Source | Output | Size |
 |---|---|---|
-| `logo.html` | `assets/logo.png` (the NuGet package icon) | 256 x 256, transparent corners |
+| `logo.html` | `repo_image.png` (the NuGet package icon, at the repository root) | 512 x 512, transparent corners |
 | `readme-banner.html` | `assets/readme-banner.png` (top of the README) | 1200 x 300, transparent corners |
 | `social-card.html` | `website/static/img/social-card.png` (link previews of the docs site) | 1200 x 630 |
 
@@ -27,7 +27,7 @@ With Microsoft Edge or Google Chrome in headless mode, from the repository root 
 ```text
 $browser = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 $root = (Get-Location).Path -replace '\\', '/'
-& $browser --headless=new --hide-scrollbars --default-background-color=00000000 --window-size=256,256 --screenshot="$PWD\assets\logo.png" "file:///$root/assets/branding/logo.html"
+& $browser --headless=new --hide-scrollbars --default-background-color=00000000 --window-size=512,512 --screenshot="$PWD\repo_image.png" "file:///$root/assets/branding/logo.html"
 & $browser --headless=new --hide-scrollbars --default-background-color=00000000 --virtual-time-budget=3000 --window-size=1200,300 --screenshot="$PWD\assets\readme-banner.png" "file:///$root/assets/branding/readme-banner.html"
 & $browser --headless=new --hide-scrollbars --virtual-time-budget=3000 --window-size=1200,630 --screenshot="$PWD\website\static\img\social-card.png" "file:///$root/assets/branding/social-card.html"
 ```

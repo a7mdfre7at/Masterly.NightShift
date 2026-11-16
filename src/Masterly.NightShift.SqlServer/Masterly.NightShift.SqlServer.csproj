@@ -1,10 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Version, authors, repository, license, icon and packed files come from src/Directory.Build.props. -->
   <PropertyGroup>
+    <!-- This package ships its own README.md; only the meta-package packs README.nuget.md. -->
+    <PackageReadmeSource>$(MSBuildProjectDirectory)/README.md</PackageReadmeSource>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <Description>SQL Server storage for Masterly.NightShift background jobs, on Microsoft.Data.SqlClient. Creates and upgrades its own tables; Hangfire databases keep working.</Description>
     <PackageTags>Background;Jobs;Storage;SqlServer;Queue;Scheduler;Hangfire;Masterly;Csharp;DotNet</PackageTags>
-    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
-    <PackageReadmeSource>README.md</PackageReadmeSource>
     <RootNamespace>Masterly.NightShift.SqlServer</RootNamespace>
   </PropertyGroup>
   

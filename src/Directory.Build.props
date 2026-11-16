@@ -8,10 +8,16 @@
         <GenerateAssemblyDescriptionAttribute>false</GenerateAssemblyDescriptionAttribute>
         <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
         <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-        <DebugType>embedded</DebugType>
-        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    </PropertyGroup>
+
+    <!-- Symbols and reproducible builds. SourceLink for GitHub ships with the .NET 8+ SDK, so no package reference is
+         needed. ContinuousIntegrationBuild (below) normalises the PDB source paths, so it is on only in GitHub Actions:
+         local builds keep real paths for debugging. -->
+    <PropertyGroup>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
         <Deterministic>true</Deterministic>
-        <!-- Writes the repository URL and commit into the package (SourceLink ships with the SDK) -->
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
     </PropertyGroup>
     <ItemGroup>
@@ -42,16 +48,15 @@
         <Authors>Ahmad Omar Al-Freihat</Authors>
         <Company>Masterly</Company>
         <Product>Masterly.NightShift</Product>
-        <Copyright>Copyright © 2026 Ahmad Al-Freihat</Copyright>
-        <!-- The "Project website" link on nuget.org: the documentation site. The source is RepositoryUrl. -->
-        <PackageProjectUrl>https://a7mdfre7at.github.io/Masterly.NightShift/</PackageProjectUrl>
+        <Copyright>Copyright (c) 2026 Ahmad Omar Al-Freihat</Copyright>
+        <PackageProjectUrl>https://github.com/a7mdfre7at/Masterly.NightShift</PackageProjectUrl>
         <RepositoryUrl>https://github.com/a7mdfre7at/Masterly.NightShift</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <!-- The packed README.md. The meta-package packs README.nuget.md; every other package sets this to its own
              src/<Package>/README.md. Links in these files are absolute, because relative links break on nuget.org. -->
         <PackageReadmeSource>$(MSBuildThisFileDirectory)..\README.nuget.md</PackageReadmeSource>
-        <PackageIcon>logo.png</PackageIcon>
+        <PackageIcon>repo_image.png</PackageIcon>
         <PackageLicenseExpression>MIT AND LGPL-3.0-or-later</PackageLicenseExpression>
         <PackageReleaseNotes>Release notes for version $(Version): https://github.com/a7mdfre7at/Masterly.NightShift/blob/master/CHANGELOG.md</PackageReleaseNotes>
     </PropertyGroup>
@@ -60,7 +65,7 @@
          PackageReadmeSource set in a .csproj takes effect here. -->
     <ItemGroup>
         <None Include="$(PackageReadmeSource)" Pack="true" PackagePath="\README.md" Visible="false" />
-        <None Include="..\..\assets\logo.png" Pack="true" PackagePath="\" Visible="false" />
+        <None Include="..\..\repo_image.png" Pack="true" PackagePath="\" Visible="false" />
         <None Include="..\..\LICENSE.txt" Pack="true" PackagePath="\" Visible="false" />
         <None Include="..\..\LICENSE-LGPL-3.0.txt" Pack="true" PackagePath="\" Visible="false" />
         <None Include="..\..\LICENSE-GPL-3.0.txt" Pack="true" PackagePath="\" Visible="false" />

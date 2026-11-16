@@ -1,10 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Version, authors, repository, license, icon and packed files come from src/Directory.Build.props. -->
   <PropertyGroup>
+    <!-- This package ships its own README.md; only the meta-package packs README.nuget.md. -->
+    <PackageReadmeSource>$(MSBuildProjectDirectory)/README.md</PackageReadmeSource>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <Description>Redis storage for Masterly.NightShift background jobs, on StackExchange.Redis. Atomic Lua transactions, pub/sub wake-ups, cluster-ready keys.</Description>
     <PackageTags>Background;Jobs;Storage;Redis;Queue;Scheduler;Masterly;Csharp;DotNet</PackageTags>
-    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
-    <PackageReadmeSource>README.md</PackageReadmeSource>
     <RootNamespace>Masterly.NightShift.Redis</RootNamespace>
   </PropertyGroup>
 

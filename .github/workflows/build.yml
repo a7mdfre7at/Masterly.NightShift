@@ -100,7 +100,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: packages
-          path: artifacts/*.nupkg
+          path: |
+            artifacts/*.nupkg
+            artifacts/*.snupkg
           if-no-files-found: error
 
   # Installs the packages just built into new apps, as a user would, so a broken package (a missing dependency or
