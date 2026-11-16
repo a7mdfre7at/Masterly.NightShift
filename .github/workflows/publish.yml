@@ -103,7 +103,7 @@ jobs:
           fi
 
       # A manual run has no Build to take the packages from: the steps up to the pack make them here, as the Build's
-      # Windows and Linux jobs would. A workflow_run skips them and downloads the Build's packages instead.
+      # Linux jobs would. A workflow_run skips them and downloads the Build's packages instead.
       - name: Cache NuGet packages
         if: github.event_name == 'workflow_dispatch'
         uses: actions/cache@v6

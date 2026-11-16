@@ -32,87 +32,15 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
 
 jobs:
-  windows:
-    name: Windows (build, test, pack)
-    runs-on: windows-latest
-    # Every test project on both frameworks: the SQL Server tests alone take about 15 minutes per framework on LocalDB
-    timeout-minutes: 75
-    env:
-      NightShift_SqlServer_ConnectionStringTemplate: Server=(localdb)\MSSQLLocalDB;Database={0};Integrated Security=True;TrustServerCertificate=True;
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: global.json
-          dotnet-version: 8.0.x # runtime for the net8.0 test target
-
-      # The lock files pin every package, so they key the cache
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json', 'Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Start SQL Server LocalDB
-        run: sqllocaldb start MSSQLLocalDB
-
-      - name: Restore dependencies
-        run: dotnet restore Masterly.NightShift.slnx
-
-      - name: Build
-        run: dotnet build Masterly.NightShift.slnx -c Release --no-restore
-
-      # Coverage is collected here only, and only on net10.0: this job runs every test project, and the other runs
-      # stay as fast as they were. coverlet.collector writes a Cobertura file per project under TestResults.
-      - name: Test
-        run: |
-          foreach ($framework in 'net8.0', 'net10.0') {
-            $coverage = if ($framework -eq 'net10.0') { @('--collect', 'XPlat Code Coverage', '--results-directory', 'TestResults') } else { @() }
-            # Redis and MongoDB have no Windows service here: their tests skip, and the Linux job runs them
-            foreach ($project in 'Core', 'SqlServer', 'AspNetCore', 'InMemory', 'EntityFrameworkCore', 'Redis', 'MongoDB') {
-              dotnet test "tests/Masterly.NightShift.$project.Tests" -c Release --no-build -f $framework @coverage
-              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            }
-          }
-
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v7
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        with:
-          directory: ./TestResults
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
-        continue-on-error: true
-
-      - name: Pack
-        run: |
-          foreach ($project in 'Core', 'SqlServer', 'NetCore', 'AspNetCore', 'InMemory', 'Redis', 'MongoDB', 'EntityFrameworkCore') {
-            dotnet pack "src/Masterly.NightShift.$project" -c Release --no-build -o artifacts
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
-          dotnet pack src/Masterly.NightShift -c Release --no-build -o artifacts
-
-      - name: Upload packages
-        uses: actions/upload-artifact@v7
-        with:
-          name: packages
-          path: |
-            artifacts/*.nupkg
-            artifacts/*.snupkg
-          if-no-files-found: error
-
   # Installs the packages just built into new apps, as a user would, so a broken package (a missing dependency or
   # file, an API that doesn't compile on a target, a generator that doesn't load in an older compiler) fails the
   # build instead of the first consumer: ASP.NET Core apps on .NET 8 and .NET 10, a console app that runs a job,
   # a Worker Service built with the .NET 8 SDK, and console apps on .NET 8 and .NET 10 with the other storages
   consumer:
     name: Consumer (install the packages)
-    needs: windows
+    # Both Linux jobs: the net10.0 one packs, and no package is installed before every test passed
+    needs: linux
+    # On Windows for LocalDB, which the console app runs its job against
     runs-on: windows-latest
     timeout-minutes: 25
     env:
@@ -426,11 +354,19 @@ jobs:
   linux:
     name: Linux (tests on ${{ matrix.framework }})
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Every test project takes about 20 minutes per framework; coverage slows the net10.0 run
+    timeout-minutes: 45
     strategy:
       fail-fast: false
+      # Coverage is collected on net10.0 only, so the net8.0 run stays as fast as it was. coverlet.collector writes a
+      # Cobertura file per project under TestResults. The net10.0 job also packs: it builds both target frameworks,
+      # as every job does, and its packages are what the consumer job installs and publish.yml publishes.
       matrix:
-        framework: [net8.0, net10.0]
+        include:
+          - framework: net8.0
+            coverage: ''
+          - framework: net10.0
+            coverage: --collect "XPlat Code Coverage"
     services:
       sqlserver:
         image: mcr.microsoft.com/mssql/server:2022-latest
@@ -500,25 +436,25 @@ jobs:
         run: dotnet build Masterly.NightShift.slnx -c Release --no-restore
 
       - name: Test Masterly.NightShift.Core
-        run: dotnet test tests/Masterly.NightShift.Core.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
+        run: dotnet test tests/Masterly.NightShift.Core.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults ${{ matrix.coverage }}
 
       - name: Test Masterly.NightShift.SqlServer
-        run: dotnet test tests/Masterly.NightShift.SqlServer.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
+        run: dotnet test tests/Masterly.NightShift.SqlServer.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults ${{ matrix.coverage }}
 
       - name: Test Masterly.NightShift.NetCore and Masterly.NightShift.AspNetCore
-        run: dotnet test tests/Masterly.NightShift.AspNetCore.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
+        run: dotnet test tests/Masterly.NightShift.AspNetCore.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults ${{ matrix.coverage }}
 
       - name: Test Masterly.NightShift.InMemory
-        run: dotnet test tests/Masterly.NightShift.InMemory.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
+        run: dotnet test tests/Masterly.NightShift.InMemory.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults ${{ matrix.coverage }}
 
       - name: Test Masterly.NightShift.Redis
-        run: dotnet test tests/Masterly.NightShift.Redis.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
+        run: dotnet test tests/Masterly.NightShift.Redis.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults ${{ matrix.coverage }}
 
       - name: Test Masterly.NightShift.MongoDB
-        run: dotnet test tests/Masterly.NightShift.MongoDB.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
+        run: dotnet test tests/Masterly.NightShift.MongoDB.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults ${{ matrix.coverage }}
 
       - name: Test Masterly.NightShift.EntityFrameworkCore
-        run: dotnet test tests/Masterly.NightShift.EntityFrameworkCore.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
+        run: dotnet test tests/Masterly.NightShift.EntityFrameworkCore.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults ${{ matrix.coverage }}
 
       - name: Upload test results
         uses: actions/upload-artifact@v7
@@ -526,3 +462,30 @@ jobs:
         with:
           name: test-results-linux-${{ matrix.framework }}
           path: TestResults
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v7
+        if: matrix.framework == 'net10.0' && github.event_name == 'push' && github.ref == 'refs/heads/master'
+        with:
+          directory: ./TestResults
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+        continue-on-error: true
+
+      - name: Pack
+        if: matrix.framework == 'net10.0'
+        run: |
+          for project in Core SqlServer NetCore AspNetCore InMemory Redis MongoDB EntityFrameworkCore; do
+            dotnet pack "src/Masterly.NightShift.$project" -c Release --no-build -o artifacts
+          done
+          dotnet pack src/Masterly.NightShift -c Release --no-build -o artifacts
+
+      - name: Upload packages
+        if: matrix.framework == 'net10.0'
+        uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          path: |
+            artifacts/*.nupkg
+            artifacts/*.snupkg
+          if-no-files-found: error
