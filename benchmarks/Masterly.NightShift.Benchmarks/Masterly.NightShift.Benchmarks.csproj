@@ -12,6 +12,8 @@
     <!-- The release Masterly.NightShift started from, and the latest one -->
     <PackageReference Include="Hangfire.Core" Version="1.8.25" />
     <PackageReference Include="Hangfire.SqlServer" Version="1.8.25" />
+    <!-- Hangfire.Core asks for Newtonsoft.Json >= 11.0.1, which has a known vulnerability (GHSA-5crp-9r3c-p9vr) -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
 
   <!-- Quartz.NET 4 and TickerQ 10 target .NET 10 only, so the end-to-end run includes them on net10.0 -->
