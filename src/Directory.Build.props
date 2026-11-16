@@ -49,7 +49,8 @@
         <Company>Masterly</Company>
         <Product>Masterly.NightShift</Product>
         <Copyright>Copyright (c) 2026 Ahmad Omar Al-Freihat</Copyright>
-        <PackageProjectUrl>https://github.com/a7mdfre7at/Masterly.NightShift</PackageProjectUrl>
+        <!-- The "Project website" link on nuget.org: the documentation site. The source is RepositoryUrl. -->
+        <PackageProjectUrl>https://a7mdfre7at.github.io/Masterly.NightShift/</PackageProjectUrl>
         <RepositoryUrl>https://github.com/a7mdfre7at/Masterly.NightShift</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageReadmeFile>README.md</PackageReadmeFile>
