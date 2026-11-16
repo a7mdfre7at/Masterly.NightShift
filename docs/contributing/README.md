@@ -175,7 +175,7 @@ Job IDs returned by `Create`, `Enqueue`, `Schedule` and `ContinueJobWith` are `s
 
 ### License headers
 
-Masterly.NightShift started from the source of an earlier LGPL-licensed project (see [NOTICE.md](../../NOTICE.md)). Files inherited from it start with that project's license header, and **the header must stay**, including in SQL scripts, where it is written as `--` comments. Changes to those files stay under that license. New files need no header and are MIT, like everything written for this project ([LICENSE.txt](../../LICENSE.txt)).
+Masterly.NightShift started from the source of an earlier LGPL-licensed project (see [NOTICE.md](../../NOTICE.md)). Files inherited from it start with that project's license header, and **the header must stay**, including in SQL scripts, where it is written as `--` comments. Changes to those files stay under that license. New files need no header and are MIT, like everything written for this project ([LICENSE](../../LICENSE)).
 
 The rename also left a few names that must not change, because existing data depends on them: the SQL Server schema is still `HangFire`, the drain-mode storage key is still `hangfire:control`, and `TypeHelper` maps type names stored by the earlier library (`Hangfire.*, Hangfire.Core`) to the new types.
 

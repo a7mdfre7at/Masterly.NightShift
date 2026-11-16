@@ -383,7 +383,7 @@ If NightShift helps you, please ⭐ the repository: it helps others find it.
 
 ## License
 
-The code written for Masterly.NightShift is under the [MIT license](LICENSE.txt). Parts of the source are derived from Hangfire and stay under the GNU LGPL v3 or later ([LICENSE-LGPL-3.0.txt](LICENSE-LGPL-3.0.txt), with the [GPL v3](LICENSE-GPL-3.0.txt) it builds on), so the packages are licensed `MIT AND LGPL-3.0-or-later`. See [NOTICE.md](NOTICE.md) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+The code written for Masterly.NightShift is under the [MIT license](LICENSE). Parts of the source are derived from Hangfire and stay under the GNU LGPL v3 or later ([LICENSE-LGPL-3.0.txt](LICENSE-LGPL-3.0.txt), with the [GPL v3](LICENSE-GPL-3.0.txt) it builds on), so the packages are licensed `MIT AND LGPL-3.0-or-later`. See [NOTICE.md](NOTICE.md) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 <div align="center">
 <br/>

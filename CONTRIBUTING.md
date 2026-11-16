@@ -43,4 +43,4 @@ A new page also goes in `website/sidebars.js` and in its section's `README.md`. 
 
 ## License of contributions
 
-New files and your changes to files without a license header are accepted under the MIT license in [LICENSE.txt](LICENSE.txt). Some files carry a header naming another license; changes to those stay under that license (see [NOTICE.md](NOTICE.md)), and the header must not be removed.
+New files and your changes to files without a license header are accepted under the MIT license in [LICENSE](LICENSE). Some files carry a header naming another license; changes to those stay under that license (see [NOTICE.md](NOTICE.md)), and the header must not be removed.

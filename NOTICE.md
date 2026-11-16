@@ -16,7 +16,7 @@ This file is part of Hangfire. Copyright © … Hangfire OÜ.
 ```
 
 Those headers must stay in the files. They are not an oversight, and removing them would break the license terms. For
-those files, and for the library as a whole when it is distributed, the LGPL v3 applies in addition to `LICENSE.txt`:
+those files, and for the library as a whole when it is distributed, the LGPL v3 applies in addition to `LICENSE`:
 
 - you may use the library from software under any license, including closed-source software;
 - if you modify the LGPL-covered files and distribute the result, you must make those modifications available under the
@@ -26,17 +26,17 @@ those files, and for the library as a whole when it is distributed, the LGPL v3 
   <https://www.gnu.org/licenses/gpl-3.0.txt>).
 
 Code and assets written for Masterly.NightShift (the files without that header, such as the branding in `assets/` and
-the documentation in `docs/`) are covered by the MIT license in `LICENSE.txt`.
+the documentation in `docs/`) are covered by the MIT license in `LICENSE`.
 
 ## NuGet packages
 
 The assemblies of `Masterly.NightShift.Core`, `.SqlServer`, `.NetCore` and `.AspNetCore` contain both kinds of code, so
-these packages declare the license expression `MIT AND LGPL-3.0-or-later` and carry `LICENSE.txt`,
+these packages declare the license expression `MIT AND LGPL-3.0-or-later` and carry `LICENSE`,
 `LICENSE-LGPL-3.0.txt`, `LICENSE-GPL-3.0.txt`, this notice and `THIRD-PARTY-NOTICES.md`.
 
 `Masterly.NightShift.InMemory`, `.Redis`, `.MongoDB` and `.EntityFrameworkCore` contain only code written for
 Masterly.NightShift, and the `Masterly.NightShift` meta-package contains no code. These packages declare `MIT` and carry
-`LICENSE.txt`, this notice and `THIRD-PARTY-NOTICES.md`. They depend on `Masterly.NightShift.Core`, whose license
+`LICENSE`, this notice and `THIRD-PARTY-NOTICES.md`. They depend on `Masterly.NightShift.Core`, whose license
 applies to it as above.
 
 If you redistribute the packages or their assemblies, keep those files with them.
