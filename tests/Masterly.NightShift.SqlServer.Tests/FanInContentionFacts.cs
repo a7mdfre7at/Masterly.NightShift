@@ -36,20 +36,33 @@ public class FanInContentionFacts
         string anyFailed = client.ContinueJobWithJoin(parents, FanInMode.AnyFailed, () => Record("anyFailed"))!;
 
         ConcurrentQueue<string> errors = new();
-        Parallel.ForEach(parents, new ParallelOptions { MaxDegreeOfParallelism = threads }, parent =>
+
+        // On Linux, SqlClient opens a connection synchronously by waiting for asynchronous work on the thread pool.
+        // With every thread of the loop blocked in an open, a pool that grows a thread at a time let opens run past
+        // their Connect Timeout ("Unknown error 258"), which says nothing about fan-in.
+        ThreadPool.GetMinThreads(out int minWorkers, out int minCompletionPorts);
+        ThreadPool.SetMinThreads(Math.Max(minWorkers, threads * 2), minCompletionPorts);
+        try
         {
-            try
+            Parallel.ForEach(parents, new ParallelOptions { MaxDegreeOfParallelism = threads }, parent =>
             {
-                if (!client.ChangeState(parent, new SucceededState(null, 0, 0), null))
+                try
                 {
-                    errors.Enqueue($"{parent}: not changed");
+                    if (!client.ChangeState(parent, new SucceededState(null, 0, 0), null))
+                    {
+                        errors.Enqueue($"{parent}: not changed");
+                    }
                 }
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException)
-            {
-                errors.Enqueue($"{parent}: {ex.GetBaseException().Message}");
-            }
-        });
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    errors.Enqueue($"{parent}: {ex.GetType().Name}: {ex.Message}");
+                }
+            });
+        }
+        finally
+        {
+            ThreadPool.SetMinThreads(minWorkers, minCompletionPorts);
+        }
 
         Assert.Empty(errors);
         Assert.Equal(EnqueuedState.StateName, StateName(storage, any));
