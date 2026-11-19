@@ -141,7 +141,7 @@ internal static class TaskExtensions
         {
             ArgumentNullException.ThrowIfNull(task);
 
-            if (task != obj)
+            if (!ReferenceEquals(task, obj))
             {
                 // We shouldn't call GetAwaiter/GetResult on ValueTask directly, because
                 // there may be a race condition as tells us this article:

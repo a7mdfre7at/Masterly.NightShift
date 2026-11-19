@@ -5,15 +5,11 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 
-#pragma warning disable 659 // overrides AddToHashCodeCombiner instead
-
 namespace Masterly.NightShift.Common.ExpressionUtil;
 
 // IndexExpression fingerprint class
 // Represents certain forms of array access or indexer property access
 
-[SuppressMessage("Microsoft.Usage", "CA2218:OverrideGetHashCodeOnOverridingEquals", Justification = "Overrides AddToHashCodeCombiner() instead.")]
-[SuppressMessage("SonarLint", "S1206:OverrideGetHashCodeOnOverridingEquals", Justification = "Overrides AddToHashCodeCombiner() instead.")]
 [ExcludeFromCodeCoverage]
 internal sealed class IndexExpressionFingerprint(ExpressionType nodeType, Type type, PropertyInfo indexer) : ExpressionFingerprint(nodeType, type)
 {
@@ -25,6 +21,12 @@ internal sealed class IndexExpressionFingerprint(ExpressionType nodeType, Type t
         return (obj is IndexExpressionFingerprint other)
                && Equals(Indexer, other.Indexer)
                && Equals(other);
+    }
+
+    // The base hashes through AddToHashCodeCombiner, which this class overrides with what Equals compares
+    public override int GetHashCode()
+    {
+        return base.GetHashCode();
     }
 
     internal override void AddToHashCodeCombiner(HashCodeCombiner combiner)

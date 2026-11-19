@@ -687,7 +687,7 @@ public sealed class RecurringJobSetFacts : IDisposable
 
     private void SetupJobCreation()
     {
-        _connection.Setup(x => x.GetAllEntriesFromHash(RecurringJobSet.OnceHashKey)).Returns((Dictionary<string, string>)null);
+        _connection.Setup(x => x.GetAllEntriesFromHash(RecurringJobSet.OnceHashKey)).Returns(default(Dictionary<string, string>));
         _connection.Setup(x => x.AcquireDistributedLock(It.IsAny<string>(), It.IsAny<TimeSpan>())).Returns(new Mock<IDisposable>().Object);
         _connection.Setup(x => x.CreateExpiredJob(It.IsAny<Job>(), It.IsAny<IDictionary<string, string>>(), It.IsAny<DateTime>(), It.IsAny<TimeSpan>())).Returns("42");
         _connection.Setup(x => x.GetJobData("42")).Returns(new JobData());

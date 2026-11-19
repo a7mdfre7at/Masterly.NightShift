@@ -100,13 +100,11 @@ public class ReliabilityFacts
         DeploymentFencing.TakeOverAfter = TimeSpan.FromSeconds(3);
         DrainMode.HoldInterval = TimeSpan.FromSeconds(1);
 
-        BackgroundJobServer? newer = null;
-
         try
         {
             // A server reads its deployment when it is created, so one process can host both deployments
             GlobalConfiguration.Configuration.UseDeploymentFencing("v2", 2);
-            newer = new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 1, Queues = ["newer"] }, storage);
+            using BackgroundJobServer newer = new(new BackgroundJobServerOptions { WorkerCount = 1, Queues = ["newer"] }, storage);
             await WaitUntilAsync(() => DeploymentFencing.GetCurrentDeployment(storage) == "v2");
 
             GlobalConfiguration.Configuration.UseDeploymentFencing("v1", 1);
@@ -129,15 +127,14 @@ public class ReliabilityFacts
             }
 
             // The newer deployment goes away: once it has been silent long enough, the older one takes over and works
+            // (disposing it again at the end of the block does nothing)
             newer.Dispose();
-            newer = null;
 
             Assert.Equal(SucceededState.StateName, (await storage.WaitForCompletionAsync(forOlder, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken)).Name);
             Assert.Equal("v1", DeploymentFencing.GetCurrentDeployment(storage));
         }
         finally
         {
-            newer?.Dispose();
             DeploymentFencing.CheckInterval = checkInterval;
             DeploymentFencing.TakeOverAfter = takeOverAfter;
             DrainMode.HoldInterval = holdInterval;

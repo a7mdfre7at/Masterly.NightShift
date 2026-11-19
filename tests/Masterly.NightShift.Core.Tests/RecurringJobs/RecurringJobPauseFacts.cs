@@ -242,7 +242,7 @@ public class RecurringJobPauseFacts
     [Fact]
     public void Manager_Pause_ReturnsFalse_ForUnknownJobs()
     {
-        _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{RecurringJobId}")).Returns((Dictionary<string, string>)null);
+        _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{RecurringJobId}")).Returns(default(Dictionary<string, string>));
         RecurringJobManager manager = CreateManager();
 
         Assert.False(manager.Pause(RecurringJobId));
@@ -284,7 +284,7 @@ public class RecurringJobPauseFacts
         Dictionary<string, string> written = _writes.Single();
         Assert.Equal("0 10 * * *", written["Cron"]);
         Assert.False(written.ContainsKey("Paused"));
-        Assert.True(!written.ContainsKey("NextExecution") || written["NextExecution"] == string.Empty);
+        Assert.True(!written.TryGetValue("NextExecution", out string? nextExecution) || nextExecution == string.Empty);
         Assert.Equal(-1.0D, _scores.Single());
     }
 
@@ -430,7 +430,7 @@ public class RecurringJobPauseFacts
     [Fact]
     public void Manager_UpdateSchedule_ReturnsFalse_ForUnknownJobs()
     {
-        _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{RecurringJobId}")).Returns((Dictionary<string, string>)null);
+        _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{RecurringJobId}")).Returns(default(Dictionary<string, string>));
         RecurringJobManager manager = CreateManager();
 
         Assert.False(manager.UpdateSchedule(RecurringJobId, "0 1 * * *"));

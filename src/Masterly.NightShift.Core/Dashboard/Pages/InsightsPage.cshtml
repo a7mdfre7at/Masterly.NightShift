@@ -35,7 +35,6 @@
     JobInvokerStatistics invokers = JobInvokerRegistry.GetStatistics();
     long totalRuns = insights.Sum(x => x.Total);
     long totalFailed = insights.Sum(x => x.Failed);
-    DateTime now = StorageUtcNow ?? ApplicationUtcNow;
 }
 
 <div class="row">

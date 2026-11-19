@@ -96,7 +96,7 @@ public class JobStorageExtensionsFacts
     public void RequeueFailedJobs_ThrowsOnInvalidArguments()
     {
         Assert.Throws<ArgumentNullException>("storage", () => JobStorageExtensions.RequeueFailedJobs(null));
-        Assert.Throws<ArgumentNullException>("client", () => _storage.Object.RequeueFailedJobs((IBackgroundJobClient)null));
+        Assert.Throws<ArgumentNullException>("client", () => _storage.Object.RequeueFailedJobs(default(IBackgroundJobClient)));
         Assert.Throws<ArgumentOutOfRangeException>("timeBudget", () => _storage.Object.RequeueFailedJobs(_client.Object, timeBudget: TimeSpan.FromSeconds(-1)));
     }
 
@@ -197,7 +197,7 @@ public class JobStorageExtensionsFacts
         JobStateInfo? state = await _storage.Object.WaitForCompletionAsync(JobId, TimeSpan.FromMilliseconds(200), TestContext.Current.CancellationToken);
 
         Assert.Equal(ProcessingState.StateName, state?.Name);
-        Assert.False(state.IsCompleted);
+        Assert.False(state?.IsCompleted);
     }
 
     [Fact]

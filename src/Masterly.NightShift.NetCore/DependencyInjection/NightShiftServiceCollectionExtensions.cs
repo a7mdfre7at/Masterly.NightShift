@@ -470,7 +470,10 @@ public static class NightShiftServiceCollectionExtensions
     /// <exception cref="InvalidOperationException">The Masterly.NightShift services weren't added.</exception>
     public static void ThrowIfNotConfigured([NotNull] IServiceProvider serviceProvider)
     {
-        IGlobalConfiguration configuration = serviceProvider.GetService<IGlobalConfiguration>() ?? throw new InvalidOperationException(
+        if (serviceProvider.GetService<IGlobalConfiguration>() == null)
+        {
+            throw new InvalidOperationException(
                 "Unable to find the required services. Please add all the required services by calling 'IServiceCollection.AddNightShift' inside the call to 'ConfigureServices(...)' in the application startup code.");
+        }
     }
 }

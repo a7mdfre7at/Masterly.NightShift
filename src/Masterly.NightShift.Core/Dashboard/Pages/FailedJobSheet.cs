@@ -7,7 +7,7 @@ namespace Masterly.NightShift.Dashboard.Pages;
 /// with one <see cref="IMonitoringApi.JobDetails"/> when the sheet opens, so the list doesn't format and send every
 /// stack trace on each load and Live refresh. A fragment without the layout, loaded by <c>NightShift.sheet</c>.
 /// </summary>
-internal partial class FailedJobSheet(string jobId)
+internal partial class FailedJobSheet(string jobId) : RazorPage
 {
     public string JobId { get; } = jobId;
 

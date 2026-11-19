@@ -458,6 +458,11 @@ public class JsonConvertersFacts
 
         public Gadget()
         {
+            CountConstruction();
+        }
+
+        private static void CountConstruction()
+        {
             Constructed++;
         }
 

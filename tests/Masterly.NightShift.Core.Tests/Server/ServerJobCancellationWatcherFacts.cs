@@ -32,7 +32,7 @@ public class ServerJobCancellationWatcherFacts : IDisposable
         ServerJobCancellationToken token = new(_connection.Object, "job-id", _context.ServerId, "1", _context.StoppedTokenSource.Token);
         Assert.False(token.ShutdownToken.IsCancellationRequested);
 
-        _connection.Setup(x => x.GetStateData(It.IsAny<string>())).Returns((StateData)null);
+        _connection.Setup(x => x.GetStateData(It.IsAny<string>())).Returns(default(StateData));
         ServerJobCancellationWatcher watchdog = new(_checkInterval);
 
         Assert.Throws<OperationCanceledException>(() => watchdog.Execute(_context.Object));

@@ -19,12 +19,7 @@ public class CleanDatabaseAttribute : BeforeAfterTestAttribute
     public override void Before(MethodInfo methodUnderTest, IXunitTest test)
     {
         GlobalLock.Wait();
-
-        if (!_sqlObjectInstalled)
-        {
-            CreateAndInitializeDatabaseIfNotExists();
-            _sqlObjectInstalled = true;
-        }
+        InstallOncePerProcess();
 
         using SqlConnection connection = new(
             ConnectionUtils.GetConnectionString());
@@ -44,6 +39,16 @@ truncate table [HangFire].[Server];
     public override void After(MethodInfo methodUnderTest, IXunitTest test)
     {
         GlobalLock.Release();
+    }
+
+    // Shared by every attribute instance, under the global lock
+    private static void InstallOncePerProcess()
+    {
+        if (!_sqlObjectInstalled)
+        {
+            CreateAndInitializeDatabaseIfNotExists();
+            _sqlObjectInstalled = true;
+        }
     }
 
     private static void CreateAndInitializeDatabaseIfNotExists()

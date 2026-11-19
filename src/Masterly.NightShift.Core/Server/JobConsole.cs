@@ -214,8 +214,7 @@ public sealed class JobConsole : IJobConsole
 
         lock (_syncRoot)
         {
-            List<string> checkpoints = LoadCheckpoints();
-            bool isNew = !checkpoints.Contains(checkpoint, StringComparer.Ordinal);
+            bool isNew = !LoadCheckpoints().Contains(checkpoint, StringComparer.Ordinal);
 
             if (IsRunning())
             {
@@ -224,7 +223,7 @@ public sealed class JobConsole : IJobConsole
 
             if (isNew)
             {
-                checkpoints.Add(checkpoint);
+                _checkpoints!.Add(checkpoint); // LoadCheckpoints above set it, and nothing clears it
             }
         }
     }
@@ -301,7 +300,7 @@ public sealed class JobConsole : IJobConsole
     /// that can't read lists has no checkpoints (<see cref="ReadList"/>), but any other storage error is thrown
     /// and nothing is kept: treating a timeout as "no checkpoints" would make the job redo finished steps.
     /// </summary>
-    private List<string> LoadCheckpoints()
+    private IReadOnlyList<string> LoadCheckpoints()
     {
         if (_checkpoints != null)
         {
@@ -505,16 +504,8 @@ public sealed class JobConsole : IJobConsole
     {
         // The worker's connection may be pinned to a distributed lock, where calls from the job's other
         // threads would run on one database connection at once, so each call gets a connection of its own
-        IStorageConnection? owned = _context.Storage?.GetConnection();
-
-        try
-        {
-            return func(owned ?? _context.Connection);
-        }
-        finally
-        {
-            owned?.Dispose();
-        }
+        using IStorageConnection? owned = _context.Storage?.GetConnection();
+        return func(owned ?? _context.Connection);
     }
 
     private static long Now() => (long)(Clock() - UnixEpoch).TotalMilliseconds;

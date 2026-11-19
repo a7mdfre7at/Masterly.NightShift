@@ -948,8 +948,9 @@ public sealed class JobChainStorageFacts : IDisposable
         Thread.Sleep(300);
 
         // The retry never happened: the step is Failed as it was, and the step after it still waits
+        string? abandoned = $"The retry of chain {chain.ChainId} was abandoned";
         Assert.Equal(
-            (FailedState.StateName, (string?)$"The retry of chain {chain.ChainId} was abandoned", AwaitingState.StateName),
+            (FailedState.StateName, abandoned, AwaitingState.StateName),
             (StateOf(step), ReasonOf(step), StateOf(chain.Steps["1.0"])));
         Assert.DoesNotContain(History(step), static x => x.StateName == DeletedState.StateName || x.Reason?.StartsWith("Moved by policy", StringComparison.Ordinal) == true);
         Assert.Null(Parameter(step, "ChainRetry"));
@@ -1199,7 +1200,7 @@ public sealed class JobChainStorageFacts : IDisposable
             WaitUntil(() => _storage.GetMonitoringApi().EnqueuedCount("critical") == 0, "the queue to be cleared");
         }
 
-        using (BackgroundJobServer scheduler = new(new BackgroundJobServerOptions { WorkerCount = 1, Queues = ["elsewhere"], SchedulePollingInterval = TimeSpan.FromMilliseconds(100) }, _storage))
+        using (new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 1, Queues = ["elsewhere"], SchedulePollingInterval = TimeSpan.FromMilliseconds(100) }, _storage))
         {
             _filter.PauseOn = "b";
             _filter.WhilePaused = () =>
@@ -1784,7 +1785,8 @@ public sealed class JobChainStorageFacts : IDisposable
 
         using BackgroundJobServer server = CreateServer();
 
-        foreach (int occurrence in (int[])[1, 2])
+        int[] occurrences = [1, 2];
+        foreach (int occurrence in occurrences)
         {
             string trigger = manager.TriggerJob("etl")!;
             WaitUntil(() => StateOf(trigger) == SucceededState.StateName, "the recurring chain to be created");

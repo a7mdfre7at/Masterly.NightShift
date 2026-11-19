@@ -115,8 +115,8 @@ public class SqlServerConnectionFacts
     [Fact, CleanDatabase]
     public void AcquireDistributedLock_ThrowsAnException_IfLockCanNotBeGranted()
     {
-        ManualResetEventSlim releaseLock = new(false);
-        ManualResetEventSlim lockAcquired = new(false);
+        using ManualResetEventSlim releaseLock = new(false);
+        using ManualResetEventSlim lockAcquired = new(false);
 
         Thread thread = new(
             () => UseConnection(connection1 =>
@@ -152,10 +152,11 @@ public class SqlServerConnectionFacts
     public void Dispose_LetsGoOfTheSessionLocks_WhenTheConnectionIsDisposedWhileHoldingThem()
     {
         SqlServerStorage storage = new(ConnectionUtils.GetConnectionString());
-        SqlServerConnection connection = (SqlServerConnection)storage.GetConnection();
-        connection.AcquireDistributedLock("bk:pooled", TimeSpan.FromSeconds(1));
-
-        connection.Dispose();
+        using (SqlServerConnection connection = (SqlServerConnection)storage.GetConnection())
+        {
+            // The lock's handle is left undisposed: disposing the connection must let go of it
+            connection.AcquireDistributedLock("bk:pooled", TimeSpan.FromSeconds(1));
+        }
 
         Assert.True(CanTakeLockElsewhere($"{Constants.DefaultSchema}:bk:pooled"));
     }
@@ -165,10 +166,12 @@ public class SqlServerConnectionFacts
     {
         SqlServerStorage storage = new(ConnectionUtils.GetConnectionString());
         using SqlServerConnection connection = (SqlServerConnection)storage.GetConnection();
-        IDisposable distributedLock = connection.AcquireDistributedLock("bk:release", TimeSpan.FromSeconds(1));
+        using IDisposable distributedLock = connection.AcquireDistributedLock("bk:release", TimeSpan.FromSeconds(1));
 
         // The release command can't run on a connection with a transaction it doesn't take part in
         using DbTransaction pending = connection.DedicatedConnection!.BeginTransaction(); // Set by the lock
+
+        // Released here, while the transaction is pending; disposing it again at the end does nothing
         distributedLock.Dispose();
 
         Assert.True(CanTakeLockElsewhere($"{Constants.DefaultSchema}:bk:release"));
@@ -824,7 +827,8 @@ select scope_identity() as Id";
                 $"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @id and Name = @name",
                 new { id = jobId, name = "Name" }).Single();
 
-            Assert.Equal((string) null, parameter.Value);
+            string? value = parameter.Value;
+            Assert.Null(value);
         }, useBatching: false);
     }
 
@@ -1135,9 +1139,10 @@ values
 
             dynamic server = sql.Query($"select * from [{Constants.DefaultSchema}].Server").Single();
             Assert.Equal("server", server.Id);
-            Assert.True(((string)server.Data).StartsWith(
+            string data = server.Data;
+            Assert.True(data.StartsWith(
                 "{\"WorkerCount\":4,\"Queues\":[\"critical\",\"default\"],\"StartedAt\":"),
-                server.Data);
+                data);
             Assert.NotNull(server.LastHeartbeat);
             Assert.True(DateTime.UtcNow.AddHours(-1) < server.LastHeartbeat &&
                         server.LastHeartbeat < DateTime.UtcNow.AddHours(1));
@@ -1599,7 +1604,7 @@ values (@key, @value, 0.0)";
         UseConnection(connection =>
         {
             ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
-                () => connection.GetSetCount((IEnumerable<string>) null, 10));
+                () => connection.GetSetCount(keys: null, 10));
 
             Assert.Equal("keys", exception.ParamName);
         });
@@ -2010,8 +2015,8 @@ values (@key, @field, @expireAt)";
             // Arrange
             sql.Execute(arrangeSql, new[]
             {
-                new { key = "hash-1", field = "field", expireAt = (DateTime?)DateTime.UtcNow.AddHours(1) },
-                new { key = "hash-2", field = "field", expireAt = (DateTime?) null }
+                new { key = "hash-1", field = "field", expireAt = new DateTime?(DateTime.UtcNow.AddHours(1)) },
+                new { key = "hash-2", field = "field", expireAt = default(DateTime?) }
             });
 
             // Act
@@ -2100,8 +2105,8 @@ values (@key, @expireAt)";
             // Arrange
             sql.Execute(arrangeSql, new[]
             {
-                new { key = "list-1", expireAt = (DateTime?) DateTime.UtcNow.AddHours(1) },
-                new { key = "list-2", expireAt = (DateTime?) null }
+                new { key = "list-1", expireAt = new DateTime?(DateTime.UtcNow.AddHours(1)) },
+                new { key = "list-2", expireAt = default(DateTime?) }
             });
 
             // Act
@@ -2297,8 +2302,8 @@ values (@key, @value, @expireAt, 0.0)";
             // Arrange
             sql.Execute(arrangeSql, new[]
             {
-                new { key = "set-1", value = "1", expireAt = (DateTime?) DateTime.UtcNow.AddMinutes(60) },
-                new { key = "set-2", value = "2", expireAt = (DateTime?) null }
+                new { key = "set-1", value = "1", expireAt = new DateTime?(DateTime.UtcNow.AddMinutes(60)) },
+                new { key = "set-2", value = "2", expireAt = default(DateTime?) }
             });
 
             // Act
@@ -2471,9 +2476,11 @@ values (@jobId, @name, @value)";
             Assert.Equal(jobId, sqlJob.Id.ToString());
             Assert.Equal(createdAt, sqlJob.CreatedAt);
             Assert.Null((int?) sqlJob.StateId);
-            Assert.Null((string) sqlJob.StateName);
+            string? stateName = sqlJob.StateName;
+            Assert.Null(stateName);
 
-            InvocationData invocationData = InvocationData.DeserializePayload((string)sqlJob.InvocationData);
+            string payload = sqlJob.InvocationData;
+            InvocationData invocationData = InvocationData.DeserializePayload(payload);
             invocationData.Arguments = sqlJob.Arguments;
 
             Job job = invocationData.DeserializeJob();
@@ -2505,16 +2512,16 @@ select scope_identity() as Id";
 
         UseConnections((sql, connection) =>
         {
-            dynamic jobId = sql.Query(
+            long jobId = sql.QuerySingle<long>(
                 arrangeSql,
                 new
                 {
                     invocationData = TestJson.ToJson(new InvocationData(null, null, null, null)),
                     stateName = "Succeeded",
                     arguments = "[\"Arguments\"]"
-                }).Single();
+                });
 
-            JobData? result = connection.GetJobData(((long)jobId.Id).ToString());
+            JobData? result = connection.GetJobData(jobId.ToString());
 
             Assert.NotNull(result.LoadException);
         }, useBatching: false);
@@ -2535,16 +2542,16 @@ select @id as Id";
         {
             Job job = Job.FromExpression(() => SampleMethod("wrong"));
 
-            dynamic jobId = sql.Query(
+            long jobId = sql.QuerySingle<long>(
                 arrangeSql,
                 new
                 {
                     invocationData = TestJson.ToJson(InvocationData.SerializeJob(job)),
                     stateName = "Succeeded",
                     arguments = "[\"Arguments\"]"
-                }).Single();
+                });
 
-            JobData? result = connection.GetJobData(((long)jobId.Id).ToString());
+            JobData? result = connection.GetJobData(jobId.ToString());
 
             Assert.NotNull(result);
             Assert.Equal("SampleMethod", result.Job.Method.Name);
@@ -2566,16 +2573,16 @@ select scope_identity() as Id";
         {
             Job job = Job.FromExpression(() => SampleMethod("wrong"));
 
-            dynamic jobId = sql.Query(
+            long jobId = sql.QuerySingle<long>(
                 arrangeSql,
                 new
                 {
                     invocationData = TestJson.ToJson(InvocationData.SerializeJob(job)),
                     stateName = "Succeeded",
                     arguments = "[\"Arguments\"]"
-                }).Single();
+                });
 
-            JobData? result = connection.GetJobData(((long)jobId.Id).ToString());
+            JobData? result = connection.GetJobData(jobId.ToString());
 
             Assert.NotNull(result);
             Assert.NotNull(result.Job);
@@ -2639,9 +2646,9 @@ select @JobId as Id;";
                 { "Key", "Value" }
             };
 
-            long jobId = (long)sql.Query(
+            long jobId = sql.QuerySingle<long>(
                 arrangeSql,
-                new { name = "Name", reason = "Reason", @data = TestJson.ToJson(data) }).Single().Id;
+                new { name = "Name", reason = "Reason", @data = TestJson.ToJson(data) });
 
             StateData? result = connection.GetStateData(jobId.ToString());
 
@@ -2714,9 +2721,9 @@ select @JobId as Id;";
                 { "key", "Value" }
             };
 
-            long jobId = (long)sql.Query(
+            long jobId = sql.QuerySingle<long>(
                 arrangeSql,
-                new { name = "Name", reason = "Reason", @data = TestJson.ToJson(data) }).Single().Id;
+                new { name = "Name", reason = "Reason", @data = TestJson.ToJson(data) });
 
             StateData? result = connection.GetStateData(jobId.ToString());
             Assert.NotNull(result);

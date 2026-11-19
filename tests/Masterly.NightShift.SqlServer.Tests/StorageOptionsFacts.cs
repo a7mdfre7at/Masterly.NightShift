@@ -36,10 +36,9 @@ public class StorageOptionsFacts
     [Fact]
     public void Set_QueuePollInterval_DoesNotThrow_WhenGivenIntervalIsEqualToZero()
     {
-        SqlServerStorageOptions options = new()
-        {
-            QueuePollInterval = TimeSpan.Zero
-        };
+        Exception? exception = Record.Exception(static () => new SqlServerStorageOptions { QueuePollInterval = TimeSpan.Zero });
+
+        Assert.Null(exception);
     }
 
     [Fact]

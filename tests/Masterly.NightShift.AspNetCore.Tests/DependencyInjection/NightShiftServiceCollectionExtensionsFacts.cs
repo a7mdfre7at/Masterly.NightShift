@@ -298,7 +298,7 @@ public class NightShiftServiceCollectionExtensionsFacts
         IConfigurationRoot configuration = BuildConfiguration([]);
 
         Assert.Equal("services", Assert.Throws<ArgumentNullException>(() => NightShiftServiceCollectionExtensions.AddNightShiftServer(null, configuration)).ParamName);
-        Assert.Equal("configuration", Assert.Throws<ArgumentNullException>(() => services.AddNightShiftServer((IConfiguration)null)).ParamName);
+        Assert.Equal("configuration", Assert.Throws<ArgumentNullException>(() => services.AddNightShiftServer(default(IConfiguration))).ParamName);
         Assert.Equal("optionsAction", Assert.Throws<ArgumentNullException>(() => services.AddNightShiftServer(configuration, null)).ParamName);
     }
 

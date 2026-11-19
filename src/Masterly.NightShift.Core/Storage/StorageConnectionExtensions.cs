@@ -171,15 +171,10 @@ public static class StorageConnectionExtensions
                 dto.Error = error;
             }
 
-            if (hash.TryGetValue("RetryAttempt", out string? attemptString) &&
-                int.TryParse(attemptString, out int retryAttempt))
-            {
-                dto.RetryAttempt = retryAttempt;
-            }
-            else
-            {
-                dto.RetryAttempt = 0;
-            }
+            dto.RetryAttempt = hash.TryGetValue("RetryAttempt", out string? attemptString) &&
+                int.TryParse(attemptString, out int retryAttempt)
+                    ? retryAttempt
+                    : 0;
 
             if (hash.TryGetValue("Paused", out string? paused) && paused == "1")
             {

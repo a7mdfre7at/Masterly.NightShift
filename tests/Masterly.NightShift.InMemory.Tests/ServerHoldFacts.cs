@@ -212,7 +212,15 @@ public sealed class ServerHoldFacts : IDisposable
             set => Volatile.Write(ref field, value);
         }
 
-        public bool Contains(DateOnly day) => Down ? throw new InvalidOperationException("holiday database down") : false;
+        public bool Contains(DateOnly day)
+        {
+            if (Down)
+            {
+                throw new InvalidOperationException("holiday database down");
+            }
+
+            return false;
+        }
     }
 
     private sealed class ManualClock(DateTimeOffset start) : TimeProvider

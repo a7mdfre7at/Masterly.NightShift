@@ -273,8 +273,8 @@ public class DashboardHealthFacts : IDisposable
     [Fact, StaticLock]
     public void Check_TreatsNullServerAndQueueListsAsEmpty()
     {
-        _monitor.Setup(x => x.Servers()).Returns((IList<ServerDto>)null);
-        _monitor.Setup(x => x.Queues()).Returns((IList<QueueWithTopEnqueuedJobsDto>)null);
+        _monitor.Setup(x => x.Servers()).Returns(default(IList<ServerDto>));
+        _monitor.Setup(x => x.Queues()).Returns(default(IList<QueueWithTopEnqueuedJobsDto>));
 
         HealthReport report = DashboardHealth.Check(_storage.Object, _options, _now);
 

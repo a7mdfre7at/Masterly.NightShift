@@ -201,11 +201,11 @@ public class SqlServerMonitoringApiFacts
     {
         // Arrange
         string jobId1 = SimpleEnqueueJob("default", state: new EnqueuedState());
-        string jobId2 = SimpleEnqueueJob("default", state: new EnqueuedState());
-        string jobId3 = SimpleEnqueueJob("default", state: new EnqueuedState());
-        string jobId4 = SimpleEnqueueJob("default", state: new EnqueuedState());
+        SimpleEnqueueJob("default", state: new EnqueuedState());
+        SimpleEnqueueJob("default", state: new EnqueuedState());
+        SimpleEnqueueJob("default", state: new EnqueuedState());
         string jobId5 = SimpleEnqueueJob("default", state: new EnqueuedState());
-        string jobId6 = SimpleEnqueueJob("default", state: new EnqueuedState());
+        SimpleEnqueueJob("default", state: new EnqueuedState());
         string jobId7 = SimpleEnqueueJob("critical", state: new EnqueuedState());
 
         SqlServerMonitoringApi monitoring = CreateMonitoringApi();
@@ -609,7 +609,7 @@ public class SqlServerMonitoringApiFacts
     {
         // Arrange
         string jobId = SimpleEnqueueJob("default");
-        string sameId = SimpleEnqueueJob("default", jobId: jobId);
+        SimpleEnqueueJob("default", jobId: jobId);
         SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
@@ -666,11 +666,11 @@ public class SqlServerMonitoringApiFacts
     public void EnqueuedJobs_ReturnsJobs_WithinTheGivenRange_FromTheGivenQueue()
     {
         // Arrange
-        string jobId1 = SimpleEnqueueJob("default", state: new EnqueuedState());
+        SimpleEnqueueJob("default", state: new EnqueuedState());
         string jobId2 = SimpleEnqueueJob("default", state: new EnqueuedState());
-        string jobIdX = SimpleEnqueueJob("critical", state: new EnqueuedState());
+        SimpleEnqueueJob("critical", state: new EnqueuedState());
         string jobId3 = SimpleEnqueueJob("default", state: new EnqueuedState());
-        string jobId4 = SimpleEnqueueJob("default", state: new EnqueuedState());
+        SimpleEnqueueJob("default", state: new EnqueuedState());
 
         SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
@@ -789,11 +789,11 @@ public class SqlServerMonitoringApiFacts
     public void ProcessingJobs_ReturnsJobs_WithinTheGivenRange()
     {
         // Arrange
-        string jobId1 = SimpleProcessingJob();
+        SimpleProcessingJob();
         string jobId2 = SimpleProcessingJob();
         string jobId3 = SimpleProcessingJob();
-        string jobId4 = SimpleProcessingJob();
-        string jobId5 = SimpleProcessingJob();
+        SimpleProcessingJob();
+        SimpleProcessingJob();
 
         SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
@@ -884,11 +884,11 @@ public class SqlServerMonitoringApiFacts
     public void ScheduledJobs_ReturnsJobs_WithinTheGivenRange()
     {
         // Arrange
-        string jobId1 = SimpleScheduledJob();
+        SimpleScheduledJob();
         string jobId2 = SimpleScheduledJob();
         string jobId3 = SimpleScheduledJob();
-        string jobId4 = SimpleScheduledJob();
-        string jobId5 = SimpleScheduledJob();
+        SimpleScheduledJob();
+        SimpleScheduledJob();
 
         SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
@@ -1020,11 +1020,11 @@ public class SqlServerMonitoringApiFacts
     public void SucceededJobs_ReturnsJobs_WithinTheGivenRange()
     {
         // Arrange
-        string jobId1 = SimpleSucceededJob();
-        string jobId2 = SimpleSucceededJob();
+        SimpleSucceededJob();
+        SimpleSucceededJob();
         string jobId3 = SimpleSucceededJob();
         string jobId4 = SimpleSucceededJob();
-        string jobId5 = SimpleSucceededJob();
+        SimpleSucceededJob();
 
         SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
@@ -1116,11 +1116,11 @@ public class SqlServerMonitoringApiFacts
     public void FailedJobs_ReturnsJobs_WithinTheGivenRange()
     {
         // Arrange
-        string jobId1 = SimpleFailedJob();
-        string jobId2 = SimpleFailedJob();
+        SimpleFailedJob();
+        SimpleFailedJob();
         string jobId3 = SimpleFailedJob();
         string jobId4 = SimpleFailedJob();
-        string jobId5 = SimpleFailedJob();
+        SimpleFailedJob();
 
         SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
@@ -1191,11 +1191,11 @@ public class SqlServerMonitoringApiFacts
     public void DeletedJobs_ReturnsJobs_WithinTheGivenRange()
     {
         // Arrange
-        string jobId1 = SimpleDeletedJob();
-        string jobId2 = SimpleDeletedJob();
+        SimpleDeletedJob();
+        SimpleDeletedJob();
         string jobId3 = SimpleDeletedJob();
         string jobId4 = SimpleDeletedJob();
-        string jobId5 = SimpleDeletedJob();
+        SimpleDeletedJob();
 
         SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
@@ -1308,11 +1308,11 @@ public class SqlServerMonitoringApiFacts
     public void AwaitingJobs_ReturnsJobs_WithinTheGivenRange()
     {
         // Arrange
-        string jobId1 = SimpleAwaitingJob("1");
+        SimpleAwaitingJob("1");
         string jobId2 = SimpleAwaitingJob("1");
         string jobId3 = SimpleAwaitingJob("2");
-        string jobId4 = SimpleAwaitingJob("1");
-        string jobId5 = SimpleAwaitingJob("1");
+        SimpleAwaitingJob("1");
+        SimpleAwaitingJob("1");
 
         SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
@@ -1787,8 +1787,8 @@ public class SqlServerMonitoringApiFacts
 
     private static void AssertWithinSecond(DateTime date1, DateTime? date2)
     {
-        Assert.NotNull(date2);
-        Assert.True((date1 - date2.Value).TotalSeconds <= 1.0D);
+        DateTime value2 = Assert.NotNull(date2);
+        Assert.True((date1 - value2).TotalSeconds <= 1.0D);
     }
 
     [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]

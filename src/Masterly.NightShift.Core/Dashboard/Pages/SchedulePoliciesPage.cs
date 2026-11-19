@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace Masterly.NightShift.Dashboard.Pages;
 
-internal partial class SchedulePoliciesPage
+internal partial class SchedulePoliciesPage : RazorPage
 {
     private const int PreviewCount = 20;
 

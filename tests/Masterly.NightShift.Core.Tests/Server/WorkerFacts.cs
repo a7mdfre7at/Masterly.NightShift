@@ -299,14 +299,14 @@ public class WorkerFacts
 
         CreateWorker().Execute(_context.Object);
 
-        _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx => ctx.NewState is SucceededState && ctx.CompleteJob == _fetchedJob.Object)));
+        _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx => ctx.NewState is SucceededState && ReferenceEquals(ctx.CompleteJob, _fetchedJob.Object))));
     }
 
     [Fact]
     public void Execute_RemovesTheEntryFromTheQueue_WhenTheJobIsRunFromAnotherEntry()
     {
         // The state changer refuses the change to Processing: another worker runs the job from another entry
-        _stateChanger.Setup(x => x.ChangeState(It.Is<StateChangeContext>(ctx => ctx.NewState is ProcessingState))).Returns((IState)null);
+        _stateChanger.Setup(x => x.ChangeState(It.Is<StateChangeContext>(ctx => ctx.NewState is ProcessingState))).Returns(default(IState));
 
         CreateWorker().Execute(_context.Object);
 

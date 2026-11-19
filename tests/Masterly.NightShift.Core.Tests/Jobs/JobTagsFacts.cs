@@ -506,7 +506,7 @@ public class JobTagsFacts : IDisposable
     public void Count_ReturnsZero_WhenALegacyConnectionHasNoSet()
     {
         Mock<IStorageConnection> connection = new();
-        connection.Setup(x => x.GetAllItemsFromSet("tags:a")).Returns((HashSet<string>)null);
+        connection.Setup(x => x.GetAllItemsFromSet("tags:a")).Returns(default(HashSet<string>));
 
         long count = JobTags.Count(connection.Object, "a");
 
@@ -536,7 +536,7 @@ public class JobTagsFacts : IDisposable
     public void GetJobIds_OnALegacyConnection_ReturnsNothing_WhenTheSetIsMissing()
     {
         Mock<IStorageConnection> connection = new();
-        connection.Setup(x => x.GetAllItemsFromSet("tags:a")).Returns((HashSet<string>)null);
+        connection.Setup(x => x.GetAllItemsFromSet("tags:a")).Returns(default(HashSet<string>));
 
         Assert.Empty(JobTags.GetJobIds(connection.Object, "a", from: 0, count: 10));
     }
@@ -564,7 +564,7 @@ public class JobTagsFacts : IDisposable
     [Fact]
     public void Delete_WithALegacyTransaction_RemovesOnlyTheIndexEntry_WhenTheSetIsMissing()
     {
-        _connection.Setup(x => x.GetAllItemsFromSet("tags:a")).Returns((HashSet<string>)null);
+        _connection.Setup(x => x.GetAllItemsFromSet("tags:a")).Returns(default(HashSet<string>));
 
         JobTags.Delete(_connection.Object, "a");
 

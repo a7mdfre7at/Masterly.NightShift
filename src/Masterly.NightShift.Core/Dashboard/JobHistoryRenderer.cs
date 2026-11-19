@@ -518,6 +518,7 @@ public static class JobHistoryRenderer
         }
         catch (System.Text.Json.JsonException)
         {
+            // Not JSON, so no type name was stored
         }
 
         return null;

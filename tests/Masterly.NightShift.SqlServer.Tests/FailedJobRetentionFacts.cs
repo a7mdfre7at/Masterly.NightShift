@@ -28,9 +28,8 @@ public class FailedJobRetentionFacts
         // The retry is used up: the job stays failed, with an expiration set in the same transaction
         Assert.True(client.ChangeState(jobId, new FailedState(new InvalidOperationException("boom"))));
         Assert.Equal(FailedState.StateName, GetStateName(jobId));
-        DateTime? expireAt = GetExpireAt(jobId);
-        Assert.NotNull(expireAt);
-        Assert.InRange(expireAt.Value, DateTime.UtcNow.AddHours(23), DateTime.UtcNow.AddHours(25));
+        DateTime expireAt = Assert.NotNull(GetExpireAt(jobId));
+        Assert.InRange(expireAt,DateTime.UtcNow.AddHours(23), DateTime.UtcNow.AddHours(25));
         using (JobStorageConnection connection = (JobStorageConnection)storage.GetConnection())
         {
             Assert.True(connection.GetListTtl(JobConsole.GetConsoleKey(jobId)) > TimeSpan.Zero);

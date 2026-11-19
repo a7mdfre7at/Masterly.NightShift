@@ -620,8 +620,9 @@ public sealed class EfDatabaseClockFacts : IDisposable
         Assert.True(EfDatabaseClock.TryConvert("2026-11-13 10:11:12.345000", out DateTime textWithMicroseconds));
         Assert.True(EfDatabaseClock.TryConvert("2026-11-13T15:41:12.345+05:30", out DateTime textWithOffset));
 
+        DateTime[] converted = [unspecified, utc, local, offset, text, textWithMicroseconds, textWithOffset];
         Assert.All(
-            (DateTime[])[unspecified, utc, local, offset, text, textWithMicroseconds, textWithOffset],
+            converted,
             x =>
             {
                 Assert.Equal(expected, x);
@@ -692,7 +693,7 @@ public sealed class EfDatabaseClockFacts : IDisposable
     }
 
     // A file in a directory that doesn't exist: SQLite can't open it
-    private static string OutOfReach() => $"Data Source={Path.Combine(Path.GetTempPath(), $"nightshift-missing-{Guid.NewGuid():N}", "none.db")}";
+    private static string OutOfReach() => $"Data Source={Path.Join(Path.GetTempPath(), $"nightshift-missing-{Guid.NewGuid():N}", "none.db")}";
 
     private ClockContext CreateSqliteContext()
     {

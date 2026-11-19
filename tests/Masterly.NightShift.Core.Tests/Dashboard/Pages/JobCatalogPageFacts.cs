@@ -121,7 +121,8 @@ public class JobCatalogPageFacts : IDisposable
         Assert.Contains($"<legend>{Encode(Strings.CatalogPage_Table_Parameters)}</legend>", html);
         Assert.Contains($"<legend>{Encode(Strings.CatalogPage_Runner_How)}</legend>", html);
         Assert.Contains($"role=\"radiogroup\" aria-label=\"{Encode(Strings.CatalogPage_Runner_How)}\"", html);
-        foreach (string field in (string[])["catalogQueue", "catalogDelay", "catalogRecurringId", "catalogCron"])
+        string[] runnerFields = ["catalogQueue", "catalogDelay", "catalogRecurringId", "catalogCron"];
+        foreach (string field in runnerFields)
         {
             Assert.Contains($"<label for=\"{field}\">", html);
         }

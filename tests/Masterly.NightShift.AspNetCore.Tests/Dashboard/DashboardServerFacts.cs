@@ -30,7 +30,7 @@ public class DashboardServerFacts
         _monitor.Setup(x => x.GetStatistics()).Returns(new StatisticsDto());
         _monitor.Setup(x => x.ScheduledJobs(It.IsAny<int>(), It.IsAny<int>()))
             .Returns(new JobList<ScheduledJobDto>([]));
-        _connection.Setup(x => x.GetAllEntriesFromHash(It.IsAny<string>())).Returns((Dictionary<string, string>)null);
+        _connection.Setup(x => x.GetAllEntriesFromHash(It.IsAny<string>())).Returns(default(Dictionary<string, string>));
         _clientFactory.Setup(x => x.GetClient(It.IsAny<JobStorage>())).Returns(_client.Object);
         _client.Setup(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>())).Returns(true);
     }
@@ -732,21 +732,21 @@ public class DashboardServerFacts
         public string BaseAddress { get; }
         public HttpClient Client { get; }
 
-        public Task<HttpResponseMessage> PostAsync(string path, Action<HttpRequestMessage> configure = null)
+        public async Task<HttpResponseMessage> PostAsync(string path, Action<HttpRequestMessage> configure = null)
         {
-            HttpRequestMessage request = new(HttpMethod.Post, BaseAddress + path)
+            using HttpRequestMessage request = new(HttpMethod.Post, BaseAddress + path)
             {
                 Content = new FormUrlEncodedContent([]),
             };
             configure?.Invoke(request);
-            return Client.SendAsync(request, TestContext.Current.CancellationToken);
+            return await Client.SendAsync(request, TestContext.Current.CancellationToken);
         }
 
-        public Task<HttpResponseMessage> GetAsync(string path, Action<HttpRequestMessage> configure = null)
+        public async Task<HttpResponseMessage> GetAsync(string path, Action<HttpRequestMessage> configure = null)
         {
-            HttpRequestMessage request = new(HttpMethod.Get, BaseAddress + path);
+            using HttpRequestMessage request = new(HttpMethod.Get, BaseAddress + path);
             configure?.Invoke(request);
-            return Client.SendAsync(request, TestContext.Current.CancellationToken);
+            return await Client.SendAsync(request, TestContext.Current.CancellationToken);
         }
 
         public Task<string> GetStringAsync(string path)

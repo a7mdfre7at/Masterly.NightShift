@@ -125,7 +125,7 @@ public sealed class MongoStorageFacts : IDisposable
     {
         IMongoDatabase database = MongoTestServer.Database;
 
-        Assert.Throws<ArgumentNullException>(() => new MongoStorage((IMongoDatabase)null!));
+        Assert.Throws<ArgumentNullException>(() => new MongoStorage(default!));
         Assert.Throws<ArgumentException>(() => new MongoStorage(database, new MongoStorageOptions { CollectionPrefix = string.Empty }));
         Assert.Throws<ArgumentException>(() => new MongoStorage(database, new MongoStorageOptions { InvisibilityTimeout = TimeSpan.Zero }));
         Assert.Throws<ArgumentException>(() => new MongoStorage(database, new MongoStorageOptions { QueuePollInterval = TimeSpan.Zero }));
@@ -278,19 +278,27 @@ public sealed class MongoStorageFacts : IDisposable
     public void Lock_WhoseHandleWasNotDisposed_IsReleased_WithItsConnection()
     {
         _storage = MongoTestServer.CreateStorage(new MongoStorageOptions { DistributedLockLifetime = TimeSpan.FromSeconds(1) });
-        IStorageConnection first = _storage.GetConnection();
-        IDisposable forgotten = first.AcquireDistributedLock("resource", TimeSpan.Zero);
-
-        first.Dispose();
-
         using IStorageConnection second = _storage.GetConnection();
-        IDisposable taken = second.AcquireDistributedLock("resource", TimeSpan.FromSeconds(5));
+        IDisposable taken;
+        using (AcquireOnAConnectionDisposedAfterwards(_storage, "resource"))
+        {
+            taken = second.AcquireDistributedLock("resource", TimeSpan.FromSeconds(5));
 
-        // The forgotten handle no longer holds anything, so it releases nothing
-        forgotten.Dispose();
-        using IStorageConnection third = _storage.GetConnection();
-        Assert.Throws<DistributedLockTimeoutException>(() => third.AcquireDistributedLock("resource", TimeSpan.Zero));
-        taken.Dispose();
+            // The forgotten handle no longer holds anything, so disposing it at the end of this block releases nothing
+        }
+
+        using (taken)
+        {
+            using IStorageConnection third = _storage.GetConnection();
+            Assert.Throws<DistributedLockTimeoutException>(() => third.AcquireDistributedLock("resource", TimeSpan.Zero));
+        }
+    }
+
+    // Takes the lock on a connection that is then disposed, leaving the lock's handle undisposed
+    private static IDisposable AcquireOnAConnectionDisposedAfterwards(JobStorage storage, string resource)
+    {
+        using IStorageConnection connection = storage.GetConnection();
+        return connection.AcquireDistributedLock(resource, TimeSpan.Zero);
     }
 
     [Fact]

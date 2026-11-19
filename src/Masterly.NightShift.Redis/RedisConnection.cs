@@ -177,7 +177,7 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
             throw new ArgumentException("The `timeOut` value must be positive.", nameof(timeOut));
         }
 
-        long timeOutMilliseconds = (long)Math.Min(timeOut.TotalMilliseconds, long.MaxValue / 2);
+        long timeOutMilliseconds = (long)Math.Min(timeOut.TotalMilliseconds, long.MaxValue / 2.0);
         return (int)(long)storage.Evaluate(RedisScripts.RemoveTimedOutServers, timeOutMilliseconds);
     }
 

@@ -203,7 +203,7 @@ insert into [{Constants.DefaultSchema}].JobQueue (JobId, Queue, FetchedAt)
 values (@id, @queue, @fetchedAt);
 select scope_identity() as Id";
 
-        return (int)connection.Query(arrangeSql, new { id = jobId, queue, fetchedAt }).Single().Id;
+        return connection.QuerySingle<int>(arrangeSql, new { id = jobId, queue, fetchedAt });
     }
 
     private static void UseConnection(Action<IDbConnection, SqlServerStorage> action)

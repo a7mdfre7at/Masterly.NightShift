@@ -6,7 +6,7 @@ using Masterly.NightShift.Storage.Monitoring;
 
 namespace Masterly.NightShift.Dashboard.Pages;
 
-internal partial class HomePage
+internal partial class HomePage : RazorPage
 {
     public static readonly List<DashboardMetric> Metrics = [];
 
@@ -47,8 +47,9 @@ internal partial class HomePage
     internal static string StateNamesJson()
     {
         Dictionary<string, string> names = new(StringComparer.Ordinal);
-        foreach (string state in (string[])[EnqueuedState.StateName, ScheduledState.StateName, ProcessingState.StateName,
-                     SucceededState.StateName, FailedState.StateName, DeletedState.StateName, AwaitingState.StateName])
+        string[] states = [EnqueuedState.StateName, ScheduledState.StateName, ProcessingState.StateName,
+            SucceededState.StateName, FailedState.StateName, DeletedState.StateName, AwaitingState.StateName];
+        foreach (string state in states)
         {
             names[state] = HtmlHelper.StateDisplayName(state);
         }

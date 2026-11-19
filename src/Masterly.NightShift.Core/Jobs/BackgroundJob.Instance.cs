@@ -17,12 +17,14 @@ namespace Masterly.NightShift;
 
 public partial class BackgroundJob
 {
+    /// <summary>A background job with the given id, job and creation time, and no parameters snapshot.</summary>
     /// <exclude />
     public BackgroundJob([NotNull] string id, [CanBeNull] Job? job, DateTime createdAt)
         : this(id, job, createdAt, null)
     {
     }
 
+    /// <summary>A background job with the given id, job, creation time and parameters read with it.</summary>
     /// <exclude />
     public BackgroundJob([NotNull] string id, [CanBeNull] Job? job, DateTime createdAt, [CanBeNull] IReadOnlyDictionary<string, string>? parametersSnapshot)
     {

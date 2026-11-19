@@ -1,6 +1,6 @@
 namespace Masterly.NightShift.Dashboard.Pages;
 
-internal partial class TaggedJobsPage(string tag)
+internal partial class TaggedJobsPage(string tag) : RazorPage
 {
     public string Tag { get; } = tag;
 

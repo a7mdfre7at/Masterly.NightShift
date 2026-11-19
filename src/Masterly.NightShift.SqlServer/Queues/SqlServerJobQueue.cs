@@ -278,8 +278,6 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
 
     private SqlServerTransactionJob? DequeueUsingTransaction(string[] queues, CancellationToken cancellationToken)
     {
-        DbTransaction? transaction = null;
-
         TimeSpan pollInterval = _options.QueuePollInterval > TimeSpan.Zero
             ? _options.QueuePollInterval
             : TimeSpan.FromSeconds(1);
@@ -290,6 +288,7 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
         while (!cancellationToken.IsCancellationRequested)
         {
             DbConnection? connection = _storage.CreateAndOpenConnection();
+            DbTransaction? transaction = null;
 
             try
             {
@@ -330,9 +329,7 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
             }
             finally
             {
-                transaction?.Dispose();
-                transaction = null;
-                _storage.ReleaseConnection(connection);
+                ReleaseUnlessHandedOver(_storage, connection, transaction);
             }
 
             WaitHandle.WaitAny(waitArray, pollInterval);
@@ -340,6 +337,13 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
 
         cancellationToken.ThrowIfCancellationRequested();
         return null;
+    }
+
+    // Both are null when the fetched job took them over
+    private static void ReleaseUnlessHandedOver(SqlServerStorage storage, DbConnection? connection, DbTransaction? transaction)
+    {
+        transaction?.Dispose();
+        storage.ReleaseConnection(connection);
     }
 
     private static DbCommand CreateTransactionalFetchCommand(

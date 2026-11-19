@@ -150,8 +150,11 @@ public sealed class BasicAuthDashboardAuthorizationFilter : IDashboardAsyncAutho
             return false;
         }
 
-        // Both are always compared, with "&", so the response time doesn't tell which one was wrong
-        return SecretEquals(credentials[..separatorIndex], expected.UserName) & SecretEquals(credentials[(separatorIndex + 1)..], expected.Password);
+        // Both are always compared before either result is looked at, so the response time doesn't tell which one
+        // was wrong
+        bool userNameMatches = SecretEquals(credentials[..separatorIndex], expected.UserName);
+        bool passwordMatches = SecretEquals(credentials[(separatorIndex + 1)..], expected.Password);
+        return userNameMatches && passwordMatches;
     }
 
     // Hashing first gives both sides the same length, so the comparison doesn't reveal the secret's length

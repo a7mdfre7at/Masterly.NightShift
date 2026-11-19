@@ -41,7 +41,7 @@ public class BackgroundJobServerFacts
     public void Ctor_ThrowsAnException_WhenStorageIsNull()
     {
         ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
-            () => new BackgroundJobServer(_serverOptions, (JobStorage)null));
+            () => new BackgroundJobServer(_serverOptions, null));
 
         Assert.Equal("storage", exception.ParamName);
     }
@@ -82,7 +82,7 @@ public class BackgroundJobServerFacts
     [Fact]
     public void Ctor_StartsTheServer_ThatAnnouncesItsQueuesAndWorkerCount_AndRemovesItselfOnShutdown()
     {
-        ManualResetEventSlim announced = new();
+        using ManualResetEventSlim announced = new();
         string serverId = null;
         ServerContext serverContext = null;
         _storageConnection
@@ -133,7 +133,7 @@ public class BackgroundJobServerFacts
     [Fact]
     public void Ctor_WithCustomServices_RunsTheAdditionalProcesses()
     {
-        ManualResetEventSlim executed = new();
+        using ManualResetEventSlim executed = new();
         Mock<IBackgroundProcess> process = new();
         process
             .Setup(x => x.Execute(It.IsAny<BackgroundProcessContext>()))

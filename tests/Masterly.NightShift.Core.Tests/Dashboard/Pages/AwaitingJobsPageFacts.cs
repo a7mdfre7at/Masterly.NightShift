@@ -61,7 +61,7 @@ public class AwaitingJobsPageFacts
     public void Render_ShowsNoParentState_WhenTheParentExpired()
     {
         SetupAwaiting();
-        _renderer.Connection.Setup(x => x.GetStateData("0")).Returns((StateData)null);
+        _renderer.Connection.Setup(x => x.GetStateData("0")).Returns(default(StateData));
 
         string html = _renderer.Render(new AwaitingJobsPage());
 

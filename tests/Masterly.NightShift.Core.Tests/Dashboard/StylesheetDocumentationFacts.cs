@@ -13,8 +13,8 @@ namespace Masterly.NightShift.Core.Tests.Dashboard;
 public class StylesheetDocumentationFacts
 {
     private static readonly string Root = FindRepositoryRoot();
-    private static readonly string Dashboard = Path.Combine(Root, "src", "Masterly.NightShift.Core", "Dashboard");
-    private static readonly string Stylesheets = Path.Combine(Dashboard, "Content", "css");
+    private static readonly string Dashboard = Path.Join(Root, "src", "Masterly.NightShift.Core", "Dashboard");
+    private static readonly string Stylesheets = Path.Join(Dashboard, "Content", "css");
 
     // Vendored unmodified: their selectors count for the documented Bootstrap classes, but nobody keeps them in use
     private static readonly string[] VendoredStylesheets = ["bootstrap.min.css"];
@@ -39,8 +39,8 @@ public class StylesheetDocumentationFacts
     public void EveryClassTheCustomizationGuideDocuments_IsASelectorOfTheStylesheets()
     {
         HashSet<string> selectors = [.. Directory.GetFiles(Stylesheets, "*.css").SelectMany(static file => SelectorClasses(File.ReadAllText(file)))];
-        string guide = Path.Combine("docs", "dashboard", "customization.md");
-        string markdown = File.ReadAllText(Path.Combine(Root, guide));
+        string guide = Path.Join("docs", "dashboard", "customization.md");
+        string markdown = File.ReadAllText(Path.Join(Root, guide));
         Dictionary<string, string> hooks = MarkupHooks(markdown);
 
         // Outside the hooks' heading, a class without a rule is either a mistake or a hook not listed there
@@ -66,7 +66,7 @@ public class StylesheetDocumentationFacts
     [Fact]
     public void EveryMarkupHookTheGuideLists_HasNoRule_AndIsWrittenByItsPage()
     {
-        string markdown = File.ReadAllText(Path.Combine(Root, "docs", "dashboard", "customization.md"));
+        string markdown = File.ReadAllText(Path.Join(Root, "docs", "dashboard", "customization.md"));
         HashSet<string> selectors = [.. Directory.GetFiles(Stylesheets, "*.css").SelectMany(static file => SelectorClasses(File.ReadAllText(file)))];
 
         Dictionary<string, string> hooks = MarkupHooks(markdown);
@@ -100,7 +100,7 @@ public class StylesheetDocumentationFacts
         Dictionary<string, string> hooks = MarkupHooks(markdown);
 
         Assert.Equal(["ns-one"], hooks.Keys);
-        Assert.Equal(Path.Combine(Dashboard, "Pages", "AboutPage.cshtml"), hooks["ns-one"]);
+        Assert.Equal(Path.Join(Dashboard, "Pages", "AboutPage.cshtml"), hooks["ns-one"]);
         Assert.DoesNotContain("ns-before", MarkupHooksSection(markdown), StringComparison.Ordinal);
         Assert.DoesNotContain("ns-after", MarkupHooksSection(markdown), StringComparison.Ordinal);
     }
@@ -172,7 +172,7 @@ public class StylesheetDocumentationFacts
         return Regex.Matches(MarkupHooksSection(markdown), @"^\| `((?:ns|hf)-[-a-z0-9]+)` \|.*\]\(([^)]+)\) \|\s*$", RegexOptions.Multiline)
             .ToDictionary(
                 static row => row.Groups[1].Value,
-                static row => Path.GetFullPath(Path.Combine(Root, "docs", "dashboard", row.Groups[2].Value.Replace('/', Path.DirectorySeparatorChar))),
+                static row => Path.GetFullPath(Path.Join(Root, "docs", "dashboard", row.Groups[2].Value.Replace('/', Path.DirectorySeparatorChar))),
                 StringComparer.Ordinal);
     }
 
@@ -180,8 +180,8 @@ public class StylesheetDocumentationFacts
     {
         return Directory.GetFiles(Dashboard, "*.cshtml", SearchOption.AllDirectories)
             .Concat(Directory.GetFiles(Dashboard, "*.cs", SearchOption.AllDirectories))
-            .Concat(Directory.GetFiles(Path.Combine(Dashboard, "Content", "js"), "*.js").Where(static x => !x.EndsWith(".min.js", StringComparison.Ordinal)))
-            .Concat(Directory.GetFiles(Path.Combine(Root, "docs", "dashboard"), "*.md"));
+            .Concat(Directory.GetFiles(Path.Join(Dashboard, "Content", "js"), "*.js").Where(static x => !x.EndsWith(".min.js", StringComparison.Ordinal)))
+            .Concat(Directory.GetFiles(Path.Join(Root, "docs", "dashboard"), "*.md"));
     }
 
     private static bool Mentions(string text, string name)
@@ -193,7 +193,7 @@ public class StylesheetDocumentationFacts
     {
         for (DirectoryInfo? directory = new(AppContext.BaseDirectory); directory != null; directory = directory.Parent)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "Masterly.NightShift.slnx")))
+            if (File.Exists(Path.Join(directory.FullName, "Masterly.NightShift.slnx")))
             {
                 return directory.FullName;
             }

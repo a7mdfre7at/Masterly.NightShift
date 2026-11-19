@@ -4,15 +4,11 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 
-#pragma warning disable 659 // overrides AddToHashCodeCombiner instead
-
 namespace Masterly.NightShift.Common.ExpressionUtil;
 
 // ParameterExpression fingerprint class
 // Can represent the model parameter or an inner parameter in an open lambda expression
 
-[SuppressMessage("Microsoft.Usage", "CA2218:OverrideGetHashCodeOnOverridingEquals", Justification = "Overrides AddToHashCodeCombiner() instead.")]
-[SuppressMessage("SonarLint", "S1206:OverrideGetHashCodeOnOverridingEquals", Justification = "Overrides AddToHashCodeCombiner() instead.")]
 [ExcludeFromCodeCoverage]
 internal sealed class ParameterExpressionFingerprint(ExpressionType nodeType, Type type, int parameterIndex) : ExpressionFingerprint(nodeType, type)
 {
@@ -24,6 +20,12 @@ internal sealed class ParameterExpressionFingerprint(ExpressionType nodeType, Ty
         return (obj is ParameterExpressionFingerprint other)
                && (ParameterIndex == other.ParameterIndex)
                && Equals(other);
+    }
+
+    // The base hashes through AddToHashCodeCombiner, which this class overrides with what Equals compares
+    public override int GetHashCode()
+    {
+        return base.GetHashCode();
     }
 
     internal override void AddToHashCodeCombiner(HashCodeCombiner combiner)

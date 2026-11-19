@@ -141,7 +141,7 @@ public class JobLineageFacts
     [Fact]
     public void Build_StopsAtMaxDepth_AndSaysSo()
     {
-        string? previous = (string)null;
+        string? previous = null;
         for (int i = 0; i < JobLineage.MaxDepth + 3; i++)
         {
             string id = "n" + i;

@@ -451,7 +451,7 @@ public class RecurringJobWindowFacts
         RecurringJobDto dto = _connection.Object.GetRecurringJobs().Single();
 
         Assert.Equal(Utc(10, 0), dto.StartAt);
-        Assert.Equal(DateTimeKind.Utc, dto.StartAt.Value.Kind);
+        Assert.Equal(DateTimeKind.Utc, dto.StartAt?.Kind);
         Assert.Equal(Utc(20, 0), dto.EndAt);
     }
 

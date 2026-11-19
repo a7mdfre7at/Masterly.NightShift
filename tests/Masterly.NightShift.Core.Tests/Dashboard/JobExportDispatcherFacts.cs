@@ -90,7 +90,7 @@ public class JobExportDispatcherFacts
     [Fact]
     public async Task JobExport_DecodesAnEncodedSlashInTheJobId()
     {
-        _monitor.Setup(x => x.JobDetails("tenant/9")).Returns((JobDetailsDto)null);
+        _monitor.Setup(x => x.JobDetails("tenant/9")).Returns(default(JobDetailsDto));
         DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub(), _storage.Object)
         {
             UriMatch = Regex.Match("/jobs/export/tenant%2F9", "/jobs/export/(?<JobId>.+)")

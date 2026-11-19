@@ -220,7 +220,7 @@ public class JobFilterProviderCollectionFacts
 
         global.Add(added);
 
-        Assert.Contains(collection.GetFilters(_job), x => x.Instance == added);
+        Assert.Contains(collection.GetFilters(_job), x => ReferenceEquals(x.Instance, added));
     }
 
     [Fact]

@@ -6,7 +6,7 @@ using Masterly.NightShift.Dashboard.Resources;
 
 namespace Masterly.NightShift.Dashboard.Pages;
 
-internal partial class JobCatalogPage
+internal partial class JobCatalogPage : RazorPage
 {
     // The filters a fact stands for; the others are shown by name
     private static readonly HashSet<string> FactFilters = new(StringComparer.Ordinal)

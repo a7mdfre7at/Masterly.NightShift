@@ -886,6 +886,14 @@ public sealed class SchedulePolicyFilterFacts : IDisposable
     {
         public bool Down { get; set; }
 
-        public bool Contains(DateOnly day) => Down ? throw new InvalidOperationException("database down") : false;
+        public bool Contains(DateOnly day)
+        {
+            if (Down)
+            {
+                throw new InvalidOperationException("database down");
+            }
+
+            return false;
+        }
     }
 }

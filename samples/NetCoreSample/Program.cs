@@ -136,7 +136,7 @@ internal sealed class RecurringJobsService(
                 TimeZone = TimeZoneInfo.Local
             });
         }
-        catch (Exception e)
+        catch (Exception e) when (e is not OutOfMemoryException)
         {
             _logger.LogError(e, "An exception occurred while creating recurring jobs.");
         }

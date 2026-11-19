@@ -307,7 +307,7 @@ public class BackgroundJobClientExtensionsFacts
     public void StaticSchedule_WithPhrase_ThrowsAnException_WhenPhraseIsNull()
     {
         ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
-            () => _client.Object.Schedule(() => StaticMethod(), (string)null));
+            () => _client.Object.Schedule(() => StaticMethod(), default(string)));
 
         Assert.Equal("when", exception.ParamName);
     }
@@ -352,8 +352,8 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void Schedule_WithQueueAndPhrase_ThrowsAnException_WhenThePhraseOrQueueIsNull()
     {
-        ArgumentNullException phrase = Assert.Throws<ArgumentNullException>(() => _client.Object.Schedule("critical", () => StaticMethod(), (string)null));
-        ArgumentNullException queue = Assert.Throws<ArgumentNullException>(() => _client.Object.Schedule((string)null, () => StaticMethod(), "in 2 hours"));
+        ArgumentNullException phrase = Assert.Throws<ArgumentNullException>(() => _client.Object.Schedule("critical", () => StaticMethod(), default(string)));
+        ArgumentNullException queue = Assert.Throws<ArgumentNullException>(() => _client.Object.Schedule(null, () => StaticMethod(), "in 2 hours"));
 
         Assert.Equal("when", phrase.ParamName);
         Assert.Equal("queue", queue.ParamName);
@@ -373,7 +373,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void StaticSchedule_WithPhrase_ReturnsNull_WhenCreationIsCanceled()
     {
-        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns((string)null);
+        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns(default(string));
 
         string? result = _client.Object.Schedule(() => StaticMethod(), "in 2 hours");
 
@@ -393,7 +393,7 @@ public class BackgroundJobClientExtensionsFacts
     public void StaticAsyncSchedule_WithPhrase_ThrowsAnException_WhenPhraseIsNull()
     {
         ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
-            () => _client.Object.Schedule(() => StaticMethodAsync(), (string)null));
+            () => _client.Object.Schedule(() => StaticMethodAsync(), default(string)));
 
         Assert.Equal("when", exception.ParamName);
     }
@@ -425,7 +425,7 @@ public class BackgroundJobClientExtensionsFacts
     public void InstanceSchedule_WithPhrase_ThrowsAnException_WhenPhraseIsNull()
     {
         ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
-            () => _client.Object.Schedule<BackgroundJobClientExtensionsFacts>(x => x.InstanceMethod(), (string)null));
+            () => _client.Object.Schedule<BackgroundJobClientExtensionsFacts>(x => x.InstanceMethod(), default(string)));
 
         Assert.Equal("when", exception.ParamName);
     }
@@ -457,7 +457,7 @@ public class BackgroundJobClientExtensionsFacts
     public void InstanceAsyncSchedule_WithPhrase_ThrowsAnException_WhenPhraseIsNull()
     {
         ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
-            () => _client.Object.Schedule<BackgroundJobClientExtensionsFacts>(x => x.InstanceMethodAsync(), (string)null));
+            () => _client.Object.Schedule<BackgroundJobClientExtensionsFacts>(x => x.InstanceMethodAsync(), default(string)));
 
         Assert.Equal("when", exception.ParamName);
     }

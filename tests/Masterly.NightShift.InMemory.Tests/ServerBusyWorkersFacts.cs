@@ -24,7 +24,7 @@ public sealed class ServerBusyWorkersFacts : IDisposable
     {
         _client = new BackgroundJobClient(_storage);
         Release.Reset();
-        _started = 0;
+        ResetStarted();
     }
 
     public void Dispose()
@@ -46,8 +46,8 @@ public sealed class ServerBusyWorkersFacts : IDisposable
         _client.Create(() => Hold(), new EnqueuedState("alpha"));
         _client.Create(() => Hold(), new EnqueuedState("beta"));
 
-        using (BackgroundJobServer alpha = new(Options("alpha", workers: 3), _storage))
-        using (BackgroundJobServer beta = new(Options("beta", workers: 2), _storage))
+        using (new BackgroundJobServer(Options("alpha", workers: 3), _storage))
+        using (new BackgroundJobServer(Options("beta", workers: 2), _storage))
         {
             WaitFor(() => Volatile.Read(ref _started) == 3);
             string alphaId = ServerOf("alpha");
@@ -64,6 +64,9 @@ public sealed class ServerBusyWorkersFacts : IDisposable
         Dictionary<string, string>? left = _storage.GetConnection().GetAllEntriesFromHash(Hash);
         Assert.True(left == null || left.Count == 0, "the stopped servers left their reports");
     }
+
+    // _started is static because the job is a static method: written by the job and here only
+    private static void ResetStarted() => _started = 0;
 
     private static BackgroundJobServerOptions Options(string queue, int workers) => new()
     {

@@ -67,7 +67,7 @@ public sealed class EfStagingTransactionFacts : IDisposable
                 fetched = job.JobId;
                 job.RemoveFromQueue();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 failure = ex;
             }
@@ -634,7 +634,7 @@ public sealed class EfStagingTransactionFacts : IDisposable
             {
                 result = run();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 failure = ex;
             }

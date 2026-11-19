@@ -37,14 +37,9 @@ internal sealed class RecurringJobEntity
             Queue = queue;
         }
 
-        if (recurringJob.TryGetValue("TimeZoneId", out string? timeZoneId) && !string.IsNullOrWhiteSpace(timeZoneId))
-        {
-            TimeZoneId = timeZoneId;
-        }
-        else
-        {
-            TimeZoneId = TimeZoneInfo.Utc.Id;
-        }
+        TimeZoneId = recurringJob.TryGetValue("TimeZoneId", out string? timeZoneId) && !string.IsNullOrWhiteSpace(timeZoneId)
+            ? timeZoneId
+            : TimeZoneInfo.Utc.Id;
 
         if (recurringJob.TryGetValue("Cron", out string? cron) && !string.IsNullOrWhiteSpace(cron))
         {
@@ -750,12 +745,10 @@ internal sealed class RecurringJobEntity
         }
 
         string retryAttemptValue = RetryAttempt.ToString(CultureInfo.InvariantCulture);
-        if ((_recurringJob.TryGetValue("RetryAttempt", out string? retryAttempt) ? retryAttempt : null) != retryAttemptValue)
+        string? retryAttemptStored = _recurringJob.TryGetValue("RetryAttempt", out string? retryAttempt) ? retryAttempt : null;
+        if (retryAttemptStored != retryAttemptValue && (_recurringJob.ContainsKey("RetryAttempt") || retryAttemptValue != "0"))
         {
-            if (_recurringJob.ContainsKey("RetryAttempt") || retryAttemptValue != "0")
-            {
-                result.Add("RetryAttempt", retryAttemptValue);
-            }
+            result.Add("RetryAttempt", retryAttemptValue);
         }
 
         return result;

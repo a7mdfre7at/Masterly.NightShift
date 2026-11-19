@@ -9,10 +9,12 @@ using ReferencedDapper::Dapper;
 
 namespace Masterly.NightShift.SqlServer.Tests;
 
-public class SqlServerJobQueueFacts
+public class SqlServerJobQueueFacts : IDisposable
 {
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromMinutes(5);
     private static readonly string[] DefaultQueues = ["default"];
+
+    private readonly List<CancellationTokenSource> _timeouts = [];
 
     [Fact]
     public void Ctor_ThrowsAnException_WhenStorageIsNull()
@@ -65,7 +67,7 @@ public class SqlServerJobQueueFacts
     {
         UseConnection(connection =>
         {
-            CancellationTokenSource cts = new();
+            using CancellationTokenSource cts = new();
             cts.Cancel();
             SqlServerJobQueue queue = CreateJobQueue(invisibilityTimeout: null);
 
@@ -79,7 +81,7 @@ public class SqlServerJobQueueFacts
     {
         UseConnection(connection =>
         {
-            CancellationTokenSource cts = new(200);
+            using CancellationTokenSource cts = new(200);
             SqlServerJobQueue queue = CreateJobQueue(invisibilityTimeout: null);
 
             Assert.Throws<OperationCanceledException>(
@@ -98,10 +100,9 @@ select scope_identity() as Id;";
         // Arrange
         UseConnection(connection =>
         {
-            // ReSharper disable once UnusedVariable
-            int id = (int)connection.Query(
+            connection.Execute(
                 arrangeSql,
-                new { jobId = 1, queue = "default" }).Single().Id;
+                new { jobId = 1, queue = "default" });
             SqlServerJobQueue queue = CreateJobQueue(invisibilityTimeout: null);
 
             // Act
@@ -125,10 +126,9 @@ select scope_identity() as Id;";
         // Arrange
         UseConnection(connection =>
         {
-            // ReSharper disable once UnusedVariable
-            int id = (int)connection.Query(
+            connection.Execute(
                 arrangeSql,
-                new { jobId = int.MaxValue + 1L, queue = "default" }).Single().Id;
+                new { jobId = int.MaxValue + 1L, queue = "default" });
             SqlServerJobQueue queue = CreateJobQueue(invisibilityTimeout: null);
 
             // Act
@@ -338,7 +338,7 @@ values (scope_identity(), @queue)";
     {
         UseConnection(connection =>
         {
-            CancellationTokenSource cts = new();
+            using CancellationTokenSource cts = new();
             cts.Cancel();
             SqlServerJobQueue queue = CreateJobQueue(invisibilityTimeout: DefaultTimeout);
 
@@ -352,7 +352,7 @@ values (scope_identity(), @queue)";
     {
         UseConnection(connection =>
         {
-            CancellationTokenSource cts = new(200);
+            using CancellationTokenSource cts = new(200);
             SqlServerJobQueue queue = CreateJobQueue(invisibilityTimeout: DefaultTimeout);
 
             Assert.Throws<OperationCanceledException>(
@@ -371,9 +371,9 @@ select scope_identity() as Id;";
         // Arrange
         UseConnection(connection =>
         {
-            int id = (int)connection.Query(
+            int id = connection.QuerySingle<int>(
                 arrangeSql,
-                new { jobId = 1, queue = "default" }).Single().Id;
+                new { jobId = 1, queue = "default" });
             SqlServerJobQueue queue = CreateJobQueue(invisibilityTimeout: DefaultTimeout);
 
             // Act
@@ -399,9 +399,9 @@ values (@jobId1, @queue), (@jobId2, @queue);";
         // Arrange
         UseConnection(connection =>
         {
-            int id = (int)connection.Query(
+            int id = connection.QueryFirst<int>(
                 arrangeSql,
-                new { jobId1 = 1, jobId2 = 2, queue = "default" }).First().Id;
+                new { jobId1 = 1, jobId2 = 2, queue = "default" });
             SqlServerJobQueue queue = CreateJobQueue(invisibilityTimeout: DefaultTimeout);
 
             // Act
@@ -769,9 +769,22 @@ values (scope_identity(), @queue)";
         return [.. Enumerable.Range(0, count).Select(static i => "q" + i.ToString(CultureInfo.InvariantCulture))];
     }
 
-    private static CancellationToken CreateTimingOutCancellationToken()
+    /// <summary>Disposes the sources of the tokens the test created.</summary>
+    public void Dispose()
+    {
+        foreach (CancellationTokenSource timeout in _timeouts)
+        {
+            timeout.Dispose();
+        }
+
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>A token canceled a second from now, whose source the test disposes when it ends.</summary>
+    private CancellationToken CreateTimingOutCancellationToken()
     {
         CancellationTokenSource source = new(TimeSpan.FromSeconds(1));
+        _timeouts.Add(source);
         return source.Token;
     }
 

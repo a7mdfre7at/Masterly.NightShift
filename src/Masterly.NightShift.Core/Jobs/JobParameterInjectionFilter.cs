@@ -56,16 +56,9 @@ public class JobParameterInjectionFilter : IServerFilter
             string? serialized = context.Connection.GetJobParameter(context.BackgroundJob.Id, parameterName);
             if (serialized != null)
             {
-                object? deserialized;
-
-                if (parameterType == typeof(ExceptionInfo) && DefaultException.Equals(serialized, StringComparison.Ordinal))
-                {
-                    deserialized = new ExceptionInfo(DeletedState.DefaultException);
-                }
-                else
-                {
-                    deserialized = SerializationHelper.Deserialize(serialized, parameterType, SerializationOption.User);
-                }
+                object? deserialized = parameterType == typeof(ExceptionInfo) && DefaultException.Equals(serialized, StringComparison.Ordinal)
+                    ? new ExceptionInfo(DeletedState.DefaultException)
+                    : SerializationHelper.Deserialize(serialized, parameterType, SerializationOption.User);
 
                 argumentsArray[index] = deserialized!; // A null parameter stays null
             }

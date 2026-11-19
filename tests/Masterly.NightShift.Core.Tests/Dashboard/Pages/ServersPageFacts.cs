@@ -493,14 +493,16 @@ public class ServersPageFacts
     {
         private readonly Exception _exception = exception;
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             if (_exception != null)
             {
                 throw _exception;
             }
 
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+            // The response goes to HttpClient's caller, which disposes it (KeepAliveProcess uses a using declaration).
+            await Task.CompletedTask;
+            return new HttpResponseMessage(HttpStatusCode.OK);
         }
     }
 }

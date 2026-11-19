@@ -149,7 +149,7 @@ public class ApplyStateContext
 
             return SerializationHelper.Deserialize<T>(value, SerializationOption.User);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
             throw new InvalidOperationException(
                 $"Could not get a value of the job parameter `{name}`. See inner exception for details.", ex);

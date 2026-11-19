@@ -10,6 +10,11 @@ public class JobTimeoutAttributeFacts
     public JobTimeoutAttributeFacts()
     {
         _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(CancellationToken.None);
+        ResetAttempts();
+    }
+
+    private static void ResetAttempts()
+    {
         _attempts = 0;
     }
 
@@ -330,7 +335,7 @@ public class JobTimeoutAttributeFacts
     {
         string serverId = $"job-timeout-facts-{Guid.NewGuid()}";
         Mock<IStorageConnection> connection = new();
-        connection.Setup(x => x.GetStateData("JobId")).Returns((StateData)null);
+        connection.Setup(x => x.GetStateData("JobId")).Returns(default(StateData));
         ServerJobCancellationToken.AddServer(serverId);
 
         try

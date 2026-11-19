@@ -87,18 +87,13 @@ internal sealed class CompiledJobInvoker : JobInvoker
 
             Expression argument = Expression.ArrayIndex(arguments, Expression.Constant(i));
 
-            if (parameterType.GetTypeInfo().IsValueType && Nullable.GetUnderlyingType(parameterType) == null)
-            {
-                // A null argument for a non-nullable value type is passed as the default value, like MethodInfo.Invoke does.
-                argument = Expression.Condition(
+            // A null argument for a non-nullable value type is passed as the default value, like MethodInfo.Invoke does.
+            argument = parameterType.GetTypeInfo().IsValueType && Nullable.GetUnderlyingType(parameterType) == null
+                ? Expression.Condition(
                     Expression.ReferenceEqual(argument, Expression.Constant(null, typeof(object))),
                     Expression.Default(parameterType),
-                    Expression.Convert(argument, parameterType));
-            }
-            else
-            {
-                argument = Expression.Convert(argument, parameterType);
-            }
+                    Expression.Convert(argument, parameterType))
+                : Expression.Convert(argument, parameterType);
 
             callArguments[i] = argument;
         }

@@ -25,7 +25,7 @@ public class NightShiftEndpointRouteBuilderExtensionsFacts
     {
         WebApplication app = CreateApplication(addNightShift: true);
 
-        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => app.MapNightShiftDashboard((string)null));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => app.MapNightShiftDashboard(default(string)));
 
         Assert.Equal("pattern", exception.ParamName);
     }

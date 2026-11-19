@@ -18,12 +18,13 @@ public class SharedStorageFacts
     public void LeaseLock_ThatFindsItsLeaseTaken_IsLost_StopsRenewing_AndDoesNotReleaseTheNewOwners()
     {
         FakeLeaseStore store = new() { Renews = false };
-        LeaseLock taken = LeaseLock.Acquire(store, "resource", TimeSpan.FromSeconds(1), TimeToLive);
-
-        WaitUntil(() => taken.Lost);
-        int renewals = store.RenewCalls;
-        Thread.Sleep(TimeToLive);
-        taken.Dispose();
+        int renewals;
+        using (LeaseLock taken = LeaseLock.Acquire(store, "resource", TimeSpan.FromSeconds(1), TimeToLive))
+        {
+            WaitUntil(() => taken.Lost);
+            renewals = store.RenewCalls;
+            Thread.Sleep(TimeToLive);
+        }
 
         Assert.Equal(renewals, store.RenewCalls);
         Assert.Equal(0, store.ReleaseCalls);
@@ -34,9 +35,11 @@ public class SharedStorageFacts
     {
         FakeLeaseStore store = new();
         LeaseLock held = LeaseLock.Acquire(store, "resource", TimeSpan.FromSeconds(1), TimeToLive);
+        using (held)
+        {
+            WaitUntil(() => store.RenewCalls >= 3);
+        }
 
-        WaitUntil(() => store.RenewCalls >= 3);
-        held.Dispose();
         int renewals = store.RenewCalls;
         Thread.Sleep(TimeToLive);
 
@@ -53,9 +56,10 @@ public class SharedStorageFacts
         {
             FakeLeaseStore store = new() { RenewDelay = TimeSpan.FromMilliseconds(5) };
             LeaseLock held = LeaseLock.Acquire(store, "resource", TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(300));
-            Thread.Sleep(100 + i);
-
-            held.Dispose();
+            using (held)
+            {
+                Thread.Sleep(100 + i);
+            }
 
             Assert.False(held.Lost);
         }
@@ -81,10 +85,15 @@ public class SharedStorageFacts
         using ManualResetEventSlim gate = new();
         FakeLeaseStore store = new() { RenewGate = gate };
         LeaseLock held = LeaseLock.Acquire(store, "slow-resource", TimeSpan.FromSeconds(1), TimeToLive);
-        WaitUntil(() => store.RenewCalls == 1);
+        Stopwatch stopwatch;
+        using (held)
+        {
+            WaitUntil(() => store.RenewCalls == 1);
 
-        Stopwatch stopwatch = Stopwatch.StartNew();
-        held.Dispose();
+            // Times the disposal at the end of this block
+            stopwatch = Stopwatch.StartNew();
+        }
+
         stopwatch.Stop();
         int finishedAtDispose = store.RenewsFinished;
         int releasedAtDispose = store.ReleaseCalls;
@@ -110,9 +119,11 @@ public class SharedStorageFacts
         using ManualResetEventSlim gate = new();
         FakeLeaseStore store = new() { RenewGate = gate, RenewFailure = new TimeoutException("The store timed out.") };
         LeaseLock held = LeaseLock.Acquire(store, "failing-resource", TimeSpan.FromSeconds(1), TimeToLive);
-        WaitUntil(() => store.RenewCalls == 1);
+        using (held)
+        {
+            WaitUntil(() => store.RenewCalls == 1);
+        }
 
-        held.Dispose();
         gate.Set();
         WaitUntil(() => store.RenewsFinished == 1);
         Thread.Sleep(TimeToLive);
@@ -157,10 +168,11 @@ public class SharedStorageFacts
     public void LeaseLock_Dispose_DoesNotThrow_WhenTheStoreFailsToRelease()
     {
         FakeLeaseStore store = new() { ReleaseFailure = new TimeoutException("The store timed out.") };
-        LeaseLock held = LeaseLock.Acquire(store, "resource", TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1));
-
-        held.Dispose();
-        held.Dispose();
+        using (LeaseLock held = LeaseLock.Acquire(store, "resource", TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1)))
+        {
+            // Disposed here, and a second time at the end of the block
+            held.Dispose();
+        }
 
         Assert.Equal(1, store.ReleaseCalls);
     }
@@ -170,14 +182,15 @@ public class SharedStorageFacts
     {
         FakeLeaseStore store = new();
         ReentrantLocks locks = new();
-        IDisposable first = locks.Acquire("first", () => LeaseLock.Acquire(store, "first", TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1)));
-        IDisposable again = locks.Acquire("first", () => throw new InvalidOperationException("Taken again from the store."));
-        IDisposable second = locks.Acquire("second", () => LeaseLock.Acquire(store, "second", TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1)));
+        // First, the same lock again (reentrant, so not taken from the store), and second
+        using (locks.Acquire("first", () => LeaseLock.Acquire(store, "first", TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1))))
+        using (locks.Acquire("first", () => throw new InvalidOperationException("Taken again from the store.")))
+        using (locks.Acquire("second", () => LeaseLock.Acquire(store, "second", TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1))))
+        {
+            // The handles are disposed at the end of the block, after this
+            locks.ReleaseAll();
+        }
 
-        locks.ReleaseAll();
-        first.Dispose();
-        again.Dispose();
-        second.Dispose();
         locks.ReleaseAll();
 
         Assert.Equal(2, store.ReleaseCalls);
@@ -188,13 +201,19 @@ public class SharedStorageFacts
     {
         FakeLeaseStore store = new();
         ReentrantLocks locks = new();
-        IDisposable stale = locks.Acquire("resource", () => LeaseLock.Acquire(store, "resource", TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1)));
-        locks.ReleaseAll();
-        using IDisposable current = locks.Acquire("resource", () => LeaseLock.Acquire(store, "resource", TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1)));
+        IDisposable current;
+        using (locks.Acquire("resource", () => LeaseLock.Acquire(store, "resource", TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1))))
+        {
+            locks.ReleaseAll();
+            current = locks.Acquire("resource", () => LeaseLock.Acquire(store, "resource", TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1)));
 
-        stale.Dispose();
+            // The stale handle is disposed at the end of the block, while the lock is held again
+        }
 
-        Assert.Equal(1, store.ReleaseCalls);
+        using (current)
+        {
+            Assert.Equal(1, store.ReleaseCalls);
+        }
     }
 
     [Fact]
@@ -229,12 +248,14 @@ public class SharedStorageFacts
     {
         QueueSignals signals = new();
         QueueSignals.Listener listener = signals.Listen(["default"]);
-        signals.Signal("default");
+        using (listener)
+        {
+            signals.Signal("default");
 
-        listener.Reset();
-        Assert.False(listener.Wait(TimeSpan.Zero, TestContext.Current.CancellationToken));
+            listener.Reset();
+            Assert.False(listener.Wait(TimeSpan.Zero, TestContext.Current.CancellationToken));
+        }
 
-        listener.Dispose();
         signals.Signal("default");
         Assert.False(listener.Wait(TimeSpan.Zero, TestContext.Current.CancellationToken));
         Assert.Equal(0, signals.ListenedQueueCount);
@@ -254,11 +275,12 @@ public class SharedStorageFacts
     public void Transaction_Dispose_ReleasesEveryLock_EvenWhenOneFails()
     {
         CountingTransaction transaction = new();
-        transaction.AcquireDistributedLock("first", TimeSpan.FromSeconds(1));
-        transaction.AcquireDistributedLock("failing", TimeSpan.FromSeconds(1));
-        transaction.AcquireDistributedLock("last", TimeSpan.FromSeconds(1));
-
-        transaction.Dispose();
+        using (transaction)
+        {
+            transaction.AcquireDistributedLock("first", TimeSpan.FromSeconds(1));
+            transaction.AcquireDistributedLock("failing", TimeSpan.FromSeconds(1));
+            transaction.AcquireDistributedLock("last", TimeSpan.FromSeconds(1));
+        }
 
         Assert.Equal(["last", "failing", "first"], transaction.Released);
     }
@@ -276,9 +298,12 @@ public class SharedStorageFacts
     public void FetchedJob_Dispose_PutsTheJobBackOnce_AndDoesNotThrow_WhenTheStorageFails()
     {
         TestFetchedJob fetched = new() { Failure = new TimeoutException("The store timed out.") };
+        using (fetched)
+        {
+            // Disposed here, and a second time at the end of the block
+            fetched.Dispose();
+        }
 
-        fetched.Dispose();
-        fetched.Dispose();
         fetched.Requeue();
 
         Assert.Equal(1, fetched.Returns);

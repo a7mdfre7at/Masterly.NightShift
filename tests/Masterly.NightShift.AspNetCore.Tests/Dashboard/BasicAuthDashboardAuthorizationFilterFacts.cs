@@ -207,7 +207,8 @@ public class BasicAuthDashboardAuthorizationFilterFacts
     [Fact]
     public void Credential_DoesNotPrintThePassword()
     {
-        DashboardBasicAuthCredential credential = new(UserName, Password);
+        // Printed as anything that logs it would print it: through object's virtual ToString
+        object credential = new DashboardBasicAuthCredential(UserName, Password);
 
         Assert.DoesNotContain(Password, credential.ToString(), StringComparison.Ordinal);
     }

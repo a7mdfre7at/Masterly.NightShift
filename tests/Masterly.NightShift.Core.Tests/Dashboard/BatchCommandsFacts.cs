@@ -83,7 +83,7 @@ public class BatchCommandsFacts
     {
         SetupBatch(BatchId, ("1", ProcessingState.StateName));
         _connection.Setup(x => x.GetAllItemsFromSet(BatchJob.GetJobsKey(BatchId))).Returns(["1", "expired"]);
-        _connection.Setup(x => x.GetJobData("expired")).Returns((JobData)null);
+        _connection.Setup(x => x.GetJobData("expired")).Returns(default(JobData));
         DashboardContextStub context = Create();
 
         BulkJobResult? result = BatchCommands.DeletePending(context, BatchId);

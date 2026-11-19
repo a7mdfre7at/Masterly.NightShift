@@ -142,7 +142,7 @@ public class RecurringJobSchedulingFacts
     public async Task SkipAfterParameter_SkipsARunThatStartsTooLate()
     {
         SqlServerStorage storage = CreateStorage();
-        _runs = 0;
+        ResetRuns();
         Dictionary<string, object> parameters = new()
         {
             [PerformContext.ScheduledForParameter] = JobHelper.ToMillisecondTimestamp(DateTime.UtcNow.AddHours(-1)),
@@ -249,6 +249,9 @@ public class RecurringJobSchedulingFacts
     {
         Interlocked.Increment(ref _runs);
     }
+
+    /// <summary>The job method is static and counts its runs in a static field, which the test resets.</summary>
+    private static void ResetRuns() => _runs = 0;
 
     private static RecurringJobDto Find(SqlServerStorage storage, string id)
     {

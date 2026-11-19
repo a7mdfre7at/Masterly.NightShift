@@ -20,7 +20,7 @@
         {
             <a class="ns-icon-button" role="link" aria-disabled="true" aria-label="@Strings.Paginator_PreviousPage">@Html.Icon("chevron-left")</a>
         }
-        @if (_pager.CurrentPage < _pager.TotalPageCount)
+        @if (HasNextPage)
         {
             <a class="ns-icon-button" href="@_pager.PageUrl(_pager.CurrentPage + 1)" aria-label="@Strings.Paginator_NextPage" title="@Strings.Paginator_NextPage">@Html.Icon("chevron-right")</a>
         }

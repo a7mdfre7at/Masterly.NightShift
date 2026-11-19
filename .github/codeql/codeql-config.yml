@@ -1,0 +1,22 @@
+name: NightShift CodeQL configuration
+
+queries:
+  - uses: security-and-quality
+
+paths-ignore:
+  # Vendored source-only packages, kept as published apart from their namespaces (see CLAUDE.md)
+  - src/Masterly.NightShift.Core/App_Packages
+
+query-filters:
+  # A design metric, not a defect: the partial classes of a feature (JobChains and ChainRecord, the flowchart and its
+  # blocks) are tied together on purpose
+  - exclude:
+      id: cs/coupled-types
+  # Style suggestions to turn loops into LINQ; the library keeps explicit loops, which allocate no iterators or
+  # delegates on the job pipeline
+  - exclude:
+      id: cs/linq/missed-where
+  - exclude:
+      id: cs/linq/missed-select
+  - exclude:
+      id: cs/linq/missed-all

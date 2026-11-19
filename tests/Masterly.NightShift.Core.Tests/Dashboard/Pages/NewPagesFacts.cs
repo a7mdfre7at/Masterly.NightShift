@@ -489,7 +489,8 @@ public class NewPagesFacts
         Assert.Contains("<header class=\"ns-page-head\">", html, StringComparison.Ordinal);
         Assert.Contains("<span class=\"ns-page-name\">About</span></h1>", html, StringComparison.Ordinal);
         Assert.Contains("<nav class=\"ns-jump-nav\" aria-label=\"On this page\">", html, StringComparison.Ordinal);
-        foreach (string section in (string[])["settings", "storage", "filters", "functions", "monitors"])
+        string[] sections = ["settings", "storage", "filters", "functions", "monitors"];
+        foreach (string section in sections)
         {
             Assert.Contains($"href=\"#{section}\"", html, StringComparison.Ordinal);
             Assert.Contains($"aria-labelledby=\"{section}\">", html, StringComparison.Ordinal);

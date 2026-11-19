@@ -18,13 +18,22 @@ public class JobInvocationAsyncFacts : IDisposable
     {
         GlobalJobInterceptors.Clear();
         Log.Clear();
-        _calls = 0;
-        _entries = 0;
+        ResetCounters();
     }
+
+    private static int GetCalls() => Volatile.Read(ref _calls);
+
+    private static int GetEntries() => Volatile.Read(ref _entries);
 
     public void Dispose()
     {
         GlobalJobInterceptors.Clear();
+    }
+
+    private static void ResetCounters()
+    {
+        _calls = 0;
+        _entries = 0;
     }
 
     [Fact, StaticLock]
@@ -35,7 +44,7 @@ public class JobInvocationAsyncFacts : IDisposable
         JobPerformanceException exception = Assert.Throws<JobPerformanceException>(() => Perform());
 
         Assert.IsType<InvalidOperationException>(exception.InnerException);
-        Assert.Equal(3, Volatile.Read(ref _calls));
+        Assert.Equal(3, GetCalls());
     }
 
     [Fact, StaticLock]
@@ -46,7 +55,7 @@ public class JobInvocationAsyncFacts : IDisposable
         object result = Perform();
 
         Assert.Equal(3, result);
-        Assert.Equal(3, Volatile.Read(ref _calls));
+        Assert.Equal(3, GetCalls());
     }
 
     [Fact, StaticLock]
@@ -56,7 +65,7 @@ public class JobInvocationAsyncFacts : IDisposable
 
         Assert.Throws<JobPerformanceException>(() => Perform());
 
-        Assert.Equal(3, Volatile.Read(ref _calls));
+        Assert.Equal(3, GetCalls());
     }
 
     [Fact, StaticLock]
@@ -67,8 +76,8 @@ public class JobInvocationAsyncFacts : IDisposable
         object result = Perform();
 
         Assert.Equal("done", result);
-        Assert.Equal(1, Volatile.Read(ref _entries));
-        Assert.Equal(1, Volatile.Read(ref _calls));
+        Assert.Equal(1, GetEntries());
+        Assert.Equal(1, GetCalls());
     }
 
     [Fact, StaticLock]
@@ -92,7 +101,7 @@ public class JobInvocationAsyncFacts : IDisposable
         object result = Perform();
 
         Assert.Equal("replaced", result);
-        Assert.Equal(1, Volatile.Read(ref _entries));
+        Assert.Equal(1, GetEntries());
         Assert.Equal(new[] { "inner saw replaced" }, Log);
     }
 
@@ -104,7 +113,7 @@ public class JobInvocationAsyncFacts : IDisposable
         object result = Perform();
 
         Assert.Equal(2, result);
-        Assert.Equal(2, Volatile.Read(ref _calls));
+        Assert.Equal(2, GetCalls());
     }
 
     private object Perform()

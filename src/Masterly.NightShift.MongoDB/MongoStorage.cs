@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Storage.Shared;
 using MongoDB.Bson;
@@ -61,6 +62,9 @@ public sealed class MongoStorage : JobStorage
     // MongoDB 5.0
     private const int MinimumWireVersion = 13;
 
+    // One client per connection string, as the driver recommends: a client is thread-safe and meant to be reused
+    private static readonly ConcurrentDictionary<string, MongoClient> Clients = new(StringComparer.Ordinal);
+
     private readonly Dictionary<string, bool> _features = StorageRules.Features(typeof(MongoFetchedJob));
 
     /// <summary>
@@ -68,9 +72,9 @@ public sealed class MongoStorage : JobStorage
     /// it reads the server's version and topology, then creates the indexes.
     /// </summary>
     /// <remarks>
-    /// The driver shares the connections of the clients created with the same settings, and keeps them for the
-    /// lifetime of the process (disposing a client doesn't close them), so the storage has nothing to dispose: a
-    /// storage created again from the same connection string uses the same connections.
+    /// Storages created from the same connection string share one client, kept for the lifetime of the process, as
+    /// the driver keeps the connections of its clients (disposing a client doesn't close them). So the storage has
+    /// nothing to dispose: a storage created again from the same connection string uses the same connections.
     /// </remarks>
     /// <param name="connectionString">A MongoDB connection string.</param>
     /// <param name="databaseName">The database that holds the collections.</param>
@@ -78,8 +82,16 @@ public sealed class MongoStorage : JobStorage
     /// <exception cref="ArgumentNullException"><paramref name="connectionString"/> or <paramref name="databaseName"/> is <c>null</c>.</exception>
     /// <exception cref="NotSupportedException">The server is a standalone server, without transactions, or older than MongoDB 5.0.</exception>
     public MongoStorage([NotNull] string connectionString, [NotNull] string databaseName, [CanBeNull] MongoStorageOptions? options = null)
-        : this(new MongoClient(connectionString ?? throw new ArgumentNullException(nameof(connectionString))).GetDatabase(databaseName ?? throw new ArgumentNullException(nameof(databaseName))), options)
+        : this(GetClient(connectionString).GetDatabase(databaseName ?? throw new ArgumentNullException(nameof(databaseName))), options)
     {
+    }
+
+    private static MongoClient GetClient(string? connectionString)
+    {
+        ArgumentNullException.ThrowIfNull(connectionString);
+
+        // A connection string the driver refuses throws here and is not kept
+        return Clients.GetOrAdd(connectionString, static x => new MongoClient(x));
     }
 
     /// <summary>

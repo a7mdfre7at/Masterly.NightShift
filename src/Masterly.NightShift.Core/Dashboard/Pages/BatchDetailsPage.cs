@@ -2,7 +2,7 @@ using Masterly.NightShift.Dashboard.Resources;
 
 namespace Masterly.NightShift.Dashboard.Pages;
 
-internal partial class BatchDetailsPage(string id)
+internal partial class BatchDetailsPage(string id) : RazorPage
 {
     public string Id { get; } = RouteValues.Decode(id);
 

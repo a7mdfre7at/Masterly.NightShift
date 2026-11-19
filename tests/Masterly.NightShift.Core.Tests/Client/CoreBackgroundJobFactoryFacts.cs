@@ -180,7 +180,7 @@ public class CoreBackgroundJobFactoryFacts
         _stateMachine.Verify(x => x.ApplyState(
             It.Is<ApplyStateContext>(
                 sc => sc.BackgroundJob.Id == JobId && sc.BackgroundJob.Job == _context.Job
-                && sc.NewState == _context.InitialState.Object && sc.OldStateName == null)));
+                && ReferenceEquals(sc.NewState, _context.InitialState.Object) && sc.OldStateName == null)));
 
         _transaction.Verify(x => x.Commit());
     }
@@ -313,7 +313,7 @@ public class CoreBackgroundJobFactoryFacts
             .Throws<TimeoutException>()
             .Pass();
 
-        _context.Connection.Setup(x => x.GetJobData(It.IsAny<string>())).Returns((JobData)null);
+        _context.Connection.Setup(x => x.GetJobData(It.IsAny<string>())).Returns(default(JobData));
 
         CoreBackgroundJobFactory factory = CreateFactory(retries: 1);
 

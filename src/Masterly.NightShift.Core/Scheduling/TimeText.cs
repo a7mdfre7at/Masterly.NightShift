@@ -135,7 +135,7 @@ public static partial class TimeText
                 }
 
                 // Months differ in length, so "in 1.5 months" has no single answer
-                if (amount != Math.Floor(amount))
+                if (!double.IsInteger(amount))
                 {
                     error = $"Unable to use the time '{text}': months must be a whole number. Use days or weeks for a part of a month, for example \"in 45 days\".";
                     return false;

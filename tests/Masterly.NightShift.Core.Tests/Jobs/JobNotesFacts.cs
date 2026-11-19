@@ -52,7 +52,7 @@ public class JobNotesFacts : IDisposable
         Mock<IDisposable> handle = new();
         handle.Setup(x => x.Dispose()).Callback(() => calls.Add("release"));
         _connection.Setup(x => x.AcquireDistributedLock("job:1:notes-lock", JobNotes.LockTimeout)).Callback(() => calls.Add("lock")).Returns(handle.Object);
-        _connection.Setup(x => x.GetJobParameter("1", JobNotes.ParameterName)).Callback(() => calls.Add("read")).Returns((string)null);
+        _connection.Setup(x => x.GetJobParameter("1", JobNotes.ParameterName)).Callback(() => calls.Add("read")).Returns(default(string));
         _connection.Setup(x => x.SetJobParameter("1", JobNotes.ParameterName, It.IsAny<string>())).Callback(() => calls.Add("write"));
 
         JobNotes.Add(_connection.Object, "1", "note");

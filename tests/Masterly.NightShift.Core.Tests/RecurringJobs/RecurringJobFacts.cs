@@ -58,7 +58,7 @@ public class RecurringJobFacts : IDisposable
     [Fact, GlobalLock(Reason = "Access RecurringJob.ManagerFactory member")]
     public void Pause_ReturnsFalse_WhenTheRecurringJobDoesNotExist()
     {
-        _connection.Setup(x => x.GetAllEntriesFromHash(HashKey)).Returns((Dictionary<string, string>)null);
+        _connection.Setup(x => x.GetAllEntriesFromHash(HashKey)).Returns(default(Dictionary<string, string>));
 
         bool result = RecurringJob.Pause(RecurringJobId);
 
@@ -89,7 +89,7 @@ public class RecurringJobFacts : IDisposable
     [Fact, GlobalLock(Reason = "Access RecurringJob.ManagerFactory member")]
     public void Resume_ReturnsFalse_WhenTheRecurringJobDoesNotExist()
     {
-        _connection.Setup(x => x.GetAllEntriesFromHash(HashKey)).Returns((Dictionary<string, string>)null);
+        _connection.Setup(x => x.GetAllEntriesFromHash(HashKey)).Returns(default(Dictionary<string, string>));
 
         bool result = RecurringJob.Resume(RecurringJobId);
 
@@ -132,7 +132,7 @@ public class RecurringJobFacts : IDisposable
     [Fact, GlobalLock(Reason = "Access RecurringJob.ManagerFactory member")]
     public void UpdateSchedule_ReturnsFalse_WhenTheRecurringJobDoesNotExist()
     {
-        _connection.Setup(x => x.GetAllEntriesFromHash(HashKey)).Returns((Dictionary<string, string>)null);
+        _connection.Setup(x => x.GetAllEntriesFromHash(HashKey)).Returns(default(Dictionary<string, string>));
 
         bool result = RecurringJob.UpdateSchedule(RecurringJobId, "0 18 * * *");
 

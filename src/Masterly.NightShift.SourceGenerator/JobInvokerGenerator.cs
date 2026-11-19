@@ -98,7 +98,7 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
             {
                 Emit(output, lambdas.Concat(marked), env);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 output.ReportDiagnostic(Diagnostic.Create(GeneratorFailed, Location.None, ex.Message));
             }

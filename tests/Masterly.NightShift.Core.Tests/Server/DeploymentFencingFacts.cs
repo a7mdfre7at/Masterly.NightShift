@@ -312,8 +312,8 @@ public sealed class DeploymentFencingFacts : IDisposable
         // Five minutes of both checking every 15 seconds
         List<(bool OlderFenced, bool NewerFenced, string Current)> rounds = Simulate(20, round =>
         (
-            Check(older, "old-server", 10 + (15 * round), skew, origin),
-            Check(newer, "new-server", 20 + (15 * round)),
+            Check(older, "old-server", 10 + (15.0 * round), skew, origin),
+            Check(newer, "new-server", 20 + (15.0 * round)),
             DeploymentFencing.GetCurrentDeployment(_storage.Object)
         ));
 
@@ -450,11 +450,11 @@ public sealed class DeploymentFencingFacts : IDisposable
         DeploymentFencingProcess older = new("v1", 1);
         CheckEvery(TimeSpan.FromMinutes(2), newer, "new-server", 0);
 
-        bool[] beforeTheSecondCheck = [.. Enumerable.Range(0, 8).Select(i => Check(older, "old-server", 5 + (15 * i)))];
+        bool[] beforeTheSecondCheck = [.. Enumerable.Range(0, 8).Select(i => Check(older, "old-server", 5 + (15.0 * i)))];
         CheckEvery(TimeSpan.FromMinutes(2), newer, "new-server", 120);
 
         // The older server reads the second check at 125; four minutes later is 365
-        bool[] afterTheLastCheck = [.. Enumerable.Range(0, 17).Select(i => Check(older, "old-server", 125 + (15 * i)))];
+        bool[] afterTheLastCheck = [.. Enumerable.Range(0, 17).Select(i => Check(older, "old-server", 125 + (15.0 * i)))];
         bool afterFourMinutesOfSilence = Check(older, "old-server", 380);
 
         Assert.All(beforeTheSecondCheck, static x => Assert.True(x));
@@ -517,9 +517,9 @@ public sealed class DeploymentFencingFacts : IDisposable
 
             rounds = Simulate(20, round =>
             {
-                Check(high, "v2-a", 15 + (15 * round));
-                Check(low, "v2-b", 17 + (15 * round));
-                return (Check(older, "v1-a", 19 + (15 * round)), DeploymentFencing.GetCurrentDeployment(_storage.Object), Hash["Order:v2"]);
+                Check(high, "v2-a", 15 + (15.0 * round));
+                Check(low, "v2-b", 17 + (15.0 * round));
+                return (Check(older, "v1-a", 19 + (15.0 * round)), DeploymentFencing.GetCurrentDeployment(_storage.Object), Hash["Order:v2"]);
             });
         }
 
@@ -552,9 +552,9 @@ public sealed class DeploymentFencingFacts : IDisposable
 
             rounds = Simulate(20, round =>
             {
-                Check(low, "v2-b", 15 + (15 * round));
-                Check(high, "v2-a", 17 + (15 * round));
-                return (Check(older, "v1-a", 19 + (15 * round)), DeploymentFencing.GetCurrentDeployment(_storage.Object), Hash["Order:v2"]);
+                Check(low, "v2-b", 15 + (15.0 * round));
+                Check(high, "v2-a", 17 + (15.0 * round));
+                return (Check(older, "v1-a", 19 + (15.0 * round)), DeploymentFencing.GetCurrentDeployment(_storage.Object), Hash["Order:v2"]);
             });
         }
 
@@ -620,8 +620,8 @@ public sealed class DeploymentFencingFacts : IDisposable
 
         List<(bool OlderFenced, bool HasOlder)> rounds = Simulate(10, round =>
         (
-            Check(older, "old-server", 10 + (15 * round), skew),
-            !Check(current, "new-server", 20 + (15 * round)) && Hash.ContainsKey("Seen:v1") && Hash.ContainsKey("Order:v1")
+            Check(older, "old-server", 10 + (15.0 * round), skew),
+            !Check(current, "new-server", 20 + (15.0 * round)) && Hash.ContainsKey("Seen:v1") && Hash.ContainsKey("Order:v1")
         ));
 
         Assert.All(rounds, static x => Assert.True(x.OlderFenced));
@@ -758,7 +758,7 @@ public sealed class DeploymentFencingFacts : IDisposable
         Check(new DeploymentFencingProcess("v2", 2), "new-server", 5);
 
         // 23 seconds apart: each check comes after a gap in which the server saw nothing
-        bool[] fenced = [.. Enumerable.Range(1, 8).Select(i => Check(older, "old-server", 23 * i))];
+        bool[] fenced = [.. Enumerable.Range(1, 8).Select(i => Check(older, "old-server", 23.0 * i))];
 
         Assert.All(fenced, static x => Assert.True(x));
         Assert.Equal("v2", DeploymentFencing.GetCurrentDeployment(_storage.Object));
@@ -809,7 +809,7 @@ public sealed class DeploymentFencingFacts : IDisposable
             // The first warning comes with the check at 69; the check at 3657 is the last one within the hour after it
             foreach (int i in Enumerable.Range(1, 159))
             {
-                Check(older, "old-server", 23 * i);
+                Check(older, "old-server", 23.0 * i);
             }
 
             warningsWithinTheHour = GapWarnings(recording).Length;
@@ -887,7 +887,7 @@ public sealed class DeploymentFencingFacts : IDisposable
         using (recording.Use())
         {
             // The server of the current deployment has nothing to take over, however far apart its checks are
-            fenced = [.. Enumerable.Range(1, 10).Select(i => Check(current, "new-server", 5 + (23 * i)))];
+            fenced = [.. Enumerable.Range(1, 10).Select(i => Check(current, "new-server", 5 + (23.0 * i)))];
         }
 
         Assert.All(fenced, static x => Assert.False(x));
@@ -1378,8 +1378,8 @@ public sealed class DeploymentFencingFacts : IDisposable
         {
             rounds = Simulate(8, round =>
             (
-                Check(lower, "server-a", 15 * round),
-                Check(upper, "server-b", 5 + (15 * round)),
+                Check(lower, "server-a", 15.0 * round),
+                Check(upper, "server-b", 5 + (15.0 * round)),
                 DeploymentFencing.GetCurrentDeployment(_storage.Object)
             ));
         }

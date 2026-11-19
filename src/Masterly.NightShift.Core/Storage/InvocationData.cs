@@ -117,8 +117,7 @@ public class InvocationData(string type, string method, string? parameterTypes, 
     {
         ArgumentNullException.ThrowIfNull(payload);
 
-        JobPayload? jobPayload = null;
-        Exception? exception = null;
+        JobPayload? jobPayload;
 
         try
         {
@@ -126,10 +125,11 @@ public class InvocationData(string type, string method, string? parameterTypes, 
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
-            exception = ex;
+            // Not in this form: it is read as InvocationData below
+            jobPayload = null;
         }
 
-        if (exception == null && jobPayload!.TypeName != null && jobPayload.MethodName != null) // exception == null: it was read
+        if (jobPayload is { TypeName: not null, MethodName: not null })
         {
             return new InvocationData(
                 jobPayload.TypeName,
@@ -289,18 +289,11 @@ public class InvocationData(string type, string method, string? parameterTypes, 
             ParameterInfo parameter = parameters[i];
             string argument = arguments[i];
 
-            object? value;
-
-            if (CoreBackgroundJobPerformer.Substitutions.ContainsKey(parameter.ParameterType))
-            {
-                value = parameter.ParameterType.GetTypeInfo().IsValueType
+            object? value = !CoreBackgroundJobPerformer.Substitutions.ContainsKey(parameter.ParameterType)
+                ? DeserializeArgument(argument, parameter.ParameterType)
+                : parameter.ParameterType.GetTypeInfo().IsValueType
                     ? Activator.CreateInstance(parameter.ParameterType)
                     : null;
-            }
-            else
-            {
-                value = DeserializeArgument(argument, parameter.ParameterType);
-            }
 
             result.Add(value!); // A null argument stays null
         }

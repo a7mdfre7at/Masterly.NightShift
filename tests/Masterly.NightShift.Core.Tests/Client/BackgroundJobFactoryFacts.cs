@@ -395,7 +395,7 @@ public class BackgroundJobFactoryFacts
         CreateFactory().Create(_context.Object);
 
         Assert.Same(replaced, created);
-        later.Verify(x => x.OnCreating(It.Is<CreatingContext>(context => context.InitialState == replaced)));
+        later.Verify(x => x.OnCreating(It.Is<CreatingContext>(context => ReferenceEquals(context.InitialState, replaced))));
     }
 
     [Fact]

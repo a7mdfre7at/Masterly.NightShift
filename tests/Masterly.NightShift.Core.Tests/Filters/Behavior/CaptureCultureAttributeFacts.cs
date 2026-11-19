@@ -208,7 +208,7 @@ public class CaptureCultureAttributeFacts
         // Arrange
         _perform.Connection
             .Setup(x => x.GetJobParameter(_perform.BackgroundJob.Id, "CurrentUICulture"))
-            .Returns((string)null);
+            .Returns(default(string));
 
         CaptureCultureAttribute attribute = new();
 
@@ -226,11 +226,11 @@ public class CaptureCultureAttributeFacts
         // Arrange
         _perform.Connection
             .Setup(x => x.GetJobParameter(_perform.BackgroundJob.Id, "CurrentCulture"))
-            .Returns((string)null);
+            .Returns(default(string));
 
         _perform.Connection
             .Setup(x => x.GetJobParameter(_perform.BackgroundJob.Id, "CurrentUICulture"))
-            .Returns((string)null);
+            .Returns(default(string));
 
         CaptureCultureAttribute attribute = new("en-US", "en-GB");
 
@@ -248,11 +248,11 @@ public class CaptureCultureAttributeFacts
         // Arrange
         _perform.Connection
             .Setup(x => x.GetJobParameter(_perform.BackgroundJob.Id, "CurrentCulture"))
-            .Returns((string)null);
+            .Returns(default(string));
 
         _perform.Connection
             .Setup(x => x.GetJobParameter(_perform.BackgroundJob.Id, "CurrentUICulture"))
-            .Returns((string)null);
+            .Returns(default(string));
 
         CaptureCultureAttribute attribute = new("en-US");
 
@@ -270,11 +270,11 @@ public class CaptureCultureAttributeFacts
         // Arrange
         _perform.Connection
             .Setup(x => x.GetJobParameter(_perform.BackgroundJob.Id, "CurrentCulture"))
-            .Returns((string)null);
+            .Returns(default(string));
 
         _perform.Connection
             .Setup(x => x.GetJobParameter(_perform.BackgroundJob.Id, "CurrentUICulture"))
-            .Returns((string)null);
+            .Returns(default(string));
 
         CaptureCultureAttribute attribute = new("en-US", null);
 
@@ -291,11 +291,11 @@ public class CaptureCultureAttributeFacts
         // Arrange
         _perform.Connection
             .Setup(x => x.GetJobParameter(_perform.BackgroundJob.Id, "CurrentCulture"))
-            .Returns((string)null);
+            .Returns(default(string));
 
         _perform.Connection
             .Setup(x => x.GetJobParameter(_perform.BackgroundJob.Id, "CurrentUICulture"))
-            .Returns((string)null);
+            .Returns(default(string));
 
         CaptureCultureAttribute attribute = new();
 
@@ -365,11 +365,11 @@ public class CaptureCultureAttributeFacts
         // Arrange
         _perform.Connection
             .Setup(x => x.GetJobParameter(_perform.BackgroundJob.Id, "CurrentCulture"))
-            .Returns((string)null);
+            .Returns(default(string));
 
         _perform.Connection
             .Setup(x => x.GetJobParameter(_perform.BackgroundJob.Id, "CurrentUICulture"))
-            .Returns((string)null);
+            .Returns(default(string));
 
         CaptureCultureAttribute attribute = new();
         attribute.OnPerforming(_perform.GetPerformingContext());

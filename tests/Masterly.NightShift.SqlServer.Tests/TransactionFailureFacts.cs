@@ -130,7 +130,7 @@ public class TransactionFailureFacts
 
         using (IStorageConnection connection = storage.GetConnection())
         {
-            IDisposable jobLock = lockedConnection ? connection.AcquireDistributedLock($"job:{first}:state-lock", TimeSpan.FromSeconds(5)) : null;
+            using IDisposable? jobLock = lockedConnection ? connection.AcquireDistributedLock($"job:{first}:state-lock", TimeSpan.FromSeconds(5)) : null;
 
             using (JobStorageTransaction transaction = (JobStorageTransaction)connection.CreateWriteTransaction())
             {
@@ -163,14 +163,10 @@ public class TransactionFailureFacts
 
             held.Rollback();
 
-            using (JobStorageTransaction again = (JobStorageTransaction)connection.CreateWriteTransaction())
-            {
-                again.SetJobParameter(first, "A", "again");
-                again.IncrementCounter("again");
-                again.Commit();
-            }
-
-            jobLock?.Dispose();
+            using JobStorageTransaction again = (JobStorageTransaction)connection.CreateWriteTransaction();
+            again.SetJobParameter(first, "A", "again");
+            again.IncrementCounter("again");
+            again.Commit();
         }
 
         // Committed for good: resetting every pooled connection would roll back what one had left open
@@ -462,7 +458,7 @@ public class TransactionFailureFacts
                     {
                         Write(storage, random, operation, job, other, jobs, names, name, i);
                     }
-                    catch (Exception ex)
+                    catch (Exception ex) when (ex is not OutOfMemoryException)
                     {
                         failures.Enqueue(new InvalidOperationException($"operation {operation}", ex));
                     }

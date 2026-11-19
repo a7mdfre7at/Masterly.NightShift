@@ -110,7 +110,7 @@ public class BackgroundJobStateChangerFacts
         // Assert
         _stateMachine.Verify(x => x.ApplyState(
             It.Is<ApplyStateContext>(sc => sc.BackgroundJob.Id == JobId && sc.BackgroundJob.Job.Type.Name.Equals("Console")
-                && sc.NewState == _state.Object && sc.OldStateName == OldStateName)));
+                && ReferenceEquals(sc.NewState, _state.Object) && sc.OldStateName == OldStateName)));
 
         Assert.NotNull(result);
         Assert.Equal(_state.Object.Name, result.Name);
@@ -139,7 +139,7 @@ public class BackgroundJobStateChangerFacts
 
         // Assert
         _stateMachine.Verify(x => x.ApplyState(
-            It.Is<ApplyStateContext>(ctx => ctx.NewState == _state.Object && ctx.OldStateName == OldStateName)));
+            It.Is<ApplyStateContext>(ctx => ReferenceEquals(ctx.NewState, _state.Object) && ctx.OldStateName == OldStateName)));
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public class BackgroundJobStateChangerFacts
     {
         // Arrange
         _connection.Setup(x => x.GetJobData(It.IsAny<string>()))
-            .Returns((JobData)null);
+            .Returns(default(JobData));
 
         BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
@@ -353,7 +353,7 @@ public class BackgroundJobStateChangerFacts
 
         // Assert
         _stateMachine.Verify(x => x.ApplyState(
-            It.Is<ApplyStateContext>(ctx => ctx.NewState == _state.Object)));
+            It.Is<ApplyStateContext>(ctx => ReferenceEquals(ctx.NewState, _state.Object))));
 
         Assert.NotNull(result);
         Assert.Equal(_state.Object.Name, result.Name);
@@ -371,7 +371,7 @@ public class BackgroundJobStateChangerFacts
 
         // Assert
         _stateMachine.Verify(x => x.ApplyState(
-            It.Is<ApplyStateContext>(ctx => ctx.NewState == _state.Object && ctx.OldStateName == OldStateName
+            It.Is<ApplyStateContext>(ctx => ReferenceEquals(ctx.NewState, _state.Object) && ctx.OldStateName == OldStateName
                 && ctx.BackgroundJob.Job == _job && ctx.BackgroundJob.Id == JobId)));
 
         _transaction.Verify(x => x.Commit());
@@ -403,7 +403,7 @@ public class BackgroundJobStateChangerFacts
     {
         // Arrange
         _stateMachine
-            .Setup(x => x.ApplyState(It.Is<ApplyStateContext>(context => context.NewState == _state.Object)))
+            .Setup(x => x.ApplyState(It.Is<ApplyStateContext>(context => ReferenceEquals(context.NewState, _state.Object))))
             .Throws<Exception>();
 
         BackgroundJobStateChanger stateChanger = CreateStateChanger();
@@ -414,7 +414,7 @@ public class BackgroundJobStateChangerFacts
         _transaction.Verify(x => x.Commit(), Times.Never);
 
         _stateMachine.Verify(
-            x => x.ApplyState(It.Is<ApplyStateContext>(context => context.NewState == _state.Object)),
+            x => x.ApplyState(It.Is<ApplyStateContext>(context => ReferenceEquals(context.NewState, _state.Object))),
             Times.Once);
     }
 
@@ -423,7 +423,7 @@ public class BackgroundJobStateChangerFacts
     {
         // Arrange
         _stateMachine
-            .Setup(x => x.ApplyState(It.Is<ApplyStateContext>(context => context.NewState == _state.Object)))
+            .Setup(x => x.ApplyState(It.Is<ApplyStateContext>(context => ReferenceEquals(context.NewState, _state.Object))))
             .Throws<Exception>();
 
         BackgroundJobStateChanger stateChanger = CreateStateChanger();
@@ -437,7 +437,7 @@ public class BackgroundJobStateChangerFacts
         _transaction.Verify(x => x.Commit(), Times.Never);
 
         _stateMachine.Verify(
-            x => x.ApplyState(It.Is<ApplyStateContext>(context => context.NewState == _state.Object)),
+            x => x.ApplyState(It.Is<ApplyStateContext>(context => ReferenceEquals(context.NewState, _state.Object))),
             Times.Once);
     }
 
@@ -561,7 +561,7 @@ public class BackgroundJobStateChangerFacts
         stateChanger.ChangeState(_context.Object);
 
         _stateMachine.Verify(x => x.ApplyState(It.Is<ApplyStateContext>(
-            ctx => ctx.Transaction == _context.Transaction.Object)));
+            ctx => ReferenceEquals(ctx.Transaction, _context.Transaction.Object))));
 
         _connection.Verify(x => x.CreateWriteTransaction(), Times.Never);
         _transaction.Verify(x => x.Commit(), Times.Never);

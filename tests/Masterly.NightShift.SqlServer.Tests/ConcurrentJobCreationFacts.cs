@@ -60,7 +60,7 @@ public class ConcurrentJobCreationFacts
                         connection.CreateExpiredJob(Job.FromExpression(() => Run()), jobParameters, DateTime.UtcNow, TimeSpan.FromHours(1));
                     }
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
                     failures.Enqueue(ex);
                 }

@@ -2061,8 +2061,9 @@ internal sealed class StringTypeConverterJsonConverterFactory : JsonConverterFac
         }
 
         Type converterType = converter.GetType();
+        // The Windows Forms converter is known by its name: its assembly isn't referenced
         if (converterType == typeof(TypeConverter) || converter is ReferenceConverter ||
-            converterType.FullName == "System.Windows.Forms.Design.DataSourceConverter")
+            converterType.FullName is "System.Windows.Forms.Design.DataSourceConverter")
         {
             return null;
         }

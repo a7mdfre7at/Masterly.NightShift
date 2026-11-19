@@ -18,6 +18,7 @@ public sealed class PlaygroundLog
         _entries.Enqueue(new LogEntry(Interlocked.Increment(ref _sequence), DateTime.UtcNow, source, text));
         while (_entries.Count > MaxEntries && _entries.TryDequeue(out _))
         {
+            // The condition removes the oldest entry
         }
     }
 

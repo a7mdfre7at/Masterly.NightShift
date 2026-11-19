@@ -538,7 +538,8 @@ public static partial class JobChains
     {
         Dictionary<string, object> parameters = new(StringComparer.Ordinal);
 
-        foreach (string name in (string[])[ScheduleOptions.PolicyParameter, ScheduleOptions.WhenBlockedParameter])
+        string[] names = [ScheduleOptions.PolicyParameter, ScheduleOptions.WhenBlockedParameter];
+        foreach (string name in names)
         {
             if (ReadParameter<string>(connection, rootId, name) is { } value)
             {

@@ -9,11 +9,14 @@ namespace Masterly.NightShift.MongoDB.Tests;
 /// </summary>
 internal static class MongoTestServer
 {
-    private static readonly Lazy<IMongoDatabase?> Shared = new(static () =>
+    // One client for the whole test run, as the driver recommends: it lives as long as the test process does
+    private static readonly Lazy<MongoClient?> Client = new(static () =>
     {
         string? connectionString = Environment.GetEnvironmentVariable("NightShift_Mongo_ConnectionString");
-        return string.IsNullOrWhiteSpace(connectionString) ? null : new MongoClient(connectionString).GetDatabase("nightshift-tests");
+        return string.IsNullOrWhiteSpace(connectionString) ? null : new MongoClient(connectionString);
     });
+
+    private static readonly Lazy<IMongoDatabase?> Shared = new(static () => Client.Value?.GetDatabase("nightshift-tests"));
 
     public static IMongoDatabase Database
     {

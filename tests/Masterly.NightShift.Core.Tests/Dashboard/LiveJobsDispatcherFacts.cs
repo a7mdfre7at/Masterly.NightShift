@@ -113,7 +113,7 @@ public class LiveJobsDispatcherFacts
     [Fact]
     public async Task Dispatch_ReturnsNull_ForExpiredJobs_AndAcceptsGetQueries()
     {
-        _connection.Setup(x => x.GetStateData("gone")).Returns((StateData)null);
+        _connection.Setup(x => x.GetStateData("gone")).Returns(default(StateData));
         DashboardRequestStub request = new("GET", "/jobs/live");
         request.Query["jobs"] = "gone";
         DashboardContextStub context = new(new DashboardOptions(), request, _storage.Object);

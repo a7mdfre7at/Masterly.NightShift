@@ -3,7 +3,7 @@ using Masterly.NightShift.Storage.Monitoring;
 
 namespace Masterly.NightShift.Dashboard.Pages;
 
-internal partial class JobDetailsPage(string jobId)
+internal partial class JobDetailsPage(string jobId) : RazorPage
 {
     private const string RecurringJobIdParameter = "RecurringJobId";
 

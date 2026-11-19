@@ -4,7 +4,7 @@ using Masterly.NightShift.Logging;
 
 namespace Masterly.NightShift.Dashboard.Pages;
 
-internal partial class AboutPage
+internal partial class AboutPage : RazorPage
 {
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(AboutPage));
 

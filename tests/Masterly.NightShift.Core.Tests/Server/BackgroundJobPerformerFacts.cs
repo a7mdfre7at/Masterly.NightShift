@@ -86,8 +86,8 @@ public class BackgroundJobPerformerFacts
     public void Run_ReturnsValueReturnedByJob()
     {
         // Arrange
-        // ReSharper disable once UnusedVariable
-        Mock<IServerFilter> filter = CreateFilter<IServerFilter>();
+        // A filter that does nothing: it only has to be registered
+        _ = CreateFilter<IServerFilter>();
         BackgroundJobPerformer performer = CreatePerformer();
 
         _innerPerformer
@@ -306,8 +306,8 @@ public class BackgroundJobPerformerFacts
     {
         // Arrange
         Mock<IServerFilter> outerFilter = CreateFilter<IServerFilter>();
-        // ReSharper disable once UnusedVariable
-        Mock<IServerFilter> innerFilter = CreateFilter<IServerFilter>();
+        // The inner filter only has to be registered
+        _ = CreateFilter<IServerFilter>();
 
         InvalidOperationException exception = new();
         _innerPerformer
@@ -427,7 +427,7 @@ public class BackgroundJobPerformerFacts
     public void Run_ExceptionFiltersAreNOTInvoked_OnOperationCanceledException_WhenShutdownTokenIsCanceled()
     {
         // Arrange
-        CancellationTokenSource cts = new();
+        using CancellationTokenSource cts = new();
         cts.Cancel();
 
         _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(cts.Token);
@@ -473,7 +473,7 @@ public class BackgroundJobPerformerFacts
     public void Run_ThrowsOperationCanceledException_OccurredInPreFilterMethods_WhenShutdownTokenIsCanceled()
     {
         // Arrange
-        CancellationTokenSource cts = new();
+        using CancellationTokenSource cts = new();
         cts.Cancel();
 
         _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(cts.Token);
@@ -510,7 +510,7 @@ public class BackgroundJobPerformerFacts
     public void Run_ThrowsOperationCanceledException_OccurredInPostFilterMethods_WhenShutdownTokenIsCanceled()
     {
         // Arrange
-        CancellationTokenSource cts = new();
+        using CancellationTokenSource cts = new();
         cts.Cancel();
 
         _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(cts.Token);

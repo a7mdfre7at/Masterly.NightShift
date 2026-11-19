@@ -211,7 +211,7 @@ public class BatchJobFacts : IDisposable
     {
         _hashes[BatchJob.GetHashKey("b1")] = [];
         Add(BatchJob.GetJobsKey("b1"), "1");
-        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<AwaitingJobsState>())).Returns((string)null);
+        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<AwaitingJobsState>())).Returns(default(string));
 
         string? id = BatchJob.ContinueWith(_client.Object, _storage.Object, "b1", Job.FromExpression(() => Merge()));
 
@@ -253,7 +253,7 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void Builder_ReturnsNull_WhenTheClientCancelsCreation()
     {
-        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns((string)null);
+        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns(default(string));
         string id = "not-set";
 
         BatchJob.StartNew(_client.Object, _storage.Object, batch => id = batch.Enqueue(() => Export("eu")));
@@ -299,7 +299,7 @@ public class BatchJobFacts : IDisposable
     {
         Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.GetAllEntriesFromHash(BatchJob.GetHashKey("b1"))).Returns([]);
-        connection.Setup(x => x.GetAllItemsFromSet(It.IsAny<string>())).Returns((HashSet<string>)null);
+        connection.Setup(x => x.GetAllItemsFromSet(It.IsAny<string>())).Returns(default(HashSet<string>));
 
         JobBatch? batch = BatchJob.Get(connection.Object, "b1");
 
@@ -342,7 +342,7 @@ public class BatchJobFacts : IDisposable
     public void GetJobIds_OnALegacyConnection_ReturnsNothing_WhenTheSetIsMissing()
     {
         Mock<IStorageConnection> connection = new();
-        connection.Setup(x => x.GetAllItemsFromSet(BatchJob.GetJobsKey("b1"))).Returns((HashSet<string>)null);
+        connection.Setup(x => x.GetAllItemsFromSet(BatchJob.GetJobsKey("b1"))).Returns(default(HashSet<string>));
 
         Assert.Empty(BatchJob.GetJobIds(connection.Object, "b1"));
     }
@@ -377,7 +377,7 @@ public class BatchJobFacts : IDisposable
     public void Count_OnALegacyConnection_ReturnsZero_WhenTheIndexIsMissing()
     {
         Mock<IStorageConnection> connection = new();
-        connection.Setup(x => x.GetAllItemsFromSet(BatchJob.IndexKey)).Returns((HashSet<string>)null);
+        connection.Setup(x => x.GetAllItemsFromSet(BatchJob.IndexKey)).Returns(default(HashSet<string>));
 
         Assert.Equal(0, BatchJob.Count(connection.Object));
     }
@@ -407,7 +407,7 @@ public class BatchJobFacts : IDisposable
     public void List_OnALegacyConnection_ReturnsNothing_WhenTheIndexIsMissing()
     {
         Mock<IStorageConnection> connection = new();
-        connection.Setup(x => x.GetAllItemsFromSet(BatchJob.IndexKey)).Returns((HashSet<string>)null);
+        connection.Setup(x => x.GetAllItemsFromSet(BatchJob.IndexKey)).Returns(default(HashSet<string>));
 
         Assert.Empty(BatchJob.List(connection.Object, 0, 10));
     }

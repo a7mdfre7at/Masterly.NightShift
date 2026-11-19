@@ -175,7 +175,7 @@ public sealed class JobMonitorsFacts : IDisposable
         // A failure every 30 minutes: the first and the last of the row soon lie more than an hour apart
         for (int i = 0; i < 6; i++)
         {
-            DateTime failedAt = Morning.AddMinutes(30 * i);
+            DateTime failedAt = Morning.AddMinutes(30.0 * i);
             JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: false, failedAt);
             JobMonitors.Check(_storage.Object, _storage.Connection.Object, failedAt.AddMinutes(1));
         }
@@ -200,7 +200,7 @@ public sealed class JobMonitorsFacts : IDisposable
         JobMonitors.Add(new RepeatedFailuresMonitor("failing", "Reports.Build", 3, TimeSpan.FromHours(1)));
         for (int i = 0; i < 3; i++)
         {
-            JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: false, Morning.AddMinutes(10 * i));
+            JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: false, Morning.AddMinutes(10.0 * i));
         }
 
         JobMonitors.Check(_storage.Object, _storage.Connection.Object, Morning.AddMinutes(21));
@@ -485,9 +485,10 @@ public sealed class JobMonitorsFacts : IDisposable
 
         new JobMonitorFilter().OnStateApplied(context.Object, null);
 
-        Assert.False(_storage.Hashes.ContainsKey("monitor:failing"));
+        Assert.DoesNotContain("monitor:failing", _storage.Hashes);
         afterCommit.Run();
-        Assert.Equal("1", _storage.Hashes["monitor:failing"]["ConsecutiveFailures"]);
+        Dictionary<string, string> monitor = Assert.Contains("monitor:failing", _storage.Hashes);
+        Assert.Equal("1", monitor["ConsecutiveFailures"]);
     }
 
     [Fact]

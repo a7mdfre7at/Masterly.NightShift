@@ -60,7 +60,7 @@ public class AmbientTransactionFacts
 
                 // No Complete(): the caller's own business transaction fails
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 failures.Enqueue(ex);
                 scopedCommitted.Set();
@@ -125,7 +125,7 @@ public class AmbientTransactionFacts
                 scopedCreated.Set();
                 leaveScope.Wait(Timeout, TestContext.Current.CancellationToken);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 failures.Enqueue(ex);
                 scopedCreated.Set();
@@ -188,7 +188,7 @@ public class AmbientTransactionFacts
 
                 scope.Complete();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 scopedFailure = ex;
             }
@@ -207,7 +207,7 @@ public class AmbientTransactionFacts
                 transaction.SetJobState("987654321", new EnqueuedState());
                 transaction.Commit();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 otherFailure = ex;
             }
@@ -279,7 +279,7 @@ public class AmbientTransactionFacts
                 scopedTook = stopwatch.Elapsed;
                 scope.Complete();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 failures.Enqueue(ex);
                 created.Set();
@@ -478,7 +478,7 @@ public class AmbientTransactionFacts
 
             transaction.Commit();
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             failures.Enqueue(ex);
         }
@@ -491,7 +491,7 @@ public class AmbientTransactionFacts
             using IStorageConnection connection = storage.GetConnection();
             return connection.CreateExpiredJob(Job.FromExpression(() => Run()), new Dictionary<string, string> { ["A"] = "1", ["B"] = "2" }, DateTime.UtcNow, TimeSpan.FromHours(1));
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             failures.Enqueue(ex);
             return null;

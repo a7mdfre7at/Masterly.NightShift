@@ -183,7 +183,7 @@ public class JobInsightsAttributeFacts
     public void Read_ReturnsNull_WhenNothingWasRecorded()
     {
         Mock<JobStorageConnection> connection = new();
-        connection.Setup(x => x.GetAllEntriesFromHash("insights:Nothing")).Returns((Dictionary<string, string>)null);
+        connection.Setup(x => x.GetAllEntriesFromHash("insights:Nothing")).Returns(default(Dictionary<string, string>));
 
         Assert.Null(JobInsightsAttribute.Read(connection.Object, "Nothing"));
     }

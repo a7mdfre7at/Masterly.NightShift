@@ -23,7 +23,7 @@ public class BatchDetailsPageFacts
     [Fact]
     public void Render_ShowsTheExpiredWarning_WhenTheBatchDoesNotExist()
     {
-        _renderer.Connection.Setup(x => x.GetAllEntriesFromHash(BatchJob.GetHashKey(BatchId))).Returns((Dictionary<string, string>)null);
+        _renderer.Connection.Setup(x => x.GetAllEntriesFromHash(BatchJob.GetHashKey(BatchId))).Returns(default(Dictionary<string, string>));
 
         string html = _renderer.Render(new BatchDetailsPage(BatchId));
 

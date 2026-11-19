@@ -71,7 +71,7 @@ public class ElectStateContext
                 throw new ArgumentNullException(nameof(value), "The CandidateState property can not be set to null.");
             }
 
-            if (_candidateState != value)
+            if (!ReferenceEquals(_candidateState, value))
             {
                 _traversedStates.Add(_candidateState);
                 _candidateState = value;
@@ -196,7 +196,7 @@ public class ElectStateContext
 
             return SerializationHelper.Deserialize<T>(value, SerializationOption.User);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
             throw new InvalidOperationException(
                 $"Could not get a value of the job parameter `{name}`. See inner exception for details.", ex);

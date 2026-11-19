@@ -72,7 +72,7 @@ public class ProfilerFacts
     {
         bool invoked = false;
 
-        profiler.InvokeMeasured((object)null, x =>
+        profiler.InvokeMeasured(default(object), x =>
         {
             Assert.Null(x);
             invoked = true;

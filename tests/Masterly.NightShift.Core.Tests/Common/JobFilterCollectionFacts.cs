@@ -115,7 +115,7 @@ public class JobFilterCollectionFacts
     {
         // Arrange
         _collection.Add(_filterInstance);
-        IJobFilterProvider provider = (IJobFilterProvider)_collection;
+        IJobFilterProvider provider = _collection;
 
         // Act
         IEnumerable<JobFilter> result = provider.GetFilters(null);

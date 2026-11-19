@@ -18,7 +18,6 @@
     IMonitoringApi monitor = Storage.GetMonitoringApi();
     JobDetailsDto? job = monitor.JobDetails(JobId);
     RenderedJob = job?.Job;
-    JobDetailsRendererDto? dto = job != null ? new JobDetailsRendererDto(this, JobId, job) : null;
 
     string? title = null;
 
@@ -704,22 +703,20 @@
                 }
             }
 
-            if (dto != null)
+            JobDetailsRendererDto dto = new(this, JobId, job);
+            foreach (Tuple<int, Func<JobDetailsRendererDto, NonEscapedString>> renderer in JobDetailsRenderer.GetRenderers())
             {
-                foreach (Tuple<int, Func<JobDetailsRendererDto, NonEscapedString>> renderer in JobDetailsRenderer.GetRenderers())
+                try
                 {
-                    try
-                    {
-                        @renderer.Item2(dto)
-                    }
-                    catch (Exception ex)
-                    {
-                        <div class="alert alert-danger ns-renderer-error">
-                            <p class="ns-exception-head"><code class="ns-exception-type">@ex.GetType().Name</code></p>
-                            <p class="ns-exception-message">@ex.Message</p>
-                            <pre class="stack-trace">@Html.StackTrace(ex.StackTrace)</pre>
-                        </div>
-                    }
+                    @renderer.Item2(dto)
+                }
+                catch (Exception ex) when (ex.IsCatchableExceptionType())
+                {
+                    <div class="alert alert-danger ns-renderer-error">
+                        <p class="ns-exception-head"><code class="ns-exception-type">@ex.GetType().Name</code></p>
+                        <p class="ns-exception-message">@ex.Message</p>
+                        <pre class="stack-trace">@Html.StackTrace(ex.StackTrace)</pre>
+                    </div>
                 }
             }
 

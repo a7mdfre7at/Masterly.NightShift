@@ -39,10 +39,11 @@ public class AspNetCoreJobActivatorFacts
         // A synchronous scope disposal throws for such services, so this only passes on the asynchronous path
         using ServiceProvider provider = BuildProvider();
         AspNetCoreJobActivator activator = new(provider.GetRequiredService<IServiceScopeFactory>());
-        JobActivatorScope scope = activator.BeginScope((JobActivatorContext)null);
-        AsyncOnlyDisposable? instance = (AsyncOnlyDisposable)scope.Resolve(typeof(AsyncOnlyDisposable));
-
-        scope.Dispose();
+        AsyncOnlyDisposable instance;
+        using (JobActivatorScope scope = activator.BeginScope((JobActivatorContext)null))
+        {
+            instance = (AsyncOnlyDisposable)scope.Resolve(typeof(AsyncOnlyDisposable));
+        }
 
         Assert.True(instance.Disposed);
     }

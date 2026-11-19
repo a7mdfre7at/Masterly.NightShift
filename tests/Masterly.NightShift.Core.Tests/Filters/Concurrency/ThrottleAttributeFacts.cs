@@ -597,7 +597,7 @@ public class ThrottleAttributeFacts : IDisposable
         ThrottleAttribute attribute = new("resource");
         string leaked = $"{_timestamp - 60}:expired";
         _members.Add(leaked);
-        _context.Connection.Setup(x => x.GetStateData("expired")).Returns((StateData)null);
+        _context.Connection.Setup(x => x.GetStateData("expired")).Returns(default(StateData));
         PerformingContext performing = _context.GetPerformingContext();
 
         attribute.OnPerforming(performing);

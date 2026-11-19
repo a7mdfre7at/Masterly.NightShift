@@ -240,8 +240,8 @@ public class RecurringJobEntityFacts
 
         entity.IsChanged(_nowInstant, out IReadOnlyDictionary<string, string>? fields);
 
-        Assert.True(fields.ContainsKey("Misfire"));
-        Assert.Equal("1", fields["Misfire"]);
+        string misfire = Assert.Contains("Misfire", fields);
+        Assert.Equal("1", misfire);
     }
 
     [Fact]
@@ -253,8 +253,8 @@ public class RecurringJobEntityFacts
 
         entity.IsChanged(_nowInstant, out IReadOnlyDictionary<string, string>? fields);
 
-        Assert.True(fields.ContainsKey("Misfire"));
-        Assert.Equal("0", fields["Misfire"]);
+        string misfire = Assert.Contains("Misfire", fields);
+        Assert.Equal("0", misfire);
     }
 
     [Fact]
@@ -543,7 +543,15 @@ public class RecurringJobEntityFacts
     {
         public bool Fails { get; set; } = true;
 
-        public bool Contains(DateOnly day) => Fails ? throw new InvalidOperationException("database down") : false;
+        public bool Contains(DateOnly day)
+        {
+            if (Fails)
+            {
+                throw new InvalidOperationException("database down");
+            }
+
+            return false;
+        }
     }
 
     [Fact, StaticLock]

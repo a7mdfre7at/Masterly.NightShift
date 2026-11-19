@@ -51,6 +51,7 @@ public class SqlServerHeartbeatProcessFacts
         }
         catch (OperationCanceledException)
         {
+            // Nothing to fetch within the timeout: the job is still kept from other workers, as expected
         }
 
         stop.Cancel();
@@ -116,13 +117,8 @@ public class SqlServerHeartbeatProcessFacts
         SqlServerStorage storage = new(connectionString, new SqlServerStorageOptions { SlidingInvisibilityTimeout = TimeSpan.FromSeconds(5) });
         InsertQueueEntry(1);
         InsertQueueEntry(2);
-        SqlServerTimeoutJob first;
-        SqlServerTimeoutJob second;
-        using (IStorageConnection fetcher = storage.GetConnection())
-        {
-            first = (SqlServerTimeoutJob)fetcher.FetchNextJob(Queues, CancellationToken.None);
-            second = (SqlServerTimeoutJob)fetcher.FetchNextJob(Queues, CancellationToken.None);
-        }
+        using SqlServerTimeoutJob first = FetchWithConnectionOfItsOwn(storage);
+        using SqlServerTimeoutJob second = FetchWithConnectionOfItsOwn(storage);
 
         Thread.Sleep(TimeSpan.FromSeconds(1.2)); // Both keep-alives are due
         Thread heartbeat;
@@ -143,8 +139,6 @@ public class SqlServerHeartbeatProcessFacts
         }
 
         heartbeat.Join();
-        first.Dispose();
-        second.Dispose();
         Assert.All(commits, static x => Assert.True(x < TimeSpan.FromSeconds(2), $"A commit waited {x}."));
     }
 
@@ -219,6 +213,13 @@ public class SqlServerHeartbeatProcessFacts
             Assert.Equal(jobs[i].FetchedAt, GetFetchedAt(long.Parse(jobs[i].JobId, CultureInfo.InvariantCulture)));
         });
         jobs.ForEach(static x => x.Dispose());
+    }
+
+    /// <summary>Fetches a job on a connection that is closed again before the job is used.</summary>
+    private static SqlServerTimeoutJob FetchWithConnectionOfItsOwn(SqlServerStorage storage)
+    {
+        using IStorageConnection fetcher = storage.GetConnection();
+        return (SqlServerTimeoutJob)fetcher.FetchNextJob(Queues, CancellationToken.None);
     }
 
     private static TimeSpan TimeCommit(IStorageConnection connection, SqlServerTimeoutJob job)

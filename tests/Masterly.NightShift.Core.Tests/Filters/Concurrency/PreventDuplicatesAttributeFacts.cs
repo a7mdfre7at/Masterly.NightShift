@@ -106,9 +106,9 @@ public class PreventDuplicatesAttributeFacts : IDisposable
 
         Assert.False(creating.Canceled);
         Assert.Equal(attribute.GetFingerprint(_context.Job), creating.GetJobParameter<string>(PreventDuplicatesAttribute.FingerprintParameter));
-        Assert.True(_hashes.ContainsKey(Key(attribute)));
-        Assert.Equal(string.Empty, _hashes[Key(attribute)]["JobId"]);
-        Assert.NotEmpty(_hashes[Key(attribute)]["Reservation"]);
+        Dictionary<string, string> reservation = Assert.Contains(Key(attribute), _hashes);
+        Assert.Equal(string.Empty, reservation["JobId"]);
+        Assert.NotEmpty(reservation["Reservation"]);
     }
 
     [Fact, StaticLock]
@@ -300,7 +300,7 @@ public class PreventDuplicatesAttributeFacts : IDisposable
         PreventDuplicatesAttribute attribute = new() { OnDuplicate = DuplicateHandling.ReplaceExisting };
         _hashes[Key(attribute)] = new Dictionary<string, string> { { "JobId", "existing" } };
         _states["existing"] = EnqueuedState.StateName;
-        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>())).Returns((IState)null);
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>())).Returns(default(IState));
         attribute.OnCreating(_context.GetCreatingContext());
 
         attribute.OnCreated(_context.GetCreatedContext("new-job"));

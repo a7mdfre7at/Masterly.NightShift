@@ -223,9 +223,9 @@
                                                 }
                                             </td>
                                             <td class="min-width" data-label="@Strings.AwaitingJobsPage_Table_Options">
-                                                @if (stateData != null && stateData.ContainsKey("Options") && !String.IsNullOrWhiteSpace(stateData["Options"]))
+                                                @if (stateData != null && stateData.TryGetValue("Options", out string? optionsValue) && !String.IsNullOrWhiteSpace(optionsValue))
                                                 {
-                                                    string optionsDescription = stateData["Options"];
+                                                    string optionsDescription = optionsValue;
                                                     if (Enum.TryParse(optionsDescription, out JobContinuationOptions options))
                                                     {
                                                         optionsDescription = options.ToString("G");

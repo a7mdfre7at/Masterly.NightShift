@@ -69,9 +69,9 @@ public class StateMachineFacts
 
         filter.Verify(x => x.OnStateElection(It.Is<ElectStateContext>(context =>
             context.Storage == _context.Storage.Object &&
-            context.Connection == _context.Connection.Object &&
+            ReferenceEquals(context.Connection, _context.Connection.Object) &&
             context.BackgroundJob == _context.BackgroundJob.Object &&
-            context.CandidateState == _context.NewState.Object &&
+            ReferenceEquals(context.CandidateState, _context.NewState.Object) &&
             context.CurrentState == _context.OldStateName)));
     }
 
@@ -196,7 +196,8 @@ public class StateMachineFacts
         bool? offered = null;
         bool? given = null;
 
-        Mock<IElectStateFilter> first = CreateFilter<IElectStateFilter>();
+        // The first filter, offered to look again, does nothing
+        _ = CreateFilter<IElectStateFilter>();
         Mock<IElectStateFilter> second = CreateFilter<IElectStateFilter>();
         second.Setup(x => x.OnStateElection(It.IsNotNull<ElectStateContext>()))
             .Callback<ElectStateContext>(context =>

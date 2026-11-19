@@ -384,7 +384,6 @@ public class JobArgumentFacts
         CreateAndPerform(CustomStructValue, true);
     }
 
-#pragma warning disable 659
     public class MyClass : IEquatable<MyClass>
     {
         public DateTime CreatedAt { get; set; }
@@ -401,10 +400,14 @@ public class JobArgumentFacts
 
         public override bool Equals(object obj)
         {
-            return Equals(obj as MyClass);
+            return obj?.GetType() == GetType() && Equals((MyClass)obj);
+        }
+
+        public override int GetHashCode()
+        {
+            return CreatedAt.GetHashCode();
         }
     }
-#pragma warning restore 659
 
     private static readonly MyClass CustomClassValue = new() { CreatedAt = DateTime.UtcNow };
 

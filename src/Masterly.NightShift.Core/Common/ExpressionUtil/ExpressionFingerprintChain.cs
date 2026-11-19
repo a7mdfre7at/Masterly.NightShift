@@ -55,7 +55,7 @@ internal sealed class ExpressionFingerprintChain : IEquatable<ExpressionFingerpr
         // Two chains are considered equal if two elements appearing in the same index in
         // each chain are equal (value equality, not referential equality).
 
-        if (Elements.Count != other?.Elements.Count)
+        if (other == null || Elements.Count != other.Elements.Count)
         {
             return false;
         }

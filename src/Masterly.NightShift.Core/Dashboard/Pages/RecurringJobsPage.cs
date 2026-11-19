@@ -5,7 +5,7 @@ using Masterly.NightShift.Dashboard.Resources;
 
 namespace Masterly.NightShift.Dashboard.Pages;
 
-internal partial class RecurringJobsPage
+internal partial class RecurringJobsPage : RazorPage
 {
     // The schedule editor sends the job's start and end with its preview requests, to the millisecond
     private static string ToUnixMilliseconds(DateTime value)

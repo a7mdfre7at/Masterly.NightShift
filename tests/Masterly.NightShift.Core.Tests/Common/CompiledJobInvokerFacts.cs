@@ -16,7 +16,7 @@ public class CompiledJobInvokerFacts
     public void Invoke_CallsStaticMethods_AndReturnsNullForVoid()
     {
         CompiledJobInvoker? invoker = CompiledJobInvoker.TryCreate(typeof(CompiledJobInvokerFacts).GetMethod(nameof(StaticVoid)));
-        _staticVoidCalls = 0;
+        ResetStaticVoidCalls();
 
         object? result = invoker.Invoke(null, []);
 
@@ -124,6 +124,11 @@ public class CompiledJobInvokerFacts
     }
 
     private static int _staticVoidCalls;
+
+    private static void ResetStaticVoidCalls()
+    {
+        _staticVoidCalls = 0;
+    }
 
     [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
     public static void StaticVoid()

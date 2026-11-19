@@ -111,7 +111,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     [Fact]
     public void ThrowIfCancellationRequested_Throws_IfStateDataDoesNotExist()
     {
-        _connection.Setup(x => x.GetStateData(It.IsAny<string>())).Returns((StateData)null);
+        _connection.Setup(x => x.GetStateData(It.IsAny<string>())).Returns(default(StateData));
         ServerJobCancellationToken token = CreateToken();
 
         Assert.Throws<JobAbortedException>(token.ThrowIfCancellationRequested);
@@ -170,7 +170,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     [Fact]
     public void CheckAllCancellationTokens_AbortsCancellationToken_IfStateDataDoesNotExist()
     {
-        _connection.Setup(x => x.GetStateData(It.IsAny<string>())).Returns((StateData)null);
+        _connection.Setup(x => x.GetStateData(It.IsAny<string>())).Returns(default(StateData));
         ServerJobCancellationToken token = CreateToken();
 
         Assert.False(token.ShutdownToken.IsCancellationRequested);

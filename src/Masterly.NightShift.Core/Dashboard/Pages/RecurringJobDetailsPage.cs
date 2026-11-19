@@ -4,7 +4,7 @@ using Masterly.NightShift.Logging;
 
 namespace Masterly.NightShift.Dashboard.Pages;
 
-internal partial class RecurringJobDetailsPage(string id)
+internal partial class RecurringJobDetailsPage(string id) : RazorPage
 {
     private const int NextRunsShown = 10;
 

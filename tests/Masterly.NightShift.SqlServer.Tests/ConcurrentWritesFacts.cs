@@ -52,13 +52,13 @@ public class ConcurrentWritesFacts
     {
         SqlServerStorage storage = CreateStorage(static x => x.MaxConcurrentWriters = 1);
         BackgroundJobClient client = new(storage);
-        Interlocked.Exchange(ref _ran, 0);
+        ResetRan();
 
         Parallel.For(0, 40, new ParallelOptions { MaxDegreeOfParallelism = 8 }, number => client.Enqueue<ConcurrentWritesFacts>(x => x.Run(number)));
 
         using (new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 4 }, storage))
         {
-            Assert.True(SpinWait.SpinUntil(() => Volatile.Read(ref _ran) == 40, Timeout), "The jobs weren't run in time.");
+            Assert.True(SpinWait.SpinUntil(static () => RanCount() == 40, Timeout), "The jobs weren't run in time.");
             Assert.True(SpinWait.SpinUntil(() => storage.GetMonitoringApi().SucceededListCount() == 40, Timeout), "The jobs didn't succeed in time.");
         }
 
@@ -128,7 +128,7 @@ public class ConcurrentWritesFacts
     public void AllowDelayedDurability_AllowsItForTheDatabase_AndJobsStillRun()
     {
         SqlServerStorage storage = CreateStorage(static x => x.AllowDelayedDurability = true);
-        Interlocked.Exchange(ref _ran, 0);
+        ResetRan();
 
         try
         {
@@ -142,7 +142,7 @@ public class ConcurrentWritesFacts
 
             using (new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 4 }, storage))
             {
-                Assert.True(SpinWait.SpinUntil(() => Volatile.Read(ref _ran) == 40, Timeout), "The jobs weren't run in time.");
+                Assert.True(SpinWait.SpinUntil(static () => RanCount() == 40, Timeout), "The jobs weren't run in time.");
                 Assert.True(SpinWait.SpinUntil(() => storage.GetMonitoringApi().SucceededListCount() == 40, Timeout), "The jobs didn't succeed in time.");
             }
         }
@@ -190,6 +190,13 @@ public class ConcurrentWritesFacts
     [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test", Justification = "Should be public to be a job")]
     public void Run(int number)
     {
-        Interlocked.Increment(ref _ran);
+        CountRun();
     }
+
+    // The job runs on an instance the server creates, so the count is shared by every instance
+    private static void CountRun() => Interlocked.Increment(ref _ran);
+
+    private static void ResetRan() => Interlocked.Exchange(ref _ran, 0);
+
+    private static int RanCount() => Volatile.Read(ref _ran);
 }

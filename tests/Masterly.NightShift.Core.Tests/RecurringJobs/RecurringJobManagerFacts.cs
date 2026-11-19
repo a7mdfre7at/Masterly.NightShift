@@ -44,7 +44,7 @@ public class RecurringJobManagerFacts
 
         _factory.Setup(x => x.Create(It.Is<CreateContext>(ctx =>
                 ctx.Storage == _storage.Object &&
-                ctx.Connection == _connection.Object &&
+                ReferenceEquals(ctx.Connection, _connection.Object) &&
                 ctx.InitialState == null)))
             .Returns(_backgroundJob);
     }
@@ -102,7 +102,7 @@ public class RecurringJobManagerFacts
         RecurringJobManager manager = CreateManager();
 
         ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
-            () => manager.AddOrUpdate(_id, (Job)null, Cron.Daily()));
+            () => manager.AddOrUpdate(_id, default(Job), Cron.Daily()));
 
         Assert.Equal("job", exception.ParamName);
     }
@@ -461,7 +461,7 @@ public class RecurringJobManagerFacts
         _transaction.Verify(x => x.SetRangeInHash(
             $"recurring-job:{_id}",
             It.Is<Dictionary<string, string>>(dict =>
-                dict.ContainsKey("Cron") && dict["Cron"] == "0 0 31 2 *" &&
+                dict.GetValueOrDefault("Cron") == "0 0 31 2 *" &&
                 !dict.ContainsKey("NextExecution"))));
 
         _transaction.Verify(x => x.AddToSet("recurring-jobs", _id, -1.0D));
@@ -491,8 +491,8 @@ public class RecurringJobManagerFacts
         _transaction.Verify(x => x.SetRangeInHash(
             $"recurring-job:{_id}",
             It.Is<Dictionary<string, string>>(dict =>
-                dict.ContainsKey("Cron") && dict["Cron"] == "* * * * *" &&
-                dict.ContainsKey("NextExecution") && JobHelper.DeserializeDateTime(dict["NextExecution"]) == _now)));
+                dict.GetValueOrDefault("Cron") == "* * * * *" &&
+                JobHelper.DeserializeNullableDateTime(dict.GetValueOrDefault("NextExecution")) == _now)));
 
         _transaction.Verify(x => x.AddToSet("recurring-jobs", _id, JobHelper.ToTimestamp(_now)));
         _transaction.Verify(x => x.Commit());
@@ -518,7 +518,7 @@ public class RecurringJobManagerFacts
 
         // Assert
         _transaction.Verify(x => x.SetRangeInHash($"recurring-job:{_id}", It.Is<Dictionary<string, string>>(dict =>
-            !dict.ContainsKey("NextExecution") || dict["NextExecution"] == JobHelper.SerializeDateTime(_now.AddMinutes(-1)))));
+            IsMissingOrEqual(dict, "NextExecution", JobHelper.SerializeDateTime(_now.AddMinutes(-1))))));
         _transaction.Verify(x => x.AddToSet("recurring-jobs", _id, JobHelper.ToTimestamp(_now.AddMinutes(-1))));
         _transaction.Verify(x => x.Commit());
     }
@@ -543,7 +543,7 @@ public class RecurringJobManagerFacts
 
         // Assert
         _transaction.Verify(x => x.SetRangeInHash($"recurring-job:{_id}", It.Is<Dictionary<string, string>>(
-            dict => dict.ContainsKey("Job") && dict["Job"].Contains("Masterly.NightShift.Core.Tests"))));
+            dict => dict.GetValueOrDefault("Job", string.Empty).Contains("Masterly.NightShift.Core.Tests"))));
         _transaction.Verify(x => x.AddToSet("recurring-jobs", _id, JobHelper.ToTimestamp(_now)));
         _transaction.Verify(x => x.Commit());
     }
@@ -568,7 +568,7 @@ public class RecurringJobManagerFacts
 
         // Assert
         _transaction.Verify(x => x.SetRangeInHash($"recurring-job:{_id}", It.Is<Dictionary<string, string>>(
-            dict => dict.ContainsKey("Job") && dict["Job"].Contains("Masterly.NightShift.Core.Tests"))));
+            dict => dict.GetValueOrDefault("Job", string.Empty).Contains("Masterly.NightShift.Core.Tests"))));
         _transaction.Verify(x => x.AddToSet("recurring-jobs", _id, JobHelper.ToTimestamp(_now)));
         _transaction.Verify(x => x.Commit());
     }
@@ -591,7 +591,7 @@ public class RecurringJobManagerFacts
 
         // Assert
         _transaction.Verify(x => x.SetRangeInHash($"recurring-job:{_id}", It.Is<Dictionary<string, string>>(
-            dict => dict.ContainsKey("RetryAttempt") && dict["RetryAttempt"] == "0")));
+            dict => dict.GetValueOrDefault("RetryAttempt") == "0")));
         _transaction.Verify(x => x.Commit());
     }
 
@@ -642,8 +642,8 @@ public class RecurringJobManagerFacts
         _transaction.Verify(x => x.SetRangeInHash(
             $"recurring-job:{_id}",
             It.Is<Dictionary<string, string>>(dict =>
-                dict.ContainsKey("Error") && dict["Error"] == string.Empty &&
-                dict.ContainsKey("NextExecution") && JobHelper.DeserializeDateTime(dict["NextExecution"]) == _now)));
+                dict.GetValueOrDefault("Error") == string.Empty &&
+                JobHelper.DeserializeNullableDateTime(dict.GetValueOrDefault("NextExecution")) == _now)));
 
         _transaction.Verify(x => x.AddToSet("recurring-jobs", _id, JobHelper.ToTimestamp(_now)));
         _transaction.Verify(x => x.Commit());
@@ -672,7 +672,7 @@ public class RecurringJobManagerFacts
         _transaction.Verify(x => x.SetRangeInHash(
             $"recurring-job:{_id}",
             It.Is<Dictionary<string, string>>(dict =>
-                !dict.ContainsKey("NextExecution") || dict["NextExecution"] == JobHelper.SerializeDateTime(_now.AddMinutes(1)))));
+                IsMissingOrEqual(dict, "NextExecution", JobHelper.SerializeDateTime(_now.AddMinutes(1))))));
 
         _transaction.Verify(x => x.AddToSet("recurring-jobs", _id, JobHelper.ToTimestamp(_now.AddMinutes(1))));
         _transaction.Verify(x => x.Commit());
@@ -850,7 +850,7 @@ public class RecurringJobManagerFacts
         _stateMachine.Verify(x => x.ApplyState(It.IsAny<ApplyStateContext>()));
 
         _transaction.Verify(x => x.SetRangeInHash($"recurring-job:{_id}", It.Is<Dictionary<string, string>>(dict =>
-            dict.ContainsKey("LastExecution") && dict["LastExecution"] == JobHelper.SerializeDateTime(_now) &&
+            dict.GetValueOrDefault("LastExecution") == JobHelper.SerializeDateTime(_now) &&
             !dict.ContainsKey("NextExecution"))));
 
         _transaction.Verify(x => x.AddToSet("recurring-jobs", _id, -1.0D));
@@ -1029,6 +1029,11 @@ public class RecurringJobManagerFacts
     private RecurringJobManager CreateManager()
     {
         return new RecurringJobManager(_storage.Object, _factory.Object, _timeZoneResolver.Object, _nowFactory);
+    }
+
+    private static bool IsMissingOrEqual(Dictionary<string, string> fields, string name, string expected)
+    {
+        return !fields.TryGetValue(name, out string? value) || value == expected;
     }
 
     [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]

@@ -52,7 +52,8 @@ public class BackgroundProcessingServerHostedServiceFacts
     [Fact]
     public async Task StopAsync_SendsTheStopSignal_AndWaitsForShutdown()
     {
-        CancellationToken token = new CancellationTokenSource().Token;
+        using CancellationTokenSource cancellation = new();
+        CancellationToken token = cancellation.Token;
         _server.Setup(x => x.WaitForShutdownAsync(token)).Returns(Task.CompletedTask);
         BackgroundProcessingServerHostedService service = new(_server.Object);
 

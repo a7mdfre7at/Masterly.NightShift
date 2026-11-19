@@ -82,7 +82,7 @@ public class JobFilterCollection : IJobFilterProvider, IEnumerable<JobFilter>
     /// <returns>True if the global filter collection contains the filter, otherwise false.</returns>
     public bool Contains(object filter)
     {
-        return _filters.Any(x => x.Instance == filter);
+        return _filters.Any(x => ReferenceEquals(x.Instance, filter));
     }
 
     /// <summary>
@@ -91,7 +91,7 @@ public class JobFilterCollection : IJobFilterProvider, IEnumerable<JobFilter>
     /// <param name="filter">The filter instance.</param>
     public void Remove(object filter)
     {
-        _filters.RemoveAll(x => x.Instance == filter);
+        _filters.RemoveAll(x => ReferenceEquals(x.Instance, filter));
         JobFilterVersion.Increment();
     }
 

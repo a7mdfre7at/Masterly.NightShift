@@ -24,7 +24,7 @@
 
     // Storages count by clock hour, so the last 60 minutes are the current hour plus the part of the previous
     // hour they cover, estimated as if its jobs were spread evenly over it
-    double previousHourShare = 1 - (ApplicationUtcNow.Minute * 60 + ApplicationUtcNow.Second) / 3600.0;
+    double previousHourShare = 1 - (ApplicationUtcNow.Minute * 60.0 + ApplicationUtcNow.Second) / 3600.0;
     Func<IDictionary<DateTime, long>, double> lastHour = counts =>
     {
         List<long> latest = counts.OrderByDescending(p => p.Key).Take(2).Select(p => p.Value).ToList();
@@ -66,7 +66,7 @@
             }
         }
     }
-    catch (Exception)
+    catch (Exception ex) when (ex.IsCatchableExceptionType())
     {
         // The storage check above already reports the outage
     }

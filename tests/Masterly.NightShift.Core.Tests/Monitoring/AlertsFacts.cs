@@ -528,7 +528,7 @@ public class WebhookAlertSinkFacts
     public async Task Dispose_CancelsARequestInFlight_AtOnce_InsteadOfWaitingForIt()
     {
         StubHandler handler = new(HttpStatusCode.OK) { Gate = new TaskCompletionSource<bool>() };
-        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", Timeout = TimeSpan.FromMinutes(1) }, new HttpClient(handler));
+        using WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", Timeout = TimeSpan.FromMinutes(1) }, new HttpClient(handler));
 
         sink.Publish(new Alert(AlertKind.JobFailed, "t", "m"));
         await handler.Received.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
@@ -552,7 +552,7 @@ public class WebhookAlertSinkFacts
         WebhookAlertOptions options = new() { Url = "http://x" };
         options.RetryDelays.Clear();
         options.RetryDelays.Add(TimeSpan.FromMinutes(10));
-        WebhookAlertSink sink = new(options, new HttpClient(handler));
+        using WebhookAlertSink sink = new(options, new HttpClient(handler));
 
         sink.Publish(new Alert(AlertKind.JobFailed, "t", "m"));
         await WaitUntilAsync(() => sink.PendingRetries == 1);
@@ -644,7 +644,7 @@ public class WebhookAlertSinkFacts
         WebhookAlertOptions options = new() { Url = "http://x", MaxConcurrentRequests = 1 };
         options.RetryDelays.Clear();
         options.RetryDelays.Add(TimeSpan.FromMinutes(10));
-        WebhookAlertSink sink = new(options, new HttpClient(handler));
+        using WebhookAlertSink sink = new(options, new HttpClient(handler));
 
         sink.Publish(new Alert(AlertKind.JobFailed, "first", "m"));
         await WaitUntilAsync(() => sink.PendingRetries == 1);
@@ -654,7 +654,6 @@ public class WebhookAlertSinkFacts
         Assert.Equal(1, sink.Dropped);
         Assert.Equal(2, handler.Requests);
         Assert.Equal(1, sink.PendingRetries);
-        sink.Dispose();
     }
 
     [Theory]
@@ -701,7 +700,7 @@ public class WebhookAlertSinkFacts
     public async Task Dispose_CancelsARequestStillRunning_WithAnInfiniteTimeout_AndAClientPassedIn()
     {
         StubHandler handler = new(HttpStatusCode.OK) { Gate = new TaskCompletionSource<bool>() };
-        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", Timeout = Timeout.InfiniteTimeSpan }, new HttpClient(handler));
+        using WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", Timeout = Timeout.InfiniteTimeSpan }, new HttpClient(handler));
 
         // Not counted against MaxConcurrentRequests, so Dispose doesn't wait for it
         Task<bool> sending = sink.SendAsync(new Alert(AlertKind.JobFailed, "t", "m"));

@@ -33,7 +33,7 @@ internal abstract class ExpressionFingerprint(ExpressionType nodeType, Type type
 
     public override bool Equals(object obj)
     {
-        return Equals(obj as ExpressionFingerprint);
+        return obj?.GetType() == GetType() && Equals((ExpressionFingerprint)obj);
     }
 
     public override int GetHashCode()

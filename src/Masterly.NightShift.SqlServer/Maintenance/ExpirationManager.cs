@@ -124,7 +124,7 @@ internal sealed class ExpirationManager : IBackgroundProcess
     private bool CanCleanUpStates(SqlServerStorage storage)
     {
         int? version = storage.DetectedSchemaVersion;
-        if (!(version < StateCleanupSchemaVersion))
+        if (version is not < StateCleanupSchemaVersion)
         {
             return true;
         }

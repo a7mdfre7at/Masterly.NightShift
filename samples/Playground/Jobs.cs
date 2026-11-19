@@ -31,7 +31,7 @@ public class ProgressJobs
         for (int step = 1; step <= 10; step++)
         {
             await Task.Delay(1500, token);
-            console.SetProgress(step * 10, $"Row {step * rows / 10} of {rows}");
+            console.SetProgress(step * 10.0, $"Row {step * rows / 10} of {rows}");
             if (step == 5)
             {
                 console.WriteLine(JobConsoleLevel.Warning, "3 rows skipped: missing email");
@@ -276,7 +276,7 @@ public class RuleJobs(ILogger<RuleJobs> logger)
         for (int step = 1; step <= 10; step++)
         {
             await Task.Delay(2000, token);
-            console.SetProgress(step * 10, "Reindexing");
+            console.SetProgress(step * 10.0, "Reindexing");
         }
     }
 

@@ -170,11 +170,12 @@ internal sealed class JobLineage
             node.Name = loadedDetails.Job != null
                 ? $"{JobMethodCallRenderer.GetNameWithoutGenericArity(loadedDetails.Job.Type)}.{loadedDetails.Job.Method.Name}"
                 : Strings.Common_CannotFindTargetMethod;
-            node.State = loadedDetails.History != null && loadedDetails.History.Count > 0 ? loadedDetails.History[0].StateName : Strings.Common_NoState;
+            StateHistoryDto? currentState = loadedDetails.History is { Count: > 0 } history ? history[0] : null;
+            node.State = currentState != null ? currentState.StateName : Strings.Common_NoState;
 
-            if (node.State == AwaitingState.StateName && loadedDetails.History![0].Data != null)
+            if (node.State == AwaitingState.StateName && currentState?.Data != null)
             {
-                AwaitingJobsState? fanIn = AwaitingJobsState.FromStateData(loadedDetails.History[0].Data);
+                AwaitingJobsState? fanIn = AwaitingJobsState.FromStateData(currentState.Data);
                 if (fanIn != null)
                 {
                     fanInModes[node.Id] = fanIn.Mode == FanInMode.All ? Strings.Lineage_All : Strings.Lineage_Any;
@@ -375,7 +376,7 @@ internal static class JobLineageRenderer
 
             for (int r = 0; r < column.Count; r++)
             {
-                positions[column[r].Id] = (Padding + c * (NodeWidth + ColumnGap), top + r * (NodeHeight + RowGap));
+                positions[column[r].Id] = (Padding + (double)c * (NodeWidth + ColumnGap), top + (double)r * (NodeHeight + RowGap));
             }
         }
 

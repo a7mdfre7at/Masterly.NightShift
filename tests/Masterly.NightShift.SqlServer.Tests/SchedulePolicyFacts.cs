@@ -505,6 +505,14 @@ public class SchedulePolicyFacts
             set => _down = value;
         }
 
-        public bool Contains(DateOnly day) => _down ? throw new InvalidOperationException("holiday database down") : false;
+        public bool Contains(DateOnly day)
+        {
+            if (_down)
+            {
+                throw new InvalidOperationException("holiday database down");
+            }
+
+            return false;
+        }
     }
 }

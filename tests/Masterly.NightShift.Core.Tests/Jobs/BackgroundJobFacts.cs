@@ -110,7 +110,7 @@ public class BackgroundJobFacts
     public void Schedule_WithPhrase_ReturnsNull_WhenCreationIsCanceled()
     {
         Initialize();
-        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns((string)null);
+        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns(default(string));
 
         string? jobId = BackgroundJob.Schedule(() => Method(), "in 20 minutes");
 
@@ -243,7 +243,7 @@ public class BackgroundJobFacts
     public void ContinueJobWithAll_ReturnsNull_WhenCreationIsCanceled()
     {
         Initialize();
-        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns((string)null);
+        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns(default(string));
 
         string? jobId = BackgroundJob.ContinueJobWithAll(["p1"], () => Method());
 
@@ -337,7 +337,7 @@ public class BackgroundJobFacts
     public void ContinueJobWithAny_ReturnsNull_WhenCreationIsCanceled()
     {
         Initialize();
-        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns((string)null);
+        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns(default(string));
 
         string? jobId = BackgroundJob.ContinueJobWithAny(["p1"], () => Method());
 

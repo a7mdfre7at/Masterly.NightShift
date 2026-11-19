@@ -115,7 +115,7 @@ public class DrainModeQueueFacts : IDisposable
         DrainMode.PauseQueue(_connection.Object, "emails");
         DrainModeFilter filter = new();
         ElectStateContextMock context = ElectWithJobQueue("6", null);
-        _connection.Setup(x => x.GetStateData("6")).Returns((StateData)null);
+        _connection.Setup(x => x.GetStateData("6")).Returns(default(StateData));
 
         filter.OnStateElection(context.Object);
 

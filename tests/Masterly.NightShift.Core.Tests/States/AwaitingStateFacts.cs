@@ -71,8 +71,7 @@ public class AwaitingStateFacts
 
         string nextStateSerialized = SerializationHelper.Serialize<IState>(new EnqueuedState(), SerializationOption.User);
 
-        EnqueuedState? nextState = SerializationHelper.Deserialize<IState>(nextStateSerialized, SerializationOption.TypedInternal) as EnqueuedState;
-        Assert.NotNull(nextState);
+        EnqueuedState nextState = Assert.IsAssignableFrom<EnqueuedState>(SerializationHelper.Deserialize<IState>(nextStateSerialized, SerializationOption.TypedInternal));
         Assert.NotEqual(default, nextState.EnqueuedAt);
     }
 

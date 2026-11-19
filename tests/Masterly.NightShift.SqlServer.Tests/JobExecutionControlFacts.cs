@@ -19,7 +19,7 @@ public class JobExecutionControlFacts
     public async Task TerminateJobException_DeletesASkippedJob_WithoutRetrying()
     {
         SqlServerStorage storage = CreateStorage();
-        _runs = 0;
+        ResetRuns();
         string jobId = new BackgroundJobClient(storage).Enqueue(() => SkipItself());
 
         JobStateInfo state = await RunUntilCompleted(storage, jobId);
@@ -34,7 +34,7 @@ public class JobExecutionControlFacts
     public async Task TerminateJobException_FailsAJob_WithoutRetrying()
     {
         SqlServerStorage storage = CreateStorage();
-        _runs = 0;
+        ResetRuns();
         string jobId = new BackgroundJobClient(storage).Enqueue(() => FailForGood());
 
         JobStateInfo state = await RunUntilCompleted(storage, jobId);
@@ -49,7 +49,7 @@ public class JobExecutionControlFacts
     public async Task SkipIfLate_SkipsARunThatStartsTooLate_AndARequeueRunsIt()
     {
         SqlServerStorage storage = CreateStorage();
-        _runs = 0;
+        ResetRuns();
         BackgroundJobClient client = new(storage);
         string jobId = client.Schedule(() => DueHourly(), DateTimeOffset.UtcNow.AddHours(-2));
 
@@ -71,7 +71,7 @@ public class JobExecutionControlFacts
     public async Task SkipIfLate_LetsARunOnTimeRun()
     {
         SqlServerStorage storage = CreateStorage();
-        _runs = 0;
+        ResetRuns();
         string jobId = new BackgroundJobClient(storage).Schedule(() => DueHourly(), TimeSpan.FromMilliseconds(200));
 
         JobStateInfo state = await RunUntilCompleted(storage, jobId);
@@ -104,7 +104,7 @@ public class JobExecutionControlFacts
     public async Task ExceptionHandler_IsCalledForEachFailedAttempt()
     {
         SqlServerStorage storage = CreateStorage();
-        _runs = 0;
+        ResetRuns();
         RecordingHandler handler = new();
         JobFilterCollection filters = [];
         filters.Add(new JobExceptionHandlerFilter(handler));
@@ -165,6 +165,9 @@ public class JobExecutionControlFacts
     }
 
     public static int Answer() => 42;
+
+    /// <summary>The job methods are static and count their runs in a static field, which each test resets.</summary>
+    private static void ResetRuns() => _runs = 0;
 
     private static async Task<JobStateInfo> RunUntilCompleted(SqlServerStorage storage, string jobId, IJobFilterProvider filterProvider = null)
     {

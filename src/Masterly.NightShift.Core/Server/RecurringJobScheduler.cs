@@ -405,7 +405,7 @@ public class RecurringJobScheduler : IBackgroundProcess
                 // emit a warning message to the log.
                 if (recurringJob.Version.HasValue && recurringJob.Version > MaxSupportedVersion)
                 {
-                    throw new NotSupportedException($"Server '{context.ServerId}' can't process recurring job '{recurringJobId}' of version '{recurringJob.Version ?? 1}'. Max supported version of this server is '{MaxSupportedVersion}'.");
+                    throw new NotSupportedException($"Server '{context.ServerId}' can't process recurring job '{recurringJobId}' of version '{recurringJob.Version.Value}'. Max supported version of this server is '{MaxSupportedVersion}'.");
                 }
 
                 List<KeyValuePair<DateTime, BackgroundJob?>> runs = [];

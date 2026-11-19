@@ -201,7 +201,7 @@ public class JobExceptionHandlerFacts
             GlobalConfiguration.Configuration.UseJobExceptionHandler(other);
 
             Assert.Single(GlobalJobFilters.Filters, x => x.Instance is JobExceptionHandlerFilter { Handler: var handler } && handler == _handler);
-            Assert.Single(GlobalJobFilters.Filters, x => x.Instance is JobExceptionHandlerFilter { Handler: var handler } && handler == other);
+            Assert.Single(GlobalJobFilters.Filters, x => x.Instance is JobExceptionHandlerFilter { Handler: var handler } && ReferenceEquals(handler, other));
         }
         finally
         {
@@ -241,8 +241,8 @@ public class JobExceptionHandlerFacts
     [Fact]
     public void UseJobExceptionHandler_ThrowsAnException_WhenArgumentsAreNull()
     {
-        Assert.Throws<ArgumentNullException>(() => GlobalConfiguration.Configuration.UseJobExceptionHandler((IJobExceptionHandler)null));
-        Assert.Throws<ArgumentNullException>(() => GlobalConfiguration.Configuration.UseJobExceptionHandler((Action<JobExceptionContext>)null));
+        Assert.Throws<ArgumentNullException>(() => GlobalConfiguration.Configuration.UseJobExceptionHandler(null));
+        Assert.Throws<ArgumentNullException>(() => GlobalConfiguration.Configuration.UseJobExceptionHandler(default(Action<JobExceptionContext>)));
     }
 
     private JobExceptionHandlerFilter Filter() => new(_handler);

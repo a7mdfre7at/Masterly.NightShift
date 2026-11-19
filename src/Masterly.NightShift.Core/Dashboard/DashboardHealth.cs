@@ -132,8 +132,8 @@ internal static class DashboardHealth
 
         List<HealthCheck> checks = [];
         StatisticsDto? statistics = null;
-        IList<ServerDto> servers = Array.Empty<ServerDto>();
-        IList<QueueWithTopEnqueuedJobsDto> queues = Array.Empty<QueueWithTopEnqueuedJobsDto>();
+        IList<ServerDto> servers;
+        IList<QueueWithTopEnqueuedJobsDto> queues;
         bool paused = false;
 
         Stopwatch stopwatch = Stopwatch.StartNew();

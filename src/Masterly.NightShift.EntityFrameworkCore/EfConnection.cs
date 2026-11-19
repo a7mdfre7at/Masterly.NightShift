@@ -975,6 +975,7 @@ internal sealed class EfExpirationManager(EntityFrameworkCoreStorage storage) : 
     {
         while (!cancellationToken.IsCancellationRequested && expired.Take(BatchSize).ExecuteDelete() == BatchSize)
         {
+            // The condition deletes the next batch
         }
     }
 }
@@ -999,6 +1000,7 @@ internal sealed class EfCountersAggregator(EntityFrameworkCoreStorage storage) :
             {
                 while (AggregateBatch() == BatchSize && !context.IsStopping)
                 {
+                    // The condition merges the next batch
                 }
             }
         }

@@ -301,7 +301,7 @@ internal sealed class BackgroundExecution : IBackgroundExecution
             {
                 // Since we are moving from the Failed state, one or more error messages were
                 // logged, and we should notify administrators that operations are restored.
-                _logger.Info($"{GetExecutionTemplate()} recovered from the Failed state after {_failedSince?.Elapsed} and is in the Running state now");
+                _logger.Info($"{GetExecutionTemplate()} recovered from the Failed state after {_failedSince.Elapsed} and is in the Running state now");
             }
             else if (_faultedSince != null)
             {
@@ -365,19 +365,19 @@ internal sealed class BackgroundExecution : IBackgroundExecution
             {
                 // Still in the Failed state, we should log the error message as a reminder,
                 // but shouldn't do this too often, especially for short retry intervals.
-                _logger.ErrorException($"{GetExecutionTemplate()} is still in the Failed state for {_failedSince?.Elapsed} due to an exception, will be retried in no more than {retryDelay}", exception);
+                _logger.ErrorException($"{GetExecutionTemplate()} is still in the Failed state for {_failedSince.Elapsed} due to an exception, will be retried in no more than {retryDelay}", exception);
             }
         }
     }
 
     private string GetExecutionLoopTemplate(Guid executionId)
     {
-        return $"Execution loop {ToString()}:{executionId.ToString()[..8]}";
+        return $"Execution loop {this}:{executionId.ToString()[..8]}";
     }
 
     private string GetExecutionTemplate()
     {
-        return $"Execution {ToString()}";
+        return $"Execution {this}";
     }
 
     private void SetStoppedAt()

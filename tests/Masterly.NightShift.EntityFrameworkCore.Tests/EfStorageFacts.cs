@@ -31,19 +31,27 @@ public sealed class EfStorageFacts : IDisposable
     public void Lock_WhoseHandleWasNotDisposed_IsReleased_WithItsConnection()
     {
         EntityFrameworkCoreStorage storage = _database.CreateStorage(new EntityFrameworkCoreStorageOptions { DistributedLockLifetime = TimeSpan.FromSeconds(1) });
-        IStorageConnection first = storage.GetConnection();
-        IDisposable forgotten = first.AcquireDistributedLock("resource", TimeSpan.Zero);
-
-        first.Dispose();
-
         using IStorageConnection second = storage.GetConnection();
-        IDisposable taken = second.AcquireDistributedLock("resource", TimeSpan.FromSeconds(5));
+        IDisposable taken;
+        using (AcquireOnAConnectionDisposedAfterwards(storage, "resource"))
+        {
+            taken = second.AcquireDistributedLock("resource", TimeSpan.FromSeconds(5));
 
-        // The forgotten handle no longer holds anything, so it releases nothing
-        forgotten.Dispose();
-        using IStorageConnection third = storage.GetConnection();
-        Assert.Throws<DistributedLockTimeoutException>(() => third.AcquireDistributedLock("resource", TimeSpan.Zero));
-        taken.Dispose();
+            // The forgotten handle no longer holds anything, so disposing it at the end of this block releases nothing
+        }
+
+        using (taken)
+        {
+            using IStorageConnection third = storage.GetConnection();
+            Assert.Throws<DistributedLockTimeoutException>(() => third.AcquireDistributedLock("resource", TimeSpan.Zero));
+        }
+    }
+
+    // Takes the lock on a connection that is then disposed, leaving the lock's handle undisposed
+    private static IDisposable AcquireOnAConnectionDisposedAfterwards(JobStorage storage, string resource)
+    {
+        using IStorageConnection connection = storage.GetConnection();
+        return connection.AcquireDistributedLock(resource, TimeSpan.Zero);
     }
 
     [Fact]
@@ -218,7 +226,7 @@ public sealed class EfStorageFacts : IDisposable
                             x.AddToQueue("default", id);
                         });
                     }
-                    catch (Exception ex)
+                    catch (Exception ex) when (ex is not OutOfMemoryException)
                     {
                         requeueFailure = ex;
                     }

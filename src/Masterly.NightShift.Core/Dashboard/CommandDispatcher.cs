@@ -38,14 +38,7 @@ internal sealed class CommandDispatcher(Func<DashboardContext, bool> command) : 
             return Task.FromResult(false);
         }
 
-        if (_command(context))
-        {
-            response.StatusCode = (int)HttpStatusCode.NoContent;
-        }
-        else
-        {
-            response.StatusCode = 422;
-        }
+        response.StatusCode = _command(context) ? (int)HttpStatusCode.NoContent : 422;
 
         // The route's named groups (a job id, a resource, a tag) are what the action was about
         List<string> targets = [];

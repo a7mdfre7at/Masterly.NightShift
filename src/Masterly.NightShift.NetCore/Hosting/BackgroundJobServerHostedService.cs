@@ -364,14 +364,10 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
 
     private static async Task ShutDownAsync(IBackgroundProcessingServer server)
     {
-        try
+        using (server)
         {
             server.SendStop();
             await server.WaitForShutdownAsync(CancellationToken.None).ConfigureAwait(false);
-        }
-        finally
-        {
-            server.Dispose();
         }
     }
 

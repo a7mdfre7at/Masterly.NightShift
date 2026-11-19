@@ -167,7 +167,7 @@ public class JobChainFacts : IDisposable
     [Fact]
     public void Enqueue_ReturnsNull_AndCreatesNothingMore_WhenTheFirstStepIsCanceled()
     {
-        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>(), It.IsAny<IDictionary<string, object>>())).Returns((string)null);
+        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>(), It.IsAny<IDictionary<string, object>>())).Returns(default(string));
 
         Assert.Null(JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client.Object));
         _client.Verify(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>(), It.IsAny<IDictionary<string, object>>()), Times.Once);
@@ -176,7 +176,7 @@ public class JobChainFacts : IDisposable
     [Fact]
     public void Enqueue_DeletesTheCreatedSteps_WhenALaterStepIsCanceled()
     {
-        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<AwaitingState>(), It.IsAny<IDictionary<string, object>>())).Returns((string)null);
+        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<AwaitingState>(), It.IsAny<IDictionary<string, object>>())).Returns(default(string));
         _storage.Connection.Setup(x => x.GetStateData("job-1")).Returns(new StateData { Name = EnqueuedState.StateName });
         _client.Setup(x => x.ChangeState("job-1", It.IsAny<DeletedState>(), EnqueuedState.StateName)).Returns(true);
 
@@ -188,7 +188,7 @@ public class JobChainFacts : IDisposable
     [Fact]
     public void Enqueue_LeavesTheFirstStep_WhenAWorkerTookItBeforeALaterStepFailed()
     {
-        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<AwaitingState>(), It.IsAny<IDictionary<string, object>>())).Returns((string)null);
+        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<AwaitingState>(), It.IsAny<IDictionary<string, object>>())).Returns(default(string));
         _storage.Connection.Setup(x => x.GetStateData("job-1")).Returns(new StateData { Name = ProcessingState.StateName });
 
         Assert.Throws<InvalidOperationException>(() => JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client.Object));
@@ -295,7 +295,7 @@ public class JobChainFacts : IDisposable
     [Fact]
     public void Enqueue_RemovesTheRecordItStarted_WhenTheFirstStepIsCanceled()
     {
-        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>(), It.IsAny<IDictionary<string, object>>())).Returns((string)null);
+        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>(), It.IsAny<IDictionary<string, object>>())).Returns(default(string));
 
         Assert.Null(JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client.Object));
 
@@ -735,7 +735,7 @@ public class JobChainFacts : IDisposable
         // The job that stays finds a record that doesn't list it when it comes due, and is deleted then; without
         // a record it could run for being old enough for its record to have expired
         string chainId = null;
-        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<AwaitingState>(), It.IsAny<IDictionary<string, object>>())).Returns((string)null);
+        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<AwaitingState>(), It.IsAny<IDictionary<string, object>>())).Returns(default(string));
         _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<ScheduledState>(), It.IsAny<IDictionary<string, object>>()))
             .Returns((Job _, IState _, IDictionary<string, object> parameters) =>
             {

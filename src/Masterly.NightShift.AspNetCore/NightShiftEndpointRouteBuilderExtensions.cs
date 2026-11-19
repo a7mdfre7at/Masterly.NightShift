@@ -105,7 +105,7 @@ public static class NightShiftEndpointRouteBuilderExtensions
             options.Authorization = [];
             options.AsyncAuthorization = [];
 
-            return endpoints.MapNightShiftDashboard(pattern, options, storage);
+            return MapNightShiftDashboard(endpoints, pattern, options, storage);
         }
 
         /// <summary>

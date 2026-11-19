@@ -522,7 +522,7 @@ internal static class ChainFlowchartRenderer
 
         html.Append(FormattableString.Invariant($"<div class=\"hf-flow-box hf-flow-box-{(level.Kind == ChainLevelKind.Branches ? "group" : "outcomes")}\" style=\"left: {block.X}px; top: {block.Y}px; width: {block.Width}px; height: {block.Height}px\">"));
         html.Append("<div class=\"hf-flow-box-head\"><span class=\"hf-flow-box-title\">").Append(Encode(title)).Append("</span>");
-        html.Append(ChainFlowchart.StatusLabel(page.Html, status).ToString()).Append("</div>");
+        html.Append(ChainFlowchart.StatusLabel(page.Html, status)).Append("</div>");
 
         if (level.Kind == ChainLevelKind.Branches)
         {
@@ -653,7 +653,7 @@ internal static class ChainFlowchartRenderer
         html.Append("<div class=\"hf-flow-foot\"><span class=\"hf-flow-meta\">").Append(Encode(page.Html.JobId(info.JobId).ToString()));
         if (step.Time.HasValue)
         {
-            html.Append(" · ").Append(page.Html.RelativeTime(step.Time.Value).ToString());
+            html.Append(" · ").Append(page.Html.RelativeTime(step.Time.Value));
         }
 
         if (step.Duration.HasValue && step.Duration.Value >= TimeSpan.Zero)
@@ -672,7 +672,7 @@ internal static class ChainFlowchartRenderer
         if (retryChain != null && CanRetryFrom(info))
         {
             html.Append("<button class=\"btn hf-btn-xs btn-primary\" data-ajax=\"").Append(Encode(RetryUrl(page, retryChain, info.JobId))).Append("\" data-loading-text=\"").Append(Encode(Strings.ChainDetailsPage_Retrying)).Append("\" ")
-                .Append(RetryConfirm(page).ToString()).Append('>');
+                .Append(RetryConfirm(page)).Append('>');
             html.Append(page.Html.Icon("arrow-repeat")).Append(' ').Append(Encode(Strings.ChainDetailsPage_RetryFromHere)).Append("</button>");
         }
 

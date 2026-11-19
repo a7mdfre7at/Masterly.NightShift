@@ -24,6 +24,7 @@ public class DuplicateQueueEntryFacts
         int seen;
         while ((seen = Volatile.Read(ref _mostRunning)) < running && Interlocked.CompareExchange(ref _mostRunning, running, seen) != seen)
         {
+            // Another run changed the most seen in between: read it again
         }
 
         Thread.Sleep(TimeSpan.FromSeconds(1));
@@ -62,7 +63,7 @@ public class DuplicateQueueEntryFacts
 
         RunUntilEveryRowIsTaken(storage, id, workers: 2);
 
-        Assert.Equal((1, 1), (Started.Count, Volatile.Read(ref _mostRunning)));
+        Assert.Equal((1, 1), (Started.Count, MostRunning()));
     }
 
     // The Requeue of the API, twice, on a job that is still Enqueued
@@ -81,7 +82,7 @@ public class DuplicateQueueEntryFacts
 
         RunUntilEveryRowIsTaken(storage, id, workers: 3);
 
-        Assert.Equal((1, 1), (Started.Count, Volatile.Read(ref _mostRunning)));
+        Assert.Equal((1, 1), (Started.Count, MostRunning()));
     }
 
     // A step of a chain that waits in its queue is deleted by hand, and the chain is retried from it
@@ -100,7 +101,7 @@ public class DuplicateQueueEntryFacts
 
         RunUntilEveryRowIsTaken(storage, step, workers: 3);
 
-        Assert.Equal((1, 1), (Started.Count(static x => x == "b"), Volatile.Read(ref _mostRunning)));
+        Assert.Equal((1, 1), (Started.Count(static x => x == "b"), MostRunning()));
     }
 
     // The row the worker took comes back when the worker puts the job back (its server stopped): rolled back with
@@ -129,6 +130,9 @@ public class DuplicateQueueEntryFacts
 
         Assert.Equal(2, Started.Count);
     }
+
+    /// <summary>The most runs of the job methods seen at the same time.</summary>
+    private static int MostRunning() => Volatile.Read(ref _mostRunning);
 
     private static void Reset()
     {

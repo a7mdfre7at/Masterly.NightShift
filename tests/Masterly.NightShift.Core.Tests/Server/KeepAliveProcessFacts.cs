@@ -272,7 +272,7 @@ public class KeepAliveProcessFacts
             base.Dispose(disposing);
         }
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             LastRequest = request;
             cancellationToken.ThrowIfCancellationRequested();
@@ -281,7 +281,9 @@ public class KeepAliveProcessFacts
                 throw _exception;
             }
 
-            return Task.FromResult(new HttpResponseMessage(_statusCode) { ReasonPhrase = _statusCode.ToString() });
+            // The response goes to HttpClient's caller, which disposes it (KeepAliveProcess uses a using declaration).
+            await Task.CompletedTask;
+            return new HttpResponseMessage(_statusCode) { ReasonPhrase = _statusCode.ToString() };
         }
     }
 }

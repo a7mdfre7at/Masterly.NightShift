@@ -283,7 +283,7 @@ internal sealed class CaptureState(PerformContext context, NightShiftJobLogOptio
 
     private void WriteToConsole(JobConsoleLevel level, string text)
     {
-        _writing = true;
+        SetWriting(true);
         try
         {
             context.Console.WriteLine(level, text);
@@ -294,9 +294,12 @@ internal sealed class CaptureState(PerformContext context, NightShiftJobLogOptio
         }
         finally
         {
-            _writing = false;
+            SetWriting(false);
         }
     }
+
+    // Per thread, not per run: it stops the lines the console's own writes log on this thread, whatever run they're for
+    private static void SetWriting(bool writing) => _writing = writing;
 
     private static string ShortCategory(string category)
     {

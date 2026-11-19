@@ -1167,25 +1167,19 @@ $@"select min([ExpireAt]) from [{schemaName}].Hash with (forceseek) where [Key] 
     {
         try
         {
-            if (_lockedResources.TryGetValue(resource, out HashSet<Guid>? lockIds))
+            // Session-scoped application locks are held only when connection
+            // is open. When connection is closed or broken, for example, when
+            // there was an error, application lock is already released by SQL
+            // Server itself, and we shouldn't do anything.
+            if (_lockedResources.TryGetValue(resource, out HashSet<Guid>? lockIds) &&
+                lockIds.Contains(lockId) &&
+                lockIds.Remove(lockId) &&
+                lockIds.Count == 0 &&
+                _lockedResources.Remove(resource) &&
+                DedicatedConnection!.State == ConnectionState.Open && // Session locks imply a dedicated connection
+                !releasedExternally)
             {
-                if (lockIds.Contains(lockId))
-                {
-                    if (lockIds.Remove(lockId) &&
-                        lockIds.Count == 0 &&
-                        _lockedResources.Remove(resource) &&
-                        DedicatedConnection!.State == ConnectionState.Open) // Session locks imply a dedicated connection
-                    {
-                        // Session-scoped application locks are held only when connection
-                        // is open. When connection is closed or broken, for example, when
-                        // there was an error, application lock is already released by SQL
-                        // Server itself, and we shouldn't do anything.
-                        if (!releasedExternally)
-                        {
-                            SqlServerDistributedLock.Release(DedicatedConnection, resource);
-                        }
-                    }
-                }
+                SqlServerDistributedLock.Release(DedicatedConnection, resource);
             }
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())

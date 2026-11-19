@@ -118,10 +118,17 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
         }
         finally
         {
-            foreach (SqlServerConnection.DisposableLock acquiredLock in _acquiredLocks)
-            {
-                acquiredLock.Dispose();
-            }
+            DisposeAll(_acquiredLocks);
+        }
+    }
+
+    // In order; an exception from one leaves the rest undisposed, as it ends the finally block that calls this
+    private static void DisposeAll<T>(List<T> disposables)
+        where T : IDisposable
+    {
+        foreach (T disposable in disposables)
+        {
+            disposable.Dispose();
         }
     }
 
@@ -241,10 +248,7 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
             }
             finally
             {
-                foreach (DbCommand command in commands)
-                {
-                    command.Dispose();
-                }
+                DisposeAll(commands);
             }
         }, transactions);
     }
@@ -447,10 +451,7 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
             }
             finally
             {
-                foreach (DbCommand command in commands)
-                {
-                    command.Dispose();
-                }
+                DisposeAll(commands);
             }
         }, this);
     }

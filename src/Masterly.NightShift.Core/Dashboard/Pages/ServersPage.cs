@@ -3,7 +3,7 @@ using Masterly.NightShift.Storage.Monitoring;
 
 namespace Masterly.NightShift.Dashboard.Pages;
 
-internal partial class ServersPage
+internal partial class ServersPage : RazorPage
 {
     // Enough rows to count the busy workers of a large cluster, few enough to keep the page light
     internal const int MaxProcessingJobsRead = 500;

@@ -9,7 +9,7 @@ public class ShallowExceptionHelperFacts
         {
             throw new InvalidOperationException("Hello, world!");
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
             ex.PreserveOriginalStackTrace();
             ex.PreserveOriginalStackTrace();

@@ -219,7 +219,7 @@ public class WriteCoalescerFacts
                 {
                     action();
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
                     Exception = ex;
                 }

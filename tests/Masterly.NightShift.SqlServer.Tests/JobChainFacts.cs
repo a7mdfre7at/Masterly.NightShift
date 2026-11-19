@@ -63,7 +63,7 @@ public class JobChainFacts
     {
         SqlServerStorage storage = CreateStorage();
         Log.Clear();
-        _failures = 1;
+        FailNextRunOfFailOnce();
 
         JobChainResult chain = JobChain.StartWith(() => Record("a"))
             .ThenMany(branches => branches.Branch(() => FailOnce("b")).Branch(() => Record("c")))
@@ -99,7 +99,7 @@ public class JobChainFacts
     {
         SqlServerStorage storage = CreateStorage();
         Log.Clear();
-        _failures = 1;
+        FailNextRunOfFailOnce();
 
         JobChainResult chain = JobChain.StartWith(() => Record("a"))
             .ThenMany(branches => branches.Branch(() => FailOnce("b")).Branch(() => Record("c")))
@@ -193,7 +193,7 @@ public class JobChainFacts
     {
         SqlServerStorage storage = CreateStorage();
         Log.Clear();
-        _failures = 1;
+        FailNextRunOfFailOnce();
         BackgroundJobClient client = new(storage);
 
         string parent = client.Enqueue(() => FailOnce("parent"));
@@ -1269,7 +1269,7 @@ public class JobChainFacts
         SqlServerStorage storage = CreateStorage();
         BackgroundJobClient client = new(storage);
         Log.Clear();
-        _failures = 1;
+        FailNextRunOfFailOnce();
 
         JobChainResult failed = JobChain.StartWith(() => FailOnce("a")).Then(() => Record("b")).Enqueue(client);
         JobChainResult finished = JobChain.StartWith(() => Record("x")).Then(() => Record("y")).Enqueue(client);
@@ -1389,7 +1389,7 @@ public class JobChainFacts
         SqlServerStorage storage = CreateStorage();
         BackgroundJobClient client = new(storage);
         Log.Clear();
-        _failures = 1;
+        FailNextRunOfFailOnce();
 
         JobChainResult failed = JobChain.StartWith(() => FailOnce("a")).Then(() => Record("b")).Enqueue(client);
         JobChainResult finished = JobChain.StartWith(() => Record("x")).Enqueue(client);
@@ -2027,6 +2027,9 @@ public class JobChainFacts
     {
         Log.Enqueue(name);
     }
+
+    /// <summary>Makes the next run of <see cref="FailOnce"/> fail, whichever test instance asks.</summary>
+    private static void FailNextRunOfFailOnce() => _failures = 1;
 
     [AutomaticRetry(Attempts = 0)]
     public static void FailOnce(string name)

@@ -26,7 +26,7 @@ public class JobDiagnosticsFacts : IDisposable
         _monitor.Setup(x => x.Queues()).Returns(_queues);
         _connection.Setup(x => x.GetJobData(It.IsAny<string>())).Returns<string>(id => _jobs.TryGetValue(id, out JobData? data) ? data : null);
         _connection.Setup(x => x.GetAllEntriesFromHash(DrainMode.HashKey)).Returns(_control);
-        _connection.Setup(x => x.GetAllEntriesFromHash(It.Is<string>(k => k.StartsWith("insights:")))).Returns((Dictionary<string, string>)null);
+        _connection.Setup(x => x.GetAllEntriesFromHash(It.Is<string>(k => k.StartsWith("insights:")))).Returns(default(Dictionary<string, string>));
         DrainMode.InvalidateCache();
     }
 
@@ -466,7 +466,7 @@ public class JobDiagnosticsFacts : IDisposable
     public void Awaiting_WhoseScheduledParentHasNoStateData_SaysItIsWaiting()
     {
         _jobs["77"] = new JobData { State = ScheduledState.StateName, Job = Job.FromExpression(() => Work()) };
-        _connection.Setup(x => x.GetStateData("77")).Returns((StateData)null);
+        _connection.Setup(x => x.GetStateData("77")).Returns(default(StateData));
         Dictionary<string, string> data = new() { { "ParentId", "77" } };
 
         IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, data));

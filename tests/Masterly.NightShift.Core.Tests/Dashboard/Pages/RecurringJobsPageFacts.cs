@@ -183,7 +183,7 @@ public class RecurringJobsPageFacts
         string onThisPage = _renderer.Render(new RecurringJobsPage());
 
         _renderer.Request.Query["edit"] = "missing";
-        _renderer.Connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:missing")).Returns((Dictionary<string, string>)null);
+        _renderer.Connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:missing")).Returns(default(Dictionary<string, string>));
         string missing = _renderer.Render(new RecurringJobsPage());
 
         AddJob("elsewhere", "0 5 * * *", Next(TimeSpan.FromHours(5)));
@@ -477,7 +477,8 @@ public class RecurringJobsPageFacts
         Assert.Contains("<form id=\"recurringJobEditorForm\" class=\"ns-sheet-form js-recurring-edit-form\" novalidate=\"novalidate\">", html);
         Assert.Contains("<legend>" + H(Strings.RecurringJobsPage_Group_When) + "</legend>", html);
         Assert.Contains("<legend>" + H(Strings.RecurringJobsPage_Group_How) + "</legend>", html);
-        foreach (string field in (string[])["Cron", "TimeZone", "Queue", "Misfire"])
+        string[] scheduleFields = ["Cron", "TimeZone", "Queue", "Misfire"];
+        foreach (string field in scheduleFields)
         {
             Assert.Contains("<label for=\"recurringJobEditor" + field + "\">", html);
             Assert.Contains("id=\"recurringJobEditor" + field + "\"", html);

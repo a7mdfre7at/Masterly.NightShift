@@ -34,7 +34,6 @@
     }
     @{
         Version version = GetType().GetTypeInfo().Assembly.GetName().Version!;
-        Version storageVersion = Storage.GetType().GetTypeInfo().Assembly.GetName().Version!;
     }
 
     @if(!string.IsNullOrWhiteSpace(DashboardOptions.FaviconPath))
@@ -154,7 +153,7 @@
                                 pausedServers = pausedServers.Where(id => !stale.Contains(id, StringComparer.OrdinalIgnoreCase)).ToList();
                             }
                         }
-                        catch (Exception)
+                        catch (Exception ex) when (ex.IsCatchableExceptionType())
                         {
                             // The storage is unreachable: a banner says so, and the page itself shows what it could read
                             storageUnavailable = true;
@@ -225,8 +224,11 @@
                         <li class="list-inline-item">
                             <span>Masterly.NightShift @($"{version.Major}.{version.Minor}.{version.Build}")</span>
                         </li>
-                        @if(DashboardOptions.DisplayStorageConnectionString){
-                        <li class="list-inline-item">@Storage @($"{storageVersion.Major}.{storageVersion.Minor}.{storageVersion.Build}")</li>
+                        @if (DashboardOptions.DisplayStorageConnectionString)
+                        {
+                            // An assembly loaded by the runtime always has a version
+                            Version storageVersion = Storage.GetType().GetTypeInfo().Assembly.GetName().Version!;
+                            <li class="list-inline-item">@Storage @($"{storageVersion.Major}.{storageVersion.Minor}.{storageVersion.Build}")</li>
                         }
                         @if (StorageUtcNow.HasValue)
                         {

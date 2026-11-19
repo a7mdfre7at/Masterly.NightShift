@@ -26,20 +26,17 @@ public class DeploymentFencingFacts
         TimeSpan takeOverAfter = DeploymentFencing.TakeOverAfter;
         DeploymentFencing.CheckInterval = TimeSpan.FromSeconds(1);
         DeploymentFencing.TakeOverAfter = TimeSpan.FromSeconds(3);
-        Volatile.Write(ref _ranOnOlder, 0);
-
-        BackgroundJobServer? newer = null;
-        BackgroundJobServer? older = null;
+        ResetRanOnOlder();
         using CancellationTokenSource stopEnqueuing = new();
 
         try
         {
             GlobalConfiguration.Configuration.UseDeploymentFencing("v2", 2);
-            newer = new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 1, Queues = ["newer"] }, storage);
+            using BackgroundJobServer newer = new(new BackgroundJobServerOptions { WorkerCount = 1, Queues = ["newer"] }, storage);
             await WaitUntilAsync(() => DeploymentFencing.GetCurrentDeployment(storage) == "v2");
 
             GlobalConfiguration.Configuration.UseDeploymentFencing("v1", 1);
-            older = new BackgroundJobServer(
+            using BackgroundJobServer older = new(
                 new BackgroundJobServerOptions { WorkerCount = 4, Queues = ["older"], HeartbeatInterval = TimeSpan.FromMilliseconds(200) },
                 storage);
 
@@ -59,7 +56,7 @@ public class DeploymentFencingFacts
                 TestContext.Current.CancellationToken);
 
             await Task.Delay(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken);
-            Assert.Equal(0, Volatile.Read(ref _ranOnOlder));
+            Assert.Equal(0, RanOnOlderCount());
             Assert.Equal("v2", DeploymentFencing.GetCurrentDeployment(storage));
 
             // Another server's watchdog takes it for dead (it was suspended, the storage was away): the heartbeat
@@ -76,8 +73,8 @@ public class DeploymentFencingFacts
 
             Assert.Equal("v2", DeploymentFencing.GetCurrentDeployment(storage));
             Assert.True(
-                Volatile.Read(ref _ranOnOlder) == 0,
-                $"The fenced deployment v1 ran {Volatile.Read(ref _ranOnOlder)} job(s) after its server restarted, while v2 was the current deployment and alive.");
+                RanOnOlderCount() == 0,
+                $"The fenced deployment v1 ran {RanOnOlderCount()} job(s) after its server restarted, while v2 was the current deployment and alive.");
 
             // The pause of the id that is gone doesn't stay behind
             Assert.DoesNotContain(olderId, PausedServers(storage).Keys);
@@ -85,8 +82,6 @@ public class DeploymentFencingFacts
         finally
         {
             await stopEnqueuing.CancelAsync();
-            older?.Dispose();
-            newer?.Dispose();
             DeploymentFencing.CheckInterval = checkInterval;
             DeploymentFencing.TakeOverAfter = takeOverAfter;
             ResetFencing();
@@ -106,15 +101,12 @@ public class DeploymentFencingFacts
         TimeSpan takeOverAfter = DeploymentFencing.TakeOverAfter;
         DeploymentFencing.CheckInterval = TimeSpan.FromSeconds(1);
         DeploymentFencing.TakeOverAfter = TimeSpan.FromSeconds(3);
-        Volatile.Write(ref _ran, 0);
-
-        BackgroundJobServer? newer = null;
-        BackgroundJobServer? older = null;
+        ResetRan();
 
         try
         {
             GlobalConfiguration.Configuration.UseDeploymentFencing("v2", 2);
-            newer = new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 20 }, storage);
+            using BackgroundJobServer newer = new(new BackgroundJobServerOptions { WorkerCount = 20 }, storage);
             await WaitUntilAsync(() => DeploymentFencing.GetCurrentDeployment(storage) == "v2");
 
             // The current deployment alone
@@ -125,15 +117,15 @@ public class DeploymentFencingFacts
                 client.Enqueue(() => Ran());
             }
 
-            await WaitUntilAsync(() => Volatile.Read(ref _ran) == jobs);
+            await WaitUntilAsync(() => RanCount() == jobs);
             alone.Stop();
 
             // A server of the older deployment is still around (a rolling deploy, a stray instance): fenced
             GlobalConfiguration.Configuration.UseDeploymentFencing("v1", 1);
-            older = new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 20 }, storage);
+            using BackgroundJobServer older = new(new BackgroundJobServerOptions { WorkerCount = 20 }, storage);
             await WaitUntilAsync(() => PausedServers(storage).Count == 1);
 
-            Volatile.Write(ref _ran, 0);
+            ResetRan();
             Stopwatch together = Stopwatch.StartNew();
             for (int i = 0; i < jobs; i++)
             {
@@ -142,12 +134,12 @@ public class DeploymentFencingFacts
 
             // Three times what the current deployment needed alone, and at least ten seconds
             TimeSpan allowed = TimeSpan.FromSeconds(Math.Max(10, alone.Elapsed.TotalSeconds * 3));
-            while (together.Elapsed < allowed && Volatile.Read(ref _ran) < jobs)
+            while (together.Elapsed < allowed && RanCount() < jobs)
             {
                 await Task.Delay(100, TestContext.Current.CancellationToken);
             }
 
-            int ran = Volatile.Read(ref _ran);
+            int ran = RanCount();
             long held = storage.GetMonitoringApi().ScheduledCount();
 
             Assert.True(
@@ -157,8 +149,6 @@ public class DeploymentFencingFacts
         }
         finally
         {
-            older?.Dispose();
-            newer?.Dispose();
             DeploymentFencing.CheckInterval = checkInterval;
             DeploymentFencing.TakeOverAfter = takeOverAfter;
             ResetFencing();
@@ -179,17 +169,14 @@ public class DeploymentFencingFacts
         DeploymentFencing.CheckInterval = TimeSpan.FromSeconds(1);
         DeploymentFencing.TakeOverAfter = TimeSpan.FromSeconds(3);
 
-        BackgroundJobServer? newer = null;
-        BackgroundJobServer? older = null;
-
         try
         {
             GlobalConfiguration.Configuration.UseDeploymentFencing("v2", 2);
-            newer = new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 20 }, storage);
+            using BackgroundJobServer newer = new(new BackgroundJobServerOptions { WorkerCount = 20 }, storage);
             await WaitUntilAsync(() => DeploymentFencing.GetCurrentDeployment(storage) == "v2");
 
             GlobalConfiguration.Configuration.UseDeploymentFencing("v1", 1);
-            older = new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 20 }, storage);
+            using BackgroundJobServer older = new(new BackgroundJobServerOptions { WorkerCount = 20 }, storage);
             await WaitUntilAsync(() => PausedServers(storage).Count == 1);
 
             BackgroundJobClient client = new(storage);
@@ -222,8 +209,6 @@ public class DeploymentFencingFacts
         }
         finally
         {
-            older?.Dispose();
-            newer?.Dispose();
             DeploymentFencing.CheckInterval = checkInterval;
             DeploymentFencing.TakeOverAfter = takeOverAfter;
             ResetFencing();
@@ -242,7 +227,7 @@ public class DeploymentFencingFacts
         SqlServerStorage storage = CreateStorage();
         TimeSpan holdInterval = DrainMode.HoldInterval;
         DrainMode.HoldInterval = TimeSpan.FromSeconds(3);
-        Volatile.Write(ref _ran, 0);
+        ResetRan();
 
         try
         {
@@ -266,14 +251,14 @@ public class DeploymentFencingFacts
             await Task.Delay(TimeSpan.FromSeconds(1.5), TestContext.Current.CancellationToken);
             long held = monitoring.ScheduledCount();
             long waiting = monitoring.EnqueuedCount(EnqueuedState.DefaultQueue);
-            int ranWhilePaused = Volatile.Read(ref _ran);
+            int ranWhilePaused = RanCount();
 
             using (IStorageConnection connection = storage.GetConnection())
             {
                 DrainMode.ResumeServer(connection, serverId);
             }
 
-            await WaitUntilAsync(() => Volatile.Read(ref _ran) == jobs);
+            await WaitUntilAsync(() => RanCount() == jobs);
 
             Assert.Equal(0, ranWhilePaused);
             Assert.InRange(held, 0, workers);
@@ -302,6 +287,15 @@ public class DeploymentFencingFacts
         Thread.Sleep(20);
         Interlocked.Increment(ref _ran);
     }
+
+    // The counters are shared by the job methods, which are static: they are read and reset only here
+    private static int RanOnOlderCount() => Volatile.Read(ref _ranOnOlder);
+
+    private static void ResetRanOnOlder() => Volatile.Write(ref _ranOnOlder, 0);
+
+    private static int RanCount() => Volatile.Read(ref _ran);
+
+    private static void ResetRan() => Volatile.Write(ref _ran, 0);
 
     private static IReadOnlyDictionary<string, string?> PausedServers(JobStorage storage)
     {

@@ -571,7 +571,8 @@ public sealed class JobChainStepFilterFacts : IDisposable
         _expiring.Setup(x => x.AddToSet("chains:soon", It.IsAny<string>(), It.IsAny<double>()))
             .Callback<string, string, double>((_, entry, _) => entries.Add(entry));
 
-        foreach (string from in (string[])[FailedState.StateName, SucceededState.StateName, DeletedState.StateName])
+        string[] finalStates = [FailedState.StateName, SucceededState.StateName, DeletedState.StateName];
+        foreach (string from in finalStates)
         {
             ApplyStateContext context = Left(from, EnqueuedState.StateName);
             _filter.OnStateApplied(context, context.Transaction);
@@ -1373,7 +1374,7 @@ public sealed class JobChainStepFilterFacts : IDisposable
         // The chain was deleted while the step was held
         Step("1.0");
         HeldForARetry(generation: 3, state: FailedState.StateName);
-        _connection.Setup(x => x.GetAllEntriesFromHash(JobChains.GetKey(ChainId))).Returns((Dictionary<string, string>)null);
+        _connection.Setup(x => x.GetAllEntriesFromHash(JobChains.GetKey(ChainId))).Returns(default(Dictionary<string, string>));
         _context.ApplyContext.Storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(false);
 
         _filter.OnStateElection(_context.Object);

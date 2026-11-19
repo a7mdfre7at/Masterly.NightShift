@@ -65,8 +65,8 @@ public class BackgroundProcessingServerFacts
     public void Execute_StartsAllTheProcesses_InLoop_AndWaitsForThem()
     {
         // Arrange
-        CountdownEvent component1Countdown = new(5);
-        CountdownEvent component2Countdown = new(5);
+        using CountdownEvent component1Countdown = new(5);
+        using CountdownEvent component2Countdown = new(5);
 
         Mock<IBackgroundProcess> component1 = CreateProcessMock<IBackgroundProcess>();
         component1.Setup(x => x.Execute(It.IsAny<BackgroundProcessContext>())).Callback(() =>
@@ -111,7 +111,7 @@ public class BackgroundProcessingServerFacts
             finished.Set();
         });
 
-        BackgroundProcessingServer server = new(_storage.Object, _processes, _properties, new BackgroundProcessingServerOptions
+        using BackgroundProcessingServer server = new(_storage.Object, _processes, _properties, new BackgroundProcessingServerOptions
         {
             StopTimeout = TimeSpan.FromSeconds(1),
             ShutdownTimeout = TimeSpan.FromSeconds(2)

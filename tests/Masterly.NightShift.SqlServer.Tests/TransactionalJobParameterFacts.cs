@@ -353,7 +353,7 @@ public class TransactionalJobParameterFacts
                         connection.SetJobParameter(id, "Shared", caller.ToString());
                     }
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
                     failures.Enqueue(ex);
                 }

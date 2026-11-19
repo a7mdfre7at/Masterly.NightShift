@@ -42,7 +42,7 @@ public class JobChainMarkFacts
         GlobalJobFilters.Filters.Add(created);
 
         using DbConnection blocker = ConnectionUtils.CreateConnection();
-        DbTransaction blocking = null;
+        using TransactionBegunLater blocking = new(blocker);
         using ManualResetEventSlim blocked = new(false);
         Task<JobChainResult> creation = null;
 
@@ -57,11 +57,10 @@ public class JobChainMarkFacts
                     return;
                 }
 
-                blocking = blocker.BeginTransaction();
                 blocker.Execute(
                     $"insert into [{Constants.DefaultSchema}].JobParameter (JobId, Name, Value) values (@id, @name, null)",
                     new { id = long.Parse(created.Ids[blockedStep]), name = JobChains.ChainRecordedParameter },
-                    blocking);
+                    blocking.Begin());
                 blocked.Set();
             };
 
@@ -96,16 +95,13 @@ public class JobChainMarkFacts
             GlobalJobFilters.Filters.Remove(created);
 
             // A failed test must not leave the creation waiting for the other session
-            if (blocking?.Connection != null)
-            {
-                blocking.Rollback();
-            }
-
-            blocking?.Dispose();
+            blocking.RollBackIfOpen();
 
             if (creation != null)
             {
-                await ((Task)creation).WaitAsync(Timeout, CancellationToken.None).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+                // Without its result: only a Task, not a Task<T>, can be awaited with SuppressThrowing
+                Task finishing = creation;
+                await finishing.WaitAsync(Timeout, CancellationToken.None).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
             }
         }
     }
@@ -303,6 +299,41 @@ public class JobChainMarkFacts
                 Ids[number] = context.BackgroundJob.Id;
                 OnCreated?.Invoke();
             }
+        }
+    }
+
+    /// <summary>
+    /// A transaction another thread begins on the connection while the test runs; rolled back, if still open, and
+    /// disposed with this object.
+    /// </summary>
+    private sealed class TransactionBegunLater(DbConnection connection) : IDisposable
+    {
+        private DbTransaction? _transaction;
+
+        public DbTransaction Begin()
+        {
+            _transaction = connection.BeginTransaction();
+            return _transaction;
+        }
+
+        public void Rollback()
+        {
+            DbTransaction transaction = _transaction ?? throw new InvalidOperationException("No transaction was begun.");
+            transaction.Rollback();
+        }
+
+        public void RollBackIfOpen()
+        {
+            if (_transaction?.Connection != null)
+            {
+                _transaction.Rollback();
+            }
+        }
+
+        public void Dispose()
+        {
+            RollBackIfOpen();
+            _transaction?.Dispose();
         }
     }
 }

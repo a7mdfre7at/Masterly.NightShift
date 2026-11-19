@@ -92,7 +92,7 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
     private static readonly Func<long, int> DefaultDelayInSecondsByAttemptFunc = attempt =>
     {
         return (int)Math.Round(
-            Math.Pow(attempt - 1, 4) + 15 + Random.Shared.Next(30) * attempt);
+            Math.Pow(attempt - 1, 4) + 15 + (double)Random.Shared.Next(30) * attempt);
     };
 
     private readonly ILog _logger = LogProvider.For<AutomaticRetryAttribute>();
@@ -429,21 +429,14 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
     {
         context.SetJobParameter(RetryCountParameter, retryAttempt);
 
-        int delayInSeconds;
-
         // Read once, under the lock, so a concurrent set can't change the array between the checks
         int[]? delaysInSeconds = DelaysInSeconds;
 
-        if (delaysInSeconds != null)
-        {
-            delayInSeconds = retryAttempt <= delaysInSeconds.Length
+        int delayInSeconds = delaysInSeconds == null
+            ? DelayInSecondsByAttemptFunc(retryAttempt)
+            : retryAttempt <= delaysInSeconds.Length
                 ? delaysInSeconds[retryAttempt - 1]
                 : delaysInSeconds.Last();
-        }
-        else
-        {
-            delayInSeconds = DelayInSecondsByAttemptFunc(retryAttempt);
-        }
 
         TimeSpan delay = TimeSpan.FromSeconds(delayInSeconds);
 

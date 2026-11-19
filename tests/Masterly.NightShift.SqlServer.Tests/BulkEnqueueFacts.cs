@@ -105,14 +105,14 @@ public class BulkEnqueueFacts
     public void EnqueueMany_CreatesJobsAServerRuns()
     {
         SqlServerStorage storage = CreateStorage();
-        Interlocked.Exchange(ref _ran, 0);
+        ResetRan();
 
         IReadOnlyList<string> ids = new BackgroundJobClient(storage)
             .EnqueueMany<BulkEnqueueFacts, int>(Enumerable.Range(0, 30), static (x, number) => x.Run(number));
 
         using (new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 4 }, storage))
         {
-            Assert.True(SpinWait.SpinUntil(() => Volatile.Read(ref _ran) == 30, Timeout), "The jobs weren't run in time.");
+            Assert.True(SpinWait.SpinUntil(static () => RanCount() == 30, Timeout), "The jobs weren't run in time.");
             Assert.True(SpinWait.SpinUntil(() => HasSucceeded(storage, ids[^1]), Timeout), "The last job didn't succeed in time.");
         }
     }
@@ -131,6 +131,13 @@ public class BulkEnqueueFacts
     [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test", Justification = "Should be public to be a job")]
     public void Run(int number)
     {
-        Interlocked.Increment(ref _ran);
+        CountRun();
     }
+
+    // The job runs on an instance the server creates, so the count is shared by every instance
+    private static void CountRun() => Interlocked.Increment(ref _ran);
+
+    private static void ResetRan() => Interlocked.Exchange(ref _ran, 0);
+
+    private static int RanCount() => Volatile.Read(ref _ran);
 }

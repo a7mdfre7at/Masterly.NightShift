@@ -826,7 +826,8 @@ public class FanInContinuationsSupportAttributeFacts
 
         Apply(context);
 
-        foreach (string child in (string[])["child-1", "child-2"])
+        string[] children = ["child-1", "child-2"];
+        foreach (string child in children)
         {
             context.Transaction.Verify(x => x.SetRangeInHash(
                 $"fan-in:{child}",

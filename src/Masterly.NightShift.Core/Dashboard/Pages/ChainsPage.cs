@@ -1,6 +1,6 @@
 namespace Masterly.NightShift.Dashboard.Pages;
 
-internal partial class ChainsPage
+internal partial class ChainsPage : RazorPage
 {
     // Without ranges the storage reads the whole set, which isn't ordered: at most this many chains are read
     private const int MaxChainsWithoutRanges = 100;

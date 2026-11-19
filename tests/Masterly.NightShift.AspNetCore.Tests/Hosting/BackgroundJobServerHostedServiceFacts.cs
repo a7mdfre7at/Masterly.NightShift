@@ -88,7 +88,7 @@ public class BackgroundJobServerHostedServiceFacts
             .AddNightShiftServer()
             .BuildServiceProvider();
 
-        BackgroundJobServerHostedService hosted = provider.GetServices<IHostedService>().OfType<BackgroundJobServerHostedService>().Single();
+        using BackgroundJobServerHostedService hosted = provider.GetServices<IHostedService>().OfType<BackgroundJobServerHostedService>().Single();
         IBackgroundJobServerControl control = provider.GetRequiredService<IBackgroundJobServerControl>();
         await hosted.StartAsync(CancellationToken.None);
         _lifetime.RaiseStarted();
@@ -96,7 +96,6 @@ public class BackgroundJobServerHostedServiceFacts
         await control.StopAsync(TestContext.Current.CancellationToken);
 
         Assert.False(control.IsRunning);
-        hosted.Dispose();
     }
 
     [Fact]
@@ -253,7 +252,7 @@ public class BackgroundJobServerHostedServiceFacts
         _options.ShutdownTimeout = TimeSpan.FromSeconds(30);
         using BusyProcess busy = new();
         using ServiceProvider provider = BuildProviderWith(busy);
-        BackgroundJobServerHostedService hosted = provider.GetServices<IHostedService>().OfType<BackgroundJobServerHostedService>().Single();
+        using BackgroundJobServerHostedService hosted = provider.GetServices<IHostedService>().OfType<BackgroundJobServerHostedService>().Single();
         IBackgroundJobServerControl control = provider.GetRequiredService<IBackgroundJobServerControl>();
         await hosted.StartAsync(CancellationToken.None);
         Assert.True(busy.Entered.Wait(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
@@ -265,7 +264,6 @@ public class BackgroundJobServerHostedServiceFacts
         // The host disposes the container once StopAsync returns: the server must have shut down by then
         Assert.True(busy.Finished.IsSet);
         await controlStop;
-        hosted.Dispose();
     }
 
     [Fact]
@@ -275,7 +273,7 @@ public class BackgroundJobServerHostedServiceFacts
         _options.ShutdownTimeout = TimeSpan.FromSeconds(2);
         using BusyProcess busy = new();
         using ServiceProvider provider = BuildProviderWith(busy);
-        BackgroundJobServerHostedService hosted = provider.GetServices<IHostedService>().OfType<BackgroundJobServerHostedService>().Single();
+        using BackgroundJobServerHostedService hosted = provider.GetServices<IHostedService>().OfType<BackgroundJobServerHostedService>().Single();
         IBackgroundJobServerControl control = provider.GetRequiredService<IBackgroundJobServerControl>();
         await hosted.StartAsync(CancellationToken.None);
         Assert.True(busy.Entered.Wait(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
@@ -286,7 +284,6 @@ public class BackgroundJobServerHostedServiceFacts
 
         Assert.True(busy.SawShutdown);
         await hosted.StopAsync(CancellationToken.None);
-        hosted.Dispose();
     }
 
     [Fact]
@@ -297,7 +294,7 @@ public class BackgroundJobServerHostedServiceFacts
 
         // Something else resolves the hosted services too, which creates other instances
         IHostedService[] extra = [.. provider.GetServices<IHostedService>()];
-        BackgroundJobServerHostedService hosted = provider.GetServices<IHostedService>().OfType<BackgroundJobServerHostedService>().Single();
+        using BackgroundJobServerHostedService hosted = provider.GetServices<IHostedService>().OfType<BackgroundJobServerHostedService>().Single();
         IBackgroundJobServerControl control = provider.GetRequiredService<IBackgroundJobServerControl>();
         await hosted.StartAsync(CancellationToken.None);
 
@@ -306,7 +303,6 @@ public class BackgroundJobServerHostedServiceFacts
         _storage.Verify(x => x.WriteOptionsToLog(It.IsAny<ILog>()), Times.Once);
         await control.StopAsync(TestContext.Current.CancellationToken);
         Assert.NotEmpty(extra);
-        hosted.Dispose();
     }
 
     private ServiceProvider BuildProviderWith(BusyProcess? busy)

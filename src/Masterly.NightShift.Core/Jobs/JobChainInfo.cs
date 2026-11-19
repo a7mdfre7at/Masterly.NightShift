@@ -320,9 +320,11 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
         foreach (JobChainStepInfo step in Steps)
         {
             parents.TryAdd(step.Level, step.ParentLevel);
+            bool isFailed = IsFailed(step.StateOrOutcome);
             // A step whose job is gone blocks unless it is known to have finished otherwise
-            if (IsFailed(step.StateOrOutcome) ||
-                (step.State == null && (step.FinishedAs == null || (pushesResults ??= ContinuationsSupportAttribute.PushesResults()))))
+            bool goneAndBlocking = !isFailed && step.State == null &&
+                (step.FinishedAs == null || (pushesResults ??= ContinuationsSupportAttribute.PushesResults()));
+            if (isFailed || goneAndBlocking)
             {
                 failed.Add(step.Level);
             }

@@ -14,6 +14,7 @@ public sealed class DuplicateQueueEntryFacts
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
     private static readonly ConcurrentQueue<string> Started = new();
+    // Static, because the jobs are static methods: written by the jobs and by ResetCounters only
     private static int _running;
     private static int _mostRunning;
 
@@ -23,10 +24,10 @@ public sealed class DuplicateQueueEntryFacts
     public DuplicateQueueEntryFacts()
     {
         _client = new BackgroundJobClient(_storage);
-        Started.Clear();
-        _running = 0;
-        _mostRunning = 0;
+        ResetCounters();
     }
+
+    private static int MostRunning => Volatile.Read(ref _mostRunning);
 
     [AutomaticRetry(Attempts = 0)]
     public static void Slow(string name)
@@ -36,6 +37,7 @@ public sealed class DuplicateQueueEntryFacts
         int seen;
         while ((seen = Volatile.Read(ref _mostRunning)) < running && Interlocked.CompareExchange(ref _mostRunning, running, seen) != seen)
         {
+            // Another run raised the maximum meanwhile: compare again
         }
 
         Thread.Sleep(TimeSpan.FromSeconds(1));
@@ -55,7 +57,7 @@ public sealed class DuplicateQueueEntryFacts
 
         RunUntilEveryEntryIsTaken(id, workers: 2);
 
-        Assert.Equal((1, 1), (Started.Count, Volatile.Read(ref _mostRunning)));
+        Assert.Equal((1, 1), (Started.Count, MostRunning));
     }
 
     // Scheduled by hand while enqueued, then enqueued by the scheduler when due: two entries
@@ -68,7 +70,7 @@ public sealed class DuplicateQueueEntryFacts
 
         RunUntilEveryEntryIsTaken(id, workers: 2);
 
-        Assert.Equal((1, 1), (Started.Count, Volatile.Read(ref _mostRunning)));
+        Assert.Equal((1, 1), (Started.Count, MostRunning));
     }
 
     // The dashboard's Requeue on the page of a job that is Enqueued, as the API's Requeue: no expected state
@@ -80,7 +82,7 @@ public sealed class DuplicateQueueEntryFacts
 
         RunUntilEveryEntryIsTaken(id, workers: 2);
 
-        Assert.Equal((1, 1), (Started.Count, Volatile.Read(ref _mostRunning)));
+        Assert.Equal((1, 1), (Started.Count, MostRunning));
     }
 
     // A step of a chain that waits in its queue is deleted by hand, and the chain is retried from it
@@ -103,7 +105,7 @@ public sealed class DuplicateQueueEntryFacts
                 && monitoring.FetchedCount(EnqueuedState.DefaultQueue) == 0);
         }
 
-        Assert.Equal((1, 1), (Started.Count(static x => x == "b"), Volatile.Read(ref _mostRunning)));
+        Assert.Equal((1, 1), (Started.Count(static x => x == "b"), MostRunning));
     }
 
     /// <summary>Runs a server until the job succeeded and every entry of its queue was taken by a worker.</summary>
@@ -114,6 +116,13 @@ public sealed class DuplicateQueueEntryFacts
         WaitFor(() => _storage.GetMonitoringApi() is { } monitoring
             && monitoring.EnqueuedCount(EnqueuedState.DefaultQueue) == 0
             && monitoring.FetchedCount(EnqueuedState.DefaultQueue) == 0);
+    }
+
+    private static void ResetCounters()
+    {
+        Started.Clear();
+        _running = 0;
+        _mostRunning = 0;
     }
 
     private static void WaitFor(Func<bool> condition)

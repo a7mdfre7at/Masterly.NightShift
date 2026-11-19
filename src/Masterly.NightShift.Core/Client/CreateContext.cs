@@ -22,6 +22,9 @@ namespace Masterly.NightShift.Client;
 /// </summary>
 public class CreateContext
 {
+    // Parameters is virtual: the constructors set this field, so they never call an override
+    private readonly IDictionary<string, object> _parameters;
+
     public CreateContext([NotNull] CreateContext context)
         : this(context.Storage, context.Connection, context.Job, context.InitialState, context.Parameters, context.Profiler, context.Items)
     {
@@ -67,7 +70,7 @@ public class CreateContext
         Profiler = profiler;
 
         Items = items ?? new Dictionary<string, object>();
-        Parameters = parameters ?? new Dictionary<string, object>();
+        _parameters = parameters ?? new Dictionary<string, object>();
     }
 
     [NotNull]
@@ -85,7 +88,7 @@ public class CreateContext
     public IDictionary<string, object> Items { get; }
 
     [NotNull]
-    public virtual IDictionary<string, object> Parameters { get; }
+    public virtual IDictionary<string, object> Parameters => _parameters;
 
     [NotNull]
     public Job Job { get; }

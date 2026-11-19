@@ -83,10 +83,11 @@ public sealed class RedisStorageFacts : IDisposable
     [Fact]
     public void Dispose_LeavesAConnectionTheApplicationOwns_Open_AndCanBeRepeated()
     {
-        RedisStorage storage = new(RedisTestServer.Connection, new RedisStorageOptions { Prefix = "{nightshift-tests-dispose}:" });
-
-        storage.Dispose();
-        storage.Dispose();
+        using (RedisStorage storage = new(RedisTestServer.Connection, new RedisStorageOptions { Prefix = "{nightshift-tests-dispose}:" }))
+        {
+            // Disposed here, and a second time at the end of the block
+            storage.Dispose();
+        }
 
         Assert.True(RedisTestServer.Connection.IsConnected);
     }
@@ -95,10 +96,13 @@ public sealed class RedisStorageFacts : IDisposable
     public async Task Dispose_KeepsOtherStorages_OnTheSameConnection_Listening()
     {
         string prefix = $"{{nightshift-tests-{Guid.NewGuid():N}}}:";
-        RedisStorage disposed = new(RedisTestServer.Connection, new RedisStorageOptions { Prefix = prefix });
-        RedisStorage kept = Track(new RedisStorage(RedisTestServer.Connection, new RedisStorageOptions { Prefix = prefix }));
+        RedisStorage kept;
+        // Disposed at the end of the block, after the kept storage subscribed on the same connection
+        using (new RedisStorage(RedisTestServer.Connection, new RedisStorageOptions { Prefix = prefix }))
+        {
+            kept = Track(new RedisStorage(RedisTestServer.Connection, new RedisStorageOptions { Prefix = prefix }));
+        }
 
-        disposed.Dispose();
         using QueueSignals.Listener listener = kept.Signals.Listen(["default"]);
         listener.Reset();
         await RedisTestServer.Connection.GetSubscriber().PublishAsync(RedisChannel.Literal(prefix + "enqueued"), "default");
@@ -221,7 +225,7 @@ public sealed class RedisStorageFacts : IDisposable
     {
         const int Count = 5000;
         RedisStorage storage = Track(RedisTestServer.CreateStorage());
-        Dictionary<string, string?> parameters = Enumerable.Range(0, Count).ToDictionary(static x => $"p{x}", static x => (string?)$"{x}", StringComparer.Ordinal);
+        Dictionary<string, string?> parameters = Enumerable.Range(0, Count).ToDictionary<int, string, string?>(static x => $"p{x}", static x => $"{x}", StringComparer.Ordinal);
         using IStorageConnection connection = storage.GetConnection();
 
         string id = connection.CreateExpiredJob(Job.FromExpression(() => ConformanceJobs.Record("x")), parameters, JobClock.UtcNow, TimeSpan.FromHours(1))!;
@@ -318,19 +322,27 @@ public sealed class RedisStorageFacts : IDisposable
     public void Lock_WhoseHandleWasNotDisposed_IsReleased_WithItsConnection()
     {
         RedisStorage storage = Track(RedisTestServer.CreateStorage(new RedisStorageOptions { DistributedLockLifetime = TimeSpan.FromSeconds(1) }));
-        IStorageConnection first = storage.GetConnection();
-        IDisposable forgotten = first.AcquireDistributedLock("resource", TimeSpan.Zero);
-
-        first.Dispose();
-
         using IStorageConnection second = storage.GetConnection();
-        IDisposable taken = second.AcquireDistributedLock("resource", TimeSpan.FromSeconds(5));
+        IDisposable taken;
+        using (AcquireOnAConnectionDisposedAfterwards(storage, "resource"))
+        {
+            taken = second.AcquireDistributedLock("resource", TimeSpan.FromSeconds(5));
 
-        // The forgotten handle no longer holds anything, so it releases nothing
-        forgotten.Dispose();
-        using IStorageConnection third = storage.GetConnection();
-        Assert.Throws<DistributedLockTimeoutException>(() => third.AcquireDistributedLock("resource", TimeSpan.Zero));
-        taken.Dispose();
+            // The forgotten handle no longer holds anything, so disposing it at the end of this block releases nothing
+        }
+
+        using (taken)
+        {
+            using IStorageConnection third = storage.GetConnection();
+            Assert.Throws<DistributedLockTimeoutException>(() => third.AcquireDistributedLock("resource", TimeSpan.Zero));
+        }
+    }
+
+    // Takes the lock on a connection that is then disposed, leaving the lock's handle undisposed
+    private static IDisposable AcquireOnAConnectionDisposedAfterwards(JobStorage storage, string resource)
+    {
+        using IStorageConnection connection = storage.GetConnection();
+        return connection.AcquireDistributedLock(resource, TimeSpan.Zero);
     }
 
     [Theory]

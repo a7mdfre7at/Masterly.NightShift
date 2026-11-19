@@ -113,7 +113,7 @@ public class CronFacts
     [Fact]
     public void Weekly_WithoutDayHourMinute_ReturnsFormattedStringWithDefaults()
     {
-        string expected = "0 0 * * " + ((int)DayOfWeek.Monday).ToString();
+        string expected = $"0 0 * * {(int)DayOfWeek.Monday}";
         string actual = Cron.Weekly();
         Assert.Equal(expected, actual);
     }
@@ -122,7 +122,7 @@ public class CronFacts
     public void Weekly_WithDayWithoutHourMinute_ReturnsFormattedStringWithDay()
     {
         DayOfWeek day = DayOfWeek.Thursday;
-        string expected = "0 0 * * " + ((int)day).ToString();
+        string expected = $"0 0 * * {(int)day}";
         string actual = Cron.Weekly(day);
         Assert.Equal(expected, actual);
     }
@@ -132,7 +132,7 @@ public class CronFacts
     {
         DayOfWeek day = DayOfWeek.Thursday;
         int hour = 5;
-        string expected = "0 " + hour.ToString() + " * * " + ((int)day).ToString();
+        string expected = $"0 {hour} * * {(int)day}";
         string actual = Cron.Weekly(day, hour);
         Assert.Equal(expected, actual);
     }
@@ -143,7 +143,7 @@ public class CronFacts
         DayOfWeek day = DayOfWeek.Thursday;
         int hour = 5;
         int minute = 5;
-        string expected = minute.ToString() + " " + hour.ToString() + " * * " + ((int)day).ToString();
+        string expected = $"{minute} {hour} * * {(int)day}";
         string actual = Cron.Weekly(day, hour, minute);
         Assert.Equal(expected, actual);
     }
@@ -160,7 +160,7 @@ public class CronFacts
     public void Monthly_WithoutHourMinuteWithDay_ReturnsFormattedStringWithDay()
     {
         int day = 6;
-        string expected = "0 0 " + day.ToString() + " * *";
+        string expected = $"0 0 {day} * *";
         string actual = Cron.Monthly(day);
         Assert.Equal(expected, actual);
     }
@@ -170,7 +170,7 @@ public class CronFacts
     {
         int day = 7;
         int hour = 4;
-        string expected = "0 " + hour.ToString() + " " + day.ToString() + " * *";
+        string expected = $"0 {hour} {day} * *";
         string actual = Cron.Monthly(day, hour);
         Assert.Equal(expected, actual);
     }
@@ -181,7 +181,7 @@ public class CronFacts
         int day = 7;
         int hour = 4;
         int minute = 23;
-        string expected = minute.ToString() + " " + hour.ToString() + " " + day.ToString() + " * *";
+        string expected = $"{minute} {hour} {day} * *";
         string actual = Cron.Monthly(day, hour, minute);
         Assert.Equal(expected, actual);
     }
@@ -198,7 +198,7 @@ public class CronFacts
     public void Yearly_WithoutDayHourMinuteWithMonth_ReturnsFormattedStringWithMonth()
     {
         int month = 7;
-        string expected = "0 0 1 " + month.ToString() + " *";
+        string expected = $"0 0 1 {month} *";
         string actual = Cron.Yearly(month);
         Assert.Equal(expected, actual);
     }
@@ -208,7 +208,7 @@ public class CronFacts
     {
         int month = 8;
         int day = 18;
-        string expected = "0 0 " + day.ToString() + " " + month.ToString() + " *";
+        string expected = $"0 0 {day} {month} *";
         string actual = Cron.Yearly(month, day);
         Assert.Equal(expected, actual);
     }
@@ -219,7 +219,7 @@ public class CronFacts
         int month = 3;
         int day = 18;
         int hour = 14;
-        string expected = "0 " + hour.ToString() + " " + day.ToString() + " " + month.ToString() + " *";
+        string expected = $"0 {hour} {day} {month} *";
         string actual = Cron.Yearly(month, day, hour);
         Assert.Equal(expected, actual);
     }
@@ -231,7 +231,7 @@ public class CronFacts
         int day = 17;
         int hour = 3;
         int minute = 45;
-        string expected = minute.ToString() + " " + hour.ToString() + " " + day.ToString() + " " + month.ToString() + " *";
+        string expected = $"{minute} {hour} {day} {month} *";
         string actual = Cron.Yearly(month, day, hour, minute);
         Assert.Equal(expected, actual);
     }

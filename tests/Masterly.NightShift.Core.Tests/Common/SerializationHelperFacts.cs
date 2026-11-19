@@ -235,9 +235,8 @@ public class SerializationHelperFacts
     [DataCompatibilityRangeFact]
     public void Deserialize_ReturnsCorrectObject_WhenTypeIsCustomClass()
     {
-        ClassA? value = SerializationHelper.Deserialize(@"{""PropertyA"":""A""}", typeof(ClassA)) as ClassA;
+        ClassA value = Assert.IsAssignableFrom<ClassA>(SerializationHelper.Deserialize(@"{""PropertyA"":""A""}", typeof(ClassA)));
 
-        Assert.NotNull(value);
         Assert.Equal("A", value.PropertyA);
     }
 
@@ -246,9 +245,8 @@ public class SerializationHelperFacts
     {
         string valueJson = $@"{{""$type"":""{ClassAType}"",""PropertyA"":""A""}}";
 
-        ClassA? value = SerializationHelper.Deserialize(valueJson, typeof(ClassA), SerializationOption.TypedInternal) as ClassA;
+        ClassA value = Assert.IsAssignableFrom<ClassA>(SerializationHelper.Deserialize(valueJson, typeof(ClassA), SerializationOption.TypedInternal));
 
-        Assert.NotNull(value);
         Assert.Equal("A", value.PropertyA);
     }
 
@@ -258,9 +256,8 @@ public class SerializationHelperFacts
     {
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { Converters = { new DayMonthYearConverter() } });
 
-        ClassB? value = SerializationHelper.Deserialize("{\"StringValue\":\"B\",\"DateTimeValue\":\"12041961\"}", typeof(ClassB)) as ClassB;
+        ClassB value = Assert.IsAssignableFrom<ClassB>(SerializationHelper.Deserialize("{\"StringValue\":\"B\",\"DateTimeValue\":\"12041961\"}", typeof(ClassB)));
 
-        Assert.NotNull(value);
         Assert.Equal("B", value.StringValue);
         Assert.Equal(new DateTime(1961, 4, 12), value.DateTimeValue);
     }
@@ -650,7 +647,7 @@ public class SerializationHelperFacts
 
         Assert.Equal(@"{""PropertyA"":""A""}", SerializationHelper.SerializeInternal(new ClassA("A")));
         Assert.Equal(@"[""a"",""b""]", SerializationHelper.SerializeInternal(new[] { "a", "b" }));
-        Assert.Equal(@"""b1""", SerializationHelper.SerializeInternal((object)"b1"));
+        Assert.Equal(@"""b1""", SerializationHelper.SerializeInternal("b1"));
         Assert.Null(SerializationHelper.SerializeInternal(null));
     }
 

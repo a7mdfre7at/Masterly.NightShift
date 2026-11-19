@@ -16,6 +16,18 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     private static bool _methodInvoked;
     private static bool _disposed;
 
+    // The jobs below set these flags from static methods, instances the activator creates and Dispose, so they are
+    // static and shared by every instance of the class; the tests that use them hold [StaticLock].
+    private static void SetMethodInvoked(bool value)
+    {
+        _methodInvoked = value;
+    }
+
+    private static void SetDisposed(bool value)
+    {
+        _disposed = value;
+    }
+
     [Fact]
     public void Ctor_ThrowsAnException_WhenActivatorIsNull()
     {
@@ -36,7 +48,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     [Fact, StaticLock]
     public void Perform_CanInvokeStaticMethods()
     {
-        _methodInvoked = false;
+        SetMethodInvoked(false);
         _context.BackgroundJob.Job = Job.FromExpression(() => StaticMethod());
         CoreBackgroundJobPerformer performer = CreatePerformer();
 
@@ -48,7 +60,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     [Fact, StaticLock]
     public void Perform_CanInvokeInstanceMethods()
     {
-        _methodInvoked = false;
+        SetMethodInvoked(false);
         _context.BackgroundJob.Job = Job.FromExpression<CoreBackgroundJobPerformerFacts>(x => x.InstanceMethod());
         CoreBackgroundJobPerformer performer = CreatePerformer();
 
@@ -71,7 +83,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     [Fact, StaticLock]
     public void Perform_DisposesDisposableInstance_AfterPerformance()
     {
-        _disposed = false;
+        SetDisposed(false);
         _context.BackgroundJob.Job = Job.FromExpression<Disposable>(x => x.Method());
         CoreBackgroundJobPerformer performer = CreatePerformer();
 
@@ -84,7 +96,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     public void Perform_PassesArguments_ToACallingMethod()
     {
         // Arrange
-        _methodInvoked = false;
+        SetMethodInvoked(false);
         _context.BackgroundJob.Job = Job.FromExpression(() => MethodWithArguments("hello", 5));
         CoreBackgroundJobPerformer performer = CreatePerformer();
 
@@ -99,7 +111,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     public void Perform_PassesCorrectDateTime_ReadFromArgumentsStoredByATypeConverter()
     {
         // Arrange
-        _methodInvoked = false;
+        SetMethodInvoked(false);
         TypeConverter typeConverter = TypeDescriptor.GetConverter(typeof(DateTime));
         string? convertedDate = typeConverter.ConvertToInvariantString(SomeDateTime);
 
@@ -121,7 +133,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     public void Perform_PassesCorrectDateTime_ReadFromArgumentsStoredInTheOldFormat()
     {
         // Arrange
-        _methodInvoked = false;
+        SetMethodInvoked(false);
         string convertedDate = SomeDateTime.ToString("MM/dd/yyyy HH:mm:ss.ffff");
 
         Type type = typeof(CoreBackgroundJobPerformerFacts);
@@ -142,7 +154,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     public void Perform_PassesCorrectDateTimeArguments()
     {
         // Arrange
-        _methodInvoked = false;
+        SetMethodInvoked(false);
         _context.BackgroundJob.Job = Job.FromExpression(() => MethodWithDateTimeArgument(SomeDateTime));
         CoreBackgroundJobPerformer performer = CreatePerformer();
 
@@ -157,7 +169,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     public void Perform_WorksCorrectly_WithNullValues()
     {
         // Arrange
-        _methodInvoked = false;
+        SetMethodInvoked(false);
         _context.BackgroundJob.Job = Job.FromExpression(() => NullArgumentMethod(null));
 
         CoreBackgroundJobPerformer performer = CreatePerformer();
@@ -211,7 +223,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     [Fact, StaticLock]
     public void Perform_ThrowsPerformanceException_OnDisposalFailure()
     {
-        _methodInvoked = false;
+        SetMethodInvoked(false);
         _context.BackgroundJob.Job = Job.FromExpression<BrokenDispose>(x => x.Method());
         CoreBackgroundJobPerformer performer = CreatePerformer();
 
@@ -335,7 +347,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     {
         // Arrange
         _context.BackgroundJob.Job = Job.FromExpression(() => CancelableJob(default(CancellationToken)));
-        CancellationTokenSource source = new();
+        using CancellationTokenSource source = new();
         _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(source.Token);
         CoreBackgroundJobPerformer performer = CreatePerformer();
 
@@ -459,7 +471,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
             {
                 performer.Perform(_context.Object);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 thrown = ex;
             }
@@ -704,7 +716,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     [SuppressMessage("Performance", "CA1822:Mark members as static")]
     public void InstanceMethod()
     {
-        _methodInvoked = true;
+        SetMethodInvoked(true);
     }
 
     [UsedImplicitly]
@@ -714,12 +726,12 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
         [SuppressMessage("Performance", "CA1822:Mark members as static")]
         public void Method()
         {
-            _methodInvoked = true;
+            SetMethodInvoked(true);
         }
 
         public void Dispose()
         {
-            _disposed = true;
+            SetDisposed(true);
             GC.SuppressFinalize(this);
         }
     }
@@ -731,7 +743,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
         [SuppressMessage("Performance", "CA1822:Mark members as static")]
         public void Method()
         {
-            _methodInvoked = true;
+            SetMethodInvoked(true);
         }
 
         public void Dispose()
@@ -743,7 +755,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
 
     public void Dispose()
     {
-        _disposed = true;
+        SetDisposed(true);
         GC.SuppressFinalize(this);
     }
 
@@ -751,7 +763,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
     public static void NullArgumentMethod(string[] argument)
     {
-        _methodInvoked = true;
+        SetMethodInvoked(true);
         Assert.Null(argument);
     }
 
@@ -782,7 +794,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
     public void MethodWithDateTimeArgument(DateTime argument)
     {
-        _methodInvoked = true;
+        SetMethodInvoked(true);
 
         Assert.Equal(SomeDateTime, argument);
     }
@@ -791,7 +803,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
     public static void StaticMethod()
     {
-        _methodInvoked = true;
+        SetMethodInvoked(true);
     }
 
     [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
@@ -800,7 +812,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
     public void MethodWithArguments(string stringArg, int intArg)
     {
-        _methodInvoked = true;
+        SetMethodInvoked(true);
 
         Assert.Equal("hello", stringArg);
         Assert.Equal(5, intArg);

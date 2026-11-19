@@ -194,7 +194,7 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
             }
 
             Task task = getTaskFunc(result);
-            IAsyncResult asyncResult = (IAsyncResult)task;
+            IAsyncResult asyncResult = task;
 
             // Pump until the task completes, also after shutdown or an abort: the job sees them
             // through its token, and the continuations that end it may be posted here.

@@ -212,7 +212,7 @@ public class SqlServerStorage : JobStorage
         get
         {
             int? version = DetectedSchemaVersion;
-            return !(version < 8) && (Options.UseIgnoreDupKeyOptionIfSet ?? version >= 8);
+            return version is not < 8 && (Options.UseIgnoreDupKeyOptionIfSet ?? version >= 8);
         }
     }
 
@@ -1119,7 +1119,7 @@ public class SqlServerStorage : JobStorage
                         counterName = ctx.Item3
                     });
                 }
-                catch
+                catch (Exception ex) when (ex.IsCatchableExceptionType())
                 {
                     value = null;
                 }

@@ -14,6 +14,7 @@ namespace Masterly.NightShift.InMemory.Tests;
 [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test", Justification = "Job methods must be public")]
 public sealed class InMemoryReplacedClockFacts : IDisposable
 {
+    // Static, because the job is a static method: written by the job and by ResetStarted only
     private static int _started;
 
     private readonly TimeProvider _before = JobClock.TimeProvider;
@@ -25,6 +26,8 @@ public sealed class InMemoryReplacedClockFacts : IDisposable
     }
 
     public void Dispose() => GlobalConfiguration.Configuration.UseTimeProvider(_before);
+
+    private static int Started => Volatile.Read(ref _started);
 
     /// <summary>A job that says it started, and takes a moment.</summary>
     [AutomaticRetry(Attempts = 0)]
@@ -58,13 +61,13 @@ public sealed class InMemoryReplacedClockFacts : IDisposable
     [Fact]
     public async Task RunningJob_IsNotStartedASecondTime_WhenTheClockMovesPastTheInvisibilityTimeout()
     {
-        Volatile.Write(ref _started, 0);
+        ResetStarted();
         InMemoryStorage storage = new(new InMemoryStorageOptions { QueuePollInterval = TimeSpan.FromMilliseconds(100) });
         using BackgroundJobServer server = new(new BackgroundJobServerOptions { WorkerCount = 2 }, storage);
         new BackgroundJobClient(storage).Enqueue(() => Slow());
 
         long waitingSince = Environment.TickCount64;
-        while (Volatile.Read(ref _started) == 0)
+        while (Started == 0)
         {
             Assert.True(Environment.TickCount64 - waitingSince < 30_000, "The job didn't start.");
             await Task.Delay(20, TestContext.Current.CancellationToken);
@@ -74,7 +77,7 @@ public sealed class InMemoryReplacedClockFacts : IDisposable
         _clock.Advance(TimeSpan.FromDays(1));
         await Task.Delay(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken);
 
-        Assert.Equal(1, Volatile.Read(ref _started));
+        Assert.Equal(1, Started);
     }
 
     [Fact]
@@ -159,6 +162,8 @@ public sealed class InMemoryReplacedClockFacts : IDisposable
         Assert.InRange(((JobStorageConnection)reader).GetUtcDateTime() - DateTime.UtcNow, TimeSpan.FromMinutes(119), TimeSpan.FromMinutes(121));
         Assert.Equal(1, reader.RemoveTimedOutServers(TimeSpan.FromMinutes(5)));
     }
+
+    private static void ResetStarted() => Volatile.Write(ref _started, 0);
 
     private static void Enqueue(InMemoryStorage storage)
     {

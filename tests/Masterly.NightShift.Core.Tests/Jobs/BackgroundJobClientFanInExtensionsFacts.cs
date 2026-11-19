@@ -101,7 +101,7 @@ public class BackgroundJobClientFanInExtensionsFacts
         _client.Object.ContinueJobWithAll<BackgroundJobClientFanInExtensionsFacts>(["1"], x => x.Instance(), nextState);
         _client.Object.ContinueJobWithAll<BackgroundJobClientFanInExtensionsFacts>(["1"], x => x.InstanceAsync(), nextState, JobContinuationOptions.OnAnyFinishedState);
 
-        _client.Verify(x => x.Create(It.IsAny<Job>(), It.Is<AwaitingJobsState>(s => s.Mode == FanInMode.All && s.NextState == nextState)), Times.Exactly(3));
+        _client.Verify(x => x.Create(It.IsAny<Job>(), It.Is<AwaitingJobsState>(s => s.Mode == FanInMode.All && ReferenceEquals(s.NextState, nextState))), Times.Exactly(3));
         _client.Verify(x => x.Create(It.IsAny<Job>(), It.Is<AwaitingJobsState>(s => s.Options == JobContinuationOptions.OnAnyFinishedState)), Times.Once);
     }
 
@@ -115,7 +115,7 @@ public class BackgroundJobClientFanInExtensionsFacts
         _client.Object.ContinueJobWithAny<BackgroundJobClientFanInExtensionsFacts>(["1"], x => x.Instance(), nextState);
         _client.Object.ContinueJobWithAny<BackgroundJobClientFanInExtensionsFacts>(["1"], x => x.InstanceAsync(), nextState, JobContinuationOptions.OnAnyFinishedState);
 
-        _client.Verify(x => x.Create(It.IsAny<Job>(), It.Is<AwaitingJobsState>(s => s.Mode == FanInMode.Any && s.NextState == nextState)), Times.Exactly(4));
+        _client.Verify(x => x.Create(It.IsAny<Job>(), It.Is<AwaitingJobsState>(s => s.Mode == FanInMode.Any && ReferenceEquals(s.NextState, nextState))), Times.Exactly(4));
         _client.Verify(x => x.Create(It.IsAny<Job>(), It.Is<AwaitingJobsState>(s => s.Options == JobContinuationOptions.OnAnyFinishedState)), Times.Once);
     }
 
@@ -143,14 +143,14 @@ public class BackgroundJobClientFanInExtensionsFacts
         _client.Object.ContinueJobWithAny<BackgroundJobClientFanInExtensionsFacts>(["1"], "critical", x => x.InstanceAsync(), nextState, JobContinuationOptions.OnAnyFinishedState);
 
         _client.Verify(x => x.Create(It.Is<Job>(job => job.Queue == "critical"), It.Is<AwaitingJobsState>(s => s.Mode == FanInMode.Any)), Times.Exactly(4));
-        _client.Verify(x => x.Create(It.IsAny<Job>(), It.Is<AwaitingJobsState>(s => s.NextState == nextState && s.Options == JobContinuationOptions.OnAnyFinishedState)), Times.Once);
+        _client.Verify(x => x.Create(It.IsAny<Job>(), It.Is<AwaitingJobsState>(s => ReferenceEquals(s.NextState, nextState) && s.Options == JobContinuationOptions.OnAnyFinishedState)), Times.Once);
     }
 
     [Fact]
     public void ContinueJobWithAllAndAny_WithAQueue_ValidateArguments()
     {
-        Assert.Throws<ArgumentNullException>(() => _client.Object.ContinueJobWithAll(["1"], (string)null, () => Method()));
-        Assert.Throws<ArgumentNullException>(() => _client.Object.ContinueJobWithAny(["1"], (string)null, () => Method()));
+        Assert.Throws<ArgumentNullException>(() => _client.Object.ContinueJobWithAll(["1"], null, () => Method()));
+        Assert.Throws<ArgumentNullException>(() => _client.Object.ContinueJobWithAny(["1"], null, () => Method()));
         Assert.Throws<ArgumentNullException>(() => BackgroundJobClientFanInExtensions.ContinueJobWithAll(null, ["1"], "critical", () => Method()));
         Assert.Throws<ArgumentException>(() => _client.Object.ContinueJobWithAny([null], "critical", () => Method()));
         _client.Verify(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>()), Times.Never);

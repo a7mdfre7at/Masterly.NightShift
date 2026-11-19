@@ -4,8 +4,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 
-#pragma warning disable 659 // overrides AddToHashCodeCombiner instead
-
 namespace Masterly.NightShift.Common.ExpressionUtil;
 
 // ConstantExpression fingerprint class
@@ -15,8 +13,6 @@ namespace Masterly.NightShift.Common.ExpressionUtil;
 // and the value is hoisted into a local variables array. This placeholder can then
 // be compiled and cached, and the array lookup happens at runtime.
 
-[SuppressMessage("Microsoft.Usage", "CA2218:OverrideGetHashCodeOnOverridingEquals", Justification = "Overrides AddToHashCodeCombiner() instead.")]
-[SuppressMessage("SonarLint", "S1206:OverrideGetHashCodeOnOverridingEquals", Justification = "Overrides AddToHashCodeCombiner() instead.")]
 [ExcludeFromCodeCoverage]
 internal sealed class ConstantExpressionFingerprint(ExpressionType nodeType, Type type) : ExpressionFingerprint(nodeType, type)
 {
@@ -24,5 +20,11 @@ internal sealed class ConstantExpressionFingerprint(ExpressionType nodeType, Typ
     {
         return (obj is ConstantExpressionFingerprint other)
                && Equals(other);
+    }
+
+    // The base hashes through AddToHashCodeCombiner, which this class overrides with what Equals compares
+    public override int GetHashCode()
+    {
+        return base.GetHashCode();
     }
 }

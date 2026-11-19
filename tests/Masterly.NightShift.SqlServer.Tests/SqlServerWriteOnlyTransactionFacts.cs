@@ -281,7 +281,7 @@ select scope_identity() as Id";
 
         UseConnection(sql =>
         {
-            dynamic jobId = sql.Query(arrangeSql).Single().Id.ToString();
+            string jobId = sql.Query(arrangeSql).Single().Id.ToString();
             dynamic anotherJobId = sql.Query(arrangeSql).Single().Id.ToString();
 
             Mock<IState> state = new();
@@ -301,7 +301,7 @@ select scope_identity() as Id";
             Assert.Null(anotherJob.StateId);
 
             dynamic jobState = sql.Query($"select * from [{Constants.DefaultSchema}].State").Single();
-            Assert.Equal((string)jobId, jobState.JobId.ToString());
+            Assert.Equal(jobId, jobState.JobId.ToString());
             Assert.Equal("State", jobState.Name);
             Assert.Equal("Reason", jobState.Reason);
             Assert.NotNull(jobState.CreatedAt);
@@ -324,8 +324,8 @@ select scope_identity() as Id";
 
             Mock<IState> state = new();
             state.Setup(x => x.Name).Returns("State");
-            state.Setup(x => x.Reason).Returns((string)null);
-            state.Setup(x => x.SerializeData()).Returns((Dictionary<string, string>)null);
+            state.Setup(x => x.Reason).Returns(default(string));
+            state.Setup(x => x.SerializeData()).Returns(default(Dictionary<string, string>));
 
             Commit(x => x.SetJobState(jobId, state.Object), useBatching);
 
@@ -377,7 +377,7 @@ select scope_identity() as Id";
 
         UseConnection(sql =>
         {
-            dynamic jobId = sql.Query(arrangeSql).Single().Id.ToString();
+            string jobId = sql.Query(arrangeSql).Single().Id.ToString();
 
             Mock<IState> state = new();
             state.Setup(x => x.Name).Returns("State");
@@ -392,7 +392,7 @@ select scope_identity() as Id";
             Assert.Null(job.StateId);
 
             dynamic jobState = sql.Query($"select * from [{Constants.DefaultSchema}].State").Single();
-            Assert.Equal((string)jobId, jobState.JobId.ToString());
+            Assert.Equal(jobId, jobState.JobId.ToString());
             Assert.Equal("State", jobState.Name);
             Assert.Equal("Reason", jobState.Reason);
             Assert.NotNull(jobState.CreatedAt);
@@ -411,12 +411,12 @@ select scope_identity() as Id";
 
         UseConnection(sql =>
         {
-            dynamic jobId = sql.Query(arrangeSql).Single().Id.ToString();
+            string jobId = sql.Query(arrangeSql).Single().Id.ToString();
 
             Mock<IState> state = new();
             state.Setup(x => x.Name).Returns("State");
-            state.Setup(x => x.Reason).Returns((string)null);
-            state.Setup(x => x.SerializeData()).Returns((Dictionary<string, string>)null);
+            state.Setup(x => x.Reason).Returns(default(string));
+            state.Setup(x => x.SerializeData()).Returns(default(Dictionary<string, string>));
 
             Commit(x => x.AddJobState(jobId, state.Object), useBatching);
 
@@ -425,7 +425,7 @@ select scope_identity() as Id";
             Assert.Null(job.StateId);
 
             dynamic jobState = sql.Query($"select * from [{Constants.DefaultSchema}].State").Single();
-            Assert.Equal((string)jobId, jobState.JobId.ToString());
+            Assert.Equal(jobId, jobState.JobId.ToString());
             Assert.Equal("State", jobState.Name);
             Assert.Null((object)jobState.Reason);
             Assert.NotNull(jobState.CreatedAt);
@@ -577,7 +577,8 @@ select scope_identity() as Id";
 
             Assert.Equal("my-key", record.Key);
             Assert.Equal(1, record.Value);
-            Assert.Equal((DateTime?)null, record.ExpireAt);
+            DateTime? expireAt = record.ExpireAt;
+            Assert.Null(expireAt);
         });
     }
 
@@ -622,7 +623,7 @@ select scope_identity() as Id";
             Assert.Equal(1, record.Value);
             Assert.NotNull(record.ExpireAt);
 
-            DateTime expireAt = (DateTime)record.ExpireAt;
+            DateTime expireAt = record.ExpireAt;
 
             Assert.True(DateTime.UtcNow.AddHours(23) < expireAt);
             Assert.True(expireAt < DateTime.UtcNow.AddHours(25));
@@ -686,7 +687,8 @@ select scope_identity() as Id";
 
             Assert.Equal("my-key", record.Key);
             Assert.Equal(-1, record.Value);
-            Assert.Equal((DateTime?)null, record.ExpireAt);
+            DateTime? expireAt = record.ExpireAt;
+            Assert.Null(expireAt);
         });
     }
 
@@ -731,7 +733,7 @@ select scope_identity() as Id";
             Assert.Equal(-1, record.Value);
             Assert.NotNull(record.ExpireAt);
 
-            DateTime expireAt = (DateTime)record.ExpireAt;
+            DateTime expireAt = record.ExpireAt;
 
             Assert.True(DateTime.UtcNow.AddHours(23) < expireAt);
             Assert.True(expireAt < DateTime.UtcNow.AddHours(25));
@@ -2470,8 +2472,9 @@ values (@jobId, '', '', getutcdate())";
     [Fact, CleanDatabase]
     public void AcquireDistributedLock_ThrowsAnException_IfLockCanNotBeGranted()
     {
-        ManualResetEventSlim releaseLock = new(false);
-        ManualResetEventSlim lockAcquired = new(false);
+        using ManualResetEventSlim releaseLock = new(false);
+        using ManualResetEventSlim lockAcquired = new(false);
+        Exception? holderFailure = null;
 
         Thread thread = new(
             () => UseSqlServerTransaction(transaction1 =>
@@ -2488,16 +2491,10 @@ values (@jobId, '', '', getutcdate())";
 
                     transaction1.Commit();
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
-                    try
-                    {
-                        Assert.Fail(ex.ToString());
-                    }
-                    catch
-                    {
-                        // Need only message
-                    }
+                    // Reported by the test's thread after the join: an assertion thrown here would end this thread only
+                    holderFailure = ex;
                 }
             }, useBatching: true));
         thread.Start();
@@ -2515,6 +2512,7 @@ values (@jobId, '', '', getutcdate())";
 
         releaseLock.Set();
         thread.Join();
+        Assert.Null(holderFailure);
     }
 
     [Theory, CleanDatabase]

@@ -104,7 +104,7 @@ public class DisableConcurrentExecutionAttribute : JobFilterAttribute, IServerFi
                 // A [Redacted] argument is replaced with a hash of its value, so it doesn't show in the lock name
                 return string.Format(CultureInfo.InvariantCulture, Resource, RedactedAttribute.GetKeyArguments(job)).ToLowerInvariant();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
                 throw new FormatException($"Unable to obtain resource identifier: {ex.Message}");
             }

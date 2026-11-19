@@ -177,8 +177,12 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
             // When we try to add a continuation for a removed job,
             // the system should throw an exception instead of creating
             // corrupted state.
-            JobData jobData = connection.GetJobData(parentId) ?? throw new InvalidOperationException(
-                $"Can not add a continuation: parent background job '{parentId}' does not exist.");
+            if (connection.GetJobData(parentId) == null)
+            {
+                throw new InvalidOperationException(
+                    $"Can not add a continuation: parent background job '{parentId}' does not exist.");
+            }
+
             List<Continuation> continuations = GetContinuations(context, parentId);
 
             // Continuation may be already added. This may happen, when outer transaction
@@ -477,10 +481,12 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
             return true;
         }
 
-        if (options.HasFlag(JobContinuationOptions.OnlyOnProcessingState) &&
-            (ProcessingState.StateName.Equals(antecedentStateName, StringComparison.OrdinalIgnoreCase) ||
-             (addedLate && (SucceededState.StateName.Equals(antecedentStateName, StringComparison.OrdinalIgnoreCase) ||
-                            FailedState.StateName.Equals(antecedentStateName, StringComparison.OrdinalIgnoreCase)))))
+        bool processedBeforeAdded = addedLate &&
+            (SucceededState.StateName.Equals(antecedentStateName, StringComparison.OrdinalIgnoreCase) ||
+             FailedState.StateName.Equals(antecedentStateName, StringComparison.OrdinalIgnoreCase));
+        bool processing = ProcessingState.StateName.Equals(antecedentStateName, StringComparison.OrdinalIgnoreCase);
+
+        if (options.HasFlag(JobContinuationOptions.OnlyOnProcessingState) && (processing || processedBeforeAdded))
         {
             return true;
         }

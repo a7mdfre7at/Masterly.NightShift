@@ -15,7 +15,7 @@
 
 namespace Masterly.NightShift.Dashboard.Pages;
 
-internal partial class SidebarMenu
+internal partial class SidebarMenu : RazorPage
 {
     public SidebarMenu([NotNull] IEnumerable<Func<RazorPage, MenuItem>> items)
     {

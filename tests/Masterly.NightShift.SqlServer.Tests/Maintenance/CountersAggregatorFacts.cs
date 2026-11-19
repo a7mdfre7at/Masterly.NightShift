@@ -18,7 +18,7 @@ values ('key', 1, @expireAt)";
         connection.Execute(createSql, new { expireAt = DateTime.UtcNow.AddHours(1) });
 
         CountersAggregator aggregator = CreateAggregator();
-        CancellationTokenSource cts = new();
+        using CancellationTokenSource cts = new();
         cts.Cancel();
 
         // Act

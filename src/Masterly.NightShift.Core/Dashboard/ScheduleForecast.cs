@@ -202,7 +202,7 @@ internal sealed class ScheduleForecast
         Dictionary<DateTime, HashSet<string>> slots = [];
 
         // Jobs that run more than once per slot would mark every slot hot and hide the real collisions
-        long maxOccurrences = (long)(window.Ticks / SlotSize.Ticks);
+        long maxOccurrences = window.Ticks / SlotSize.Ticks;
 
         foreach (Row row in rows)
         {

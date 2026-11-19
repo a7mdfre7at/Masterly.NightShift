@@ -35,7 +35,7 @@ public class JobConsoleFacts
                         console.SetProgress(i, $"step {i}");
                     }
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
                     errors.Enqueue(ex);
                 }

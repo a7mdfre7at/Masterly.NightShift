@@ -5,15 +5,11 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 
-#pragma warning disable 659 // overrides AddToHashCodeCombiner instead
-
 namespace Masterly.NightShift.Common.ExpressionUtil;
 
 // MethodCallExpression fingerprint class
 // Expression of form xxx.Foo(...), xxx[...] (get_Item()), etc.
 
-[SuppressMessage("Microsoft.Usage", "CA2218:OverrideGetHashCodeOnOverridingEquals", Justification = "Overrides AddToHashCodeCombiner() instead.")]
-[SuppressMessage("SonarLint", "S1206:OverrideGetHashCodeOnOverridingEquals", Justification = "Overrides AddToHashCodeCombiner() instead.")]
 [ExcludeFromCodeCoverage]
 internal sealed class MethodCallExpressionFingerprint(ExpressionType nodeType, Type type, MethodInfo method) : ExpressionFingerprint(nodeType, type)
 {
@@ -25,6 +21,12 @@ internal sealed class MethodCallExpressionFingerprint(ExpressionType nodeType, T
         return (obj is MethodCallExpressionFingerprint other)
                && Equals(Method, other.Method)
                && Equals(other);
+    }
+
+    // The base hashes through AddToHashCodeCombiner, which this class overrides with what Equals compares
+    public override int GetHashCode()
+    {
+        return base.GetHashCode();
     }
 
     internal override void AddToHashCodeCombiner(HashCodeCombiner combiner)

@@ -338,18 +338,18 @@ public class RecurringJobSchedulerFacts
         _transaction.Verify(x => x.SetRangeInHash(
             jobKey,
             It.Is<Dictionary<string, string>>(rj =>
-                rj.ContainsKey("LastJobId") && rj["LastJobId"] == _backgroundJobMock.Id)));
+                rj.GetValueOrDefault("LastJobId") == _backgroundJobMock.Id)));
 
         _transaction.Verify(x => x.SetRangeInHash(
             jobKey,
             It.Is<Dictionary<string, string>>(rj =>
-                rj.ContainsKey("LastExecution") && rj["LastExecution"]
+                rj.GetValueOrDefault("LastExecution")
                     == JobHelper.SerializeDateTime(_nowInstant))));
 
         _transaction.Verify(x => x.SetRangeInHash(
             jobKey,
             It.Is<Dictionary<string, string>>(rj =>
-                rj.ContainsKey("NextExecution") && rj["NextExecution"]
+                rj.GetValueOrDefault("NextExecution")
                     == JobHelper.SerializeDateTime(_nextInstant))));
 
         _transaction.Verify(x => x.SetRangeInHash(
@@ -408,7 +408,7 @@ public class RecurringJobSchedulerFacts
         _transaction.Verify(x => x.SetRangeInHash(
             $"recurring-job:{RecurringJobId}",
             It.Is<Dictionary<string, string>>(rj =>
-                rj.ContainsKey("NextExecution") && rj["NextExecution"]
+                rj.GetValueOrDefault("NextExecution")
                     == JobHelper.SerializeDateTime(_nextInstant))));
 
         _transaction.Verify(x => x.Commit());
@@ -587,7 +587,7 @@ public class RecurringJobSchedulerFacts
         _transaction.Verify(x => x.SetRangeInHash(
             $"recurring-job:{RecurringJobId}",
             It.Is<Dictionary<string, string>>(rj =>
-                rj.ContainsKey("LastExecution") && rj["LastExecution"]
+                rj.GetValueOrDefault("LastExecution")
                 == JobHelper.SerializeDateTime(_nowInstant))));
 
         _transaction.Verify(x => x.Commit());
@@ -665,8 +665,7 @@ public class RecurringJobSchedulerFacts
         _transaction.Verify(x => x.SetRangeInHash(
             $"recurring-job:{RecurringJobId}",
             It.Is<Dictionary<string, string>>(rj =>
-                rj.ContainsKey("NextExecution") &&
-                rj["NextExecution"] == JobHelper.SerializeDateTime(_nowInstant.AddMinutes(1)))));
+                rj.GetValueOrDefault("NextExecution") == JobHelper.SerializeDateTime(_nowInstant.AddMinutes(1)))));
 
         _transaction.Verify(x => x.AddToSet(
             "recurring-jobs",
@@ -695,8 +694,7 @@ public class RecurringJobSchedulerFacts
         _transaction.Verify(x => x.SetRangeInHash(
             $"recurring-job:{RecurringJobId}",
             It.Is<Dictionary<string, string>>(rj =>
-                rj.ContainsKey("NextExecution") &&
-                rj["NextExecution"] == JobHelper.SerializeDateTime(_nowInstant.AddMinutes(1)))));
+                rj.GetValueOrDefault("NextExecution") == JobHelper.SerializeDateTime(_nowInstant.AddMinutes(1)))));
 
         _transaction.Verify(x => x.AddToSet(
             "recurring-jobs",
@@ -801,7 +799,7 @@ public class RecurringJobSchedulerFacts
         _transaction.Verify(x => x.SetRangeInHash(
             $"recurring-job:{RecurringJobId}",
             It.Is<Dictionary<string, string>>(dict =>
-                dict.ContainsKey("NextExecution") && dict["NextExecution"] == string.Empty)));
+                dict.GetValueOrDefault("NextExecution") == string.Empty)));
 
         _transaction.Verify(x => x.AddToSet("recurring-jobs", RecurringJobId, -1.0D));
         _transaction.Verify(x => x.Commit());
@@ -1442,7 +1440,7 @@ public class RecurringJobSchedulerFacts
 
         // Assert
         _transaction.Verify(x => x.SetRangeInHash(It.IsAny<string>(), It.Is<Dictionary<string, string>>(dict =>
-            dict.ContainsKey("RetryAttempt") && dict["RetryAttempt"] == "2")));
+            dict.GetValueOrDefault("RetryAttempt") == "2")));
 
         _transaction.Verify(x => x.Commit());
     }

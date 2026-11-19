@@ -126,7 +126,7 @@ public sealed class KeepAliveProcess : IBackgroundProcess, IDisposable
         }
 
         _httpClient = httpClient ?? new HttpClient { Timeout = options.Timeout };
-        _status = new KeepAliveStatus(options.Url, null, null, null, options.Interval);
+        SetStatus(new KeepAliveStatus(options.Url, null, null, null, options.Interval));
     }
 
     /// <summary>
@@ -134,6 +134,9 @@ public sealed class KeepAliveProcess : IBackgroundProcess, IDisposable
     /// </summary>
     [CanBeNull]
     public static KeepAliveStatus? Status => Volatile.Read(ref _status);
+
+    // Process-wide on purpose: the dashboard reads it through the static Status, whichever instance wrote it
+    private static void SetStatus(KeepAliveStatus status) => Volatile.Write(ref _status, status);
 
     /// <summary>
     /// Gets whether this process is hosted by IIS or IIS Express, where the idle timeout applies.
@@ -172,7 +175,7 @@ public sealed class KeepAliveProcess : IBackgroundProcess, IDisposable
 
         if (url == null)
         {
-            Volatile.Write(ref _status, new KeepAliveStatus(null, now, false, "The keep-alive URL could not be resolved.", _options.Interval));
+            SetStatus(new KeepAliveStatus(null, now, false, "The keep-alive URL could not be resolved.", _options.Interval));
             return false;
         }
 
@@ -182,7 +185,7 @@ public sealed class KeepAliveProcess : IBackgroundProcess, IDisposable
             // Any answer proves the host handled a request; a non-success code is only noted
             string? note = response.IsSuccessStatusCode ? null : $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}";
 
-            Volatile.Write(ref _status, new KeepAliveStatus(url, now, true, note, _options.Interval));
+            SetStatus(new KeepAliveStatus(url, now, true, note, _options.Interval));
 
             if (note != null && _options.LogFailures)
             {
@@ -197,7 +200,7 @@ public sealed class KeepAliveProcess : IBackgroundProcess, IDisposable
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
-            Volatile.Write(ref _status, new KeepAliveStatus(url, now, false, ex.Message, _options.Interval));
+            SetStatus(new KeepAliveStatus(url, now, false, ex.Message, _options.Interval));
 
             if (_options.LogFailures)
             {

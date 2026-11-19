@@ -248,7 +248,7 @@ public class ScheduleForecastFacts
     [Fact]
     public void BuildFromConnection_ThrowsWhenConnectionIsNull()
     {
-        Assert.Throws<ArgumentNullException>(() => ScheduleForecast.Build((IStorageConnection)null, _from, TimeSpan.FromHours(1)));
+        Assert.Throws<ArgumentNullException>(() => ScheduleForecast.Build(null, _from, TimeSpan.FromHours(1)));
     }
 
     [Fact]

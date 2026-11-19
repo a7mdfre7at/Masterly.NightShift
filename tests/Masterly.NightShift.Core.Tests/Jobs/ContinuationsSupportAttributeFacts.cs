@@ -82,7 +82,7 @@ public class ContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ThrowsAnException_WhenParentJobDoesNotExist()
     {
-        _context.ApplyContext.Connection.Setup(x => x.GetJobData(_parentId)).Returns((JobData)null);
+        _context.ApplyContext.Connection.Setup(x => x.GetJobData(_parentId)).Returns(default(JobData));
 
         ContinuationsSupportAttribute filter = CreateFilter();
 
@@ -210,8 +210,8 @@ public class ContinuationsSupportAttributeFacts
         _context.ApplyContext.BackgroundJob = new BackgroundJobMock { Id = _parentId };
         _context.ApplyContext.NewStateObject = new SucceededState(null, 0, 0);
 
-        _context.ApplyContext.Connection.Setup(x => x.GetJobData(_continuationId)).Returns((JobData)null);
-        _context.ApplyContext.Connection.Setup(x => x.GetStateData(_continuationId)).Returns((StateData)null);
+        _context.ApplyContext.Connection.Setup(x => x.GetJobData(_continuationId)).Returns(default(JobData));
+        _context.ApplyContext.Connection.Setup(x => x.GetStateData(_continuationId)).Returns(default(StateData));
 
         _context.ApplyContext.Connection.Setup(x => x.GetJobParameter(_parentId, "Continuations"))
             .Returns(SerializationHelper.Serialize(new List<Continuation> { new() { JobId = _continuationId } }));
@@ -233,7 +233,7 @@ public class ContinuationsSupportAttributeFacts
         _context.ApplyContext.NewStateObject = new SucceededState(null, 0, 0);
 
         _context.ApplyContext.Connection.Setup(x => x.GetJobData(_continuationId)).Returns(new JobData());
-        _context.ApplyContext.Connection.Setup(x => x.GetStateData(_continuationId)).Returns((StateData)null);
+        _context.ApplyContext.Connection.Setup(x => x.GetStateData(_continuationId)).Returns(default(StateData));
 
         _context.ApplyContext.Connection.Setup(x => x.GetJobParameter(_parentId, "Continuations"))
             .Returns(SerializationHelper.Serialize(new List<Continuation> { new() { JobId = _continuationId } }));
@@ -385,7 +385,7 @@ public class ContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateUnapplied_DoesNotThrow()
     {
-        IApplyStateFilter filter = (IApplyStateFilter)CreateFilter();
+        IApplyStateFilter filter = CreateFilter();
         // Does not throw
         filter.OnStateUnapplied(null, null);
     }

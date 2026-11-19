@@ -153,7 +153,7 @@ public class BackgroundJobClientFacts
 
         _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx =>
             ctx.BackgroundJobId == "job-id" &&
-            ctx.NewState == _state.Object &&
+            ReferenceEquals(ctx.NewState, _state.Object) &&
             ctx.ExpectedStates == null)));
     }
 
@@ -166,7 +166,7 @@ public class BackgroundJobClientFacts
 
         _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx =>
             ctx.BackgroundJobId == "job-id" &&
-            ctx.NewState == _state.Object &&
+            ReferenceEquals(ctx.NewState, _state.Object) &&
             ctx.ExpectedStates.SequenceEqual(new[] { "State" }))));
     }
 

@@ -64,34 +64,34 @@ internal static class RecurringJobExtensions
         }
     }
 
-    extension([NotNull] IWriteOnlyTransaction transaction)
+    // A classic extension method rather than an extension block member: CodeQL maps the arguments of a call to
+    // an extension block member to the wrong parameters, and took a null logger for null changed fields
+    public static void UpdateRecurringJob(
+        [NotNull] this IWriteOnlyTransaction transaction,
+        [NotNull] RecurringJobEntity recurringJob,
+        [NotNull] IReadOnlyDictionary<string, string> changedFields,
+        [CanBeNull] ILog? logger)
     {
-        public void UpdateRecurringJob(
-            [NotNull] RecurringJobEntity recurringJob,
-            [NotNull] IReadOnlyDictionary<string, string> changedFields,
-            [CanBeNull] ILog? logger)
+        ArgumentNullException.ThrowIfNull(transaction);
+        ArgumentNullException.ThrowIfNull(recurringJob);
+        ArgumentNullException.ThrowIfNull(changedFields);
+
+        if (changedFields.Count > 0)
         {
-            ArgumentNullException.ThrowIfNull(transaction);
-            ArgumentNullException.ThrowIfNull(recurringJob);
-            ArgumentNullException.ThrowIfNull(changedFields);
-
-            if (changedFields.Count > 0)
-            {
-                transaction.SetRangeInHash($"recurring-job:{recurringJob.RecurringJobId}", changedFields);
-            }
-
-            double score = recurringJob.NextExecution.HasValue ? JobHelper.ToTimestamp(recurringJob.NextExecution.Value) : -1.0D;
-
-            if (logger != null && logger.IsTraceEnabled())
-            {
-                logger.Trace($"Recurring job '{recurringJob.RecurringJobId}' is being updated. RecurringJob: ({recurringJob}), Changes: ({string.Join(";", changedFields.Select(static x => $"{x.Key}:{x.Value}"))})");
-            }
-
-            transaction.AddToSet(
-                "recurring-jobs",
-                recurringJob.RecurringJobId,
-                score);
+            transaction.SetRangeInHash($"recurring-job:{recurringJob.RecurringJobId}", changedFields);
         }
+
+        double score = recurringJob.NextExecution.HasValue ? JobHelper.ToTimestamp(recurringJob.NextExecution.Value) : -1.0D;
+
+        if (logger != null && logger.IsTraceEnabled())
+        {
+            logger.Trace($"Recurring job '{recurringJob.RecurringJobId}' is being updated. RecurringJob: ({recurringJob}), Changes: ({string.Join(";", changedFields.Select(static x => $"{x.Key}:{x.Value}"))})");
+        }
+
+        transaction.AddToSet(
+            "recurring-jobs",
+            recurringJob.RecurringJobId,
+            score);
     }
 
     extension([NotNull] IBackgroundJobFactory factory)

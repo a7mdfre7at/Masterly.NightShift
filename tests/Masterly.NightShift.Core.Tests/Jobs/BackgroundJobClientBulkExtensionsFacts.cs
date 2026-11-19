@@ -38,7 +38,7 @@ public class BackgroundJobClientBulkExtensionsFacts
     public void EnqueueMany_ThrowsAnException_WhenJobsIsNull()
     {
         ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
-            () => _client.EnqueueMany((IEnumerable<Job>)null));
+            () => _client.EnqueueMany(null));
 
         Assert.Equal("jobs", exception.ParamName);
     }
@@ -46,7 +46,8 @@ public class BackgroundJobClientBulkExtensionsFacts
     [Fact]
     public void EnqueueMany_ReturnsAnEmptyList_WithoutTouchingTheStorage_WhenThereAreNoJobs()
     {
-        IReadOnlyList<string> ids = _client.EnqueueMany((IEnumerable<Job>)[]);
+        IEnumerable<Job> noJobs = [];
+        IReadOnlyList<string> ids = _client.EnqueueMany(noJobs);
 
         Assert.Empty(ids);
         _storage.Verify(x => x.GetConnection(), Times.Never);

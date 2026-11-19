@@ -118,6 +118,7 @@ public abstract class RazorPage
     /// <summary>Whether the request is a list page's live refresh. See <see cref="ListRefreshQuery"/>.</summary>
     internal bool IsListRefresh => Context?.Request != null && "1".Equals(Query(ListRefreshQuery), StringComparison.Ordinal);
 
+    /// <summary>Writes the page's content. Generated from the page's template.</summary>
     /// <exclude />
     public abstract void Execute();
 
@@ -131,6 +132,10 @@ public abstract class RazorPage
         return TransformText(string.Empty);
     }
 
+    /// <summary>
+    /// Shares the request context, URL helper, generation time, statistics and clock readings of the page this one
+    /// is rendered in.
+    /// </summary>
     /// <exclude />
     public void Assign(RazorPage parentPage)
     {

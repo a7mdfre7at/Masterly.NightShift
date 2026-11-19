@@ -10,6 +10,11 @@ public class RetryInProcessAttributeFacts
     public RetryInProcessAttributeFacts()
     {
         _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(CancellationToken.None);
+        ResetCalls();
+    }
+
+    private static void ResetCalls()
+    {
         _calls = 0;
     }
 

@@ -106,7 +106,7 @@ public sealed class JobChainFirstStepFacts : IDisposable
         await creation;
 
         // As it was: enqueued, in its queue, not fetched, and with nothing more in its history
-        Assert.False(Runs.ContainsKey("first"));
+        Assert.DoesNotContain("first", Runs);
         Assert.Equal(1, _storage.GetMonitoringApi().EnqueuedCount("default"));
         Assert.Equal(0, _storage.GetMonitoringApi().FetchedCount("default"));
         Assert.Equal([EnqueuedState.StateName], _storage.GetMonitoringApi().JobDetails(chain!.RootId).History.Select(static x => x.StateName));

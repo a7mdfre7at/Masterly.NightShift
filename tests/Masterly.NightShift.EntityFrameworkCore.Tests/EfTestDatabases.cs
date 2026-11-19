@@ -6,7 +6,7 @@ namespace Masterly.NightShift.EntityFrameworkCore.Tests;
 /// <summary>A SQLite database in a file of its own, deleted when disposed.</summary>
 internal sealed class SqliteDatabase : IDisposable
 {
-    public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"nightshift-{Guid.NewGuid():N}.db");
+    public string Path { get; } = System.IO.Path.Join(System.IO.Path.GetTempPath(), $"nightshift-{Guid.NewGuid():N}.db");
 
     public string ConnectionString => $"Data Source={Path}";
 
