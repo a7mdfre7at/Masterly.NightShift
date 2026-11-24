@@ -2,6 +2,14 @@
 
 All notable changes to the Masterly.NightShift packages. Each version's section, without its heading, becomes the body of that version's GitHub Release, so it opens with a one-line summary.
 
+## [1.0.1] - 2026-11-24
+
+Fixes a deadlock between reading a job and writing its parameters in the SQL Server storage.
+
+### Fixed
+
+- `Masterly.NightShift.SqlServer`: reading a job (`IStorageConnection.GetJobData`, which workers and the state machine call for every job they handle) read the job's parameters at the isolation level its pooled session had been left at. Under repeatable read it kept a shared lock on each parameter it had read while it waited for the next, so a transaction writing the same job's parameters could be chosen as a deadlock victim. The parameters are now read under read committed, as the job's row already was.
+
 ## [1.0.0]
 
 Initial release of Masterly.NightShift: background jobs, recurring schedules and workflows for .NET 8 and later, kept in SQL Server, Entity Framework Core, Redis, MongoDB or memory, with a dashboard to run and watch them. It is built on Hangfire 1.8 and reads the data Hangfire wrote to SQL Server.

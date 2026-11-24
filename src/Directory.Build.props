@@ -46,7 +46,7 @@
          without Hangfire-derived files (the other storages and the meta-package) sets PackageLicenseExpression to MIT
          in its .csproj, and the LGPL and GPL texts are then left out. -->
     <PropertyGroup>
-        <Version>1.0.0</Version>
+        <Version>1.0.1</Version>
         <Authors>Ahmad Omar Al-Freihat</Authors>
         <Company>Masterly</Company>
         <Product>Masterly.NightShift</Product>
@@ -78,10 +78,11 @@
         <None Include="..\..\LICENSE-GPL-3.0.txt" Pack="true" PackagePath="\" Visible="false" />
     </ItemGroup>
 
-    <!-- Every `dotnet pack` checks that the public API agrees across target frameworks. There is no
-         baseline release yet. Set PackageValidationBaselineVersion once the first release is on nuget.org. -->
+    <!-- Every `dotnet pack` checks that the public API agrees across target frameworks and with the baseline
+         release on nuget.org, so a breaking change fails the pack. Record an intentional break in CHANGELOG.md. -->
     <PropertyGroup>
         <EnablePackageValidation>true</EnablePackageValidation>
+        <PackageValidationBaselineVersion>1.0.0</PackageValidationBaselineVersion>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
