@@ -489,7 +489,7 @@ $@"insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, 
             string query = storage.GetQueryFromTemplate(static schemaName =>
                 $"""
                 select InvocationData, StateName, Arguments, CreatedAt from [{schemaName}].Job with (readcommittedlock, forceseek) where Id = @id
-                select Name, Value from [{schemaName}].JobParameter with (forceseek) where JobId = @id
+                select Name, Value from [{schemaName}].JobParameter with (readcommittedlock, forceseek) where JobId = @id
                 """);
 
             using SqlMapper.GridReader multi = connection.QueryMultiple(query, new { id = parsedId }, commandTimeout: storage.CommandTimeout);

@@ -419,6 +419,51 @@ public class TransactionFailureFacts
         Assert.Null(thrown);
     }
 
+    // The same for a read of a job: under repeatable read it kept a shared lock on each parameter it had read while
+    // it waited for the next, which a transaction writing the job's parameters in their order could hold while it
+    // waited for one the read had passed (MixedWrites_ToTheSameJobs_NeverDeadlock, after a test left such a session)
+    [Fact, CleanDatabase]
+    public void GetJobData_KeepsNoSharedLockOnTheParametersItReads_WhenItsSessionWasLeftAtRepeatableRead()
+    {
+        SqlServerStorage storage = CreateStorageOnSessionsWith(CommitPath.OneRoundTrip, "set transaction isolation level repeatable read");
+        string jobId = CreateJob(storage, new Dictionary<string, string> { ["A"] = "read", ["B"] = "held" });
+
+        using DbConnection holder = ConnectionUtils.CreateConnection();
+        int holderSession = holder.ExecuteScalar<int>("select @@spid");
+        using DbTransaction held = holder.BeginTransaction();
+        holder.Execute($"update [{Constants.DefaultSchema}].JobParameter set Value = Value where JobId = @id and Name = N'B'", new { id = long.Parse(jobId) }, held);
+
+        JobData data = null;
+        Exception thrown = null;
+        Thread thread = new(() => thrown = Record.Exception(() =>
+        {
+            using IStorageConnection connection = storage.GetConnection();
+            data = connection.GetJobData(jobId);
+        }));
+        thread.Start();
+        LockWaits.WaitForSessionsThatWait(1);
+
+        using (DbConnection probe = ConnectionUtils.CreateConnection())
+        {
+            int shared = probe.ExecuteScalar<int>(
+                $"""
+                select count(*) from sys.dm_tran_locks
+                where resource_database_id = db_id() and resource_type = N'KEY' and request_status = N'GRANT'
+                  and request_mode in (N'S', N'RangeS-S', N'U')
+                  and resource_associated_entity_id = (select hobt_id from sys.partitions where object_id = object_id(N'[{Constants.DefaultSchema}].[JobParameter]') and index_id = 1)
+                  and request_session_id not in (@@spid, @holder)
+                """,
+                new { holder = holderSession });
+
+            held.Rollback();
+            Assert.True(thread.Join(Timeout));
+            Assert.Equal(0, shared);
+        }
+
+        Assert.Null(thrown);
+        Assert.Equal("held", data.ParametersSnapshot["B"]);
+    }
+
     // What servers and clients do to the same few jobs at once. Operations: A a state with a parameter (and a
     // counter), B a parameter outside a transaction, C parameters of several jobs without a state (a chain's
     // marks), D a parameter with the job's expiration, E reads
